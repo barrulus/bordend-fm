@@ -8,6 +8,7 @@
 
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/entry.hpp"
+#include "nordend/fs/mime.hpp"
 
 namespace nordend::fs {
 
@@ -16,6 +17,9 @@ struct ReadOptions {
     // up to the maximum to keep the number of hand-offs low.
     std::size_t first_chunk{128};
     std::size_t max_chunk{4096};
+    // When set, Entry::mime is filled from the kind and the name (no file is opened).
+    std::shared_ptr<const MimeDatabase>
+        mime{};  // NOLINT(readability-redundant-member-init): GCC's -Wmissing-field-initializers
 };
 
 struct ReadResult {

@@ -52,6 +52,23 @@ bool stat_entry(int dir_fd, Entry& entry) {
     return true;
 }
 
+MimeId mime_without_content(const MimeDatabase& db, const Entry& entry) {
+    switch (entry.kind) {
+        case EntryKind::directory:
+            return MimeDatabase::kDirectory;
+        case EntryKind::other:
+            return entry.is_link ? MimeDatabase::kSymlink : MimeDatabase::kSpecial;
+        case EntryKind::file:
+        case EntryKind::unknown:
+            break;
+    }
+    if (entry.size == 0) {
+        return MimeDatabase::kZeroSize;
+    }
+    const MimeDatabase::NameMatch match = db.by_name(entry.name);
+    return match.certain ? match.mime : kUnknownMime;
+}
+
 }  // namespace
 
 ReadResult read_directory(const std::filesystem::path& path, const core::CancelToken& token,
@@ -87,6 +104,9 @@ ReadResult read_directory(const std::filesystem::path& path, const core::CancelT
         Entry entry{.name = std::string{name}};
         if (!stat_entry(dir_fd, entry)) {
             continue;
+        }
+        if (options.mime) {
+            entry.mime = mime_without_content(*options.mime, entry);
         }
         chunk.push_back(std::move(entry));
         if (chunk.size() == chunk_size) {

@@ -5,7 +5,8 @@
 //
 // Per run: first the async path the views use (worker pool -> chunks -> sorted Listing on the
 // loop thread): time to the first chunk merged and to the complete list; then readdir alone,
-// readdir + stat (read_directory) and sorting by name. Run 1 is shown apart: after dropping the
+// readdir + stat (read_directory), sorting by name and MIME types from names (the async path
+// types entries by name too, as the views will). Run 1 is shown apart: after dropping the
 // caches its async columns are the cold numbers (the other columns are warm by then). The summary
 // is over the other runs.
 #include <algorithm>
@@ -29,6 +30,7 @@
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory.hpp"
+#include "nordend/fs/mime.hpp"
 #include "nordend/fs/sort.hpp"
 
 namespace {
@@ -45,9 +47,11 @@ struct Sample {
     double readdir_ms{0};
     double read_ms{0};
     double sort_ms{0};
+    double mime_ms{0};
     double first_chunk_ms{0};
     double complete_ms{0};
     std::size_t entries{0};
+    std::size_t typed{0};  // entries whose type the name alone decides
 };
 
 // Camera-folder names: P1234567.ORF with a darktable sidecar for one file in three, some JPEGs,
@@ -93,7 +97,8 @@ double readdir_only(const std::filesystem::path& dir) {
     return ms_since(start);
 }
 
-Sample run_once(const std::filesystem::path& dir) {
+Sample run_once(const std::filesystem::path& dir,
+                const std::shared_ptr<const fs::MimeDatabase>& mime) {
     Sample sample;
 
     // The path the views use goes first, so run 1 measures it on a cold cache.
@@ -113,7 +118,8 @@ Sample run_once(const std::filesystem::path& dir) {
             [&](const fs::ReadResult& /*result*/) {
                 sample.complete_ms = ms_since(start);
                 loop.quit(0);
-            });
+            },
+            {.mime = mime});
         loop.run();
     }
 
@@ -134,18 +140,19 @@ Sample run_once(const std::filesystem::path& dir) {
     start = Clock::now();
     std::ranges::sort(entries, fs::SortOrder{});
     sample.sort_ms = ms_since(start);
+
+    // Types from names, as the loader does with a database (no file opened).
+    start = Clock::now();
+    for (const fs::Entry& entry : entries) {
+        sample.typed += mime->by_name(entry.name).certain ? 1U : 0U;
+    }
+    sample.mime_ms = ms_since(start);
     return sample;
 }
 
 void print_row(std::string_view label, const Sample& s) {
-    std::printf("%-10s %9.2f %9.2f %9.2f %11.2f %10.2f\n", std::string{label}.c_str(), s.readdir_ms,
-                s.read_ms, s.sort_ms, s.first_chunk_ms, s.complete_ms);
-}
-
-Sample pick(std::vector<Sample> samples, double (*key)(const Sample&), double quantile) {
-    std::ranges::sort(samples, {}, key);
-    const auto index = static_cast<std::size_t>(quantile * static_cast<double>(samples.size() - 1));
-    return samples[index];
+    std::printf("%-10s %9.2f %9.2f %9.2f %9.2f %11.2f %10.2f\n", std::string{label}.c_str(),
+                s.readdir_ms, s.read_ms, s.sort_ms, s.mime_ms, s.first_chunk_ms, s.complete_ms);
 }
 
 }  // namespace
@@ -176,38 +183,42 @@ int main(int argc, char** argv) {
             return 2;
         }
 
+        const Clock::time_point load_start = Clock::now();
+        const auto mime = fs::MimeDatabase::load();
+        const double mime_load_ms = ms_since(load_start);
+
         std::vector<Sample> samples;
         samples.reserve(static_cast<std::size_t>(runs));
         for (int i = 0; i < runs; ++i) {
-            samples.push_back(run_once(dir));
+            samples.push_back(run_once(dir, mime));
         }
         std::printf("%s: %zu entries, %d runs, %u worker threads\n\n", dir.c_str(),
                     samples.front().entries, runs,
                     std::max(2U, std::thread::hardware_concurrency() / 2));
-        std::printf("%-10s %9s %9s %9s %11s %10s\n", "ms", "readdir", "+stat", "sort", "1st chunk",
-                    "complete");
+        std::printf("MIME database loaded in %.2f ms; %zu of %zu entries typed by name alone\n\n",
+                    mime_load_ms, samples.front().typed, samples.front().entries);
+        std::printf("%-10s %9s %9s %9s %9s %11s %10s\n", "ms", "readdir", "+stat", "sort", "mime",
+                    "1st chunk", "complete");
         print_row("run 1", samples.front());
         const std::vector<Sample> rest(samples.begin() + 1, samples.end());
         // Each column summarised on its own.
         const auto summary = [&](double quantile) {
-            return Sample{
-                .readdir_ms = pick(
-                                  rest, [](const Sample& s) { return s.readdir_ms; }, quantile)
-                                  .readdir_ms,
-                .read_ms = pick(
-                               rest, [](const Sample& s) { return s.read_ms; }, quantile)
-                               .read_ms,
-                .sort_ms = pick(
-                               rest, [](const Sample& s) { return s.sort_ms; }, quantile)
-                               .sort_ms,
-                .first_chunk_ms =
-                    pick(
-                        rest, [](const Sample& s) { return s.first_chunk_ms; }, quantile)
-                        .first_chunk_ms,
-                .complete_ms = pick(
-                                   rest, [](const Sample& s) { return s.complete_ms; }, quantile)
-                                   .complete_ms,
+            const auto column = [&](double Sample::* field) {
+                std::vector<double> values;
+                values.reserve(rest.size());
+                for (const Sample& s : rest) {
+                    values.push_back(s.*field);
+                }
+                std::ranges::sort(values);
+                return values[static_cast<std::size_t>(quantile *
+                                                       static_cast<double>(values.size() - 1))];
             };
+            return Sample{.readdir_ms = column(&Sample::readdir_ms),
+                          .read_ms = column(&Sample::read_ms),
+                          .sort_ms = column(&Sample::sort_ms),
+                          .mime_ms = column(&Sample::mime_ms),
+                          .first_chunk_ms = column(&Sample::first_chunk_ms),
+                          .complete_ms = column(&Sample::complete_ms)};
         };
         print_row("min", summary(0.0));
         print_row("median", summary(0.5));

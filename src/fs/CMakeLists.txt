@@ -1,5 +1,6 @@
 add_library(nordend_fs
     src/directory.cpp
+    src/mime.cpp
     src/sort.cpp)
 add_library(nordend::fs ALIAS nordend_fs)
 

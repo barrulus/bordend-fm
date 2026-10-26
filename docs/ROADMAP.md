@@ -61,7 +61,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **3.1 Loader asincrono**
   Lettura cartelle nei worker, risultati a blocchi, ordinamento.
   Fatto quando: benchmark su 10k file registrato in `devlog.md`.
-- [ ] **3.2 Tipi MIME**
+- [x] **3.2 Tipi MIME**
   Glob + magic di `shared-mime-info`.
 - [ ] **3.3 Watcher inotify**
   Creazione, rimozione e rinomina riflesse nella vista.

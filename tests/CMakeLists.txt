@@ -4,6 +4,7 @@ add_executable(nordend-tests
     directory_test.cpp
     event_loop_test.cpp
     file_watcher_test.cpp
+    mime_test.cpp
     palette_test.cpp
     sort_test.cpp
     worker_pool_test.cpp)

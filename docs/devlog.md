@@ -4,6 +4,58 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — MIME types (ROADMAP 3.2)
+
+**Done**
+- `fs::MimeDatabase`: our own reader of shared-mime-info's `globs2`, `magic` (binary format:
+  indents, masks, word sizes, ranges), `aliases` and `subclasses`, from `$XDG_DATA_HOME/mime`
+  and each `$XDG_DATA_DIRS/mime` (`__NOGLOBS__` / `__NOMAGIC__` honoured). No `mime.cache`, no
+  library. Types are interned ids (`MimeId`); the database is immutable and shared by workers.
+- Detection follows GLib's `g_content_type_guess` + xdgmime, rule for rule, so Nordend agrees
+  with GTK apps and `gio`. Each rule below fixed a real disagreement found by comparing:
+  - name first: a literal name wins; otherwise the longest matching suffix; full fnmatch patterns
+    only without a suffix match; case-sensitive globs beat case-insensitive ones (`main.c` vs
+    `*.C`); ties by weight, then pattern length, then file order (`*.json` -> application/json);
+  - several types from the name, at any weight, mean the content decides (`*.py` with a
+    `python3` shebang);
+  - a magic match of priority >= 80 wins; a weaker one only breaks ties between name types,
+    preferring the name type that is a subtype of it (`libEGL.so.1`: shared library, not
+    executable);
+  - text: no control byte but tab/LF/CR in the first 128 bytes, else GLib's looks_like_text;
+  - empty regular files are `application/x-zerosize` whatever their name;
+  - security: content that looks like a `.desktop` launcher in a file not named `*.desktop` is
+    `text/plain`.
+- The loader fills `Entry::mime` from kind and name only (no file opened); entries the name does
+  not decide stay unknown and `detect()` reads their head (up to the magic extent, 18.7 KB here,
+  capped at 64 KB) when a view needs them.
+- `nordend-mime PATH...` (not installed) prints the detected types; `nordend-bench-dir` gained a
+  "mime" column (types from names) and types entries in the async path.
+- Suffix lookup made allocation-free (transparent hash) and limited to positions whose byte can
+  start a suffix pattern: 5.9 -> 1.7 ms for 10k names.
+- 8 new test cases (53 in total) on a synthetic two-directory database: globs, case, weights,
+  `__NOGLOBS__`, aliases, subclasses, magic (children, mask, word size, range), detection order,
+  loader types. Release, ASan, TSan pass; tidy clean.
+
+**Measured**
+- Agreement with `gio info -a standard::content-type`: **0 differences on about 4 750 files**
+  (`/usr/bin`, `/usr/lib`, `/usr/lib/python3.14`, `/etc`, `/usr/include`, xkb symbols, fonts, a
+  photo folder, and a sample of 387 files with 261 different extensions from `DATA`).
+- Database load: 1.0 ms (1 231 globs, 507 magic sections).
+- Types from names: 1.7 ms for 10k entries (warm, median of 20); 66 % of the generated folder is
+  decided by name (the `.ORF.xmp` sidecars have no glob in shared-mime-info).
+- By content, warm: 163 `.xmp` sidecars 7 ms; `/usr/bin` (1 475 files, nearly all without
+  extension) 52 ms. This is why content detection is left to the views, for visible entries, on
+  workers.
+
+**Tested by the author**
+- Tests green; `DATA/fotografia/liguria` (123 entries: ORF, ORF.xmp sidecars, a subfolder)
+  compared file by file with `gio`: no difference. Step 3.2 closed.
+
+**Open**
+- DESIGN updated with the author's OK: own parser of globs2 and magic, GLib's detection order.
+
+---
+
 ## 2026-10-26 — Async directory loader (ROADMAP 3.1)
 
 **Done**

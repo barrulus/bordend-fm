@@ -43,7 +43,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | RAW + EXIF | exiv2 | estrae il JPEG incorporato negli ORF; più avanti scrive gli XMP |
 | Ricerca fuzzy | fzy | come Noctalia |
 | Icone UI | Tabler | come Noctalia |
-| Tipi MIME | database `shared-mime-info` (glob + magic) | parser *da valutare* |
+| Tipi MIME | database `shared-mime-info` (glob + magic) | parser nostro di globs2 e magic, ordine di riconoscimento di GLib (deciso 2026-10-26) |
 | D-Bus (post-MVP) | sdbus-c++ | udisks2, portal |
 | Scripting (post-MVP) | Luau | sandbox; *da verificare* come Noctalia espone le sue API |
 

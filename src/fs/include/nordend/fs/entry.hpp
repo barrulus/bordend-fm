@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+#include "nordend/fs/mime.hpp"
+
 namespace nordend::fs {
 
 enum class EntryKind : std::uint8_t { file, directory, other, unknown };
@@ -15,6 +17,9 @@ struct Entry {
     bool is_link{false};
     std::uint64_t size{0};        // bytes; for a link, its target's
     std::int64_t modified_ns{0};  // mtime, nanoseconds since the epoch
+    // Set by the loader when the kind or the name alone decides it (no file read); otherwise
+    // kUnknownMime, and MimeDatabase::detect() looks at the content when the type is needed.
+    MimeId mime{kUnknownMime};
 
     [[nodiscard]] bool hidden() const noexcept { return !name.empty() && name.front() == '.'; }
 

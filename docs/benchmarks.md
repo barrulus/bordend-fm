@@ -84,6 +84,25 @@ Median of 20 runs.
 - Sorting 10k names is about 3.5 ms; merging chunks as they arrive costs little on top
   (complete ≈ +stat + 1.5 ms).
 
+## MIME detection (ROADMAP 3.2)
+
+**Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and
+`nordend-mime PATH...` (full detection, content included, timings on stderr).
+
+### 2026-10-26: warm cache
+
+| What | Entries | Time |
+|------|--------:|-----:|
+| Load the shared-mime-info database (1 231 globs, 507 magic sections) | | 1.0 ms |
+| Types from names, generated 10k folder (median of 20) | 10 000 | 1.7 ms |
+| Types from content, `.xmp` sidecars of a photo folder | 163 | 7 ms |
+| Types from content, `/usr/bin` (mostly no extension) | 1 475 | 52 ms |
+
+Names decide most files for free; reading heads costs about 35-45 µs per file even warm, so the
+views will ask for content-based types only for visible entries, on workers.
+
+Correctness, against `gio info -a standard::content-type`: 0 differences on about 4 750 files.
+
 ---
 
 *Benchmarks designed, run and written up by Claude (Opus), Nordend's copilot; hardware runs and
