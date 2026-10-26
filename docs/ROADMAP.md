@@ -24,7 +24,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 1 — Finestra e rendering
 
-- [~] **1.1 Finestra Wayland** — *testata dall'autore su Umbriel; manca solo il run con ASan*
+- [x] **1.1 Finestra Wayland**
   Connessione, registry, `xdg-shell`, decorazioni server-side, chiusura pulita.
   Fatto quando: si apre una finestra decorata da Umbriel, si ridimensiona e si chiude senza leak (ASan pulito).
 - [ ] **1.2 EGL + GLES**

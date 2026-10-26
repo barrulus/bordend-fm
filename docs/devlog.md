@@ -30,8 +30,19 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 - No title bar by default: Umbriel is a scrolling tiler; `Mod+W` (`column-toggle-tabbed` in the
   author's Umbriel config) shows the tab with the "Nordend" title. Expected, not a bug.
 
-**Open**
-- ASan/UBSan run blocked on `libsanitizer-devel`.
+- ASan/UBSan build (after installing `libsanitizer-devel`): maximize, fullscreen, interactive
+  resize as a floating window with a forced title bar, close button: no sanitizer report, exit 0.
+  Step 1.1 closed.
+- Umbriel config (in void-noctalia): window rule `match.app_id = "^nordend$"`, `title_bar = "forced"`
+  for testing; works.
+
+**Measured: resize lag**
+- The author saw lag while interactively resizing (Firefox does not lag). Cost of one
+  `ShmBuffer` at 2560x1440 (memfd + ftruncate + mmap + fill + munmap, 50 runs, scratch benchmark):
+  **14.1 ms Release, 41.5 ms ASan -O0**. A new buffer is made for every configure during a resize,
+  with no frame pacing, so in the ASan build that is ~24 fps at best.
+- Not fixing the shm path, which is temporary: ROADMAP 1.2 replaces it with EGL
+  (`wl_egl_window_resize` + GPU clear) and frame callbacks. Re-measure resize there.
 
 ---
 
