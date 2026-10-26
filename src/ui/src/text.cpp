@@ -8,8 +8,10 @@
 #include <cstddef>
 #include <format>
 #include <hb.h>
+#include <optional>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <unordered_map>
 #include <utility>
 
@@ -400,6 +402,60 @@ const TextLayout& FontSystem::layout(std::string_view utf8, float size, float sc
         layout = impl_->truncate(utf8, layout, max_px, ellipsis);
     }
     return cache.emplace(std::move(key), std::move(layout)).first->second;
+}
+
+std::optional<std::uint32_t> FontSystem::add_font_file(const std::string& path) {
+    auto& fonts = impl_->fonts;
+    // An empty charset keeps the font out of text fallback.
+    fonts.push_back({.path = path, .index = 0, .charset = FcCharSetCreate()});
+    const std::size_t id = fonts.size() - 1;
+    if (!impl_->load(id)) {
+        FcCharSetDestroy(fonts.back().charset);
+        fonts.pop_back();
+        return std::nullopt;
+    }
+    return static_cast<std::uint32_t>(id);
+}
+
+std::uint32_t FontSystem::glyph_by_name(std::uint32_t font, std::string_view name) {
+    if (!impl_->load(font)) {
+        return 0;
+    }
+    std::string zero_terminated{name};
+    return FT_Get_Name_Index(impl_->fonts.at(font).face, zero_terminated.data());
+}
+
+TextLayout FontSystem::glyph_layout(std::uint32_t font, std::uint32_t glyph, float size,
+                                    float scale) {
+    TextLayout layout;
+    const float pixel_size = size * scale;
+    layout.pixel_size = pixel_size;
+    layout.width = pixel_size;
+    if (glyph == 0 || !impl_->load(font)) {
+        return layout;
+    }
+    FT_Face face = impl_->fonts.at(font).face;
+    if (FT_Load_Glyph(face, glyph, FT_LOAD_NO_SCALE) != 0 || face->units_per_EM == 0) {
+        return layout;
+    }
+    // Center the glyph's bounding box in the box: its center goes to (size / 2, size / 2).
+    const FT_Glyph_Metrics& metrics = face->glyph->metrics;
+    const float units = pixel_size / static_cast<float>(face->units_per_EM);
+    const float center_x =
+        (static_cast<float>(metrics.horiBearingX) + (static_cast<float>(metrics.width) / 2.0F)) *
+        units;
+    const float center_y =  // above the baseline
+        (static_cast<float>(metrics.horiBearingY) - (static_cast<float>(metrics.height) / 2.0F)) *
+        units;
+    layout.ascent = (pixel_size / 2.0F) + center_y;
+    layout.descent = pixel_size - layout.ascent;
+    layout.glyphs.push_back({.font = font,
+                             .glyph = glyph,
+                             .cluster = 0,
+                             .x = (pixel_size / 2.0F) - center_x,
+                             .y = 0.0F,
+                             .advance = pixel_size});
+    return layout;
 }
 
 GlyphBitmap FontSystem::rasterize(std::uint32_t font_id, std::uint32_t glyph, float pixel_size) {

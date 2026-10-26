@@ -65,7 +65,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Glob + magic di `shared-mime-info`.
 - [x] **3.3 Watcher inotify**
   Creazione, rimozione e rinomina riflesse nella vista.
-- [ ] **3.4 Icone per tipo di file**
+- [x] **3.4 Icone per tipo di file**
 
 ## Fase 4 — Viste
 

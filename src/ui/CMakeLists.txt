@@ -50,6 +50,7 @@ add_library(nordend_ui
     src/egl_context.cpp
     src/renderer.cpp
     src/seat.cpp
+    src/icons.cpp
     src/text.cpp
     src/window.cpp
     src/wl_ptr.cpp)

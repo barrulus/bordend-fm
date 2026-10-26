@@ -4,6 +4,52 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — File-type icons (ROADMAP 3.4)
+
+**Done**
+- Icons are Tabler line icons, as in Noctalia (DESIGN: "Icone UI: Tabler"), drawn from an icon
+  font and tinted by the palette. The font is found in the XDG data dirs: Nordend's own copy
+  (`nordend/fonts/tabler-icons.ttf`, none yet) first, then Noctalia's
+  (`noctalia/assets/fonts/noctalia-tabler.ttf`, the full set: 5 958 icons). Nothing is copied
+  into the repository. Without a font Nordend runs without icons and says so in the log.
+- Icons are looked up by glyph name in the font (`FT_Get_Name_Index`: the font keeps Tabler's
+  names), so no codepoint table and no JSON parser.
+- `FontSystem::add_font_file` (outside the fontconfig fallback chain: text never picks it),
+  `glyph_by_name`, `glyph_layout` (one glyph with its bounding box centered in a size x size box:
+  Tabler glyphs sit off-center in their em square). `ui::IconSet` finds the font, caches glyphs,
+  draws by name; an unknown name draws "file".
+- `fs::icon_name(db, entry)`, in order: kind (folder, folder-symlink, link-off for a dangling
+  link, plug for devices/sockets/fifos); darktable `.xmp` sidecars (adjustments-horizontal:
+  shared-mime-info has no type for them); types worth their own icon, matched with `is_a` so
+  subtypes count (image/x-dcraw -> aperture for every camera RAW format, PDF, SVG, Markdown,
+  SQLite, desktop files, source code and config formats -> file-code); then the freedesktop
+  generic icon (`MimeDatabase::generic_icon`: the generic-icons file, else
+  `<media>-x-generic`) mapped to Tabler (archives, office documents, spreadsheets,
+  presentations, executables, fonts, disc images, images, video, audio, text). An empty file
+  gets the icon of its name's type (its MIME type stays x-zerosize, as in GLib).
+- `nordend --icons DIR`: the window shows DIR's entries in a grid, icon and name, live (the 3.3
+  model), with entries the name does not type sniffed on a worker and redrawn. Not a view: no
+  scrolling or selection (phase 4). `nordend-snapshot --icons DIR` draws the same offscreen.
+- Fixed in `nordend-snapshot`: with a colors file (6th argument) the width, height and scale
+  were ignored.
+- 3 new test cases (63 in total): kinds, 21 file types on the system database, every icon name
+  in use exists in the font (skipped without the font). Release, ASan, TSan pass; tidy clean.
+- Checked offscreen at scale 1 and 1.5, default and Nord palettes: a sample folder with 28
+  types, and `DATA/fotografia/liguria` (ORF, ORF.xmp, a subfolder).
+
+**Tested by the author**
+- `nordend --icons` on the photo folder and on the repository, live changes and a theme switch:
+  "everything perfect, consistent and beautiful". Step 3.4 closed; phase 3 complete.
+
+**Open**
+- Proposal for ROADMAP 7.0 (other desktops, no Noctalia): ship a subset of Tabler (MIT) with
+  Nordend, only the icons in use, in `nordend/fonts/tabler-icons.ttf`, listed in
+  `THIRD_PARTY.md`. Needs the author's OK (copying third-party material).
+- Special folders (home, Downloads, Pictures from xdg-user-dirs) could get their own icons in the
+  views.
+
+---
+
 ## 2026-10-26 — inotify watcher and directory model (ROADMAP 3.3)
 
 **Done**

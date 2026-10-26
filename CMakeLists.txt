@@ -65,9 +65,11 @@ add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
-add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
+# Plus the file-type icon grid (ROADMAP 3.4).
+add_library(nordend_test_scene STATIC src/app/test_scene.cpp src/app/icon_demo.cpp)
 target_include_directories(nordend_test_scene PUBLIC src/app)
-target_link_libraries(nordend_test_scene PUBLIC nordend::ui nordend::theme PRIVATE nordend::warnings)
+target_link_libraries(nordend_test_scene
+    PUBLIC nordend::ui nordend::theme nordend::fs PRIVATE nordend::warnings)
 
 add_executable(nordend src/app/main.cpp)
 target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")

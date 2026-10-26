@@ -3,7 +3,7 @@
 **A native, Wayland-only file manager for the [Noctalia](https://github.com/noctalia-dev) ecosystem.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%202-complete-3DA639)
+![phase](https://img.shields.io/badge/phase%203-complete-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -24,8 +24,10 @@
 
 ## Progress
 
-**Phase 1 — window and rendering: complete.** There is no file manager yet: the window shows a
-test scene of everything the renderer can draw.
+There is no file manager window yet: by default the window shows a test scene of everything the
+renderer can draw, and `nordend --icons DIR` shows a folder's entries with their icons.
+
+**Phase 1 — window and rendering: complete.**
 
 - Wayland window (xdg-shell) with server-side decorations
 - EGL + OpenGL ES 3.0 rendering, paced by frame callbacks: idle CPU at zero, smooth resizing
@@ -43,8 +45,17 @@ test scene of everything the renderer can draw.
 - `~/.config/nordend/config.toml` with readable errors; `nordend --check-config`
 - Live Noctalia theme: a Noctalia template writes `colors.toml`, Nordend reloads it on change
 
-**Now — phase 3, file system:** asynchronous directory loading (chunks, natural sort), MIME
-types identical to GLib's, and live updates through inotify are in; file icons are next. The full plan is in the
+**Phase 3 — file system: complete.**
+
+- Asynchronous directory loading in chunks with natural sort (10k files: first entries in
+  0.8 ms, see [benchmarks](docs/benchmarks.md))
+- MIME types from shared-mime-info, identical to GLib's on about 4 750 files compared
+- Live updates through one shared inotify instance, renames recognised, bursts batched
+- File-type icons from Noctalia's Tabler set, tinted by the theme; camera RAW files and
+  darktable sidecars have their own
+
+**Next — phase 4:** the views: a virtualized scrolling list, Finder-style columns, selection, a
+thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md). The full plan is in the
 [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
@@ -90,6 +101,10 @@ ctest --test-dir build
 
 # Render the test scene offscreen, no window: <out.ppm> [width height scale [colors.toml]]
 ./build/nordend-snapshot scene.ppm 960 820 1.5
+
+# A folder with its file-type icons (needs Noctalia's Tabler icon font), live or offscreen
+./build/nordend --icons ~/Pictures
+./build/nordend-snapshot --icons ~/Pictures icons.ppm
 
 # Directory loading benchmark (see docs/benchmarks.md)
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k

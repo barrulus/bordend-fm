@@ -9,20 +9,29 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES3/gl3.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "icon_demo.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/core/worker_pool.hpp"
+#include "nordend/fs/directory.hpp"
+#include "nordend/fs/mime.hpp"
+#include "nordend/fs/sort.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/color.hpp"
+#include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
 #include "test_scene.hpp"
@@ -121,23 +130,52 @@ void write_ppm(const std::string& path, std::int32_t width, std::int32_t height,
 }  // namespace
 
 int main(int argc, char** argv) {
-    const std::span args{argv, static_cast<std::size_t>(argc)};
+    std::span args{argv, static_cast<std::size_t>(argc)};
+    // --icons DIR: the file-type icon grid of DIR instead of the test scene.
+    std::filesystem::path icons_dir;
+    if (args.size() >= 3 && std::string_view{args[1]} == "--icons") {
+        icons_dir = args[2];
+        args = args.subspan(2);
+    }
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
-            "usage: nordend-snapshot <out.ppm> [logical-width logical-height scale [colors.toml]]");
+            "usage: nordend-snapshot [--icons DIR] <out.ppm> "
+            "[logical-width logical-height scale [colors.toml]]");
         return 2;
     }
     try {
         const std::string out{args[1]};
-        const float width = args.size() == 5 ? std::stof(args[2]) : 960.0F;
-        const float height = args.size() == 5 ? std::stof(args[3]) : 640.0F;
-        const float scale = args.size() == 5 ? std::stof(args[4]) : 1.0F;
+        const bool sized = args.size() >= 5;
+        const float width = sized ? std::stof(args[2]) : 960.0F;
+        const float height = sized ? std::stof(args[3]) : 640.0F;
+        const float scale = sized ? std::stof(args[4]) : 1.0F;
         // The default palette unless a colors.toml is given: snapshots stay reproducible.
         const nordend::theme::PaletteResult palette = args.size() == 6
                                                           ? nordend::theme::load_palette(args[5])
                                                           : nordend::theme::PaletteResult{};
         for (const std::string& problem : palette.problems) {
             log::warn("{}", problem);
+        }
+        const auto mime = nordend::fs::MimeDatabase::load();
+        std::vector<nordend::fs::Entry> entries;
+        if (!icons_dir.empty()) {
+            const auto result =
+                nordend::fs::read_directory(icons_dir, nordend::core::CancelToken{}, {.mime = mime},
+                                            [&](std::vector<nordend::fs::Entry> chunk) {
+                                                for (nordend::fs::Entry& entry : chunk) {
+                                                    entries.push_back(std::move(entry));
+                                                }
+                                            });
+            if (result.error) {
+                log::error("{}: {}", icons_dir.string(), result.error.message());
+                return 1;
+            }
+            for (nordend::fs::Entry& entry : entries) {
+                if (entry.mime == nordend::fs::kUnknownMime) {
+                    entry.mime = mime->detect(icons_dir, entry);
+                }
+            }
+            std::ranges::sort(entries, nordend::fs::SortOrder{});
         }
         const auto buffer_width = static_cast<std::int32_t>(std::lround(width * scale));
         const auto buffer_height = static_cast<std::int32_t>(std::lround(height * scale));
@@ -149,8 +187,15 @@ int main(int argc, char** argv) {
         {
             ui::FontSystem fonts;
             ui::Renderer renderer{fonts};
+            ui::IconSet icons{fonts};
             renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
-            nordend::app::draw_test_scene(renderer, {0.0F, 0.0F, width, height}, palette.palette);
+            const ui::Rect bounds{0.0F, 0.0F, width, height};
+            if (icons_dir.empty()) {
+                nordend::app::draw_test_scene(renderer, bounds, palette.palette);
+            } else {
+                nordend::app::draw_icon_grid(renderer, bounds, palette.palette, icons, *mime,
+                                             icons_dir.string(), entries);
+            }
             renderer.end_frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,
                          pixels.data());

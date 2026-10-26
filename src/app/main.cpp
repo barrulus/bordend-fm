@@ -6,6 +6,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <memory>
 #include <poll.h>
 #include <stdexcept>
 #include <string>
@@ -14,12 +15,17 @@
 #include <unistd.h>
 #include <utility>
 
+#include "icon_demo.hpp"
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/core/worker_pool.hpp"
+#include "nordend/fs/directory_watcher.hpp"
+#include "nordend/fs/mime.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
+#include "nordend/ui/icons.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
@@ -28,6 +34,7 @@
 namespace {
 
 namespace core = nordend::core;
+namespace fs = nordend::fs;
 namespace log = nordend::log;
 namespace theme = nordend::theme;
 namespace ui = nordend::ui;
@@ -111,8 +118,9 @@ const char* button_name(ui::PointerButton button) {
 }
 
 constexpr const char* kUsage =
-    "usage: nordend [--config FILE] [--check-config] [--version]\n"
+    "usage: nordend [--config FILE] [--check-config] [--icons DIR] [--version]\n"
     "  --config FILE   read FILE instead of ~/.config/nordend/config.toml\n"
+    "  --icons DIR     show DIR's entries with their file-type icons (instead of the test scene)\n"
     "  --check-config  report problems in the config file and exit (status 1 if any)\n"
     "  --version       print the version and exit\n";
 
@@ -133,6 +141,7 @@ int check_config(const std::filesystem::path& path, const core::ConfigResult& re
 
 int main(int argc, char** argv) {
     std::filesystem::path config_path;
+    std::filesystem::path icons_dir;
     bool check_only = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
@@ -142,6 +151,12 @@ int main(int argc, char** argv) {
         }
         if (arg == "--check-config") {
             check_only = true;
+        } else if (arg == "--icons") {
+            if (i + 1 == argc) {
+                std::fprintf(stderr, "nordend: --icons needs a directory\n%s", kUsage);
+                return 2;
+            }
+            icons_dir = argv[++i];
         } else if (arg == "--config") {
             if (i + 1 == argc) {
                 std::fprintf(stderr, "nordend: --config needs a file\n%s", kUsage);
@@ -255,8 +270,23 @@ int main(int argc, char** argv) {
             window.request_redraw();
         });
 
+        // File-type icons on a live directory (ROADMAP 3.4), when asked for.
+        core::WorkerPool pool{loop};
+        fs::DirectoryWatcher watcher{loop};
+        ui::IconSet icons{fonts};
+        std::unique_ptr<nordend::app::IconDemo> icon_demo;
+        if (!icons_dir.empty()) {
+            icon_demo = std::make_unique<nordend::app::IconDemo>(
+                loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); });
+            icon_demo->open(icons_dir);
+        }
+
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             const theme::Palette& palette = theme.palette();
+            if (icon_demo) {
+                icon_demo->draw(renderer, bounds, palette, icons);
+                return;
+            }
             nordend::app::draw_test_scene(renderer, bounds, palette);
             renderer.draw_box(target,
                               {.fill = hovered ? palette.primary : palette.surface_container_high,

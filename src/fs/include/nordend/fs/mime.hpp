@@ -73,6 +73,10 @@ public:
     // everything but inode/* -> application/octet-stream).
     [[nodiscard]] bool is_a(MimeId mime, MimeId parent) const;
 
+    // The type's generic icon name (shared-mime-info generic-icons, else "<media>-x-generic"),
+    // e.g. "package-x-generic" for archives, "image-x-generic" for images.
+    [[nodiscard]] std::string generic_icon(MimeId mime) const;
+
     [[nodiscard]] std::size_t glob_count() const noexcept;
     [[nodiscard]] std::size_t magic_count() const noexcept;
 

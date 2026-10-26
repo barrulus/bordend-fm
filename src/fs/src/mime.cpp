@@ -196,6 +196,7 @@ struct MimeDatabase::Impl {
     std::unordered_map<std::string, MimeId> ids;
     std::unordered_map<std::string, std::string> aliases;  // alias -> canonical
     std::unordered_map<MimeId, std::vector<MimeId>> parents;
+    std::unordered_map<MimeId, std::string> generic_icons;
 
     std::vector<Glob> globs;
     GlobIndex literal;              // pattern -> globs index
@@ -238,6 +239,16 @@ struct MimeDatabase::Impl {
             const std::size_t space = line.find(' ');
             if (space != std::string_view::npos && !line.starts_with('#')) {
                 parents[intern(line.substr(0, space))].push_back(intern(line.substr(space + 1)));
+            }
+        }
+    }
+
+    void read_generic_icons(const std::filesystem::path& file) {
+        const core::TextFile text = core::read_text_file(file);
+        for (const std::string_view line : split(text.text, '\n')) {
+            const std::size_t colon = line.find(':');
+            if (colon != std::string_view::npos && !line.starts_with('#')) {
+                generic_icons[intern(line.substr(0, colon))] = line.substr(colon + 1);
             }
         }
     }
@@ -524,6 +535,7 @@ std::shared_ptr<const MimeDatabase> MimeDatabase::load(
     for (std::size_t i = mime_dirs.size(); i-- > 0;) {
         const std::size_t dir = mime_dirs.size() - 1 - i;
         impl.read_subclasses(mime_dirs[i] / "subclasses");
+        impl.read_generic_icons(mime_dirs[i] / "generic-icons");
         impl.read_globs2(mime_dirs[i] / "globs2", dir);
         impl.read_magic(mime_dirs[i] / "magic", dir);
     }
@@ -659,6 +671,16 @@ bool MimeDatabase::is_a(MimeId mime, MimeId parent, int depth) const {
         }
     }
     return false;
+}
+
+std::string MimeDatabase::generic_icon(MimeId mime) const {
+    if (const auto it = impl_->generic_icons.find(mime); it != impl_->generic_icons.end()) {
+        return it->second;
+    }
+    const std::string_view type = name(mime);
+    const std::size_t slash = type.find('/');
+    return slash == std::string_view::npos ? std::string{}
+                                           : std::string{type.substr(0, slash)} + "-x-generic";
 }
 
 std::size_t MimeDatabase::glob_count() const noexcept { return impl_->globs.size(); }

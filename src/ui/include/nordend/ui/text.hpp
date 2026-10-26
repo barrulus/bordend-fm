@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -68,6 +69,18 @@ public:
     // reference stays valid until the next layout() call.
     const TextLayout& layout(std::string_view utf8, float size, float scale, float max_width = 0.0F,
                              Ellipsis ellipsis = Ellipsis::end);
+
+    // Loads a font file outside the fontconfig fallback chain (an icon font): text never falls
+    // back to it. Returns its font id, or nullopt when the file cannot be loaded.
+    std::optional<std::uint32_t> add_font_file(const std::string& path);
+
+    // Index of a named glyph (TrueType post table names, e.g. Tabler's "folder"); 0 if absent.
+    [[nodiscard]] std::uint32_t glyph_by_name(std::uint32_t font, std::string_view name);
+
+    // One glyph centered in a size x size box (logical pixels), for draw_layout at the box's
+    // top-left: icons.
+    [[nodiscard]] TextLayout glyph_layout(std::uint32_t font, std::uint32_t glyph, float size,
+                                          float scale);
 
     // Renders one glyph at pixel_size (physical pixels).
     [[nodiscard]] GlyphBitmap rasterize(std::uint32_t font, std::uint32_t glyph, float pixel_size);
