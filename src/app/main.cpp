@@ -2,15 +2,19 @@
 #include <csignal>
 #include <cstdio>
 #include <exception>
+#include <format>
 #include <poll.h>
 #include <stdexcept>
+#include <string>
 #include <string_view>
 #include <sys/signalfd.h>
 #include <unistd.h>
+#include <utility>
 
 #include "nordend/core/log.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
+#include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
 #include "test_scene.hpp"
@@ -57,13 +61,37 @@ private:
     int fd_;
 };
 
-// Temporary loop for ROADMAP 1.1: Wayland events + signals. ROADMAP 2.3 replaces it with the
+// "Ctrl+Shift+a  text 'A'  (repeat)": what the test scene shows for the last key.
+std::string describe(const ui::KeyEvent& event) {
+    std::string out;
+    const ui::Modifiers& mods = event.modifiers;
+    for (const auto& [active, name] :
+         {std::pair{mods.ctrl, "Ctrl+"}, std::pair{mods.alt, "Alt+"},
+          std::pair{mods.shift, "Shift+"}, std::pair{mods.super, "Super+"}}) {
+        if (active) {
+            out += name;
+        }
+    }
+    std::array<char, 64> name{};
+    xkb_keysym_get_name(event.keysym, name.data(), name.size());
+    out += name.data();
+    if (!event.text.empty()) {
+        out += std::format("   text \u201c{}\u201d", event.text);
+    }
+    if (event.repeat) {
+        out += "   (repeat)";
+    }
+    return out;
+}
+
+// Temporary loop: Wayland events, key repeat and signals. ROADMAP 2.3 replaces it with the
 // general poll loop (worker results, inotify, timers). Returns the process exit code.
-int run_event_loop(const ui::Display& display, const ui::Window& window) {
+int run_event_loop(const ui::Display& display, ui::Seat& seat, const ui::Window& window,
+                   const bool& quit) {
     const SignalFd signals;
     wl_display* wl = display.native();
 
-    while (!window.close_requested()) {
+    while (!window.close_requested() && !quit) {
         // Standard libwayland read protocol: dispatch what is queued, flush, then wait.
         while (wl_display_prepare_read(wl) != 0) {
             if (wl_display_dispatch_pending(wl) < 0) {
@@ -74,7 +102,8 @@ int run_event_loop(const ui::Display& display, const ui::Window& window) {
         wl_display_flush(wl);
 
         std::array fds{pollfd{.fd = display.fd(), .events = POLLIN, .revents = 0},
-                       pollfd{.fd = signals.fd(), .events = POLLIN, .revents = 0}};
+                       pollfd{.fd = signals.fd(), .events = POLLIN, .revents = 0},
+                       pollfd{.fd = seat.repeat_fd(), .events = POLLIN, .revents = 0}};
         if (poll(fds.data(), fds.size(), -1) < 0) {
             wl_display_cancel_read(wl);
             continue;  // EINTR
@@ -94,8 +123,11 @@ int run_event_loop(const ui::Display& display, const ui::Window& window) {
             log::info("signal received, closing");
             return 0;
         }
+        if ((fds[2].revents & POLLIN) != 0) {
+            seat.dispatch_repeat();
+        }
     }
-    log::info("window closed");
+    log::info("{}", quit ? "quit requested" : "window closed");
     return 0;
 }
 
@@ -118,8 +150,25 @@ int main(int argc, char** argv) {
         ui::EglContext egl{display};
         ui::FontSystem fonts;
         ui::Window window{display, egl, fonts, {.title = "Nordend", .app_id = "nordend"}};
-        window.set_draw_handler(&nordend::app::draw_test_scene);
-        return run_event_loop(display, window);
+        ui::Seat seat{display};
+
+        bool quit = false;
+        std::string last_key = "Press a key (Ctrl+Q quits)";
+        seat.set_key_handler([&](const ui::KeyEvent& event) {
+            if (event.modifiers.ctrl && (event.keysym == XKB_KEY_q || event.keysym == XKB_KEY_Q)) {
+                quit = true;
+                return;
+            }
+            last_key = describe(event);
+            log::debug("key: {}", last_key);
+            window.request_redraw();
+        });
+        window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
+            nordend::app::draw_test_scene(renderer, bounds);
+            renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F,
+                               ui::Color::rgb(0xF9E2AF));
+        });
+        return run_event_loop(display, seat, window, quit);
     } catch (const std::exception& e) {
         log::error("{}", e.what());
         return 1;

@@ -4,6 +4,27 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Keyboard (ROADMAP 2.1)
+
+**Done**
+- `Display` binds the first `wl_seat` (v7, Umbriel offers v9). `Seat` (ui) gets a `wl_keyboard`
+  when the seat has one, compiles the compositor's keymap (fd mapped `MAP_PRIVATE`, as required
+  since seat v7) with xkbcommon, tracks modifiers, and turns key presses into `KeyEvent`s:
+  keysym, UTF-8 text, Ctrl/Shift/Alt/Super, repeat flag. Control characters are not text.
+- Dead keys / compose via `xkb_compose` with the locale's table (LC_ALL, LC_CTYPE, LANG).
+- Key repeat from `repeat_info` (rate, delay) through a `timerfd`, polled by the temporary loop;
+  at most 2 repeats per wake-up so a stalled loop does not burst-type; stops on release and on
+  focus loss.
+- Test scene shows the last key; Ctrl+Q quits (first keyboard command).
+- Verified by Claude: Release/ASan builds clean, tidy clean, no-display path.
+
+**Tested by the author** (Umbriel, layout 'Italian', repeat 25/s after 600 ms)
+- è é ò ç à ° ù § + * from the Italian keys, Ctrl+Shift+A without text, arrows/F-keys/Escape
+  without text. Repeat measured in the log: first repeat 600 ms after the press, then every
+  40 ms (25/s), stops on release. Step 2.1 closed.
+
+---
+
 ## 2026-10-26 — Text (ROADMAP 1.5)
 
 **Done**

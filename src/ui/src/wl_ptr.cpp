@@ -12,6 +12,22 @@ void destroy(wl_surface* surface) noexcept { wl_surface_destroy(surface); }
 
 void destroy(wl_callback* callback) noexcept { wl_callback_destroy(callback); }
 
+void destroy(wl_seat* seat) noexcept {
+    if (wl_seat_get_version(seat) >= WL_SEAT_RELEASE_SINCE_VERSION) {
+        wl_seat_release(seat);
+    } else {
+        wl_seat_destroy(seat);
+    }
+}
+
+void destroy(wl_keyboard* keyboard) noexcept {
+    if (wl_keyboard_get_version(keyboard) >= WL_KEYBOARD_RELEASE_SINCE_VERSION) {
+        wl_keyboard_release(keyboard);
+    } else {
+        wl_keyboard_destroy(keyboard);
+    }
+}
+
 void destroy(wl_egl_window* window) noexcept { wl_egl_window_destroy(window); }
 
 void destroy(xdg_wm_base* wm_base) noexcept { xdg_wm_base_destroy(wm_base); }

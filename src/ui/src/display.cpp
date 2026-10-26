@@ -16,6 +16,7 @@ constexpr std::uint32_t kWmBaseVersion = 5;      // xdg_toplevel.wm_capabilities
 constexpr std::uint32_t kDecorationManagerVersion = 1;
 constexpr std::uint32_t kViewporterVersion = 1;
 constexpr std::uint32_t kFractionalScaleManagerVersion = 1;
+constexpr std::uint32_t kSeatVersion = 7;  // wl_keyboard.repeat_info; pointer frames
 
 template <class T>
 T* bind(wl_registry* registry, std::uint32_t name, const wl_interface& interface,
@@ -73,6 +74,9 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
         self.decoration_manager_.reset(
             bind<zxdg_decoration_manager_v1>(registry, name, zxdg_decoration_manager_v1_interface,
                                              version, kDecorationManagerVersion));
+    } else if (iface == wl_seat_interface.name && !self.seat_) {
+        // One seat is all a desktop file manager needs.
+        self.seat_.reset(bind<wl_seat>(registry, name, wl_seat_interface, version, kSeatVersion));
     } else if (iface == wp_viewporter_interface.name) {
         self.viewporter_.reset(bind<wp_viewporter>(registry, name, wp_viewporter_interface, version,
                                                    kViewporterVersion));

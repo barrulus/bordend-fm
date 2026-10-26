@@ -19,6 +19,8 @@ void destroy(wl_registry* registry) noexcept;
 void destroy(wl_compositor* compositor) noexcept;
 void destroy(wl_surface* surface) noexcept;
 void destroy(wl_callback* callback) noexcept;
+void destroy(wl_seat* seat) noexcept;
+void destroy(wl_keyboard* keyboard) noexcept;
 void destroy(wl_egl_window* window) noexcept;
 void destroy(xdg_wm_base* wm_base) noexcept;
 void destroy(xdg_surface* surface) noexcept;

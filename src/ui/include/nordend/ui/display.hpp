@@ -35,6 +35,9 @@ public:
         return decoration_manager_.get();
     }
 
+    // Optional: nullptr on a compositor without input devices.
+    [[nodiscard]] wl_seat* seat() const noexcept { return seat_.get(); }
+
     // Optional: fractional scaling needs both; without them windows render at scale 1.
     [[nodiscard]] wp_viewporter* viewporter() const noexcept { return viewporter_.get(); }
 
@@ -56,6 +59,7 @@ private:
     WlPtr<zxdg_decoration_manager_v1> decoration_manager_;
     WlPtr<wp_viewporter> viewporter_;
     WlPtr<wp_fractional_scale_manager_v1> fractional_scale_manager_;
+    WlPtr<wl_seat> seat_;
 };
 
 }  // namespace nordend::ui

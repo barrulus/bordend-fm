@@ -42,7 +42,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 2 — Input, loop e tema
 
-- [ ] **2.1 Tastiera**
+- [x] **2.1 Tastiera**
   `xkbcommon`, layout dell'utente, ripetizione dei tasti.
 - [ ] **2.2 Puntatore**
   Click, doppio click, rotella e touchpad (scroll continuo), `cursor-shape-v1`.
