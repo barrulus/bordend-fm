@@ -1,0 +1,9 @@
+# Shared clangd config (tracked). Point clangd at the CMake compile database
+# and turn on the include hygiene we enforce. Formatting and tidy checks come
+# from .clang-format and .clang-tidy automatically.
+CompileFlags:
+  CompilationDatabase: build
+
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict

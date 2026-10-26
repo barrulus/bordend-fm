@@ -1,0 +1,43 @@
+# clang-format is authoritative (CLAUDE.md). Run scripts/format.sh; do not hand-tune.
+# Base: Google, with our indent width, column limit and pointer alignment.
+---
+Language: Cpp
+BasedOnStyle: Google
+Standard: c++20
+
+ColumnLimit: 100
+IndentWidth: 4
+AccessModifierOffset: -4
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 4
+PackConstructorInitializers: NextLine
+IndentPPDirectives: AfterHash
+PPIndentWidth: 2
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+QualifierAlignment: Leave
+
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+
+SeparateDefinitionBlocks: Always
+EmptyLineBeforeAccessModifier: LogicalBlock
+InsertNewlineAtEOF: true
+LineEnding: LF
+
+# Own header first (automatic), then C/C++ standard, then third-party, then nordend/.
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+IncludeCategories:
+  - Regex: '^<doctest/'
+    Priority: 3
+  - Regex: '^<'
+    Priority: 2
+  - Regex: '^"nordend/'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 4

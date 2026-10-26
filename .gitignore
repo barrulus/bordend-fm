@@ -1,0 +1,10 @@
+# Local copilot notes
+CLAUDE.md
+.claude/
+
+# Build output: Release in build/, Debug and sanitizer builds in build-*/
+build*/
+
+# Editor / tooling (.clangd and the clang config files are tracked, on purpose)
+.cache/
+compile_commands.json
