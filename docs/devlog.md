@@ -4,6 +4,23 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — CMake skeleton (ROADMAP 0.1, 0.3)
+
+**Done**
+- DESIGN approved by the author.
+- `CMakeLists.txt`: C++20, Release by default, `compile_commands.json`, `-Werror` with a strict
+  warning set (conversion, sign, old-style casts, null deref, ...), `NORDEND_SANITIZER` and
+  `NORDEND_CLANG_TIDY` options. wayland-client, wayland-egl, egl, glesv2 and xkbcommon found via
+  pkg-config (not linked yet).
+- `src/app/main.cpp`: exits 0, answers `--version`.
+- Verified: Release build with no warnings, exit 0, `--version`, clang-format clean, clang-tidy clean.
+
+**Open**
+- Sanitizer build fails to link: `libasan` / `libubsan` runtimes not installed. Needed before
+  ROADMAP 1.1 (package `libsanitizer-devel`, to be verified).
+
+---
+
 ## 2026-10-26 — Project kickoff
 
 **Done**

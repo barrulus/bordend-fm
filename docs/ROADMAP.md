@@ -10,15 +10,15 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 0 — Fondamenta
 
-- [ ] **0.1 Approvazione del DESIGN.md**
+- [x] **0.1 Approvazione del DESIGN.md**
   Fatto quando: l'autore ha rivisto `DESIGN.md` e tolto la dicitura BOZZA.
 - [x] **0.2 Repository**
   `git init`, licenza, `.gitignore`, `.clang-format`, `.editorconfig`, `README.md`.
   Fatto quando: primo commit fatto, `clang-format --dry-run` pulito.
-- [ ] **0.3 Scheletro CMake**
+- [x] **0.3 Scheletro CMake**
   Target `nordend` che compila un `main` vuoto, dipendenze trovate con `pkg-config`, warning severi.
   Fatto quando: `cmake -B build && cmake --build build` va senza warning; `./build/nordend` esce con 0.
-- [ ] **0.4 Pacchetto xbps-src**
+- [ ] **0.4 Pacchetto xbps-src** — *rimandato a dopo 1.2* (impacchettare un main vuoto non serve)
   Template in `void-noctalia/packages/srcpkgs/nordend`.
   Fatto quando: `./xbps-src pkg nordend` produce il pacchetto e si installa.
 

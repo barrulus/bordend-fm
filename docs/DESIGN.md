@@ -1,7 +1,6 @@
 # Nordend File Manager — DESIGN
 
-> **Stato: BOZZA** (2026-10-26), scritta dal copilot su indicazione dell'autore.
-> Diventa autorità solo dopo revisione e approvazione dell'autore.
+> **Stato: APPROVATO** dall'autore il 2026-10-26. È l'autorità del progetto.
 > I punti marcati *da verificare* non sono ancora fatti certi.
 > Ordine di sviluppo: vedi [`ROADMAP.md`](ROADMAP.md).
 

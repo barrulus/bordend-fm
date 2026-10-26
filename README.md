@@ -23,7 +23,15 @@ A native, Wayland-only file manager for the [Noctalia](https://github.com/noctal
 ## Requirements
 
 Wayland compositor with `xdg-shell` (developed on [Umbriel](https://github.com/noctalia-dev)).
-Build instructions will come with the first code.
+Build (Void Linux package names):
+
+```sh
+sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
+    libxkbcommon-devel libglvnd-devel MesaLib-devel
+cmake -B build -G Ninja
+cmake --build build
+./build/nordend --version
+```
 
 ## Development
 
