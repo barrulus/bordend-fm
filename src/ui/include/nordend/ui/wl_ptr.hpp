@@ -4,6 +4,8 @@
 #include <wayland-client.h>
 #include <wayland-egl.h>
 
+#include "fractional-scale-v1-client-protocol.h"
+#include "viewporter-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
@@ -23,6 +25,10 @@ void destroy(xdg_surface* surface) noexcept;
 void destroy(xdg_toplevel* toplevel) noexcept;
 void destroy(zxdg_decoration_manager_v1* manager) noexcept;
 void destroy(zxdg_toplevel_decoration_v1* decoration) noexcept;
+void destroy(wp_viewporter* viewporter) noexcept;
+void destroy(wp_viewport* viewport) noexcept;
+void destroy(wp_fractional_scale_manager_v1* manager) noexcept;
+void destroy(wp_fractional_scale_v1* scale) noexcept;
 
 struct WlDeleter {
     template <class T>

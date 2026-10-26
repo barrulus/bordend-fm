@@ -52,6 +52,14 @@ public:
 
     [[nodiscard]] std::int32_t height() const noexcept { return height_; }
 
+    // Output scale chosen by the compositor (1.0, 1.25, 1.5, ...); 1.0 without fractional-scale.
+    [[nodiscard]] double scale() const noexcept { return static_cast<double>(scale_120_) / 120.0; }
+
+    // Size of the rendered buffer in physical pixels.
+    [[nodiscard]] std::int32_t buffer_width() const noexcept { return buffer_width_; }
+
+    [[nodiscard]] std::int32_t buffer_height() const noexcept { return buffer_height_; }
+
 private:
     static void on_surface_configure(void* data, xdg_surface* surface, std::uint32_t serial);
     static void on_toplevel_configure(void* data, xdg_toplevel* toplevel, std::int32_t width,
@@ -63,24 +71,35 @@ private:
                                             wl_array* capabilities);
     static void on_decoration_configure(void* data, zxdg_toplevel_decoration_v1* decoration,
                                         std::uint32_t mode);
+    static void on_preferred_scale(void* data, wp_fractional_scale_v1* scale,
+                                   std::uint32_t scale_120);
     static void on_frame_done(void* data, wl_callback* callback, std::uint32_t time_ms);
 
     void draw();
+    // Recomputes the physical buffer size from the logical size and scale; resizes the
+    // wl_egl_window if it changed.
+    void update_buffer_size();
 
     Display& display_;
     EglContext& egl_;
-    std::int32_t width_;
+    std::int32_t width_;  // logical size, from configure
     std::int32_t height_;
+    std::int32_t scale_120_{120};   // scale numerator over 120
+    std::int32_t buffer_width_{0};  // physical size, in pixels
+    std::int32_t buffer_height_{0};
     std::int32_t pending_width_{0};  // 0 = the client chooses
     std::int32_t pending_height_{0};
     bool configured_{false};
     bool dirty_{false};
     bool close_requested_{false};
+    bool scale_test_;                         // temporary, see draw_scale_test_pattern
     EGLSurface egl_surface_{EGL_NO_SURFACE};  // destroyed first, in ~Window
 
     // Reverse order = teardown order: frame callback, decoration, toplevel, xdg_surface,
-    // wl_egl_window, surface.
+    // wl_egl_window, fractional scale, viewport, surface.
     WlPtr<wl_surface> surface_;
+    WlPtr<wp_viewport> viewport_;
+    WlPtr<wp_fractional_scale_v1> fractional_scale_;
     WlPtr<wl_egl_window> egl_window_;
     WlPtr<xdg_surface> xdg_surface_;
     WlPtr<xdg_toplevel> toplevel_;

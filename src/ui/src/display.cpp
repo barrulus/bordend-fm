@@ -14,6 +14,8 @@ namespace {
 constexpr std::uint32_t kCompositorVersion = 4;  // wl_surface.damage_buffer
 constexpr std::uint32_t kWmBaseVersion = 5;      // xdg_toplevel.wm_capabilities
 constexpr std::uint32_t kDecorationManagerVersion = 1;
+constexpr std::uint32_t kViewporterVersion = 1;
+constexpr std::uint32_t kFractionalScaleManagerVersion = 1;
 
 template <class T>
 T* bind(wl_registry* registry, std::uint32_t name, const wl_interface& interface,
@@ -49,6 +51,9 @@ Display::Display() : display_{wl_display_connect(nullptr)} {
     if (!decoration_manager_) {
         log::warn("compositor does not offer xdg-decoration: the window will have no decorations");
     }
+    if (!viewporter_ || !fractional_scale_manager_) {
+        log::warn("compositor does not offer fractional-scale + viewporter: rendering at scale 1");
+    }
 }
 
 void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
@@ -68,6 +73,13 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
         self.decoration_manager_.reset(
             bind<zxdg_decoration_manager_v1>(registry, name, zxdg_decoration_manager_v1_interface,
                                              version, kDecorationManagerVersion));
+    } else if (iface == wp_viewporter_interface.name) {
+        self.viewporter_.reset(bind<wp_viewporter>(registry, name, wp_viewporter_interface, version,
+                                                   kViewporterVersion));
+    } else if (iface == wp_fractional_scale_manager_v1_interface.name) {
+        self.fractional_scale_manager_.reset(bind<wp_fractional_scale_manager_v1>(
+            registry, name, wp_fractional_scale_manager_v1_interface, version,
+            kFractionalScaleManagerVersion));
     }
 }
 

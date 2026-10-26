@@ -28,4 +28,14 @@ void destroy(zxdg_toplevel_decoration_v1* decoration) noexcept {
     zxdg_toplevel_decoration_v1_destroy(decoration);
 }
 
+void destroy(wp_viewporter* viewporter) noexcept { wp_viewporter_destroy(viewporter); }
+
+void destroy(wp_viewport* viewport) noexcept { wp_viewport_destroy(viewport); }
+
+void destroy(wp_fractional_scale_manager_v1* manager) noexcept {
+    wp_fractional_scale_manager_v1_destroy(manager);
+}
+
+void destroy(wp_fractional_scale_v1* scale) noexcept { wp_fractional_scale_v1_destroy(scale); }
+
 }  // namespace nordend::ui

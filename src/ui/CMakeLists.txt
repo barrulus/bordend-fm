@@ -31,6 +31,9 @@ endfunction()
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml)
 nordend_wayland_protocol(
     ${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml)
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/viewporter/viewporter.xml)
+nordend_wayland_protocol(
+    ${WAYLAND_PROTOCOLS_DIR}/staging/fractional-scale/fractional-scale-v1.xml)
 
 add_library(nordend_wayland_protocols STATIC ${NORDEND_PROTOCOL_SOURCES})
 target_include_directories(nordend_wayland_protocols SYSTEM PUBLIC ${NORDEND_PROTOCOL_DIR})

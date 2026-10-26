@@ -30,7 +30,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **1.2 EGL + GLES**
   Contesto EGL, clear del colore, frame callback, niente rendering se non serve.
   Fatto quando: finestra con colore di sfondo, CPU ~0% a riposo.
-- [ ] **1.3 Scala frazionaria**
+- [x] **1.3 Scala frazionaria**
   `fractional-scale-v1` + `viewporter`.
   Fatto quando: rendering nitido a scala 1, 1.25, 1.5, 2.
 - [ ] **1.4 Primitive di disegno**

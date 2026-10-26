@@ -35,6 +35,13 @@ public:
         return decoration_manager_.get();
     }
 
+    // Optional: fractional scaling needs both; without them windows render at scale 1.
+    [[nodiscard]] wp_viewporter* viewporter() const noexcept { return viewporter_.get(); }
+
+    [[nodiscard]] wp_fractional_scale_manager_v1* fractional_scale_manager() const noexcept {
+        return fractional_scale_manager_.get();
+    }
+
 private:
     static void on_global(void* data, wl_registry* registry, std::uint32_t name,
                           const char* interface, std::uint32_t version);
@@ -47,6 +54,8 @@ private:
     WlPtr<wl_compositor> compositor_;
     WlPtr<xdg_wm_base> wm_base_;
     WlPtr<zxdg_decoration_manager_v1> decoration_manager_;
+    WlPtr<wp_viewporter> viewporter_;
+    WlPtr<wp_fractional_scale_manager_v1> fractional_scale_manager_;
 };
 
 }  // namespace nordend::ui

@@ -4,6 +4,34 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Fractional scaling (ROADMAP 1.3)
+
+**Done**
+- Umbriel's globals listed with a scratch registry dump: it offers `wp_fractional_scale_manager_v1`,
+  `wp_viewporter`, `wp_cursor_shape_manager_v1` v2, `zwp_text_input_manager_v3`, `wl_compositor`
+  v5 (so no `preferred_buffer_scale`), among others. Author's monitor: DP-3, 2560x1440@59.95,
+  scale 1.
+- `Display` binds viewporter and fractional-scale (optional). `Window` keeps the scale as
+  numerator/120, renders a physical-size buffer (logical x scale, rounded half away from zero)
+  and sets the viewport destination to the logical size on every frame.
+- Temporary `NORDEND_SCALE_TEST=1`: 1-physical-pixel line pattern to check that the buffer maps
+  1:1 onto the screen. Removed when ROADMAP 1.4 brings a real test scene.
+
+**Tested by the author** (Umbriel `[output.DP-3] scale = ...`, `NORDEND_SCALE_TEST=1`)
+- 1.25: 2048x1152 logical -> 2560x1440 buffer fullscreen; 1.5: 837x878 -> 1256x1317 (1255.5 rounded
+  half away from zero); 2.0: 624x638 -> 1248x1276. Lines crisp, no moiré. Step 1.3 closed.
+- Interactive resize logs frames ~16.7 ms apart: one frame per refresh at 60 Hz, as designed.
+- A shimmer of the 1-px line pattern while resizing from a left corner: the pattern is anchored to
+  the moving left edge; an optical effect of the test pattern, re-check with real content in 1.4.
+- Umbriel config (void-noctalia + deployed): `[appearance.title_bar] mode = "on"` for every window;
+  the Nordend-only `title_bar = "forced"` rule removed as redundant.
+
+**Open**
+- No integer-scale fallback (`wl_output.scale` / `preferred_buffer_scale`) for compositors without
+  fractional-scale: those render at scale 1. Add it if Nordend ever targets such a compositor.
+
+---
+
 ## 2026-10-26 — EGL rendering and frame pacing (ROADMAP 1.2)
 
 **Done**
