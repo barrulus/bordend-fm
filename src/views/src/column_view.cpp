@@ -32,6 +32,20 @@ void draw_right_aligned(ui::Renderer& renderer, std::string_view text, float rig
                        color);
 }
 
+// "1 file", "3 files".
+std::string count_of(std::size_t count, std::string_view noun) {
+    return std::format("{} {}{}", count, noun, count == 1 ? "" : "s");
+}
+
+// The selection mode of a click or a key: Shift extends from the anchor, Ctrl does what `ctrl`
+// says (toggle for a click, cursor alone for a key), neither replaces.
+SelectMode select_mode(const ui::Modifiers& modifiers, SelectMode ctrl) {
+    if (modifiers.shift) {
+        return SelectMode::extend;
+    }
+    return modifiers.ctrl ? ctrl : SelectMode::replace;
+}
+
 }  // namespace
 
 ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
@@ -97,15 +111,15 @@ void ColumnView::on_cursor_changed(const Column* column) {
     sync_after(static_cast<std::size_t>(it - columns_.begin()));
 }
 
-// Keeps column index + 1 showing what the cursor of column index is on: the same folder (kept
-// as it is), another folder (a new column, and nothing after it), or a file or nothing (no
-// column after it: the info pane shows the file).
+// Keeps column index + 1 showing what column index has selected, when that is one entry: the
+// same folder (kept as it is), another folder (a new column, and nothing after it), or a file or
+// nothing (no column after it: the info pane shows the file, or sums up a larger selection).
 void ColumnView::sync_after(std::size_t index) {
     Column* const column = columns_.at(index).column.get();
     if (column->cursor_pending()) {
         return;  // keep what is there until the cursor lands
     }
-    const fs::Entry* const entry = column->cursor_entry();
+    const fs::Entry* const entry = column->single_selection();
     if (!reveal_.empty() && entry != nullptr && column->path() / entry->name == reveal_) {
         reveal_.clear();  // arrived
         focus_ = index;
@@ -162,7 +176,7 @@ void ColumnView::focus_on(std::size_t index) {
 }
 
 void ColumnView::go_right(Clock::time_point now) {
-    const fs::Entry* const entry = columns_[focus_].column->cursor_entry();
+    const fs::Entry* const entry = columns_[focus_].column->single_selection();
     if (entry == nullptr || !entry->is_directory() || focus_ + 1 >= columns_.size()) {
         return;
     }
@@ -213,8 +227,9 @@ bool ColumnView::shows_info() const {
     if (columns_.empty()) {
         return false;
     }
-    const fs::Entry* const entry = columns_.back().column->cursor_entry();
-    return entry != nullptr && !entry->is_directory();
+    const Column& last = *columns_.back().column;
+    const fs::Entry* const entry = last.single_selection();
+    return entry != nullptr ? !entry->is_directory() : last.selected_count() > 1;
 }
 
 float ColumnView::content_width() const {
@@ -353,6 +368,8 @@ void ColumnView::draw_title(ui::Renderer& renderer, const ui::Rect& bounds,
     std::string status;
     if (model.error()) {
         status = model.error().message();
+    } else if (column.selected_count() > 1) {
+        status = std::format("{} of {} selected", column.selected_count(), count);
     } else if (model.loading()) {
         status = std::format("{} items, loading…", count);
     } else {
@@ -372,38 +389,66 @@ void ColumnView::draw_title(ui::Renderer& renderer, const ui::Rect& bounds,
 void ColumnView::draw_info(ui::Renderer& renderer, const ui::Rect& bounds,
                            const theme::Palette& palette, ui::IconSet& icons) {
     const Column& column = *columns_.back().column;
-    const fs::Entry& entry = *column.cursor_entry();
-    fs::Entry typed = entry;
-    typed.mime = column.mime_of(entry);
-
+    const fs::Entry* const single = column.single_selection();
     const float width = std::min(bounds.width, kInfoWidth);  // content stays at the left
     float y = bounds.y + 32.0F;
-    icons.draw(renderer, fs::icon_name(*mime_, typed), bounds.x + ((width - kInfoIconSize) / 2.0F),
-               y, kInfoIconSize, palette.on_surface_variant);
-    y += kInfoIconSize + 20.0F;
-
     const auto centered = [&](std::string_view text, float size, ui::Color color) {
         const float max = width - (2.0F * kPadding);
         const float w = std::min(text_width(renderer, text, size), max);
         renderer.draw_text(text, bounds.x + ((width - w) / 2.0F), y, size, color, max,
                            ui::Ellipsis::middle);
     };
-    centered(entry.name, 15.0F, palette.on_surface);
-    y += 24.0F;
-    const std::string_view type =
-        typed.mime == fs::kUnknownMime ? std::string_view{"…"} : mime_->name(typed.mime);
-    centered(type, kSmallTextSize, palette.on_surface_variant);
-    y += 32.0F;
-
-    renderer.fill_rect({bounds.x + kPadding, y, width - (2.0F * kPadding), 1.0F / renderer.scale()},
-                       palette.outline_variant);
-    y += 12.0F;
+    const auto separator = [&] {
+        renderer.fill_rect(
+            {bounds.x + kPadding, y, width - (2.0F * kPadding), 1.0F / renderer.scale()},
+            palette.outline_variant);
+        y += 12.0F;
+    };
     const auto row = [&](std::string_view label, const std::string& value) {
         renderer.draw_text(label, bounds.x + kPadding, y, 13.0F, palette.on_surface_variant);
         draw_right_aligned(renderer, value, bounds.x + width - kPadding, y, 13.0F,
                            palette.on_surface);
         y += 24.0F;
     };
+
+    if (single == nullptr) {
+        // Several entries: how many, of which kind, and how big.
+        const SelectionSummary& summary = column.summary();
+        icons.draw(renderer, "files", bounds.x + ((width - kInfoIconSize) / 2.0F), y, kInfoIconSize,
+                   palette.on_surface_variant);
+        y += kInfoIconSize + 20.0F;
+        centered(count_of(summary.folders + summary.files, "item"), 15.0F, palette.on_surface);
+        y += 24.0F;
+        std::string kinds;
+        if (summary.folders > 0) {
+            kinds = count_of(summary.folders, "folder");
+        }
+        if (summary.files > 0) {
+            kinds += (kinds.empty() ? "" : ", ") + count_of(summary.files, "file");
+        }
+        centered(kinds, kSmallTextSize, palette.on_surface_variant);
+        y += 32.0F;
+        if (summary.files > 0) {
+            separator();
+            row(summary.folders > 0 ? "Size of the files" : "Size", format_size(summary.bytes));
+        }
+        return;
+    }
+
+    const fs::Entry& entry = *single;
+    fs::Entry typed = entry;
+    typed.mime = column.mime_of(entry);
+    icons.draw(renderer, fs::icon_name(*mime_, typed), bounds.x + ((width - kInfoIconSize) / 2.0F),
+               y, kInfoIconSize, palette.on_surface_variant);
+    y += kInfoIconSize + 20.0F;
+
+    centered(entry.name, 15.0F, palette.on_surface);
+    y += 24.0F;
+    const std::string_view type =
+        typed.mime == fs::kUnknownMime ? std::string_view{"…"} : mime_->name(typed.mime);
+    centered(type, kSmallTextSize, palette.on_surface_variant);
+    y += 32.0F;
+    separator();
     row("Size", format_size(entry.size));
     row("Modified", format_time(entry.modified_ns));
 }
@@ -473,7 +518,11 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 reveal_.clear();
                 Column& column = *columns_[*index].column;
                 focus_on(*index);
-                column.set_cursor(column.row_at(event.x, event.y), now);
+                const std::optional<std::size_t> row = column.row_at(event.x, event.y);
+                const SelectMode mode = select_mode(event.modifiers, SelectMode::toggle);
+                if (row || mode == SelectMode::replace) {
+                    column.set_cursor(row, now, mode);  // a plain click on nothing clears
+                }
                 redraw_();
             }
             break;
@@ -546,28 +595,47 @@ void ColumnView::key(const ui::KeyEvent& event, Clock::time_point now) {
     }
     Column& column = *columns_[focus_].column;
     const auto page = static_cast<std::ptrdiff_t>(column.page_rows());
+    // Shift extends the selection, Ctrl moves the cursor alone.
+    const SelectMode mode = select_mode(event.modifiers, SelectMode::keep);
+    const bool ctrl = event.modifiers.ctrl;
     switch (event.keysym) {
         case XKB_KEY_Down:
-            column.move_cursor(1, now);
+            column.move_cursor(1, now, mode);
             break;
         case XKB_KEY_Up:
             if (event.modifiers.alt) {
                 go_left(now);
             } else {
-                column.move_cursor(-1, now);
+                column.move_cursor(-1, now, mode);
             }
             break;
         case XKB_KEY_Page_Down:
-            column.move_cursor(page, now);
+            column.move_cursor(page, now, mode);
             break;
         case XKB_KEY_Page_Up:
-            column.move_cursor(-page, now);
+            column.move_cursor(-page, now, mode);
             break;
         case XKB_KEY_Home:
-            column.set_cursor(0, now);
+            column.set_cursor(0, now, mode);
             break;
         case XKB_KEY_End:
-            column.set_cursor(std::numeric_limits<std::size_t>::max(), now);
+            column.set_cursor(std::numeric_limits<std::size_t>::max(), now, mode);
+            break;
+        case XKB_KEY_space:
+            if (!ctrl || !column.cursor()) {
+                return;  // plain Space is for Quick Look (ROADMAP 5.3)
+            }
+            column.set_cursor(column.cursor(), now, SelectMode::toggle);
+            break;
+        case XKB_KEY_a:
+        case XKB_KEY_A:
+            if (!ctrl) {
+                return;
+            }
+            column.select_all();
+            break;
+        case XKB_KEY_Escape:
+            column.collapse_selection();
             break;
         case XKB_KEY_Right:
         case XKB_KEY_Return:

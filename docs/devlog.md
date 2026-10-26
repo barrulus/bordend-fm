@@ -4,6 +4,50 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Selection (ROADMAP 4.3)
+
+**Done**
+- `views::Column` has a selection next to its cursor: a set of names plus an anchor, both kept by
+  name like the cursor (they follow renames, lose deleted entries, and names that do not come
+  back after a reload are dropped). Moving the cursor takes a `SelectMode`: replace (plain click,
+  arrows), extend (Shift: from the anchor to the cursor), keep (Ctrl+arrows: cursor alone), toggle
+  (Ctrl+click). Plus `select_all` (Ctrl+A), `collapse_selection` (Escape: back to the cursor's
+  entry) and Ctrl+Space (toggle the cursor's entry, for non-contiguous selection from the
+  keyboard). Plain Space is left free for Quick Look (5.3).
+- The column invariant now reads "what column i has selected, when it is one entry": with several
+  entries selected (or the cursor away from the selection) no column opens on the right and the
+  info pane sums the selection up (count, folders and files, size of the files; folder sizes are
+  not computed). The title shows "N of M selected".
+- Drawing: selected rows are filled (primary in the focused column, quiet elsewhere); when the
+  cursor is not the whole selection, a ring marks it.
+- `nordend-snapshot --keys "Right,Shift+Down,Ctrl+a"` presses keys in the column view before the
+  snapshot (xkb key names, Ctrl+/Shift+/Alt+ prefixes): offscreen checks of states that need
+  input.
+- 3 new test cases (77 in total): Shift ranges (grow, shrink back, Escape), Ctrl moves and
+  toggles, Ctrl+A, plain Space ignored, toggling and ranges by row, selection across a rename and
+  a deletion (inotify). Release, ASan, TSan pass (column tests 10 times in Release, 5 in TSan);
+  tidy clean.
+
+**Measured**: scrolling a 10 000-entry column at 2880x1620, 0.26 ms median with nothing selected,
+0.52 ms with everything selected (docs/benchmarks.md).
+
+**Decisions**
+- A Shift range replaces the selection with anchor..cursor (Finder, Nautilus); Ctrl+click is the
+  way to add to it.
+- Selection lives in the focused column only in practice: clicking another column replaces its
+  selection there; columns on the left keep theirs, which is the path to the focused one.
+- No rubber-band (drag) selection: not in the ROADMAP; with the drag and drop of later phases.
+
+**Tested by the author**
+- On screen in the photo library: clicks with and without modifiers, keyboard ranges and toggles,
+  Ctrl+A, Escape, the summary pane: "works by the book". Step 4.3 closed.
+
+**Open**
+- The summary counts what the listing holds; folder sizes would need a recursive walk (a worker
+  job, later, if wanted).
+
+---
+
 ## 2026-10-26 — Miller columns (ROADMAP 4.2)
 
 **Done**

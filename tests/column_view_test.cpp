@@ -6,6 +6,7 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <doctest/doctest.h>
@@ -22,6 +23,7 @@ using nordend::fs::DirectoryWatcher;
 using nordend::test::TempDir;
 using nordend::views::Column;
 using nordend::views::ColumnView;
+using nordend::views::SelectMode;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -73,9 +75,10 @@ struct Fixture {
         return run_until(loop, [this] { return !view.loading(); });
     }
 
-    void press(xkb_keysym_t key) {
+    void press(xkb_keysym_t key, nordend::ui::Modifiers modifiers = {}) {
         nordend::ui::KeyEvent event;
         event.keysym = key;
+        event.modifiers = modifiers;
         view.key(event, ColumnView::Clock::now());
     }
 };
@@ -158,4 +161,83 @@ TEST_CASE("column view: a folder deleted or renamed under the cursor updates the
     fs::remove_all(f.root / "alpha" / "delta");
     CHECK(run_until(f.loop, [&] { return f.view.column_count() == 2; }));
     CHECK_FALSE(f.view.column(1).cursor());
+}
+
+TEST_CASE("column view: Shift extends the selection, which closes the next column") {
+    Fixture f;
+    f.view.open(f.root);
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_Down);  // alpha, opens its column
+    REQUIRE(f.view.column_count() == 2);
+
+    f.press(XKB_KEY_Down, {.shift = true});  // alpha, gamma
+    Column& column = f.view.column(0);
+    CHECK(column.selected_count() == 2);
+    CHECK(cursor_name(column) == "gamma");
+    CHECK(f.view.column_count() == 1);  // several entries: nothing to show on the right
+    CHECK(column.single_selection() == nullptr);
+
+    f.press(XKB_KEY_End, {.shift = true});  // from the anchor (alpha) to readme.md
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha", "gamma", "readme.md"});
+    const nordend::views::SelectionSummary& summary = column.summary();
+    CHECK(summary.folders == 2);
+    CHECK(summary.files == 1);
+    CHECK(summary.bytes == 4);  // "# hi"
+
+    f.press(XKB_KEY_Up, {.shift = true});  // the range shrinks back: alpha, gamma
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha", "gamma"});
+
+    f.press(XKB_KEY_Escape);  // back to the cursor's entry alone: gamma opens again
+    CHECK(column.selected_names() == std::vector<std::string>{"gamma"});
+    REQUIRE(f.view.column_count() == 2);
+    CHECK(f.view.column(1).path() == f.root / "gamma");
+}
+
+TEST_CASE("column view: Ctrl moves the cursor alone, Ctrl+Space toggles, Ctrl+A selects all") {
+    Fixture f;
+    f.view.open(f.root);
+    REQUIRE(f.settle());
+    Column& column = f.view.column(0);
+    f.press(XKB_KEY_Down);                  // alpha
+    f.press(XKB_KEY_Down, {.ctrl = true});  // cursor on gamma, alpha selected
+    f.press(XKB_KEY_Down, {.ctrl = true});  // cursor on readme.md
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha"});
+    CHECK(cursor_name(column) == "readme.md");
+    CHECK(f.view.column_count() == 1);  // the cursor is not the selection
+
+    f.press(XKB_KEY_space, {.ctrl = true});  // alpha, readme.md
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha", "readme.md"});
+    f.press(XKB_KEY_space, {.ctrl = true});  // and off again
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha"});
+    f.press(XKB_KEY_space);  // plain Space is not selection
+    CHECK(column.selected_count() == 1);
+
+    f.press(XKB_KEY_a, {.ctrl = true});
+    CHECK(column.selected_count() == 3);
+    f.press(XKB_KEY_Right);  // several selected: nothing to enter
+    CHECK(f.view.focus() == 0);
+
+    f.press(XKB_KEY_Down);  // a plain arrow selects one entry again
+    CHECK(column.selected_names() == std::vector<std::string>{"readme.md"});
+}
+
+TEST_CASE("column: toggling and ranges by row, selection follows renames and deletions") {
+    Fixture f;
+    f.view.open(f.root);
+    REQUIRE(f.settle());
+    Column& column = f.view.column(0);
+    const auto now = Column::Clock::now();
+    column.set_cursor(0, now, SelectMode::toggle);  // alpha
+    column.set_cursor(2, now, SelectMode::toggle);  // readme.md
+    CHECK(column.selected_names() == std::vector<std::string>{"alpha", "readme.md"});
+    column.set_cursor(1, now, SelectMode::extend);  // anchor readme.md -> gamma
+    CHECK(column.selected_names() == std::vector<std::string>{"gamma", "readme.md"});
+
+    fs::rename(f.root / "readme.md", f.root / "zz.md");
+    CHECK(run_until(f.loop, [&] { return column.is_selected("zz.md"); }));
+    CHECK(column.selected_count() == 2);
+
+    fs::remove_all(f.root / "gamma");
+    CHECK(run_until(f.loop, [&] { return !column.is_selected("gamma"); }));
+    CHECK(column.selected_names() == std::vector<std::string>{"zz.md"});
 }

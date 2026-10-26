@@ -35,6 +35,9 @@ What already works, the way it is meant to stay:
   tree, Left from the first column climbs to the parent. Columns resize by dragging their edge
   and slide sideways by themselves to keep where you are in view. A file shows its details at
   the end.
+- **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
+  Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
+  A selection of many files shows how many and how big.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -79,8 +82,10 @@ What already works, the way it is meant to stay:
   10 000-file folder)
 - Miller columns: arrow-key navigation, resizable columns, animated horizontal scrolling, an
   info pane for the selected file
+- Selection: click, Ctrl+click, Shift+click, and the same from the keyboard (Shift+arrows,
+  Ctrl+arrows and Ctrl+Space, Ctrl+A); a summary of what is selected
 
-**Next:** selection, the thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md).
+**Next:** the thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 

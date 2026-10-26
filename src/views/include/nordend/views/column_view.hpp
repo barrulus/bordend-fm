@@ -31,6 +31,12 @@ namespace nordend::views {
 // the parent folder as a new first column (Backspace, Alt+Up and the mouse back button do the
 // same). A click puts the cursor on a row. Columns are resized by dragging their right edge.
 //
+// Selection (in the focused column): a click or an arrow selects one entry; Shift+click and
+// Shift+arrows/Page/Home/End select a range from the anchor; Ctrl+click adds or removes one
+// entry; Ctrl+arrows move the cursor alone and Ctrl+Space adds or removes the entry under it;
+// Ctrl+A selects everything, Escape goes back to the cursor's entry. With more than one entry
+// selected no column opens after it: the info pane sums the selection up.
+//
 // Scrolling: each column scrolls vertically (wheel glide, touchpad with inertia); the row of
 // columns scrolls horizontally (touchpad, tilt wheel, Shift+wheel) and glides by itself to keep
 // the focused column and the one it opens in view. A touchpad gesture is locked to the axis it

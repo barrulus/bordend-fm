@@ -123,6 +123,20 @@ frame, as for the list.
 Same cost as the single list: the columns draw only their visible rows, and the maximum is
 again the first frame's glyph rasterization.
 
+### 2026-10-26: with a selection (ROADMAP 4.3)
+
+Same benchmark, before and after `--keys "Right,Ctrl+a"` (all 10 000 entries selected: every
+visible row gets a filled box). Two runs each, at 2880x1620 (1920x1080 at scale 1.5).
+
+| Last column | median | p95 | max |
+|-------------|-------:|----:|----:|
+| nothing selected | 0.26 ms | 0.45 ms | 1.5 ms |
+| all 10 000 selected | 0.52 ms | 0.62-0.68 ms | 2.0 ms |
+
+Selected rows cost their fill (pixels, not entries): the worst case is 3 % of a 60 Hz frame.
+(The unselected median is 0.26 ms here against 0.23 ms in the first run: same code path, run
+to run spread.)
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

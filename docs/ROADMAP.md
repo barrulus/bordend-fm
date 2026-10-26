@@ -73,7 +73,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Solo le righe visibili vengono disegnate; scroll con inerzia.
 - [x] **4.2 Vista a colonne (Miller)**
   Navigazione a frecce, colonne ridimensionabili, scorrimento orizzontale animato.
-- [ ] **4.3 Selezione**
+- [x] **4.3 Selezione**
   Singola, multipla (Ctrl/Shift), da tastiera.
 - [ ] **4.4 Vista a griglia**
   Celle virtualizzate, dimensione regolabile, passaggio colonne ↔ griglia.

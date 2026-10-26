@@ -1,8 +1,11 @@
 // nordend-snapshot: renders the test scene (or the column view) offscreen and writes it as a
 // binary PPM.
 //
-//   nordend-snapshot [--columns DIR [--reveal PATH] [--bench FRAMES]] <out.ppm>
+//   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--bench FRAMES]] <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
+//
+// KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
+// optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down".
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -27,7 +30,9 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
+#include <xkbcommon/xkbcommon.h>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
@@ -38,6 +43,7 @@
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
+#include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/views/column_view.hpp"
 #include "test_scene.hpp"
@@ -150,6 +156,37 @@ void run_until(core::EventLoop& loop, const std::function<bool()>& done) {
     loop.remove(limit);
 }
 
+// "Down,Shift+Down,Ctrl+a" -> key events.
+std::vector<ui::KeyEvent> parse_keys(std::string_view keys) {
+    std::vector<ui::KeyEvent> events;
+    while (!keys.empty()) {
+        const std::size_t comma = keys.find(',');
+        std::string_view key = keys.substr(0, comma);
+        keys = comma == std::string_view::npos ? std::string_view{} : keys.substr(comma + 1);
+        ui::KeyEvent event;
+        for (;;) {
+            if (key.starts_with("Ctrl+")) {
+                event.modifiers.ctrl = true;
+                key.remove_prefix(5);
+            } else if (key.starts_with("Shift+")) {
+                event.modifiers.shift = true;
+                key.remove_prefix(6);
+            } else if (key.starts_with("Alt+")) {
+                event.modifiers.alt = true;
+                key.remove_prefix(4);
+            } else {
+                break;
+            }
+        }
+        event.keysym = xkb_keysym_from_name(std::string{key}.c_str(), XKB_KEYSYM_NO_FLAGS);
+        if (event.keysym == XKB_KEY_NoSymbol) {
+            throw std::runtime_error{"unknown key: " + std::string{key}};
+        }
+        events.push_back(std::move(event));
+    }
+    return events;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -159,6 +196,7 @@ int main(int argc, char** argv) {
     // report the time per frame.
     std::filesystem::path columns_dir;
     std::filesystem::path reveal;
+    std::string keys;
     int bench_frames = 0;
     while (args.size() >= 3) {
         const std::string_view option{args[1]};
@@ -166,6 +204,8 @@ int main(int argc, char** argv) {
             columns_dir = args[2];
         } else if (option == "--reveal") {
             reveal = args[2];
+        } else if (option == "--keys") {
+            keys = args[2];
         } else if (option == "--bench") {
             bench_frames = std::stoi(args[2]);
         } else {
@@ -175,7 +215,9 @@ int main(int argc, char** argv) {
     }
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
-            "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--bench FRAMES]] <out.ppm> "
+            "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--bench "
+            "FRAMES]] "
+            "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
     }
@@ -226,6 +268,11 @@ int main(int argc, char** argv) {
                     columns->open(columns_dir);
                 } else {
                     columns->reveal(columns_dir, reveal);
+                }
+                run_until(loop, [&] { return !columns->loading(); });
+                frame();  // lays out: keys need the viewport
+                for (const ui::KeyEvent& event : parse_keys(keys)) {
+                    columns->key(event, views::ColumnView::Clock::now());
                 }
                 run_until(loop, [&] { return !columns->loading(); });
                 frame();                                // asks for the visible entries' types
