@@ -4,8 +4,10 @@
 #include <chrono>
 #include <future>
 #include <mutex>
+#include <numeric>
 #include <optional>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include <doctest/doctest.h>
@@ -218,4 +220,56 @@ TEST_CASE("many jobs on many threads: every result delivered exactly once") {
     for (const int count : seen) {
         CHECK(count == 1);
     }
+}
+
+TEST_CASE("submit_streaming: partial results in order, then done; cancel stops them") {
+    EventLoop loop;
+    add_watchdog(loop);
+    WorkerPool pool{loop, 2};
+
+    std::vector<int> partials;
+    bool done_seen_all = false;
+    pool.submit_streaming(
+        Priority::visible,
+        [](const CancelToken& /*token*/, auto& emit) {
+            for (int i = 0; i < 100; ++i) {
+                emit(i);
+            }
+            return 100;
+        },
+        [&](int value) { partials.push_back(value); },
+        [&](int total) {
+            done_seen_all = std::cmp_equal(partials.size(), total);
+            loop.quit(0);
+        });
+    loop.run();
+    CHECK(done_seen_all);
+    std::vector<int> expected(100);
+    std::iota(expected.begin(), expected.end(), 0);
+    CHECK(partials == expected);
+
+    // Cancelled from the first partial: nothing else arrives, done included.
+    int received = 0;
+    bool done_called = false;
+    CancelToken token;
+    std::promise<void> emitted_all;
+    token = pool.submit_streaming(
+        Priority::visible,
+        [&emitted_all](const CancelToken& /*token*/, auto& emit) {
+            for (int i = 0; i < 10; ++i) {
+                emit(i);
+            }
+            emitted_all.set_value();
+            return 0;
+        },
+        [&](int /*value*/) {
+            ++received;
+            token.cancel();
+        },
+        [&](int /*total*/) { done_called = true; });
+    emitted_all.get_future().wait();
+    loop.add_timer(50ms, 0ms, [&loop] { loop.quit(0); });
+    loop.run();
+    CHECK(received == 1);
+    CHECK_FALSE(done_called);
 }

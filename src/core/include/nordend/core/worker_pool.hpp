@@ -64,13 +64,31 @@ public:
                     if (token.cancelled()) {
                         return;
                     }
-                    auto result = work(token);
-                    loop_.post([token, alive = std::move(alive), done = std::move(done),
-                                result = std::move(result)]() mutable {
-                        if (alive->load() && !token.cancelled()) {
-                            done(std::move(result));
-                        }
-                    });
+                    deliver(token, alive, std::move(done), work(token));
+                });
+        return token;
+    }
+
+    // Like submit(), for work that produces results in pieces: work(token, emit) may call
+    // emit(value) any number of times, and each value reaches partial(value) on the loop thread,
+    // in emission order and before done(). Same rules as done(): nothing is delivered after
+    // cancellation or once the pool is gone.
+    template <class Work, class Partial, class Done>
+    CancelToken submit_streaming(Priority priority, Work work, Partial partial, Done done) {
+        CancelToken token;
+        enqueue(priority, token,
+                [this, token, alive = alive_, work = std::move(work),
+                 partial = std::make_shared<Partial>(std::move(partial)),
+                 done = std::move(done)]() mutable {
+                    if (token.cancelled()) {
+                        return;
+                    }
+                    auto emit = [this, &token, &alive, &partial](auto value) {
+                        this->deliver(
+                            token, alive, [partial](auto v) { (*partial)(std::move(v)); },
+                            std::move(value));
+                    };
+                    deliver(token, alive, std::move(done), work(token, emit));
                 });
         return token;
     }
@@ -82,6 +100,17 @@ private:
         CancelToken token;
         std::function<void()> run;
     };
+
+    // Hands value to fn on the loop thread unless the job is cancelled or the pool is gone by then.
+    template <class Fn, class Value>
+    void deliver(const CancelToken& token, const std::shared_ptr<std::atomic<bool>>& alive, Fn fn,
+                 Value value) {
+        loop_.post([token, alive, fn = std::move(fn), value = std::move(value)]() mutable {
+            if (alive->load() && !token.cancelled()) {
+                fn(std::move(value));
+            }
+        });
+    }
 
     void enqueue(Priority priority, CancelToken token, std::function<void()> run);
     void worker_main();

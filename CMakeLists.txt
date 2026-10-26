@@ -62,6 +62,7 @@ pkg_check_modules(TOMLPLUSPLUS REQUIRED IMPORTED_TARGET tomlplusplus)
 add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
+add_subdirectory(src/fs)        # directory loading and sorting
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
 add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
@@ -77,6 +78,10 @@ target_link_libraries(nordend
 add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
     PRIVATE nordend::core nordend::ui nordend::theme nordend_test_scene nordend::warnings)
+
+# Development tool: directory loading benchmark (ROADMAP 3.1). Not installed.
+add_executable(nordend-bench-dir src/tools/bench_dir.cpp)
+target_link_libraries(nordend-bench-dir PRIVATE nordend::core nordend::fs nordend::warnings)
 
 # ---------------------------------------------------------------------------
 # Tests (doctest, system package). Skipped with a notice when doctest is missing.
@@ -94,7 +99,7 @@ endif()
 
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
-    foreach(executable nordend nordend-snapshot)
+    foreach(executable nordend nordend-snapshot nordend-bench-dir)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()

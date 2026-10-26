@@ -3,7 +3,7 @@
 **A native, Wayland-only file manager for the [Noctalia](https://github.com/noctalia-dev) ecosystem.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%201-complete-3DA639)
+![phase](https://img.shields.io/badge/phase%202-complete-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -35,8 +35,28 @@ test scene of everything the renderer can draw.
 - Text: fontconfig fallback, harfbuzz shaping, glyph atlases; accents, color emoji, CJK, invalid
   UTF-8, end and Finder-style middle truncation
 
-**Next — phase 2:** keyboard and pointer input, the main event loop with a worker pool,
-configuration, live Noctalia theme. The full plan is in the [roadmap](docs/ROADMAP.md).
+**Phase 2 — input, loop and theme: complete.**
+
+- Keyboard (xkbcommon, the compositor's layout, compose, key repeat) and pointer (click
+  counting, smooth touchpad scrolling, cursor-shape-v1)
+- One `poll()` event loop and a worker pool with priorities and cancellation (TSan clean)
+- `~/.config/nordend/config.toml` with readable errors; `nordend --check-config`
+- Live Noctalia theme: a Noctalia template writes `colors.toml`, Nordend reloads it on change
+
+**Now — phase 3, file system:** asynchronous directory loading is in (chunks, natural sort);
+MIME types, inotify watching and file icons are next. The full plan is in the
+[roadmap](docs/ROADMAP.md).
+
+## Benchmarks
+
+Measured, not assumed. Opening a folder of **10 000 files** on a SATA SSD:
+
+| Cache | First entries ready | Whole folder loaded and sorted | Target for the first frame |
+|-------|--------------------:|-------------------------------:|---------------------------:|
+| warm (median of 20) | **0.8 ms** | **19.5 ms** | < 50 ms |
+| cold (after `drop_caches`) | **1.7 ms** | **81 ms** | < 50 ms |
+
+Method, machine, cold-cache numbers and more folders: [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Building
 
@@ -68,8 +88,12 @@ cmake --build build-tsan
 # Unit tests (needs doctest-devel), in any build directory
 ctest --test-dir build
 
-# Render the test scene offscreen, no window: <out.ppm> [width height scale]
+# Render the test scene offscreen, no window: <out.ppm> [width height scale [colors.toml]]
 ./build/nordend-snapshot scene.ppm 960 820 1.5
+
+# Directory loading benchmark (see docs/benchmarks.md)
+./build/nordend-bench-dir --make 10000 /tmp/bench-10k
+./build/nordend-bench-dir --runs 20 /tmp/bench-10k
 ```
 
 ## Documentation
@@ -77,6 +101,7 @@ ctest --test-dir build
 - [Design](docs/DESIGN.md)
 - [Roadmap](docs/ROADMAP.md)
 - [Devlog](docs/devlog.md)
+- [Benchmarks](docs/benchmarks.md)
 - [Upstream bug log](docs/buglog.md)
 
 ## Development

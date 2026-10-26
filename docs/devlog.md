@@ -4,6 +4,56 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Async directory loader (ROADMAP 3.1)
+
+**Done**
+- ROADMAP 2.6 (template PR to Noctalia) postponed to after 7.3: a builtin template makes sense for
+  an installable app. The template keeps working from `void-noctalia`.
+- `WorkerPool::submit_streaming`: work gets an `emit(value)`; values reach the loop thread in
+  order, before `done`, with the same cancel / pool-gone rules. Both submit paths share `deliver`.
+- New module `fs` (`nordend::fs`):
+  - `Entry`: name (bytes as on disk), kind, `is_link`, size, mtime in ns, `hidden()`. A link takes
+    its target's kind; a dangling link is `other`; an entry that vanishes during the read is skipped.
+  - `read_directory`: `opendir`/`readdir` + `fstatat` per entry (a second one for links), chunks
+    of 128 doubling up to 4096; cancellation checked every 64 entries and before every chunk.
+  - `load_directory`: the same on a worker (priority visible), chunks and result on the loop thread.
+  - Sorting: `natural_compare` (digit runs by value, ASCII case ignored, ties by bytes so the order
+    is total), `SortOrder` (name / size / modified, descending, directories first and not reversed),
+    `Listing`: each chunk sorted and merged (`inplace_merge`), `set_order` re-sorts.
+    Known limit: no locale collation, accented letters sort after z.
+- `nordend-bench-dir` (not installed): `--make N DIR` creates a camera-like folder (ORF, ORF.xmp
+  sidecars, JPG, subfolders); a run measures readdir alone, readdir + stat, sort by name, and the
+  async path to the first merged chunk and to the complete sorted list. Run 1 apart (may be cold),
+  min / median / max over the rest.
+- 12 new test cases (45 in total). Release, ASan, TSan pass (bench too); tidy clean.
+
+**Measured** (warm cache, Release, 8 workers, 20 runs, median ms)
+
+| Directory | Entries | readdir | + stat | sort | 1st chunk | complete |
+|-----------|--------:|--------:|-------:|-----:|----------:|---------:|
+| generated, tmpfs | 10 000 | 2.08 | 15.44 | 3.61 | 0.52 | 16.93 |
+| `/usr/lib`, btrfs on NVMe | 1 862 | 0.51 | 4.49 | 0.49 | 0.77 | 5.19 |
+| `/usr/bin`, btrfs on NVMe | 1 493 | 0.40 | 2.89 | 0.31 | 0.79 | 3.26 |
+| `DATA/fotografia/vero`, ext4 on SSD | 327 | 0.13 | 0.52 | 0.07 | 0.40 | 0.75 |
+
+- DESIGN target "10k folder: first frame < 50 ms, full list in background": the first chunk is
+  ready in about 0.5 ms and the whole sorted list in about 17 ms, warm. stat is most of the
+  cost (about 1.3 us per entry, more for links: `/usr/lib`); the sort is about 3.6 ms for 10k.
+- `/usr/bin` run 1: 19 ms for readdir + stat against 2.9 ms afterwards: a cold inode cache costs
+  much more than the work itself.
+
+**Tested by the author** (10k generated files on the SATA SSD, ext4)
+- Warm, median of 20: readdir 3.69, + stat 18.01, sort 3.47, 1st chunk 0.80, complete 19.51 ms.
+- Cold (after drop_caches), run 1: + stat 79.09 ms. The tool then read synchronously before the
+  async path, so the async columns were already warm: the bench now runs the async path first.
+  Rerun cold: **1st chunk 1.72 ms, complete 81.27 ms** (warm median 0.75 / 19.59 ms). Disk
+  latency stays off the first frame.
+- Natural order in `--list` checked ("Session 2" before "Session 10", IMG_2, IMG_5, ... IMG_11).
+- Results collected in `docs/benchmarks.md`, summary in the README (author's request).
+- Step 3.1 closed.
+
+---
+
 ## 2026-10-26 — Noctalia theme (ROADMAP 2.5)
 
 **Done**

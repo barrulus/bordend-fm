@@ -54,11 +54,11 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **2.5 Tema Noctalia**
   `colors.toml` con ricarica a caldo; template `nordend` per Noctalia.
   Fatto quando: cambiando tema in Noctalia, Nordend si aggiorna senza riavvio.
-- [ ] **2.6 PR upstream del template a Noctalia**
+- [ ] **2.6 PR upstream del template a Noctalia** — *rimandato a dopo 7.3* (un builtin ha senso per un'app installabile; il template resta in `void-noctalia`)
 
 ## Fase 3 — File system
 
-- [ ] **3.1 Loader asincrono**
+- [x] **3.1 Loader asincrono**
   Lettura cartelle nei worker, risultati a blocchi, ordinamento.
   Fatto quando: benchmark su 10k file registrato in `devlog.md`.
 - [ ] **3.2 Tipi MIME**
