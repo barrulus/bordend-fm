@@ -4,6 +4,36 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Config (ROADMAP 2.4)
+
+**Done**
+- `core::load_config` / `parse_config` (toml++ 3.4, Void package `tomlplusplus-devel`, linked as
+  its shared library and included only in `config.cpp`). Path: `$XDG_CONFIG_HOME/nordend/config.toml`,
+  else `~/.config/nordend/config.toml` (a relative XDG value is ignored, as the spec says).
+- Reading never fails: missing file = defaults; syntax error = the whole file ignored; unknown
+  key or section, wrong type, empty string or out-of-range value = reported, that key keeps its
+  default, the rest applies. Every problem is one line `file:line:column: what; using X`, sorted
+  in file order (toml++ tables iterate by key, so problems are collected and sorted).
+- First keys, only things Nordend already uses: `font.family` (fontconfig pattern, default
+  `sans-serif`), `pointer.double_click_ms` (100-2000, default 400), `pointer.double_click_distance`
+  (0-50 logical px, default 4). The Seat constants became `Seat::set_multi_click()`.
+- Command line: `--config FILE`, `--check-config` (problems on stderr, verdict on stdout, status 1
+  if any problem; no Wayland connection), unknown options exit with status 2 and a usage text.
+  Problems are also logged as warnings at startup.
+- `docs/config.example.toml`: every key with its default; a unit test checks it parses clean and
+  matches the built-in defaults, so it cannot drift.
+- 12 new test cases (23 in total). Release, ASan and TSan pass; tidy and format clean.
+- GCC 14 `-Wnull-dereference` fires inside libstdc++ for `std::string(istreambuf_iterator...)`:
+  the file is read with a sized `read()` instead.
+
+**Tested by the author**
+- Tests green; `--check-config` on a missing file (status 0), the example (ok, 0) and a file with a
+  second `[pointer]` table (toml++: "cannot redefine existing table", whole file ignored, 1).
+- In the window: `family = "serif"` picks DejaVu Serif, `double_click_ms = 1500` turns two slow
+  clicks into a double click; no warnings in the log. Step 2.4 closed.
+
+---
+
 ## 2026-10-26 — Event loop and worker pool (ROADMAP 2.3)
 
 **Done**

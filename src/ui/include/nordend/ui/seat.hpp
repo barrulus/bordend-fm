@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -99,6 +100,13 @@ public:
 
     void set_pointer_handler(PointerHandler handler) { pointer_handler_ = std::move(handler); }
 
+    // Double-click window and slop (logical pixels). Wayland does not share the desktop's
+    // setting, so it comes from Nordend's config.
+    void set_multi_click(std::chrono::milliseconds time, float slop) {
+        multi_click_ms_ = static_cast<std::uint32_t>(time.count());
+        multi_click_slop_ = slop;
+    }
+
     // Cursor over Nordend surfaces; applied at once if the pointer is inside one.
     void set_cursor(CursorShape shape);
 
@@ -190,6 +198,8 @@ private:
     CursorShape cursor_{CursorShape::standard};
     PendingScroll pending_scroll_;
     LastPress last_press_;
+    std::uint32_t multi_click_ms_{400};
+    float multi_click_slop_{4.0F};
 
     // Reverse order = teardown order: cursor device before the pointer it belongs to.
     WlPtr<wl_keyboard> keyboard_;  // the wl_seat itself belongs to the Display

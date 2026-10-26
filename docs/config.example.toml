@@ -1,0 +1,13 @@
+# Nordend configuration: ~/.config/nordend/config.toml ($XDG_CONFIG_HOME/nordend/config.toml).
+# Every key is optional; the values below are the defaults. A bad value is reported in the log
+# and keeps its default. Check a file without starting Nordend: nordend --check-config
+
+[font]
+# fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
+family = "sans-serif"
+
+[pointer]
+# Two presses of the same button closer than this (milliseconds, 100-2000)...
+double_click_ms = 400
+# ...and closer than this (logical pixels, 0-50) make a double click.
+double_click_distance = 4

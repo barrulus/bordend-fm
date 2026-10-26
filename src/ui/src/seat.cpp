@@ -24,10 +24,6 @@ namespace {
 constexpr xkb_keycode_t kEvdevOffset = 8;
 // Repeats delivered per timer wake-up at most, so a stalled loop does not burst-type.
 constexpr std::uint64_t kMaxRepeatsPerWake = 2;
-// Double-click window and slop. Wayland does not share the desktop's setting; configurable from
-// ROADMAP 2.4.
-constexpr std::uint32_t kMultiClickMs = 400;
-constexpr float kMultiClickSlop = 4.0F;
 // wl_pointer.axis_value120: one wheel notch.
 constexpr float kValue120PerNotch = 120.0F;
 
@@ -252,9 +248,9 @@ void Seat::on_pointer_button(void* data, wl_pointer* /*pointer*/, std::uint32_t 
         event.kind = PointerEvent::Kind::press;
         LastPress& last = self.last_press_;
         const bool same_click = last.count > 0 && last.button == event.button &&
-                                time - last.time_ms <= kMultiClickMs &&
-                                std::abs(event.x - last.x) <= kMultiClickSlop &&
-                                std::abs(event.y - last.y) <= kMultiClickSlop;
+                                time - last.time_ms <= self.multi_click_ms_ &&
+                                std::abs(event.x - last.x) <= self.multi_click_slop_ &&
+                                std::abs(event.y - last.y) <= self.multi_click_slop_;
         last = {.button = event.button,
                 .time_ms = time,
                 .x = event.x,

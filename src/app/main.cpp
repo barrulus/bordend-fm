@@ -1,8 +1,10 @@
 #include <array>
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <format>
 #include <poll.h>
 #include <stdexcept>
@@ -12,6 +14,7 @@
 #include <unistd.h>
 #include <utility>
 
+#include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/ui/display.hpp"
@@ -105,19 +108,68 @@ const char* button_name(ui::PointerButton button) {
     return "other";
 }
 
+constexpr const char* kUsage =
+    "usage: nordend [--config FILE] [--check-config] [--version]\n"
+    "  --config FILE   read FILE instead of ~/.config/nordend/config.toml\n"
+    "  --check-config  report problems in the config file and exit (status 1 if any)\n"
+    "  --version       print the version and exit\n";
+
+// --check-config: every problem on stderr, a one-line verdict on stdout.
+int check_config(const std::filesystem::path& path, const core::ConfigResult& result) {
+    for (const std::string& problem : result.problems) {
+        std::fprintf(stderr, "%s\n", problem.c_str());
+    }
+    if (!result.problems.empty()) {
+        std::printf("%s: %zu problem(s)\n", path.c_str(), result.problems.size());
+        return 1;
+    }
+    std::printf("%s: %s\n", path.c_str(), result.from_file ? "ok" : "not found, defaults in use");
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+    std::filesystem::path config_path;
+    bool check_only = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
         if (arg == "--version") {
             std::puts("nordend " NORDEND_VERSION);
             return 0;
         }
+        if (arg == "--check-config") {
+            check_only = true;
+        } else if (arg == "--config") {
+            if (i + 1 == argc) {
+                std::fprintf(stderr, "nordend: --config needs a file\n%s", kUsage);
+                return 2;
+            }
+            config_path = argv[++i];
+        } else {
+            std::fprintf(stderr, "nordend: unknown option '%s'\n%s", argv[i], kUsage);
+            return 2;
+        }
+    }
+    if (config_path.empty()) {
+        config_path = core::default_config_path();
+    }
+    const core::ConfigResult config_result = core::load_config(config_path);
+    if (check_only) {
+        return check_config(config_path, config_result);
     }
 
     log::init_from_env();
     log::info("nordend {}", NORDEND_VERSION);
+    if (config_result.from_file) {
+        log::info("config: {}", config_path.string());
+    } else {
+        log::info("config: {} not used, defaults in use", config_path.string());
+    }
+    for (const std::string& problem : config_result.problems) {
+        log::warn("config: {}", problem);
+    }
+    const core::Config& config = config_result.config;
 
     try {
         // Before any other thread exists, so every thread inherits the blocked signals.
@@ -130,9 +182,11 @@ int main(int argc, char** argv) {
 
         ui::Display display;
         ui::EglContext egl{display};
-        ui::FontSystem fonts;
+        ui::FontSystem fonts{config.font.family};
         ui::Window window{display, egl, fonts, {.title = "Nordend", .app_id = "nordend"}};
         ui::Seat seat{display};
+        seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
+                             static_cast<float>(config.pointer.double_click_distance));
         display.attach(loop);
         seat.attach(loop);
         window.set_close_handler([&] {

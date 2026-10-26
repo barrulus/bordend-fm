@@ -45,7 +45,7 @@ Void Linux package names:
 ```sh
 sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
-    harfbuzz-devel freetype-devel fontconfig-devel
+    harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend
