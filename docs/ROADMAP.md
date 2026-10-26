@@ -71,7 +71,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 - [x] **4.1 Lista scorrevole virtualizzata**
   Solo le righe visibili vengono disegnate; scroll con inerzia.
-- [ ] **4.2 Vista a colonne (Miller)**
+- [x] **4.2 Vista a colonne (Miller)**
   Navigazione a frecce, colonne ridimensionabili, scorrimento orizzontale animato.
 - [ ] **4.3 Selezione**
   Singola, multipla (Ctrl/Shift), da tastiera.

@@ -1,6 +1,8 @@
-// nordend-snapshot: renders the test scene offscreen and writes it as a binary PPM.
+// nordend-snapshot: renders the test scene (or the column view) offscreen and writes it as a
+// binary PPM.
 //
-//   nordend-snapshot <out.ppm> [logical-width logical-height scale]
+//   nordend-snapshot [--columns DIR [--reveal PATH] [--bench FRAMES]] <out.ppm>
+//                    [logical-width logical-height scale [colors.toml]]
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -37,7 +39,7 @@
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
-#include "nordend/views/list_view.hpp"
+#include "nordend/views/column_view.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -152,14 +154,18 @@ void run_until(core::EventLoop& loop, const std::function<bool()>& done) {
 
 int main(int argc, char** argv) {
     std::span args{argv, static_cast<std::size_t>(argc)};
-    // --list DIR: the folder list instead of the test scene; --bench N: then scroll it over N
-    // frames and report the time per frame.
-    std::filesystem::path list_dir;
+    // --columns DIR: the column view instead of the test scene; --reveal PATH: with the columns
+    // opened down to PATH (inside DIR); --bench N: then scroll the last column over N frames and
+    // report the time per frame.
+    std::filesystem::path columns_dir;
+    std::filesystem::path reveal;
     int bench_frames = 0;
     while (args.size() >= 3) {
         const std::string_view option{args[1]};
-        if (option == "--list") {
-            list_dir = args[2];
+        if (option == "--columns") {
+            columns_dir = args[2];
+        } else if (option == "--reveal") {
+            reveal = args[2];
         } else if (option == "--bench") {
             bench_frames = std::stoi(args[2]);
         } else {
@@ -169,7 +175,7 @@ int main(int argc, char** argv) {
     }
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
-            "usage: nordend-snapshot [--list DIR [--bench FRAMES]] <out.ppm> "
+            "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--bench FRAMES]] <out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
     }
@@ -200,35 +206,48 @@ int main(int argc, char** argv) {
             core::EventLoop loop;
             core::WorkerPool pool{loop};
             nordend::fs::DirectoryWatcher watcher{loop};
-            std::unique_ptr<views::ListView> list;
+            std::unique_ptr<views::ColumnView> columns;
             const ui::Rect bounds{0.0F, 0.0F, width, height};
             const auto frame = [&] {
                 renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
-                if (list) {
-                    list->draw(renderer, bounds, palette.palette, icons,
-                               views::ListView::Clock::now());
+                if (columns) {
+                    columns->draw(renderer, bounds, palette.palette, icons,
+                                  views::ColumnView::Clock::now());
                 } else {
                     nordend::app::draw_test_scene(renderer, bounds, palette.palette);
                 }
                 renderer.end_frame();
             };
-            if (!list_dir.empty()) {
-                list = std::make_unique<views::ListView>(loop, pool, watcher,
-                                                         nordend::fs::MimeDatabase::load(), [] {});
-                list->open(list_dir);
-                run_until(loop, [&] { return !list->model().loading(); });
+            if (!columns_dir.empty()) {
+                columns = std::make_unique<views::ColumnView>(
+                    loop, pool, watcher, nordend::fs::MimeDatabase::load(), [] {},
+                    [](ui::CursorShape /*shape*/) {});
+                if (reveal.empty()) {
+                    columns->open(columns_dir);
+                } else {
+                    columns->reveal(columns_dir, reveal);
+                }
+                run_until(loop, [&] { return !columns->loading(); });
                 frame();                                // asks for the visible entries' types
                 run_until(loop, [] { return false; });  // let them arrive (2 s at most)
+                // Let the horizontal glide end, so the snapshot shows where it settles.
+                for (int i = 0; i < 200 && columns->animating(); ++i) {
+                    frame();
+                }
             }
-            if (list && bench_frames > 0) {
-                // Scroll from top to bottom at constant speed; every frame waits for the GPU.
-                const float rows = static_cast<float>(list->model().listing().entries().size()) *
-                                   views::ListView::kRowHeight;
+            views::Column* const bench_column =
+                columns ? &columns->column(columns->column_count() - 1) : nullptr;
+            if (bench_column != nullptr && bench_frames > 0) {
+                // Scroll the last column from top to bottom at constant speed; every frame waits
+                // for the GPU.
+                const float rows =
+                    static_cast<float>(bench_column->model().listing().entries().size()) *
+                    views::Column::kRowHeight;
                 std::vector<double> times;
                 times.reserve(static_cast<std::size_t>(bench_frames));
                 for (int i = 0; i < bench_frames; ++i) {
-                    list->scroll_to(rows * static_cast<float>(i) /
-                                    static_cast<float>(bench_frames));
+                    bench_column->scroller().jump_to(rows * static_cast<float>(i) /
+                                                     static_cast<float>(bench_frames));
                     const auto start = std::chrono::steady_clock::now();
                     frame();
                     glFinish();
@@ -244,9 +263,9 @@ int main(int argc, char** argv) {
                 std::printf(
                     "%zu entries, %d frames at %dx%d: median %.2f ms, p95 %.2f ms, "
                     "max %.2f ms per frame\n",
-                    list->model().listing().entries().size(), bench_frames, buffer_width,
+                    bench_column->model().listing().entries().size(), bench_frames, buffer_width,
                     buffer_height, at(0.5), at(0.95), times.back());
-                list->scroll_to(0.0F);
+                bench_column->scroller().jump_to(0.0F);
             }
             frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,

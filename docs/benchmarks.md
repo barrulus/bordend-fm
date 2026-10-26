@@ -89,7 +89,8 @@ Median of 20 runs.
 **Target:** scrolling at the monitor's full rate with no dropped frame (DESIGN), in folders of
 any size.
 
-**Tool:** `nordend-snapshot --list DIR --bench FRAMES out.ppm [w h scale]`: draws the list
+**Tool:** `nordend-snapshot --list DIR --bench FRAMES out.ppm [w h scale]` (replaced by
+`--columns` with ROADMAP 4.2, see below): draws the list
 offscreen while scrolling it from top to bottom at constant speed over FRAMES frames (about 17
 new rows per frame for 10k entries), waiting for the GPU (`glFinish`) after each one.
 
@@ -104,6 +105,23 @@ new rows per frame for 10k entries), waiting for the GPU (`glFinish`) after each
 The maximum is the first frame, when glyphs are rasterized for the first time. Only visible
 rows are drawn, so the cost does not depend on the folder size: a 60 Hz frame (16.7 ms) leaves
 the list about 1.5 % of it.
+
+## Column view scrolling (ROADMAP 4.2)
+
+**Tool:** `nordend-snapshot --columns PARENT --reveal DIR --bench FRAMES out.ppm [w h scale]`:
+opens the columns down to DIR, then scrolls the last column (DIR) from top to bottom over FRAMES
+frames, drawing the whole view (title, every visible column) and waiting for the GPU after each
+frame, as for the list.
+
+### 2026-10-26
+
+| Last column | Buffer | median | p95 | max |
+|-------------|--------|-------:|----:|----:|
+| 10 000 entries (2 columns on screen) | 960x640 | 0.19 ms | 0.28 ms | 6.2 ms |
+| 10 000 entries (2 columns on screen) | 2880x1620 (1920x1080 at scale 1.5) | 0.23 ms | 0.44 ms | 1.2 ms |
+
+Same cost as the single list: the columns draw only their visible rows, and the maximum is
+again the first frame's glyph rasterization.
 
 ## MIME detection (ROADMAP 3.2)
 

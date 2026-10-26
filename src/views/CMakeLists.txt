@@ -1,6 +1,7 @@
 add_library(nordend_views
-    src/format.cpp
-    src/list_view.cpp)
+    src/column.cpp
+    src/column_view.cpp
+    src/format.cpp)
 add_library(nordend::views ALIAS nordend_views)
 
 target_include_directories(nordend_views PUBLIC include)

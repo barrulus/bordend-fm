@@ -30,7 +30,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
-#include "nordend/views/list_view.hpp"
+#include "nordend/views/column_view.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -236,12 +236,13 @@ int main(int argc, char** argv) {
         core::WorkerPool pool{loop};
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
-        // The folder list (ROADMAP 4.1), unless the renderer test scene was asked for.
-        std::unique_ptr<views::ListView> list;
+        // The column view (ROADMAP 4.2), unless the renderer test scene was asked for.
+        std::unique_ptr<views::ColumnView> columns;
         if (!test_scene) {
-            list = std::make_unique<views::ListView>(loop, pool, watcher, fs::MimeDatabase::load(),
-                                                     [&] { window.request_redraw(); });
-            list->open(start_folder(start_dir));
+            columns = std::make_unique<views::ColumnView>(
+                loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); },
+                [&](ui::CursorShape shape) { seat.set_cursor(shape); });
+            columns->open(start_folder(start_dir));
         }
 
         std::string last_key = "Press a key (Ctrl+Q quits)";
@@ -251,8 +252,8 @@ int main(int argc, char** argv) {
                 loop.quit(0);
                 return;
             }
-            if (list) {
-                list->key(event, views::ListView::Clock::now());
+            if (columns) {
+                columns->key(event, views::ColumnView::Clock::now());
                 return;
             }
             last_key = describe(event);
@@ -265,8 +266,8 @@ int main(int argc, char** argv) {
         int clicks = 0;
         std::string last_pointer = "Move the pointer, click the button, scroll";
         seat.set_pointer_handler([&](const ui::PointerEvent& event) {
-            if (list) {
-                list->pointer(event, views::ListView::Clock::now());
+            if (columns) {
+                columns->pointer(event, views::ColumnView::Clock::now());
                 return;
             }
             using Kind = ui::PointerEvent::Kind;
@@ -306,9 +307,9 @@ int main(int argc, char** argv) {
 
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             const theme::Palette& palette = theme.palette();
-            if (list) {
-                list->draw(renderer, bounds, palette, icons, views::ListView::Clock::now());
-                if (list->animating()) {
+            if (columns) {
+                columns->draw(renderer, bounds, palette, icons, views::ColumnView::Clock::now());
+                if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }
                 return;

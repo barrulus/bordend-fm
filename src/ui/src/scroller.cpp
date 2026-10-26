@@ -41,6 +41,19 @@ void Scroller::wheel(float notches, Clock::time_point now) {
     }
 }
 
+void Scroller::glide_to(float offset, Clock::time_point now) {
+    samples_.clear();
+    target_ = clamp(offset);
+    if (target_ == offset_) {
+        mode_ = Mode::idle;
+        return;
+    }
+    if (mode_ != Mode::glide) {
+        last_ = now;
+    }
+    mode_ = Mode::glide;
+}
+
 void Scroller::finger(float pixels, Clock::time_point now) {
     mode_ = Mode::finger;
     offset_ = clamp(offset_ + pixels);

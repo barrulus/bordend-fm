@@ -6,7 +6,7 @@
 
 namespace nordend::ui {
 
-// Vertical scrolling physics for one scrollable area, in logical pixels. No drawing and no
+// Scrolling physics for one scrollable area along one axis, in logical pixels. No drawing and no
 // clock of its own: input and frames come with their time, so it can be tested and replayed.
 //
 // - Wheel: each notch moves a target; the offset glides there (exponential approach), so fast
@@ -41,6 +41,9 @@ public:
     // The fingers left the touchpad: start inertia from the recent movement.
     void release(Clock::time_point now);
 
+    // Glides to an offset, as a wheel turn would (keeping a cursor in view, revealing a column).
+    void glide_to(float offset, Clock::time_point now);
+
     // Jumps without animation (keyboard Home/End, opening a folder).
     void jump_to(float offset);
 
@@ -54,6 +57,11 @@ public:
     }
 
     [[nodiscard]] float offset() const noexcept { return offset_; }
+
+    // Where the offset is heading: the glide's destination while gliding, else the offset.
+    [[nodiscard]] float destination() const noexcept {
+        return mode_ == Mode::glide ? target_ : offset_;
+    }
 
     [[nodiscard]] float max_offset() const noexcept;
 

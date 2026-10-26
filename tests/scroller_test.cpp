@@ -115,3 +115,25 @@ TEST_CASE("scroller: inertia stops at the edge; extent changes clamp; jump_to") 
     s.jump_to(1e9F);
     CHECK(s.offset() == 9500.0F);
 }
+
+TEST_CASE("scroller: glide_to glides to a clamped offset, destination tells where it heads") {
+    Scroller s;
+    s.set_extent(1000.0F, 400.0F);
+    auto t = Scroller::Clock::time_point{} + 1s;
+    s.glide_to(250.0F, t);
+    CHECK(s.animating());
+    CHECK(static_cast<double>(s.destination()) == doctest::Approx(250.0));
+    t += 16ms;
+    s.advance(t);
+    CHECK(s.offset() > 0.0F);
+    CHECK(s.offset() < 250.0F);
+    settle(s, t);
+    CHECK(offset(s) == doctest::Approx(250.0));
+    CHECK(static_cast<double>(s.destination()) == doctest::Approx(250.0));
+
+    s.glide_to(5000.0F, t);  // past the end: clamped
+    settle(s, t);
+    CHECK(offset(s) == doctest::Approx(600.0));
+    s.glide_to(600.0F, t);  // already there: nothing to animate
+    CHECK_FALSE(s.animating());
+}

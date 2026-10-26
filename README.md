@@ -31,6 +31,10 @@ What already works, the way it is meant to stay:
   a mouse wheel glides instead of jumping, and quick turns add up. The keyboard moves the same
   way: arrows and Page Up/Down glide, Home/End jump. Only the visible rows are drawn (0.2 ms
   per frame in a 10 000-file folder), and nothing is drawn when nothing moves.
+- **Columns, as in Finder.** Every folder you pick opens in the next column; arrows walk the
+  tree, Left from the first column climbs to the parent. Columns resize by dragging their edge
+  and slide sideways by themselves to keep where you are in view. A file shows its details at
+  the end.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -39,8 +43,8 @@ What already works, the way it is meant to stay:
 
 ## Progress
 
-`nordend [DIR]` opens a folder (default: your home) as a scrolling list; `nordend --test-scene`
-shows everything the renderer can draw.
+`nordend [DIR]` opens a folder (default: your home) in Finder-style columns;
+`nordend --test-scene` shows everything the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
 
@@ -69,9 +73,14 @@ shows everything the renderer can draw.
 - File-type icons from Noctalia's Tabler set, tinted by the theme; camera RAW files and
   darktable sidecars have their own
 
-**Next — phase 4:** the views: a virtualized scrolling list, Finder-style columns, selection, a
-thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md). The full plan is in the
-[roadmap](docs/ROADMAP.md).
+**Phase 4 — views: in progress.**
+
+- Virtualized scrolling list with touchpad inertia and wheel glide (0.2 ms per frame in a
+  10 000-file folder)
+- Miller columns: arrow-key navigation, resizable columns, animated horizontal scrolling, an
+  info pane for the selected file
+
+**Next:** selection, the thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 
@@ -117,9 +126,10 @@ ctest --test-dir build
 # Render the test scene offscreen, no window: <out.ppm> [width height scale [colors.toml]]
 ./build/nordend-snapshot scene.ppm 960 820 1.5
 
-# A folder offscreen, and the list scrolling benchmark (see docs/benchmarks.md)
-./build/nordend-snapshot --list ~/Pictures list.ppm
-./build/nordend-snapshot --list /tmp/bench-10k --bench 600 list.ppm
+# Folders in columns offscreen, opened down to a path, and the scrolling benchmark
+# (see docs/benchmarks.md)
+./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm
+./build/nordend-snapshot --columns /tmp --reveal /tmp/bench-10k --bench 600 columns.ppm
 
 # Directory loading benchmark (see docs/benchmarks.md)
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k

@@ -4,6 +4,63 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Miller columns (ROADMAP 4.2)
+
+**Done**
+- `views::Column`: one folder as a virtualized list of icon, name and a chevron for folders,
+  built from the 4.1 list (same scroller, same visible-rows drawing, same sniffing of visible
+  entries). It has a cursor, kept by name: it follows its entry when rows move or the entry is
+  renamed, is dropped when the entry goes, and can name an entry not loaded yet (pending: it
+  lands when the entry arrives). Moving it glides the list just enough to keep it in view; a
+  cursor that lands later jumps there, centered.
+- `views::ColumnView`: Miller columns. One invariant does the work (`sync_after`): the column
+  after column i always shows what column i's cursor is on (same folder: kept as is; another
+  folder: a new column; a file or nothing: no column, the info pane shows the file). Keys and
+  clicks only move cursors and focus. Up/Down, Page Up/Down, Home/End move the cursor (a folder
+  opens at once in the next column); Right/Enter go into it; Left goes back one column (the
+  column left behind stays open, without cursor), and from the first column opens the parent as
+  a new first column, with the cursor on where we were (Backspace, Alt+Up, mouse back do the
+  same). A click puts the cursor on a row (an empty area clears it).
+- Resizing: drag a column's right edge (ew-resize cursor, the edge lights up), 140-800 px; a
+  double click on the edge restores 260 px. A new column takes the width of the one it replaces,
+  so a widened column stays wide while browsing.
+- Horizontal scrolling: a second `ui::Scroller` for the row of columns, which glides by itself
+  to show the focused column and what it opens. Touchpad (with inertia), tilt wheel and
+  Shift+wheel scroll it by hand; a touchpad gesture locks to the axis it starts on and to the
+  column it starts over, so a vertical swipe does not drift sideways. A parent column opened from
+  the left slides in. Thin scrollbar at the bottom when the columns do not fit.
+- Info pane, after the last column when its cursor is on a file: the file's icon (64 px), name,
+  MIME type, size and date. It is the place the previews of phase 5 will take.
+- `ui::Scroller::glide_to` and `destination()` (where a glide is heading: keeping a cursor in
+  view while a key repeats must count from there, not from the current offset).
+- `views::ListView` is gone: the columns replace it in the app and in `nordend-snapshot`
+  (`--list` became `--columns DIR [--reveal PATH]`).
+- 5 new test cases (74 in total): navigation with the arrows, Left from the first column, reveal,
+  a folder renamed and then deleted under the cursor (inotify), `glide_to`. Release, ASan, TSan
+  pass (column tests 10 times in Release, 5 in TSan); tidy clean.
+
+**Measured**: scrolling a 10 000-entry last column with the whole view drawn, 0.19 ms median at
+960x640, 0.23 ms at 2880x1620, as the list (docs/benchmarks.md).
+
+**Decisions**
+- Each column is its own DirectoryModel (its own watch and load), created when the cursor lands
+  on a folder: holding Down through a hundred folders opens and cancels a hundred loads. Loads
+  cancel cleanly and each costs well under a millisecond for ordinary folders; to measure on
+  screen before adding any delay.
+- No selection yet beyond the cursor (ROADMAP 4.3), and nothing opens files (6.1).
+
+**Tested by the author**
+- On screen: navigation, resizing, horizontal scrolling, info pane, and a folder created,
+  renamed and removed from a terminal while shown: "everything works". Step 4.2 closed.
+
+**Open**
+- When the columns shrink (a cursor moved to a file in a left column), the horizontal offset is
+  clamped to the new width at once instead of gliding: to judge on screen.
+- The info pane shows the MIME type name (`image/x-olympus-orf`), not a readable description:
+  shared-mime-info's comments live in the XML files, not parsed yet.
+
+---
+
 ## 2026-10-26 — Virtualized scrolling list (ROADMAP 4.1)
 
 **Done**
