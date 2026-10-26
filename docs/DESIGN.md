@@ -36,7 +36,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | Finestra | `wayland-client`, `xdg-shell` | niente Qt/GTK/SDL |
 | Decorazioni | server-side (`xdg-decoration`, disegnate da Umbriel) | **deciso** |
 | Input | `xkbcommon` | |
-| Rendering | EGL + GLESv2 | |
+| Rendering | EGL + OpenGL ES 3.0 (libGLESv2) | ES 3.0 per instancing e texture R8 (atlas glifi) |
 | Testo | harfbuzz + freetype + fontconfig (pango/cairo dove serve) | come Noctalia, *da verificare* il dettaglio |
 | Config | `toml++`, `~/.config/nordend/config.toml` | |
 | Immagini | wuffs, libwebp, libjxl | come Noctalia |

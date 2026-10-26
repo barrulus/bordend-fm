@@ -8,13 +8,11 @@ void destroy(wl_registry* registry) noexcept { wl_registry_destroy(registry); }
 
 void destroy(wl_compositor* compositor) noexcept { wl_compositor_destroy(compositor); }
 
-void destroy(wl_shm* shm) noexcept { wl_shm_destroy(shm); }
-
-void destroy(wl_shm_pool* pool) noexcept { wl_shm_pool_destroy(pool); }
-
-void destroy(wl_buffer* buffer) noexcept { wl_buffer_destroy(buffer); }
-
 void destroy(wl_surface* surface) noexcept { wl_surface_destroy(surface); }
+
+void destroy(wl_callback* callback) noexcept { wl_callback_destroy(callback); }
+
+void destroy(wl_egl_window* window) noexcept { wl_egl_window_destroy(window); }
 
 void destroy(xdg_wm_base* wm_base) noexcept { xdg_wm_base_destroy(wm_base); }
 

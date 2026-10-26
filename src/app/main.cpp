@@ -10,6 +10,7 @@
 
 #include "nordend/core/log.hpp"
 #include "nordend/ui/display.hpp"
+#include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/window.hpp"
 
 namespace {
@@ -112,7 +113,8 @@ int main(int argc, char** argv) {
 
     try {
         ui::Display display;
-        ui::Window window{display, {.title = "Nordend", .app_id = "nordend"}};
+        ui::EglContext egl{display};
+        ui::Window window{display, egl, {.title = "Nordend", .app_id = "nordend"}};
         return run_event_loop(display, window);
     } catch (const std::exception& e) {
         log::error("{}", e.what());

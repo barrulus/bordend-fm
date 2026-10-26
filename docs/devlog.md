@@ -4,6 +4,31 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — EGL rendering and frame pacing (ROADMAP 1.2)
+
+**Done**
+- `EglContext`: platform display from the wl_display, opaque RGB888 config, OpenGL ES 3.0
+  context (ES 3 for instancing and R8 textures later; DESIGN updated).
+- `Window` renders with `wl_egl_window` + EGL surface; the shm buffer and the `wl_shm` binding
+  are gone.
+- Frame pacing: `eglSwapInterval(0)` so swaps never block the loop; at most one frame in flight,
+  the next one waits for the frame callback; frames only when dirty (configure or
+  `request_redraw`). Configure acks are applied by the next frame, so interactive resize runs at
+  display rate.
+- EGL attribute tables use `// clang-format off`: clang-format cannot lay out key/value tables.
+- Verified by Claude: Release and ASan builds without warnings, tidy/format clean, no-display path.
+
+**Tested by the author**
+- "Everything works, no lag": interactive resize now smooth. Step 1.2 closed.
+- GL: AMD Radeon RX 6650 XT (radeonsi, navi23, ACO), OpenGL ES 3.2, Mesa 26.2.5, EGL 1.5.
+- Startup to GL context ready: 30 ms (from the debug log timestamps; not yet a proper benchmark).
+
+**Open**
+- A hidden window gets no frame callbacks, so a configure arriving while hidden is acked but
+  committed only when it becomes visible again. Fine for now; revisit if Umbriel complains.
+
+---
+
 ## 2026-10-26 — First Wayland window (ROADMAP 1.1, in progress)
 
 **Done**

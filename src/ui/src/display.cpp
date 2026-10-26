@@ -12,8 +12,7 @@ namespace {
 // Highest version of each global whose events we handle. Binding above this would let the
 // compositor send events our listeners leave as null pointers.
 constexpr std::uint32_t kCompositorVersion = 4;  // wl_surface.damage_buffer
-constexpr std::uint32_t kShmVersion = 1;
-constexpr std::uint32_t kWmBaseVersion = 5;  // xdg_toplevel.wm_capabilities
+constexpr std::uint32_t kWmBaseVersion = 5;      // xdg_toplevel.wm_capabilities
 constexpr std::uint32_t kDecorationManagerVersion = 1;
 
 template <class T>
@@ -44,9 +43,6 @@ Display::Display() : display_{wl_display_connect(nullptr)} {
     if (!compositor_) {
         throw std::runtime_error{"compositor does not offer wl_compositor"};
     }
-    if (!shm_) {
-        throw std::runtime_error{"compositor does not offer wl_shm"};
-    }
     if (!wm_base_) {
         throw std::runtime_error{"compositor does not offer xdg_wm_base (xdg-shell)"};
     }
@@ -63,8 +59,6 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
     if (iface == wl_compositor_interface.name) {
         self.compositor_.reset(bind<wl_compositor>(registry, name, wl_compositor_interface, version,
                                                    kCompositorVersion));
-    } else if (iface == wl_shm_interface.name) {
-        self.shm_.reset(bind<wl_shm>(registry, name, wl_shm_interface, version, kShmVersion));
     } else if (iface == xdg_wm_base_interface.name) {
         self.wm_base_.reset(
             bind<xdg_wm_base>(registry, name, xdg_wm_base_interface, version, kWmBaseVersion));

@@ -27,7 +27,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **1.1 Finestra Wayland**
   Connessione, registry, `xdg-shell`, decorazioni server-side, chiusura pulita.
   Fatto quando: si apre una finestra decorata da Umbriel, si ridimensiona e si chiude senza leak (ASan pulito).
-- [ ] **1.2 EGL + GLES**
+- [x] **1.2 EGL + GLES**
   Contesto EGL, clear del colore, frame callback, niente rendering se non serve.
   Fatto quando: finestra con colore di sfondo, CPU ~0% a riposo.
 - [ ] **1.3 Scala frazionaria**

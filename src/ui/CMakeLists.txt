@@ -41,12 +41,12 @@ target_link_libraries(nordend_wayland_protocols PUBLIC PkgConfig::WAYLAND)
 # ---------------------------------------------------------------------------
 add_library(nordend_ui
     src/display.cpp
-    src/shm_buffer.cpp
+    src/egl_context.cpp
     src/window.cpp
     src/wl_ptr.cpp)
 add_library(nordend::ui ALIAS nordend_ui)
 
 target_include_directories(nordend_ui PUBLIC include PRIVATE src)
 target_link_libraries(nordend_ui
-    PUBLIC nordend_wayland_protocols
+    PUBLIC nordend_wayland_protocols PkgConfig::EGL PkgConfig::GLESV2
     PRIVATE nordend::core nordend::warnings)

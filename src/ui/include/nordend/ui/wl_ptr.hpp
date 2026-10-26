@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <wayland-client.h>
+#include <wayland-egl.h>
 
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -14,10 +15,9 @@ namespace nordend::ui {
 void destroy(wl_display* display) noexcept;
 void destroy(wl_registry* registry) noexcept;
 void destroy(wl_compositor* compositor) noexcept;
-void destroy(wl_shm* shm) noexcept;
-void destroy(wl_shm_pool* pool) noexcept;
-void destroy(wl_buffer* buffer) noexcept;
 void destroy(wl_surface* surface) noexcept;
+void destroy(wl_callback* callback) noexcept;
+void destroy(wl_egl_window* window) noexcept;
 void destroy(xdg_wm_base* wm_base) noexcept;
 void destroy(xdg_surface* surface) noexcept;
 void destroy(xdg_toplevel* toplevel) noexcept;

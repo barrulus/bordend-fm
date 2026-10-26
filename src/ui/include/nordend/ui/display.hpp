@@ -28,8 +28,6 @@ public:
 
     [[nodiscard]] wl_compositor* compositor() const noexcept { return compositor_.get(); }
 
-    [[nodiscard]] wl_shm* shm() const noexcept { return shm_.get(); }
-
     [[nodiscard]] xdg_wm_base* wm_base() const noexcept { return wm_base_.get(); }
 
     // Optional: nullptr when the compositor does not offer server-side decorations.
@@ -47,7 +45,6 @@ private:
     WlPtr<wl_display> display_;
     WlPtr<wl_registry> registry_;
     WlPtr<wl_compositor> compositor_;
-    WlPtr<wl_shm> shm_;
     WlPtr<xdg_wm_base> wm_base_;
     WlPtr<zxdg_decoration_manager_v1> decoration_manager_;
 };
