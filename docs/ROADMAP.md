@@ -36,7 +36,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **1.4 Primitive di disegno**
   Rettangoli, rettangoli arrotondati, bordi, ombre semplici, clipping.
   Fatto quando: una schermata di prova mostra tutte le primitive senza artefatti.
-- [ ] **1.5 Testo**
+- [x] **1.5 Testo**
   Shaping con harfbuzz, atlas dei glifi, ellissi, UTF-8 completo.
   Fatto quando: nomi file con accenti, emoji, CJK e testo lungo si disegnano correttamente.
 

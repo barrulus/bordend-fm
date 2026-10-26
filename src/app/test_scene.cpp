@@ -4,6 +4,7 @@
 #include <cstddef>
 
 #include "nordend/ui/color.hpp"
+#include "nordend/ui/text.hpp"
 
 namespace nordend::app {
 namespace {
@@ -154,6 +155,50 @@ void draw_hairlines(Renderer& r, float y) {
                {.fill = kSurface0, .border_width = 1.0F, .border = kText});
 }
 
+void draw_text_samples(Renderer& r, float y, float width) {
+    const Rect panel{kMargin, y, width, 300.0F};
+    r.draw_box(panel, {.fill = kSurface0, .radius = Corners::all(12)});
+    const float x = panel.x + 16.0F;
+    float line = panel.y + 12.0F;
+
+    struct Sample {
+        float size;
+        const char* text;
+    };
+
+    const std::array samples{
+        Sample{11.0F, "11 px \u2014 The quick brown fox jumps over the lazy dog 0123456789"},
+        Sample{14.0F, "14 px \u2014 Nordend: file manager nativo per Wayland"},
+        Sample{20.0F,
+               "Accenti: \u00e0\u00e8\u00e9\u00ec\u00f2\u00f9 \u00c0\u00c8\u00c9 "
+               "\u00f1 \u00e7 \u00df \u00f8 \u00e5 \u0153 \u2014 decomposta: e\u0301"},
+        Sample{32.0F, "32 px Nordend Ag"},
+        Sample{14.0F,
+               "Emoji: Foto \U0001F4F7 vacanza \U0001F3D4\uFE0F famiglia "
+               "\U0001F468\u200D\U0001F469\u200D\U0001F467 ok \U0001F44D\U0001F3FD"},
+        Sample{14.0F,
+               "CJK: \u5199\u771F\u30D5\u30A9\u30EB\u30C0 \uC0AC\uC9C4 "
+               "\u4E2D\u6587\u76EE\u5F55"},
+        Sample{14.0F, "UTF-8 non valido: bad\xFF\xFE-name.txt"},
+    };
+    for (const Sample& sample : samples) {
+        const ui::TextLayout& layout = r.fonts().layout(sample.text, sample.size, r.scale());
+        r.draw_layout(layout, x, line, kText);
+        line += ((layout.ascent + layout.descent) / r.scale()) + 6.0F;
+    }
+
+    // Truncation inside a 300 px box: at the end, and in the middle (file names).
+    constexpr const char* name = "IMG_20241015_vacanza_dolomiti_tramonto_sul_lago_finale_v2.ORF";
+    constexpr float box_width = 300.0F;
+    const std::array modes{ui::Ellipsis::end, ui::Ellipsis::middle};
+    for (std::size_t i = 0; i < modes.size(); ++i) {
+        const Rect box{x + (static_cast<float>(i) * (box_width + 16.0F)), line + 4.0F, box_width,
+                       24.0F};
+        r.draw_box(box.inset(-1.0F), {.fill = kSurface1, .border_width = 1.0F, .border = kBlue});
+        r.draw_text(name, box.x, box.y + 3.0F, 14.0F, kText, box.width, modes.at(i));
+    }
+}
+
 }  // namespace
 
 void draw_test_scene(Renderer& renderer, const Rect& bounds) {
@@ -171,6 +216,7 @@ void draw_test_scene(Renderer& renderer, const Rect& bounds) {
     draw_blending(renderer, kMargin);
     draw_clipping(renderer, kMargin + 180.0F);
     draw_hairlines(renderer, kMargin + 340.0F);
+    draw_text_samples(renderer, 500.0F, 896.0F);
 
     renderer.pop_clip();
 }

@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/geometry.hpp"
+#include "nordend/ui/text.hpp"
 
 namespace nordend::ui {
 
@@ -21,11 +23,13 @@ struct BoxStyle {
 // they stay sharp at fractional scales.
 //
 // Usage per frame: begin_frame, any number of draw/clip calls, end_frame. Draw order is
-// paint order. Requires the GL context to be current for every call, including construction
-// and destruction. Throws std::runtime_error if the shaders fail to build.
+// paint order, also between boxes and text. Glyphs are rasterized on first use into two
+// 2048x2048 atlases (coverage and color) and reused across frames. Requires the GL context to be
+// current for every call, including construction and destruction. Throws std::runtime_error if the
+// shaders fail to build.
 class Renderer {
 public:
-    Renderer();
+    explicit Renderer(FontSystem& fonts);
     ~Renderer();
 
     Renderer(const Renderer&) = delete;
@@ -39,6 +43,8 @@ public:
 
     [[nodiscard]] float scale() const noexcept { return scale_; }
 
+    [[nodiscard]] FontSystem& fonts() noexcept { return fonts_; }
+
     void draw_box(const Rect& rect, const BoxStyle& style);
 
     void fill_rect(const Rect& rect, Color color) { draw_box(rect, {.fill = color}); }
@@ -47,19 +53,35 @@ public:
     // rect to move the shadow.
     void draw_shadow(const Rect& rect, const Corners& radius, float blur, Color color);
 
+    // One line of text; (x, y) is the top-left of the line box, size the font size, both in
+    // logical pixels. With max_width > 0 the text is truncated with an ellipsis. Returns the
+    // drawn width in logical pixels.
+    float draw_text(std::string_view utf8, float x, float y, float size, Color color,
+                    float max_width = 0.0F, Ellipsis ellipsis = Ellipsis::end);
+
+    // Draws text shaped by FontSystem::layout at the current scale; (x, y) as in draw_text.
+    void draw_layout(const TextLayout& layout, float x, float y, Color color);
+
     // Restricts drawing to rect, intersected with the current clip, until pop_clip.
     void push_clip(const Rect& rect);
     void pop_clip();
 
 private:
     struct Gl;
-    struct Instance;
+    struct BoxInstance;
+    struct GlyphInstance;
+    struct GlyphEntry;
 
+    GlyphEntry rasterize(const ShapedGlyph& glyph, float pixel_size);
+    void push_box(const BoxInstance& instance);
+    void push_glyph(const GlyphInstance& instance);
     void flush();
     void apply_clip();
 
     std::unique_ptr<Gl> gl_;
-    std::vector<Instance> instances_;
+    FontSystem& fonts_;
+    std::vector<BoxInstance> boxes_;  // pending, at most one of the two lists is non-empty
+    std::vector<GlyphInstance> glyphs_;
     std::vector<Rect> clips_;  // logical; empty = whole buffer
     std::int32_t buffer_width_{0};
     std::int32_t buffer_height_{0};

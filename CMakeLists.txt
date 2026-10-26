@@ -51,6 +51,9 @@ pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client wayland-egl)
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
 pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
+pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
+pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
+pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 
 # ---------------------------------------------------------------------------
 # Modules
@@ -72,5 +75,12 @@ target_link_libraries(nordend
 add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
     PRIVATE nordend::core nordend::ui nordend_test_scene nordend::warnings)
+
+# Known third-party leak suppressions, compiled into every executable of a sanitizer build.
+if(NORDEND_SANITIZER)
+    foreach(executable nordend nordend-snapshot)
+        target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
+    endforeach()
+endif()
 
 install(TARGETS nordend RUNTIME DESTINATION bin)

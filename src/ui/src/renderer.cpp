@@ -5,19 +5,21 @@
 #include <cmath>
 #include <cstddef>
 #include <format>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 #include "nordend/core/log.hpp"
 
 namespace nordend::ui {
 namespace {
 
-// One instanced quad per primitive. The fragment shader evaluates the signed distance to a
-// rounded box (per-corner radii) in physical pixels: coverage gives 1-pixel antialiasing, an
+// Boxes: one instanced quad per primitive. The fragment shader evaluates the signed distance to
+// a rounded box (per-corner radii) in physical pixels: coverage gives 1-pixel antialiasing, an
 // inner offset of the same distance gives the border, and a Gaussian falloff of the distance
 // gives the shadow (an approximation of a blurred rounded box, exact on straight edges).
-constexpr const char* kVertexShader = R"glsl(#version 300 es
+constexpr const char* kBoxVertexShader = R"glsl(#version 300 es
 layout(location = 0) in vec2 a_corner;        // unit quad, 0..1
 layout(location = 1) in vec4 a_rect;          // physical x, y, width, height
 layout(location = 2) in vec4 a_radii;         // top-left, top-right, bottom-right, bottom-left
@@ -48,7 +50,7 @@ void main() {
 }
 )glsl";
 
-constexpr const char* kFragmentShader = R"glsl(#version 300 es
+constexpr const char* kBoxFragmentShader = R"glsl(#version 300 es
 precision highp float;
 
 in vec2 v_pos;
@@ -94,7 +96,56 @@ void main() {
 }
 )glsl";
 
+// Glyphs: one textured quad per glyph, mapped 1:1 onto physical pixels. Coverage glyphs come
+// from the R8 atlas and take the text color; color glyphs (emoji) come from the RGBA atlas and
+// only take its alpha.
+constexpr const char* kGlyphVertexShader = R"glsl(#version 300 es
+layout(location = 0) in vec2 a_corner;
+layout(location = 1) in vec4 a_rect;   // physical x, y, width, height
+layout(location = 2) in vec4 a_uv;     // u0, v0, u1, v1
+layout(location = 3) in vec4 a_color;  // premultiplied
+layout(location = 4) in float a_kind;  // 0 = coverage, 1 = color
+
+uniform vec2 u_viewport;
+
+out vec2 v_uv;
+flat out vec4 v_color;
+flat out float v_kind;
+
+void main() {
+    vec2 pos = a_rect.xy + a_corner * a_rect.zw;
+    v_uv = mix(a_uv.xy, a_uv.zw, a_corner);
+    v_color = a_color;
+    v_kind = a_kind;
+    vec2 ndc = pos / u_viewport * 2.0 - 1.0;
+    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+}
+)glsl";
+
+constexpr const char* kGlyphFragmentShader = R"glsl(#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+flat in vec4 v_color;
+flat in float v_kind;
+
+uniform sampler2D u_coverage;
+uniform sampler2D u_color;
+
+out vec4 o_color;
+
+void main() {
+    if (v_kind < 0.5) {
+        o_color = v_color * texture(u_coverage, v_uv).r;
+    } else {
+        o_color = texture(u_color, v_uv) * v_color.a;
+    }
+}
+)glsl";
+
 constexpr std::size_t kMaxInstancesPerDraw = 4096;
+constexpr std::int32_t kAtlasSize = 2048;
+constexpr std::int32_t kAtlasPadding = 1;  // keeps linear filtering from bleeding neighbours
 
 GLuint compile_shader(GLenum type, const char* source) {
     const GLuint shader = glCreateShader(type);
@@ -140,10 +191,170 @@ GLuint link_program(const char* vertex_source, const char* fragment_source) {
 // Logical -> physical, rounded to the nearest pixel edge.
 float snap(float logical, float scale) { return std::round(logical * scale); }
 
+struct Attribute {
+    GLuint location;
+    GLint components;
+    std::size_t offset;
+};
+
+// A program drawing instanced unit quads, with the per-instance attributes it reads.
+class Pipeline {
+public:
+    Pipeline(const char* vertex_source, const char* fragment_source,
+             std::span<const Attribute> attributes, std::size_t stride)
+        : program_{link_program(vertex_source, fragment_source)},
+          viewport_uniform_{glGetUniformLocation(program_, "u_viewport")} {
+        glGenVertexArrays(1, &vao_);
+        glBindVertexArray(vao_);
+
+        static constexpr std::array<float, 8> kQuad{0, 0, 1, 0, 0, 1, 1, 1};
+        glGenBuffers(1, &quad_vbo_);
+        glBindBuffer(GL_ARRAY_BUFFER, quad_vbo_);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(kQuad), kQuad.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+        glGenBuffers(1, &instance_vbo_);
+        glBindBuffer(GL_ARRAY_BUFFER, instance_vbo_);
+        for (const Attribute& attribute : attributes) {
+            glEnableVertexAttribArray(attribute.location);
+            // GL takes buffer offsets as pointers.
+            glVertexAttribPointer(attribute.location, attribute.components, GL_FLOAT, GL_FALSE,
+                                  static_cast<GLsizei>(stride),
+                                  reinterpret_cast<const void*>(attribute.offset));  // NOLINT
+            glVertexAttribDivisor(attribute.location, 1);
+        }
+        glBindVertexArray(0);
+    }
+
+    ~Pipeline() {
+        glDeleteBuffers(1, &instance_vbo_);
+        glDeleteBuffers(1, &quad_vbo_);
+        glDeleteVertexArrays(1, &vao_);
+        glDeleteProgram(program_);
+    }
+
+    Pipeline(const Pipeline&) = delete;
+    Pipeline& operator=(const Pipeline&) = delete;
+    Pipeline(Pipeline&&) = delete;
+    Pipeline& operator=(Pipeline&&) = delete;
+
+    [[nodiscard]] GLuint program() const noexcept { return program_; }
+
+    void draw(const void* instances, std::size_t count, std::size_t stride,
+              std::int32_t viewport_width, std::int32_t viewport_height) const {
+        glUseProgram(program_);
+        glUniform2f(viewport_uniform_, static_cast<float>(viewport_width),
+                    static_cast<float>(viewport_height));
+        glBindVertexArray(vao_);
+        glBindBuffer(GL_ARRAY_BUFFER, instance_vbo_);
+        // Orphan the previous storage so the driver never waits for the last draw to finish.
+        const auto bytes = static_cast<GLsizeiptr>(count * stride);
+        glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, bytes, instances);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(count));
+        glBindVertexArray(0);
+    }
+
+private:
+    GLuint program_;
+    GLint viewport_uniform_;
+    GLuint vao_{0};
+    GLuint quad_vbo_{0};
+    GLuint instance_vbo_{0};
+};
+
+// One texture packed with glyph bitmaps in shelves (rows of the height of their tallest glyph).
+class Atlas {
+public:
+    Atlas(GLint internal_format, GLenum format) : format_{format} {
+        glGenTextures(1, &texture_);
+        glBindTexture(GL_TEXTURE_2D, texture_);
+        glTexImage2D(GL_TEXTURE_2D, 0, internal_format, kAtlasSize, kAtlasSize, 0, format,
+                     GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    }
+
+    ~Atlas() { glDeleteTextures(1, &texture_); }
+
+    Atlas(const Atlas&) = delete;
+    Atlas& operator=(const Atlas&) = delete;
+    Atlas(Atlas&&) = delete;
+    Atlas& operator=(Atlas&&) = delete;
+
+    [[nodiscard]] GLuint texture() const noexcept { return texture_; }
+
+    // Uploads the bitmap and returns its top-left texel, or false when the atlas is full.
+    bool insert(std::int32_t width, std::int32_t height, const std::uint8_t* pixels,
+                std::int32_t& out_x, std::int32_t& out_y) {
+        if (width + kAtlasPadding > kAtlasSize || height + kAtlasPadding > kAtlasSize) {
+            return false;
+        }
+        if (cursor_x_ + width + kAtlasPadding > kAtlasSize) {
+            cursor_x_ = 0;
+            cursor_y_ += shelf_height_ + kAtlasPadding;
+            shelf_height_ = 0;
+        }
+        if (cursor_y_ + height + kAtlasPadding > kAtlasSize) {
+            return false;
+        }
+        out_x = cursor_x_;
+        out_y = cursor_y_;
+        glBindTexture(GL_TEXTURE_2D, texture_);
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, out_x, out_y, width, height, format_, GL_UNSIGNED_BYTE,
+                        pixels);
+        cursor_x_ += width + kAtlasPadding;
+        shelf_height_ = std::max(shelf_height_, height);
+        return true;
+    }
+
+    void clear() noexcept {
+        cursor_x_ = 0;
+        cursor_y_ = 0;
+        shelf_height_ = 0;
+    }
+
+private:
+    GLuint texture_{0};
+    GLenum format_;
+    std::int32_t cursor_x_{0};
+    std::int32_t cursor_y_{0};
+    std::int32_t shelf_height_{0};
+};
+
+struct GlyphKey {
+    std::uint32_t font;
+    std::uint32_t glyph;
+    std::uint32_t size_64;  // pixel size in 1/64 px
+
+    bool operator==(const GlyphKey&) const = default;
+};
+
+struct GlyphKeyHash {
+    std::size_t operator()(const GlyphKey& key) const noexcept {
+        const auto a = (static_cast<std::uint64_t>(key.font) << 32U) | key.glyph;
+        return std::hash<std::uint64_t>{}((a * 0x9E3779B97F4A7C15ULL) ^ key.size_64);
+    }
+};
+
 }  // namespace
 
-// Mirrors the per-instance vertex attributes (locations 1..5).
-struct Renderer::Instance {
+// Where a rasterized glyph lives in its atlas; width 0 for blank glyphs.
+struct Renderer::GlyphEntry {
+    std::array<float, 4> uv{};
+    std::int32_t width{0};
+    std::int32_t height{0};
+    std::int32_t left{0};
+    std::int32_t top{0};
+    bool color{false};
+};
+
+// Mirrors the per-instance attributes of the box shader.
+struct Renderer::BoxInstance {
     std::array<float, 4> rect;
     std::array<float, 4> radii;
     std::array<float, 4> fill;
@@ -151,67 +362,47 @@ struct Renderer::Instance {
     std::array<float, 2> params;
 };
 
-struct Renderer::Gl {
-    GLuint program{0};
-    GLint viewport_uniform{-1};
-    GLuint vao{0};
-    GLuint quad_vbo{0};
-    GLuint instance_vbo{0};
-
-    Gl()
-        : program{link_program(kVertexShader, kFragmentShader)},
-          viewport_uniform{glGetUniformLocation(program, "u_viewport")} {
-        glGenVertexArrays(1, &vao);
-        glBindVertexArray(vao);
-
-        static constexpr std::array<float, 8> kQuad{0, 0, 1, 0, 0, 1, 1, 1};
-        glGenBuffers(1, &quad_vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, quad_vbo);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(kQuad), kQuad.data(), GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-        glGenBuffers(1, &instance_vbo);
-        glBindBuffer(GL_ARRAY_BUFFER, instance_vbo);
-
-        struct Attribute {
-            GLuint location;
-            GLint components;
-            std::size_t offset;
-        };
-
-        static constexpr std::array<Attribute, 5> kAttributes{{
-            {1, 4, offsetof(Instance, rect)},
-            {2, 4, offsetof(Instance, radii)},
-            {3, 4, offsetof(Instance, fill)},
-            {4, 4, offsetof(Instance, border_color)},
-            {5, 2, offsetof(Instance, params)},
-        }};
-        for (const auto& attribute : kAttributes) {
-            glEnableVertexAttribArray(attribute.location);
-            // GL takes buffer offsets as pointers.
-            glVertexAttribPointer(attribute.location, attribute.components, GL_FLOAT, GL_FALSE,
-                                  sizeof(Instance),
-                                  reinterpret_cast<const void*>(attribute.offset));  // NOLINT
-            glVertexAttribDivisor(attribute.location, 1);
-        }
-        glBindVertexArray(0);
-    }
-
-    ~Gl() {
-        glDeleteBuffers(1, &instance_vbo);
-        glDeleteBuffers(1, &quad_vbo);
-        glDeleteVertexArrays(1, &vao);
-        glDeleteProgram(program);
-    }
-
-    Gl(const Gl&) = delete;
-    Gl& operator=(const Gl&) = delete;
-    Gl(Gl&&) = delete;
-    Gl& operator=(Gl&&) = delete;
+// Mirrors the per-instance attributes of the glyph shader.
+struct Renderer::GlyphInstance {
+    std::array<float, 4> rect;
+    std::array<float, 4> uv;
+    std::array<float, 4> color;
+    float kind;
 };
 
-Renderer::Renderer() : gl_{std::make_unique<Gl>()} { instances_.reserve(kMaxInstancesPerDraw); }
+struct Renderer::Gl {
+    static constexpr std::array<Attribute, 5> kBoxAttributes{{
+        {1, 4, offsetof(BoxInstance, rect)},
+        {2, 4, offsetof(BoxInstance, radii)},
+        {3, 4, offsetof(BoxInstance, fill)},
+        {4, 4, offsetof(BoxInstance, border_color)},
+        {5, 2, offsetof(BoxInstance, params)},
+    }};
+    static constexpr std::array<Attribute, 4> kGlyphAttributes{{
+        {1, 4, offsetof(GlyphInstance, rect)},
+        {2, 4, offsetof(GlyphInstance, uv)},
+        {3, 4, offsetof(GlyphInstance, color)},
+        {4, 1, offsetof(GlyphInstance, kind)},
+    }};
+
+    Pipeline boxes{kBoxVertexShader, kBoxFragmentShader, kBoxAttributes, sizeof(BoxInstance)};
+    Pipeline glyphs{kGlyphVertexShader, kGlyphFragmentShader, kGlyphAttributes,
+                    sizeof(GlyphInstance)};
+    Atlas coverage_atlas{GL_R8, GL_RED};
+    Atlas color_atlas{GL_RGBA8, GL_RGBA};
+    std::unordered_map<GlyphKey, GlyphEntry, GlyphKeyHash> entries;
+
+    Gl() {
+        glUseProgram(glyphs.program());
+        glUniform1i(glGetUniformLocation(glyphs.program(), "u_coverage"), 0);
+        glUniform1i(glGetUniformLocation(glyphs.program(), "u_color"), 1);
+    }
+};
+
+Renderer::Renderer(FontSystem& fonts) : gl_{std::make_unique<Gl>()}, fonts_{fonts} {
+    boxes_.reserve(kMaxInstancesPerDraw);
+    glyphs_.reserve(kMaxInstancesPerDraw);
+}
 
 Renderer::~Renderer() = default;
 
@@ -220,20 +411,16 @@ void Renderer::begin_frame(std::int32_t buffer_width, std::int32_t buffer_height
     buffer_width_ = buffer_width;
     buffer_height_ = buffer_height;
     scale_ = scale;
-    instances_.clear();
+    boxes_.clear();
+    glyphs_.clear();
     clips_.clear();
 
     glViewport(0, 0, buffer_width_, buffer_height_);
     glDisable(GL_SCISSOR_TEST);
     glClearColor(clear.r, clear.g, clear.b, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
-
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);  // premultiplied alpha
-    glUseProgram(gl_->program);
-    glUniform2f(gl_->viewport_uniform, static_cast<float>(buffer_width_),
-                static_cast<float>(buffer_height_));
-    glBindVertexArray(gl_->vao);
 }
 
 void Renderer::end_frame() {
@@ -241,7 +428,6 @@ void Renderer::end_frame() {
     if (!clips_.empty()) {
         log::warn("renderer: {} clip(s) still pushed at end of frame", clips_.size());
     }
-    glBindVertexArray(0);
 }
 
 void Renderer::draw_box(const Rect& rect, const BoxStyle& style) {
@@ -260,7 +446,7 @@ void Renderer::draw_box(const Rect& rect, const BoxStyle& style) {
         style.border_width > 0.0F ? std::max(1.0F, snap(style.border_width, scale_)) : 0.0F;
     const Color fill = style.fill.premultiplied();
     const Color border_color = style.border.premultiplied();
-    instances_.push_back({
+    push_box({
         .rect = {x0, y0, x1 - x0, y1 - y0},
         .radii = {style.radius.top_left * scale_, style.radius.top_right * scale_,
                   style.radius.bottom_right * scale_, style.radius.bottom_left * scale_},
@@ -268,9 +454,6 @@ void Renderer::draw_box(const Rect& rect, const BoxStyle& style) {
         .border_color = {border_color.r, border_color.g, border_color.b, border_color.a},
         .params = {border, 0.0F},
     });
-    if (instances_.size() == kMaxInstancesPerDraw) {
-        flush();
-    }
 }
 
 void Renderer::draw_shadow(const Rect& rect, const Corners& radius, float blur, Color color) {
@@ -278,7 +461,7 @@ void Renderer::draw_shadow(const Rect& rect, const Corners& radius, float blur, 
         return;
     }
     const Color premultiplied = color.premultiplied();
-    instances_.push_back({
+    push_box({
         .rect = {rect.x * scale_, rect.y * scale_, rect.width * scale_, rect.height * scale_},
         .radii = {radius.top_left * scale_, radius.top_right * scale_, radius.bottom_right * scale_,
                   radius.bottom_left * scale_},
@@ -286,7 +469,89 @@ void Renderer::draw_shadow(const Rect& rect, const Corners& radius, float blur, 
         .border_color = {0.0F, 0.0F, 0.0F, 0.0F},
         .params = {0.0F, blur * scale_},
     });
-    if (instances_.size() == kMaxInstancesPerDraw) {
+}
+
+float Renderer::draw_text(std::string_view utf8, float x, float y, float size, Color color,
+                          float max_width, Ellipsis ellipsis) {
+    const TextLayout& layout = fonts_.layout(utf8, size, scale_, max_width, ellipsis);
+    draw_layout(layout, x, y, color);
+    return layout.width / scale_;
+}
+
+void Renderer::draw_layout(const TextLayout& layout, float x, float y, Color color) {
+    // Glyph origins snap to whole pixels: bitmaps then map 1:1 onto the screen.
+    const float origin_x = snap(x, scale_);
+    const float baseline = snap(y, scale_) + std::round(layout.ascent);
+    const Color premultiplied = color.premultiplied();
+    const auto size_64 = static_cast<std::uint32_t>(std::lround(layout.pixel_size * 64.0F));
+
+    for (const ShapedGlyph& glyph : layout.glyphs) {
+        const GlyphKey key{glyph.font, glyph.glyph, size_64};
+        auto it = gl_->entries.find(key);
+        if (it == gl_->entries.end()) {
+            it = gl_->entries.emplace(key, rasterize(glyph, layout.pixel_size)).first;
+        }
+        const GlyphEntry& entry = it->second;
+        if (entry.width == 0) {
+            continue;  // blank glyph (space) or failed raster
+        }
+        const float gx = std::round(origin_x + glyph.x) + static_cast<float>(entry.left);
+        const float gy = std::round(baseline + glyph.y) - static_cast<float>(entry.top);
+        push_glyph({
+            .rect = {gx, gy, static_cast<float>(entry.width), static_cast<float>(entry.height)},
+            .uv = entry.uv,
+            .color = {premultiplied.r, premultiplied.g, premultiplied.b, premultiplied.a},
+            .kind = entry.color ? 1.0F : 0.0F,
+        });
+    }
+}
+
+// Rasterizes a glyph into its atlas. When an atlas is full, pending glyphs are drawn and the
+// whole cache starts over: simple, and rare with 2048x2048 atlases.
+Renderer::GlyphEntry Renderer::rasterize(const ShapedGlyph& glyph, float pixel_size) {
+    const GlyphBitmap bitmap = fonts_.rasterize(glyph.font, glyph.glyph, pixel_size);
+    GlyphEntry entry{.left = bitmap.left, .top = bitmap.top, .color = bitmap.color};
+    if (bitmap.width == 0 || bitmap.height == 0) {
+        return entry;
+    }
+    Atlas& atlas = bitmap.color ? gl_->color_atlas : gl_->coverage_atlas;
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+    if (!atlas.insert(bitmap.width, bitmap.height, bitmap.pixels.data(), x, y)) {
+        log::debug("glyph atlas full: flushing and starting over");
+        flush();
+        gl_->entries.clear();
+        gl_->coverage_atlas.clear();
+        gl_->color_atlas.clear();
+        if (!atlas.insert(bitmap.width, bitmap.height, bitmap.pixels.data(), x, y)) {
+            return entry;  // larger than the whole atlas
+        }
+    }
+    constexpr auto atlas_size = static_cast<float>(kAtlasSize);
+    entry.width = bitmap.width;
+    entry.height = bitmap.height;
+    entry.uv = {static_cast<float>(x) / atlas_size, static_cast<float>(y) / atlas_size,
+                static_cast<float>(x + bitmap.width) / atlas_size,
+                static_cast<float>(y + bitmap.height) / atlas_size};
+    return entry;
+}
+
+void Renderer::push_box(const BoxInstance& instance) {
+    if (!glyphs_.empty()) {
+        flush();  // keep paint order between text and boxes
+    }
+    boxes_.push_back(instance);
+    if (boxes_.size() == kMaxInstancesPerDraw) {
+        flush();
+    }
+}
+
+void Renderer::push_glyph(const GlyphInstance& instance) {
+    if (!boxes_.empty()) {
+        flush();
+    }
+    glyphs_.push_back(instance);
+    if (glyphs_.size() == kMaxInstancesPerDraw) {
         flush();
     }
 }
@@ -323,16 +588,21 @@ void Renderer::apply_clip() {
 }
 
 void Renderer::flush() {
-    if (instances_.empty()) {
-        return;
+    if (!boxes_.empty()) {
+        gl_->boxes.draw(boxes_.data(), boxes_.size(), sizeof(BoxInstance), buffer_width_,
+                        buffer_height_);
+        boxes_.clear();
     }
-    glBindBuffer(GL_ARRAY_BUFFER, gl_->instance_vbo);
-    // Orphan the previous storage so the driver never waits for the last draw to finish.
-    const auto bytes = static_cast<GLsizeiptr>(instances_.size() * sizeof(Instance));
-    glBufferData(GL_ARRAY_BUFFER, bytes, nullptr, GL_STREAM_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, bytes, instances_.data());
-    glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(instances_.size()));
-    instances_.clear();
+    if (!glyphs_.empty()) {
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, gl_->coverage_atlas.texture());
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, gl_->color_atlas.texture());
+        glActiveTexture(GL_TEXTURE0);
+        gl_->glyphs.draw(glyphs_.data(), glyphs_.size(), sizeof(GlyphInstance), buffer_width_,
+                         buffer_height_);
+        glyphs_.clear();
+    }
 }
 
 }  // namespace nordend::ui

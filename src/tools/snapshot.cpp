@@ -23,6 +23,7 @@
 #include "nordend/core/log.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/renderer.hpp"
+#include "nordend/ui/text.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -137,7 +138,8 @@ int main(int argc, char** argv) {
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(buffer_width) *
                                          static_cast<std::size_t>(buffer_height) * 4);
         {
-            ui::Renderer renderer;
+            ui::FontSystem fonts;
+            ui::Renderer renderer{fonts};
             renderer.begin_frame(buffer_width, buffer_height, scale, ui::Color::rgb(0x1E1E2E));
             nordend::app::draw_test_scene(renderer, {0.0F, 0.0F, width, height});
             renderer.end_frame();

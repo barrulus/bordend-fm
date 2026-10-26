@@ -20,7 +20,7 @@ std::int32_t to_physical(std::int32_t logical, std::int32_t scale_120) {
 
 }  // namespace
 
-Window::Window(Display& display, EglContext& egl, const WindowOptions& options)
+Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const WindowOptions& options)
     : display_{display},
       egl_{egl},
       width_{options.width},
@@ -83,7 +83,7 @@ Window::Window(Display& display, EglContext& egl, const WindowOptions& options)
     const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));  // NOLINT
     const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));    // NOLINT
     log::info("GL: {} | {}", renderer, version);
-    renderer_ = std::make_unique<Renderer>();
+    renderer_ = std::make_unique<Renderer>(fonts);
 
     // Initial commit without a buffer: the compositor answers with the first configure.
     wl_surface_commit(surface_.get());

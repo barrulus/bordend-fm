@@ -13,6 +13,7 @@
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
+#include "nordend/ui/text.hpp"
 #include "nordend/ui/wl_ptr.hpp"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -36,11 +37,11 @@ struct WindowOptions {
 // (configure, request_redraw) and, while a frame is pending, the next one waits for the
 // compositor's frame callback. An idle window draws nothing.
 //
-// Must not outlive its Display and EglContext. Not copyable or movable: listeners keep a
-// pointer to it.
+// Must not outlive its Display, EglContext and FontSystem. Not copyable or movable: listeners keep
+// a pointer to it.
 class Window {
 public:
-    Window(Display& display, EglContext& egl, const WindowOptions& options);
+    Window(Display& display, EglContext& egl, FontSystem& fonts, const WindowOptions& options);
     ~Window();
 
     Window(const Window&) = delete;

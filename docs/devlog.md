@@ -4,6 +4,44 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Text (ROADMAP 1.5)
+
+**Done**
+- `FontSystem` (ui): fontconfig fallback chain for a family (default `sans-serif`, like Noctalia:
+  DejaVu Sans here, 184 fallbacks), text split into runs by font coverage, harfbuzz shaping per
+  run with the whole text as context, FreeType rasterization (light hinting, grayscale AA) at the
+  physical pixel size. Marks, ZWJ, variation selectors, skin-tone modifiers and tags stay in the
+  font of the previous character. Emoji-presentation characters (or followed by VS16) prefer a
+  color font: fontconfig ranks a monochrome symbol font above Noto Color Emoji, which gave
+  grey emoji and a tofu skin-tone modifier before the fix.
+- Own UTF-8 decoder (U+FFFD per invalid byte, same policy as harfbuzz) for itemization.
+- Truncation at whole clusters: `Ellipsis::end` and `Ellipsis::middle` (Finder-style, keeps the
+  extension of a file name).
+- Layout cache (8192 entries, cleared when full). Color emoji strikes (CBDT, 109 px) are
+  downscaled on the CPU with an area filter.
+- Renderer: second pipeline for glyphs (textured instanced quads, coverage R8 + color RGBA8
+  atlases 2048x2048, shelf packing, 1 px padding; when an atlas is full, pending glyphs are drawn
+  and the cache starts over). Box/glyph batches flush on switch to keep paint order.
+- Test scene: sizes 11-32, accents (precomposed and decomposed), emoji with ZWJ family and skin
+  tone, CJK (Noto Sans CJK installed by the author), invalid UTF-8, end/middle truncation.
+- LeakSanitizer: fontconfig keeps 320 bytes of global state after the first FcFontSort, constant
+  with 1 or 5 calls and freed only by FcFini (standalone repro, fontconfig 2.17.1). Suppressed via
+  `__lsan_default_suppressions` compiled into sanitizer builds only; FcFini is not called because
+  it would break any other fontconfig user in the process.
+- Checked by Claude on snapshots at 1, 1.25 (ASan), 1.5 (ASan), 2 (ASan): all samples correct,
+  no sanitizer report.
+- DESIGN: text stack is harfbuzz + FreeType + fontconfig, no pango/cairo.
+
+**Tested by the author**
+- Release and ASan on screen: all samples correct; ASan exit 0, only the fontconfig suppression
+  used. Startup to font + GL ready: 38 ms (debug log timestamps). Step 1.5 closed: phase 1 done.
+
+**Open**
+- Not done yet: bidirectional reordering (RTL), subpixel glyph positioning, font family from
+  config (ROADMAP 2.4).
+
+---
+
 ## 2026-10-26 — Drawing primitives (ROADMAP 1.4)
 
 **Done**
