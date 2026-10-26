@@ -43,8 +43,8 @@ test scene of everything the renderer can draw.
 - `~/.config/nordend/config.toml` with readable errors; `nordend --check-config`
 - Live Noctalia theme: a Noctalia template writes `colors.toml`, Nordend reloads it on change
 
-**Now — phase 3, file system:** asynchronous directory loading is in (chunks, natural sort);
-MIME types, inotify watching and file icons are next. The full plan is in the
+**Now — phase 3, file system:** asynchronous directory loading (chunks, natural sort), MIME
+types identical to GLib's, and live updates through inotify are in; file icons are next. The full plan is in the
 [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks

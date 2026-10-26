@@ -1,6 +1,7 @@
 add_executable(nordend-tests
     main.cpp
     config_test.cpp
+    directory_model_test.cpp
     directory_test.cpp
     event_loop_test.cpp
     file_watcher_test.cpp

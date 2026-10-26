@@ -87,6 +87,10 @@ target_link_libraries(nordend-bench-dir PRIVATE nordend::core nordend::fs norden
 add_executable(nordend-mime src/tools/mime.cpp)
 target_link_libraries(nordend-mime PRIVATE nordend::core nordend::fs nordend::warnings)
 
+# Development tool: live directory model, prints changes (ROADMAP 3.3). Not installed.
+add_executable(nordend-watch src/tools/watch.cpp)
+target_link_libraries(nordend-watch PRIVATE nordend::core nordend::fs nordend::warnings)
+
 # ---------------------------------------------------------------------------
 # Tests (doctest, system package). Skipped with a notice when doctest is missing.
 # ---------------------------------------------------------------------------
@@ -103,7 +107,7 @@ endif()
 
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
-    foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime)
+    foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()

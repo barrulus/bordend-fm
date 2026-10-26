@@ -4,6 +4,45 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — inotify watcher and directory model (ROADMAP 3.3)
+
+**Done**
+- `fs::DirectoryWatcher`: one inotify instance for every watched directory (the kernel caps
+  instances per user, about 128, and Miller columns open several). Watch descriptors are shared
+  when one directory is watched twice; events are delivered per directory, one batch per read,
+  on the loop thread: created, deleted, moved_from/moved_to with the cookie, changed
+  (close_write, attrib), directory_gone (delete_self, move_self, unmount), overflow.
+- `fs::DirectoryModel`: what a view will show. `open()` watches first, then loads in chunks
+  (3.1), so nothing that happens during the load is lost; changes seen meanwhile are re-checked
+  when the load ends. Changed names are gathered for 30 ms, stat'ed together on a worker
+  (`fs::read_entries`) and applied in one batch (`Listing::replace`: one erase pass, one merge):
+  no I/O on the loop thread, and a burst is a few updates. Notifications (`ModelChange`) carry
+  names, not indices: added, removed, updated, renamed (old, new) when moved_from/moved_to pair
+  up, plus reset (open, error, reload) and loaded.
+- Directory deleted or moved: the model empties with an error (ENOENT). Queue overflow: full
+  reload. inotify watch limit reached (ENOSPC): the directory is still shown, without live
+  updates, with a warning.
+- `nordend-watch DIR` (not installed): loads a directory and prints changes live.
+- 7 new test cases (60 in total): load and order, create / write / delete / mkdir, rename
+  inside, moves out and in, a burst of 500 files, changes during the load (no loss, no
+  duplicates), directory deleted, a directory that cannot be opened, two models sharing a watch.
+  Ten Release runs without a failure (timing-based tests); ASan and TSan pass; tidy clean.
+
+**Measured**
+- 500 files created back to back: one notification. 200 files created by a shell loop
+  (about 150 ms): five updates of 17-49 changes, one every 30 ms. 200 files removed with one
+  `rm`: one update.
+
+**Tested by the author** (`nordend-watch` on a test folder in `~`, steps one second apart)
+- create -> `+`, rename -> `old -> new`, append -> `~`, mkdir -> `+`; 1000 files created by a
+  fish loop: 32 updates of about 32 files, one every 30 ms, ending at 1002 entries; `rm file*`:
+  one update of 1000 removals; moved out -> `-`; folder deleted -> error. Step 3.3 closed.
+- A first attempt ran two watchers at once and pasted every command in one go: doubled,
+  interleaved output, still correct. `nordend-watch` now lists names only for updates of up to
+  10 changes and summarises bigger ones on one line.
+
+---
+
 ## 2026-10-26 — MIME types (ROADMAP 3.2)
 
 **Done**
@@ -50,8 +89,6 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 **Tested by the author**
 - Tests green; `DATA/fotografia/liguria` (123 entries: ORF, ORF.xmp sidecars, a subfolder)
   compared file by file with `gio`: no difference. Step 3.2 closed.
-
-**Open**
 - DESIGN updated with the author's OK: own parser of globs2 and magic, GLib's detection order.
 
 ---

@@ -63,7 +63,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Fatto quando: benchmark su 10k file registrato in `devlog.md`.
 - [x] **3.2 Tipi MIME**
   Glob + magic di `shared-mime-info`.
-- [ ] **3.3 Watcher inotify**
+- [x] **3.3 Watcher inotify**
   Creazione, rimozione e rinomina riflesse nella vista.
 - [ ] **3.4 Icone per tipo di file**
 

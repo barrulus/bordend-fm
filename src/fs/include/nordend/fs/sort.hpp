@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "nordend/fs/entry.hpp"
@@ -32,6 +34,10 @@ public:
 
     // Sorts the chunk and merges it in: O(chunk log chunk + size).
     void add(std::vector<Entry> chunk);
+
+    // Removes the entries named in remove and those named like an entry of insert, then merges
+    // insert in: one pass for a whole batch of changes.
+    void replace(const std::unordered_set<std::string>& remove, std::vector<Entry> insert);
 
     // Re-sorts everything with a new order.
     void set_order(SortOrder order);

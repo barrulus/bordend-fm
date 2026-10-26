@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <string_view>
+#include <unordered_set>
 #include <utility>
 
 namespace nordend::fs {
@@ -100,6 +102,18 @@ void Listing::add(std::vector<Entry> chunk) {
     entries_.insert(entries_.end(), std::make_move_iterator(chunk.begin()),
                     std::make_move_iterator(chunk.end()));
     std::ranges::inplace_merge(entries_, entries_.begin() + middle, order_);
+}
+
+void Listing::replace(const std::unordered_set<std::string>& remove, std::vector<Entry> insert) {
+    std::unordered_set<std::string_view> replaced;
+    replaced.reserve(insert.size());
+    for (const Entry& entry : insert) {
+        replaced.insert(entry.name);
+    }
+    std::erase_if(entries_, [&](const Entry& entry) {
+        return remove.contains(entry.name) || replaced.contains(entry.name);
+    });
+    add(std::move(insert));
 }
 
 void Listing::set_order(SortOrder order) {

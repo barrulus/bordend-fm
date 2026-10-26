@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -33,6 +34,13 @@ struct ReadResult {
 ReadResult read_directory(const std::filesystem::path& path, const core::CancelToken& token,
                           const ReadOptions& options,
                           const std::function<void(std::vector<Entry> chunk)>& on_chunk);
+
+// Reads the named entries of a directory (blocking: workers only), same fields as
+// read_directory. An entry that does not exist (any more) is nullopt; so is every entry when the
+// directory itself cannot be opened.
+std::vector<std::optional<Entry>> read_entries(const std::filesystem::path& path,
+                                               const std::vector<std::string>& names,
+                                               const ReadOptions& options);
 
 // read_directory on a worker: on_chunk and on_done run on the loop thread, in order. Cancel the
 // returned token to stop; nothing more is delivered after that.

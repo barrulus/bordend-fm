@@ -127,6 +127,28 @@ ReadResult read_directory(const std::filesystem::path& path, const core::CancelT
     return result;
 }
 
+std::vector<std::optional<Entry>> read_entries(const std::filesystem::path& path,
+                                               const std::vector<std::string>& names,
+                                               const ReadOptions& options) {
+    std::vector<std::optional<Entry>> result(names.size());
+    const int dir_fd = open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (dir_fd < 0) {
+        return result;
+    }
+    for (std::size_t i = 0; i < names.size(); ++i) {
+        Entry entry{.name = names[i]};
+        if (!stat_entry(dir_fd, entry)) {
+            continue;  // gone
+        }
+        if (options.mime) {
+            entry.mime = mime_without_content(*options.mime, entry);
+        }
+        result[i] = std::move(entry);
+    }
+    close(dir_fd);
+    return result;
+}
+
 core::CancelToken load_directory(core::WorkerPool& pool, std::filesystem::path path,
                                  std::function<void(std::vector<Entry> chunk)> on_chunk,
                                  std::function<void(const ReadResult& result)> on_done,
