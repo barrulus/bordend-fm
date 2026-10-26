@@ -1,36 +1,14 @@
 #include "nordend/ui/window.hpp"
 
 #include <GLES3/gl3.h>
-#include <algorithm>
-#include <cstdlib>
 #include <format>
 #include <stdexcept>
+#include <utility>
 
 #include "nordend/core/log.hpp"
 
 namespace nordend::ui {
 namespace {
-
-// Placeholder background (#1E1E2E) until the theme (ROADMAP 2.5) provides one.
-constexpr GLfloat kBackgroundRed = 0x1E / 255.0F;
-constexpr GLfloat kBackgroundGreen = 0x1E / 255.0F;
-constexpr GLfloat kBackgroundBlue = 0x2E / 255.0F;
-
-// Temporary test pattern (NORDEND_SCALE_TEST=1) until the primitives of ROADMAP 1.4 exist:
-// alternating 1-physical-pixel vertical lines on the left. Crisp lines mean the buffer maps 1:1
-// onto screen pixels; a blurred or flat grey band means the compositor is rescaling it.
-constexpr std::int32_t kScaleTestBandWidth = 400;
-
-void draw_scale_test_pattern(std::int32_t buffer_width, std::int32_t buffer_height) {
-    glEnable(GL_SCISSOR_TEST);
-    glClearColor(1.0F, 1.0F, 1.0F, 1.0F);
-    const std::int32_t band = std::min(buffer_width, kScaleTestBandWidth);
-    for (std::int32_t x = 0; x < band; x += 2) {
-        glScissor(x, 0, 1, buffer_height);
-        glClear(GL_COLOR_BUFFER_BIT);
-    }
-    glDisable(GL_SCISSOR_TEST);
-}
 
 // fractional-scale-v1 sends scales as numerator over 120.
 constexpr std::int32_t kScaleDenominator = 120;
@@ -47,7 +25,7 @@ Window::Window(Display& display, EglContext& egl, const WindowOptions& options)
       egl_{egl},
       width_{options.width},
       height_{options.height},
-      scale_test_{std::getenv("NORDEND_SCALE_TEST") != nullptr} {
+      background_{options.background} {
     surface_.reset(wl_compositor_create_surface(display_.compositor()));
 
     static constexpr xdg_surface_listener kSurfaceListener{
@@ -105,14 +83,23 @@ Window::Window(Display& display, EglContext& egl, const WindowOptions& options)
     const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));  // NOLINT
     const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));    // NOLINT
     log::info("GL: {} | {}", renderer, version);
+    renderer_ = std::make_unique<Renderer>();
 
     // Initial commit without a buffer: the compositor answers with the first configure.
     wl_surface_commit(surface_.get());
 }
 
 Window::~Window() {
+    // GL objects must be deleted with their context current.
+    eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
+    renderer_.reset();
     eglMakeCurrent(egl_.display(), EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(egl_.display(), egl_surface_);
+}
+
+void Window::set_draw_handler(DrawHandler handler) {
+    draw_handler_ = std::move(handler);
+    request_redraw();
 }
 
 void Window::request_redraw() {
@@ -137,12 +124,12 @@ void Window::draw() {
     }
 
     eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
-    glViewport(0, 0, buffer_width_, buffer_height_);
-    glClearColor(kBackgroundRed, kBackgroundGreen, kBackgroundBlue, 1.0F);
-    glClear(GL_COLOR_BUFFER_BIT);
-    if (scale_test_) {
-        draw_scale_test_pattern(buffer_width_, buffer_height_);
+    renderer_->begin_frame(buffer_width_, buffer_height_, static_cast<float>(scale()), background_);
+    if (draw_handler_) {
+        draw_handler_(*renderer_,
+                      Rect{0.0F, 0.0F, static_cast<float>(width_), static_cast<float>(height_)});
     }
+    renderer_->end_frame();
     if (eglSwapBuffers(egl_.display(), egl_surface_) != EGL_TRUE) {
         log::error("eglSwapBuffers failed (0x{:04x})", eglGetError());
     }

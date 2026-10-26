@@ -4,6 +4,39 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Drawing primitives (ROADMAP 1.4)
+
+**Done**
+- `Renderer` (ui): batched, instanced quads; one shader evaluates the signed distance to a
+  rounded box with per-corner radii in physical pixels. 1-pixel antialiasing from coverage,
+  inside borders from an inner offset, soft shadows from a Gaussian falloff of the distance
+  (erf approximation; exact on straight edges, close at corners). Premultiplied alpha. Up to
+  4096 instances per draw call; the buffer is orphaned each flush.
+- Logical-pixel API (`Rect`, `Corners`, `Color`, `BoxStyle`); box edges and border widths snap to
+  whole physical pixels (a 1 px border is never thinner than one physical pixel).
+- Clip stack via scissor (axis-aligned; rounded clipping not needed yet).
+- `Window` owns a `Renderer` and calls a draw handler each frame; the temporary
+  `NORDEND_SCALE_TEST` pattern is gone.
+- Test scene (`src/app/test_scene.cpp`): solid and fractional rects, radii, per-corner radii, pill,
+  borders (1, 2, 4 px, border-only), shadows (sigma 4/12/24), translucent overlap, nested clips,
+  physical-pixel hairlines.
+- `nordend-snapshot`: renders the test scene offscreen through a surfaceless EGL context into an
+  FBO and writes a PPM. Lets Claude check rendering without touching the author's screen.
+- Checked by Claude on snapshots at scale 1, 1.25 (ASan), 1.5, 2 (ASan): shapes, AA, borders and
+  hairlines crisp; no sanitizer report. Found and fixed a paint-order bug in the scene (a wide
+  shadow painted over the neighbouring card).
+
+**Tested by the author**
+- Release and ASan on screen, with resizing: everything works, exit 0, no sanitizer report.
+  Step 1.4 closed.
+- Side finding: switching Noctalia to light does not recolor open foot windows. Not an override:
+  Noctalia rewrites `~/.config/foot/themes/noctalia` (light palette, in `[colors-dark]`), but foot
+  reads its config only at startup; its runtime switch (SIGUSR1/2) only toggles between the
+  already-loaded `[colors-dark]`/`[colors-light]`. New foot windows get the new colors. Nordend
+  must do better: live reload of `colors.toml` (ROADMAP 2.5).
+
+---
+
 ## 2026-10-26 — Fractional scaling (ROADMAP 1.3)
 
 **Done**

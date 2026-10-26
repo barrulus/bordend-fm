@@ -58,8 +58,19 @@ pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
 add_subdirectory(src/core)      # logging
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 
+# Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
+add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
+target_include_directories(nordend_test_scene PUBLIC src/app)
+target_link_libraries(nordend_test_scene PUBLIC nordend::ui PRIVATE nordend::warnings)
+
 add_executable(nordend src/app/main.cpp)
 target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")
-target_link_libraries(nordend PRIVATE nordend::core nordend::ui nordend::warnings)
+target_link_libraries(nordend
+    PRIVATE nordend::core nordend::ui nordend_test_scene nordend::warnings)
+
+# Development tool: offscreen render of the test scene to a PPM file. Not installed.
+add_executable(nordend-snapshot src/tools/snapshot.cpp)
+target_link_libraries(nordend-snapshot
+    PRIVATE nordend::core nordend::ui nordend_test_scene nordend::warnings)
 
 install(TARGETS nordend RUNTIME DESTINATION bin)

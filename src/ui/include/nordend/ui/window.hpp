@@ -2,12 +2,17 @@
 
 #include <EGL/egl.h>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <string>
 #include <wayland-client.h>
 #include <wayland-egl.h>
 
+#include "nordend/ui/color.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
+#include "nordend/ui/geometry.hpp"
+#include "nordend/ui/renderer.hpp"
 #include "nordend/ui/wl_ptr.hpp"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -21,6 +26,7 @@ struct WindowOptions {
     std::int32_t height{640};
     std::int32_t min_width{480};
     std::int32_t min_height{320};
+    Color background{Color::rgb(0x1E1E2E)};  // placeholder until the theme (ROADMAP 2.5)
 };
 
 // A top-level xdg-shell window rendered with OpenGL ES, with server-side decorations when the
@@ -41,6 +47,10 @@ public:
     Window& operator=(const Window&) = delete;
     Window(Window&&) = delete;
     Window& operator=(Window&&) = delete;
+
+    // Paints the window content each frame. bounds is the window in logical pixels.
+    using DrawHandler = std::function<void(Renderer& renderer, const Rect& bounds)>;
+    void set_draw_handler(DrawHandler handler);
 
     // Schedules a frame: drawn now if none is in flight, otherwise on the next frame callback.
     void request_redraw();
@@ -92,7 +102,9 @@ private:
     bool configured_{false};
     bool dirty_{false};
     bool close_requested_{false};
-    bool scale_test_;                         // temporary, see draw_scale_test_pattern
+    Color background_;
+    DrawHandler draw_handler_;
+    std::unique_ptr<Renderer> renderer_;      // needs the context current: see ~Window
     EGLSurface egl_surface_{EGL_NO_SURFACE};  // destroyed first, in ~Window
 
     // Reverse order = teardown order: frame callback, decoration, toplevel, xdg_surface,

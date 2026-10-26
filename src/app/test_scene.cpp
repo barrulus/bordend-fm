@@ -1,0 +1,178 @@
+#include "test_scene.hpp"
+
+#include <array>
+#include <cstddef>
+
+#include "nordend/ui/color.hpp"
+
+namespace nordend::app {
+namespace {
+
+using ui::BoxStyle;
+using ui::Color;
+using ui::Corners;
+using ui::Rect;
+using ui::Renderer;
+
+// Catppuccin Mocha-like placeholders until the Noctalia palette is wired in (ROADMAP 2.5).
+constexpr Color kRed = Color::rgb(0xF38BA8);
+constexpr Color kPeach = Color::rgb(0xFAB387);
+constexpr Color kYellow = Color::rgb(0xF9E2AF);
+constexpr Color kGreen = Color::rgb(0xA6E3A1);
+constexpr Color kBlue = Color::rgb(0x89B4FA);
+constexpr Color kMauve = Color::rgb(0xCBA6F7);
+constexpr Color kText = Color::rgb(0xCDD6F4);
+constexpr Color kSurface0 = Color::rgb(0x313244);
+constexpr Color kSurface1 = Color::rgb(0x45475A);
+constexpr Color kLightPanel = Color::rgb(0xDCE0E8);
+constexpr Color kWhite = Color::rgb(0xFFFFFF);
+
+constexpr float kMargin = 32.0F;
+constexpr float kSwatch = 56.0F;
+constexpr float kGap = 12.0F;
+constexpr float kRowStep = kSwatch + 24.0F;
+constexpr float kRightColumn = 560.0F;
+
+constexpr std::array kSwatchColors{kRed, kPeach, kYellow, kGreen, kBlue};
+
+float column_x(float origin, std::size_t index) {
+    return origin + (static_cast<float>(index) * (kSwatch + kGap));
+}
+
+void draw_solid_rects(Renderer& r, float y) {
+    for (std::size_t i = 0; i < kSwatchColors.size(); ++i) {
+        r.fill_rect({column_x(kMargin, i), y, kSwatch, kSwatch}, kSwatchColors.at(i));
+    }
+    // Fractional positions and sizes must still land on whole physical pixels: sharp edges.
+    const float x = column_x(kMargin, kSwatchColors.size());
+    r.fill_rect({x + 0.3F, y + 0.4F, 20.6F, kSwatch}, kMauve);
+    r.fill_rect({x + 28.5F, y + 0.5F, 20.5F, kSwatch - 0.5F}, kMauve);
+}
+
+void draw_radii(Renderer& r, float y) {
+    constexpr std::array radii{0.0F, 4.0F, 8.0F, 16.0F, kSwatch / 2.0F};
+    for (std::size_t i = 0; i < radii.size(); ++i) {
+        r.draw_box({column_x(kMargin, i), y, kSwatch, kSwatch},
+                   {.fill = kBlue, .radius = Corners::all(radii.at(i))});
+    }
+    // Per-corner radii, and a pill wider than tall.
+    r.draw_box({column_x(kMargin, radii.size()), y, kSwatch, kSwatch},
+               {.fill = kGreen,
+                .radius = {.top_left = 0, .top_right = 24, .bottom_right = 0, .bottom_left = 24}});
+    r.draw_box({column_x(kMargin, radii.size() + 1), y + 14.0F, 96.0F, 28.0F},
+               {.fill = kPeach, .radius = Corners::all(14.0F)});
+}
+
+void draw_borders(Renderer& r, float y) {
+    const std::array styles{
+        BoxStyle{.fill = kSurface1, .border_width = 1.0F, .border = kText},
+        BoxStyle{
+            .fill = kSurface1, .radius = Corners::all(8), .border_width = 1.0F, .border = kText},
+        BoxStyle{
+            .fill = kSurface1, .radius = Corners::all(12), .border_width = 2.0F, .border = kMauve},
+        BoxStyle{.fill = kSurface1,
+                 .radius = Corners::all(kSwatch / 2.0F),
+                 .border_width = 4.0F,
+                 .border = kYellow},
+        // Border only: transparent fill.
+        BoxStyle{.fill = kSurface1.with_alpha(0.0F),
+                 .radius = Corners::all(8),
+                 .border_width = 1.0F,
+                 .border = kGreen},
+    };
+    for (std::size_t i = 0; i < styles.size(); ++i) {
+        r.draw_box({column_x(kMargin, i), y, kSwatch, kSwatch}, styles.at(i));
+    }
+}
+
+void draw_shadows(Renderer& r, float y) {
+    const Rect panel{kMargin, y, 480.0F, 200.0F};
+    r.draw_box(panel, {.fill = kLightPanel, .radius = Corners::all(16)});
+    constexpr std::array blurs{4.0F, 12.0F, 24.0F};
+    constexpr float card_width = 128.0F;
+    constexpr float card_height = 96.0F;
+    const auto card_at = [&](std::size_t i) {
+        return Rect{panel.x + 24.0F + (static_cast<float>(i) * (card_width + 24.0F)),
+                    panel.y + 52.0F, card_width, card_height};
+    };
+    // All shadows first: a wide shadow must not paint over a neighbouring card.
+    for (std::size_t i = 0; i < blurs.size(); ++i) {
+        const float blur = blurs.at(i);
+        const Rect card = card_at(i);
+        r.draw_shadow({card.x, card.y + (blur / 3.0F), card.width, card.height}, Corners::all(12),
+                      blur, Color::rgba(0x00000066));
+    }
+    for (std::size_t i = 0; i < blurs.size(); ++i) {
+        r.draw_box(card_at(i), {.fill = kWhite, .radius = Corners::all(12)});
+    }
+}
+
+void draw_blending(Renderer& r, float y) {
+    constexpr float size = 96.0F;
+    const std::array circles{
+        Rect{kRightColumn, y, size, size},
+        Rect{kRightColumn + 56.0F, y, size, size},
+        Rect{kRightColumn + 28.0F, y + 48.0F, size, size},
+    };
+    const std::array colors{kRed, kGreen, kBlue};
+    for (std::size_t i = 0; i < circles.size(); ++i) {
+        r.draw_box(circles.at(i),
+                   {.fill = colors.at(i).with_alpha(0.5F), .radius = Corners::all(size / 2.0F)});
+    }
+}
+
+void draw_clipping(Renderer& r, float y) {
+    const Rect outer{kRightColumn, y, 320.0F, 120.0F};
+    // Outline just outside the clip, to see where it is.
+    r.draw_box(outer.inset(-1.0F), {.fill = kSurface0, .border_width = 1.0F, .border = kText});
+
+    r.push_clip(outer);
+    // Larger than the clip on every side: only the clipped part may appear.
+    r.draw_box({outer.x - 40.0F, outer.y + 20.0F, 200.0F, 160.0F},
+               {.fill = kMauve, .radius = Corners::all(24)});
+    const Rect inner{outer.x + 180.0F, outer.y + 20.0F, 120.0F, 80.0F};
+    r.draw_box(inner, {.fill = kSurface1});
+    r.push_clip(inner);  // nested: intersects with outer
+    r.draw_box({inner.x + 60.0F, inner.y - 30.0F, 120.0F, 120.0F},
+               {.fill = kYellow, .radius = Corners::all(60)});
+    r.pop_clip();
+    r.pop_clip();
+}
+
+void draw_hairlines(Renderer& r, float y) {
+    // Lines exactly one physical pixel wide, one pixel apart: crisp at any scale.
+    const float pixel = 1.0F / r.scale();
+    const Rect band{kRightColumn, y, 320.0F, 60.0F};
+    r.fill_rect(band, kSurface0);
+    const auto lines = static_cast<int>(band.width * r.scale() / 2.0F);
+    for (int i = 0; i < lines; ++i) {
+        r.fill_rect({band.x + (static_cast<float>(i) * 2.0F * pixel), band.y, pixel, band.height},
+                    kText);
+    }
+    // One logical pixel border: one physical pixel at scale 1, more at higher scales.
+    r.draw_box({kRightColumn, y + 76.0F, 320.0F, 40.0F},
+               {.fill = kSurface0, .border_width = 1.0F, .border = kText});
+}
+
+}  // namespace
+
+void draw_test_scene(Renderer& renderer, const Rect& bounds) {
+    renderer.push_clip(bounds);
+
+    float y = kMargin;
+    draw_solid_rects(renderer, y);
+    y += kRowStep;
+    draw_radii(renderer, y);
+    y += kRowStep;
+    draw_borders(renderer, y);
+    y += kRowStep;
+    draw_shadows(renderer, y);
+
+    draw_blending(renderer, kMargin);
+    draw_clipping(renderer, kMargin + 180.0F);
+    draw_hairlines(renderer, kMargin + 340.0F);
+
+    renderer.pop_clip();
+}
+
+}  // namespace nordend::app

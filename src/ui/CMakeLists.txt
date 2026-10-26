@@ -45,6 +45,7 @@ target_link_libraries(nordend_wayland_protocols PUBLIC PkgConfig::WAYLAND)
 add_library(nordend_ui
     src/display.cpp
     src/egl_context.cpp
+    src/renderer.cpp
     src/window.cpp
     src/wl_ptr.cpp)
 add_library(nordend::ui ALIAS nordend_ui)

@@ -12,6 +12,7 @@
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/window.hpp"
+#include "test_scene.hpp"
 
 namespace {
 
@@ -115,6 +116,7 @@ int main(int argc, char** argv) {
         ui::Display display;
         ui::EglContext egl{display};
         ui::Window window{display, egl, {.title = "Nordend", .app_id = "nordend"}};
+        window.set_draw_handler(&nordend::app::draw_test_scene);
         return run_event_loop(display, window);
     } catch (const std::exception& e) {
         log::error("{}", e.what());
