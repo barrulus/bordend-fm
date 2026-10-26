@@ -5,12 +5,14 @@ add_executable(nordend-tests
     directory_test.cpp
     event_loop_test.cpp
     file_watcher_test.cpp
+    format_test.cpp
     icon_test.cpp
     mime_test.cpp
     palette_test.cpp
+    scroller_test.cpp
     sort_test.cpp
     worker_pool_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views doctest::doctest nordend::warnings)
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml")

@@ -3,6 +3,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -12,10 +13,10 @@
 #include <string>
 #include <string_view>
 #include <sys/signalfd.h>
+#include <system_error>
 #include <unistd.h>
 #include <utility>
 
-#include "icon_demo.hpp"
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
@@ -29,6 +30,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
+#include "nordend/views/list_view.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -38,6 +40,7 @@ namespace fs = nordend::fs;
 namespace log = nordend::log;
 namespace theme = nordend::theme;
 namespace ui = nordend::ui;
+namespace views = nordend::views;
 
 // SIGINT/SIGTERM delivered as a readable fd, so Ctrl+C ends the loop and runs every
 // destructor instead of killing the process mid-flight.
@@ -118,11 +121,24 @@ const char* button_name(ui::PointerButton button) {
 }
 
 constexpr const char* kUsage =
-    "usage: nordend [--config FILE] [--check-config] [--icons DIR] [--version]\n"
+    "usage: nordend [--config FILE] [--check-config] [--test-scene] [--version] [DIR]\n"
+    "  DIR             the folder to show (default: your home folder)\n"
     "  --config FILE   read FILE instead of ~/.config/nordend/config.toml\n"
-    "  --icons DIR     show DIR's entries with their file-type icons (instead of the test scene)\n"
+    "  --test-scene    show the renderer test scene instead of a folder\n"
     "  --check-config  report problems in the config file and exit (status 1 if any)\n"
     "  --version       print the version and exit\n";
+
+// The folder to open: DIR as given (made absolute, ".." resolved), else $HOME, else "/".
+std::filesystem::path start_folder(const std::filesystem::path& given) {
+    std::filesystem::path folder = given;
+    if (folder.empty()) {
+        const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe): startup
+        folder = home != nullptr && home[0] != '\0' ? home : "/";
+    }
+    std::error_code error;
+    const std::filesystem::path absolute = std::filesystem::weakly_canonical(folder, error);
+    return error ? folder : absolute;
+}
 
 // --check-config: every problem on stderr, a one-line verdict on stdout.
 int check_config(const std::filesystem::path& path, const core::ConfigResult& result) {
@@ -141,8 +157,9 @@ int check_config(const std::filesystem::path& path, const core::ConfigResult& re
 
 int main(int argc, char** argv) {
     std::filesystem::path config_path;
-    std::filesystem::path icons_dir;
+    std::filesystem::path start_dir;
     bool check_only = false;
+    bool test_scene = false;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
         if (arg == "--version") {
@@ -151,18 +168,16 @@ int main(int argc, char** argv) {
         }
         if (arg == "--check-config") {
             check_only = true;
-        } else if (arg == "--icons") {
-            if (i + 1 == argc) {
-                std::fprintf(stderr, "nordend: --icons needs a directory\n%s", kUsage);
-                return 2;
-            }
-            icons_dir = argv[++i];
+        } else if (arg == "--test-scene") {
+            test_scene = true;
         } else if (arg == "--config") {
             if (i + 1 == argc) {
                 std::fprintf(stderr, "nordend: --config needs a file\n%s", kUsage);
                 return 2;
             }
             config_path = argv[++i];
+        } else if (!arg.starts_with("-") && start_dir.empty()) {
+            start_dir = arg;
         } else {
             std::fprintf(stderr, "nordend: unknown option '%s'\n%s", argv[i], kUsage);
             return 2;
@@ -218,11 +233,26 @@ int main(int argc, char** argv) {
             loop.quit(0);
         });
 
+        core::WorkerPool pool{loop};
+        fs::DirectoryWatcher watcher{loop};
+        ui::IconSet icons{fonts};
+        // The folder list (ROADMAP 4.1), unless the renderer test scene was asked for.
+        std::unique_ptr<views::ListView> list;
+        if (!test_scene) {
+            list = std::make_unique<views::ListView>(loop, pool, watcher, fs::MimeDatabase::load(),
+                                                     [&] { window.request_redraw(); });
+            list->open(start_folder(start_dir));
+        }
+
         std::string last_key = "Press a key (Ctrl+Q quits)";
         seat.set_key_handler([&](const ui::KeyEvent& event) {
             if (event.modifiers.ctrl && (event.keysym == XKB_KEY_q || event.keysym == XKB_KEY_Q)) {
                 log::info("quit requested");
                 loop.quit(0);
+                return;
+            }
+            if (list) {
+                list->key(event, views::ListView::Clock::now());
                 return;
             }
             last_key = describe(event);
@@ -235,6 +265,10 @@ int main(int argc, char** argv) {
         int clicks = 0;
         std::string last_pointer = "Move the pointer, click the button, scroll";
         seat.set_pointer_handler([&](const ui::PointerEvent& event) {
+            if (list) {
+                list->pointer(event, views::ListView::Clock::now());
+                return;
+            }
             using Kind = ui::PointerEvent::Kind;
             const bool inside = event.kind != Kind::leave && event.x >= target.x &&
                                 event.x < target.right() && event.y >= target.y &&
@@ -270,21 +304,13 @@ int main(int argc, char** argv) {
             window.request_redraw();
         });
 
-        // File-type icons on a live directory (ROADMAP 3.4), when asked for.
-        core::WorkerPool pool{loop};
-        fs::DirectoryWatcher watcher{loop};
-        ui::IconSet icons{fonts};
-        std::unique_ptr<nordend::app::IconDemo> icon_demo;
-        if (!icons_dir.empty()) {
-            icon_demo = std::make_unique<nordend::app::IconDemo>(
-                loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); });
-            icon_demo->open(icons_dir);
-        }
-
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             const theme::Palette& palette = theme.palette();
-            if (icon_demo) {
-                icon_demo->draw(renderer, bounds, palette, icons);
+            if (list) {
+                list->draw(renderer, bounds, palette, icons, views::ListView::Clock::now());
+                if (list->animating()) {
+                    window.request_redraw();  // next frame, paced by the compositor
+                }
                 return;
             }
             nordend::app::draw_test_scene(renderer, bounds, palette);

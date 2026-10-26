@@ -84,6 +84,27 @@ Median of 20 runs.
 - Sorting 10k names is about 3.5 ms; merging chunks as they arrive costs little on top
   (complete ≈ +stat + 1.5 ms).
 
+## List scrolling (ROADMAP 4.1)
+
+**Target:** scrolling at the monitor's full rate with no dropped frame (DESIGN), in folders of
+any size.
+
+**Tool:** `nordend-snapshot --list DIR --bench FRAMES out.ppm [w h scale]`: draws the list
+offscreen while scrolling it from top to bottom at constant speed over FRAMES frames (about 17
+new rows per frame for 10k entries), waiting for the GPU (`glFinish`) after each one.
+
+### 2026-10-26
+
+| List | Buffer | median | p95 | max |
+|------|--------|-------:|----:|----:|
+| 10 000 entries | 960x640 | 0.20 ms | 0.28 ms | 5.6 ms |
+| 10 000 entries | 2880x1620 (1920x1080 at scale 1.5) | 0.25 ms | 0.45 ms | 1.5 ms |
+| 123 entries (a photo folder) | 960x640 | 0.17 ms | 0.21 ms | 5.9 ms |
+
+The maximum is the first frame, when glyphs are rasterized for the first time. Only visible
+rows are drawn, so the cost does not depend on the folder size: a 60 Hz frame (16.7 ms) leaves
+the list about 1.5 % of it.
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

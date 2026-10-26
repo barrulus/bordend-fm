@@ -51,6 +51,7 @@ add_library(nordend_ui
     src/renderer.cpp
     src/seat.cpp
     src/icons.cpp
+    src/scroller.cpp
     src/text.cpp
     src/window.cpp
     src/wl_ptr.cpp)

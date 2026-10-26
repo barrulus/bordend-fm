@@ -63,23 +63,25 @@ add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
+add_subdirectory(src/views)     # list view (columns and grid to come)
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
-# Plus the file-type icon grid (ROADMAP 3.4).
-add_library(nordend_test_scene STATIC src/app/test_scene.cpp src/app/icon_demo.cpp)
+add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
 target_include_directories(nordend_test_scene PUBLIC src/app)
-target_link_libraries(nordend_test_scene
-    PUBLIC nordend::ui nordend::theme nordend::fs PRIVATE nordend::warnings)
+target_link_libraries(nordend_test_scene PUBLIC nordend::ui nordend::theme PRIVATE nordend::warnings)
 
 add_executable(nordend src/app/main.cpp)
 target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")
 target_link_libraries(nordend
-    PRIVATE nordend::core nordend::ui nordend::theme nordend_test_scene nordend::warnings)
+    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend_test_scene
+            nordend::warnings)
 
-# Development tool: offscreen render of the test scene to a PPM file. Not installed.
+# Development tool: offscreen render of the test scene or a folder list to a PPM file, and the
+# list scrolling benchmark. Not installed.
 add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
-    PRIVATE nordend::core nordend::ui nordend::theme nordend_test_scene nordend::warnings)
+    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend_test_scene
+            nordend::warnings)
 
 # Development tool: directory loading benchmark (ROADMAP 3.1). Not installed.
 add_executable(nordend-bench-dir src/tools/bench_dir.cpp)

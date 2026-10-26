@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Virtualized scrolling list (ROADMAP 4.1)
+
+**Done**
+- `ui::Scroller`: scrolling physics with no clock of its own (time comes with input and
+  frames, so tests replay it exactly). Wheel: 48 px per notch toward a target, gliding there
+  (exponential approach, 50 ms time constant); notches during a glide add up. Touchpad: 1:1
+  while the fingers move, then inertia from the release velocity (movement of the last 100 ms),
+  decaying with a 330 ms time constant, stopping under 15 px/s or at an edge. Clamped to the
+  content. Frames are requested only while a glide or inertia runs: idle stays at zero CPU.
+- New module `views`. `views::ListView` shows a DirectoryModel: title (folder, item count,
+  loading, error), column headers, rows of icon, name (middle ellipsis), size (SI units) and
+  date ("2026-10-26 14:03", local), hover highlight, a thin scrollbar. Only the rows inside the
+  viewport are drawn (`visible_rows`). Entries the name does not type are sniffed on a worker
+  when they become visible (batches of 64, dropped when another folder opens): the "visible
+  entries" half of ROADMAP 3.2. Double click on a folder opens it; Backspace, Alt+Up or the
+  mouse back button go to the parent; arrows, Page Up/Down glide, Home/End jump.
+- `nordend [DIR]` now opens DIR (default: home) in the list; `--test-scene` keeps the renderer
+  scene. The 3.4 icon grid (`--icons`) is gone: the list replaces it.
+- `nordend-snapshot --list DIR [--bench FRAMES]`: the list offscreen, and a scrolling benchmark
+  (top to bottom at constant speed, glFinish after every frame). Also fixed: the first draft of
+  the release velocity counted the first finger sample, overestimating by 20 % (caught by a
+  test).
+- ThreadSanitizer: Mesa's gallium GL thread reports races inside libgallium in every GL
+  program (12 reports with the old test scene already). They are suppressed by a
+  `__tsan_default_suppressions` entry for libgallium only; with it, the list benchmark and the
+  tests report nothing in our threads.
+- 6 new test cases (69 in total): wheel glide and accumulation, edges, inertia distance and
+  stop, no coasting after a slow move or a pause, extent changes, size formatting, visible rows.
+  Release, ASan, TSan pass; tidy clean.
+
+**Measured** (offscreen, Release, glFinish per frame, 600 frames scrolling the whole list)
+
+| List | Buffer | median | p95 | max |
+|------|--------|-------:|----:|----:|
+| 10 000 entries | 960x640 | 0.20 ms | 0.28 ms | 5.6 ms (first frame, glyph rasterization) |
+| 10 000 entries | 2880x1620 (1920x1080 at 1.5) | 0.25 ms | 0.45 ms | 1.5 ms |
+| 123 entries (photo folder) | 960x640 | 0.17 ms | 0.21 ms | 5.9 ms |
+
+A 60 Hz frame has 16.7 ms: drawing the list takes about 1.5 % of it.
+
+**Tested by the author**
+- On screen: wheel, touchpad inertia, keys, opening folders: "the touch experience is
+  magnificent", the keyboard handling "very smart". Step 4.1 closed. At the author's request the
+  README gained a Features section, with scrolling as "Natural touch".
+
+**Open**
+- Text layouts are cached up to 8 192 and then the cache is cleared whole: fine at these numbers,
+  to revisit (LRU) if long scrolls through huge folders show a hitch.
+
+---
+
 ## 2026-10-26 — File-type icons (ROADMAP 3.4)
 
 **Done**

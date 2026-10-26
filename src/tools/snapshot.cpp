@@ -11,35 +11,41 @@
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 
-#include "icon_demo.hpp"
+#include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory.hpp"
+#include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
-#include "nordend/fs/sort.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
+#include "nordend/views/list_view.hpp"
 #include "test_scene.hpp"
 
 namespace {
 
 namespace log = nordend::log;
+namespace core = nordend::core;
 namespace ui = nordend::ui;
+namespace views = nordend::views;
 
 class SurfacelessContext {
 public:
@@ -127,19 +133,43 @@ void write_ppm(const std::string& path, std::int32_t width, std::int32_t height,
     }
 }
 
+// Runs the loop until done() holds or two seconds pass.
+void run_until(core::EventLoop& loop, const std::function<bool()>& done) {
+    const auto check =
+        loop.add_timer(std::chrono::milliseconds{1}, std::chrono::milliseconds{1}, [&] {
+            if (done()) {
+                loop.quit(0);
+            }
+        });
+    const auto limit = loop.add_timer(std::chrono::seconds{2}, std::chrono::milliseconds{0},
+                                      [&] { loop.quit(1); });
+    loop.run();
+    loop.remove(check);
+    loop.remove(limit);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     std::span args{argv, static_cast<std::size_t>(argc)};
-    // --icons DIR: the file-type icon grid of DIR instead of the test scene.
-    std::filesystem::path icons_dir;
-    if (args.size() >= 3 && std::string_view{args[1]} == "--icons") {
-        icons_dir = args[2];
+    // --list DIR: the folder list instead of the test scene; --bench N: then scroll it over N
+    // frames and report the time per frame.
+    std::filesystem::path list_dir;
+    int bench_frames = 0;
+    while (args.size() >= 3) {
+        const std::string_view option{args[1]};
+        if (option == "--list") {
+            list_dir = args[2];
+        } else if (option == "--bench") {
+            bench_frames = std::stoi(args[2]);
+        } else {
+            break;
+        }
         args = args.subspan(2);
     }
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
-            "usage: nordend-snapshot [--icons DIR] <out.ppm> "
+            "usage: nordend-snapshot [--list DIR [--bench FRAMES]] <out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
     }
@@ -156,27 +186,6 @@ int main(int argc, char** argv) {
         for (const std::string& problem : palette.problems) {
             log::warn("{}", problem);
         }
-        const auto mime = nordend::fs::MimeDatabase::load();
-        std::vector<nordend::fs::Entry> entries;
-        if (!icons_dir.empty()) {
-            const auto result =
-                nordend::fs::read_directory(icons_dir, nordend::core::CancelToken{}, {.mime = mime},
-                                            [&](std::vector<nordend::fs::Entry> chunk) {
-                                                for (nordend::fs::Entry& entry : chunk) {
-                                                    entries.push_back(std::move(entry));
-                                                }
-                                            });
-            if (result.error) {
-                log::error("{}: {}", icons_dir.string(), result.error.message());
-                return 1;
-            }
-            for (nordend::fs::Entry& entry : entries) {
-                if (entry.mime == nordend::fs::kUnknownMime) {
-                    entry.mime = mime->detect(icons_dir, entry);
-                }
-            }
-            std::ranges::sort(entries, nordend::fs::SortOrder{});
-        }
         const auto buffer_width = static_cast<std::int32_t>(std::lround(width * scale));
         const auto buffer_height = static_cast<std::int32_t>(std::lround(height * scale));
 
@@ -188,15 +197,58 @@ int main(int argc, char** argv) {
             ui::FontSystem fonts;
             ui::Renderer renderer{fonts};
             ui::IconSet icons{fonts};
-            renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
+            core::EventLoop loop;
+            core::WorkerPool pool{loop};
+            nordend::fs::DirectoryWatcher watcher{loop};
+            std::unique_ptr<views::ListView> list;
             const ui::Rect bounds{0.0F, 0.0F, width, height};
-            if (icons_dir.empty()) {
-                nordend::app::draw_test_scene(renderer, bounds, palette.palette);
-            } else {
-                nordend::app::draw_icon_grid(renderer, bounds, palette.palette, icons, *mime,
-                                             icons_dir.string(), entries);
+            const auto frame = [&] {
+                renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
+                if (list) {
+                    list->draw(renderer, bounds, palette.palette, icons,
+                               views::ListView::Clock::now());
+                } else {
+                    nordend::app::draw_test_scene(renderer, bounds, palette.palette);
+                }
+                renderer.end_frame();
+            };
+            if (!list_dir.empty()) {
+                list = std::make_unique<views::ListView>(loop, pool, watcher,
+                                                         nordend::fs::MimeDatabase::load(), [] {});
+                list->open(list_dir);
+                run_until(loop, [&] { return !list->model().loading(); });
+                frame();                                // asks for the visible entries' types
+                run_until(loop, [] { return false; });  // let them arrive (2 s at most)
             }
-            renderer.end_frame();
+            if (list && bench_frames > 0) {
+                // Scroll from top to bottom at constant speed; every frame waits for the GPU.
+                const float rows = static_cast<float>(list->model().listing().entries().size()) *
+                                   views::ListView::kRowHeight;
+                std::vector<double> times;
+                times.reserve(static_cast<std::size_t>(bench_frames));
+                for (int i = 0; i < bench_frames; ++i) {
+                    list->scroll_to(rows * static_cast<float>(i) /
+                                    static_cast<float>(bench_frames));
+                    const auto start = std::chrono::steady_clock::now();
+                    frame();
+                    glFinish();
+                    times.push_back(std::chrono::duration<double, std::milli>(
+                                        std::chrono::steady_clock::now() - start)
+                                        .count());
+                }
+                std::ranges::sort(times);
+                const auto at = [&](double q) {
+                    return times[static_cast<std::size_t>(q *
+                                                          static_cast<double>(times.size() - 1))];
+                };
+                std::printf(
+                    "%zu entries, %d frames at %dx%d: median %.2f ms, p95 %.2f ms, "
+                    "max %.2f ms per frame\n",
+                    list->model().listing().entries().size(), bench_frames, buffer_width,
+                    buffer_height, at(0.5), at(0.95), times.back());
+                list->scroll_to(0.0F);
+            }
+            frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,
                          pixels.data());
         }

@@ -22,10 +22,25 @@
 - **Noctalia integration:** follows the Noctalia color palette and reloads it live.
 - **Keyboard first**, mouse always.
 
+## Features
+
+What already works, the way it is meant to stay:
+
+- **Natural touch.** Scrolling that feels physical: on a touchpad the list follows your fingers
+  1:1 and, when they lift, keeps gliding and slows down smoothly, stopping softly at the ends;
+  a mouse wheel glides instead of jumping, and quick turns add up. The keyboard moves the same
+  way: arrows and Page Up/Down glide, Home/End jump. Only the visible rows are drawn (0.2 ms
+  per frame in a 10 000-file folder), and nothing is drawn when nothing moves.
+- **Live folders.** Files created, removed or renamed by any program appear at once; a
+  thousand-file copy arrives in a few smooth updates, not a thousand.
+- **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
+  camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
+- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly.
+
 ## Progress
 
-There is no file manager window yet: by default the window shows a test scene of everything the
-renderer can draw, and `nordend --icons DIR` shows a folder's entries with their icons.
+`nordend [DIR]` opens a folder (default: your home) as a scrolling list; `nordend --test-scene`
+shows everything the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
 
@@ -79,7 +94,7 @@ sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
 cmake -B build -G Ninja
 cmake --build build
-./build/nordend
+./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one
 ```
 
 Needs a Wayland compositor with xdg-shell (developed on
@@ -102,9 +117,9 @@ ctest --test-dir build
 # Render the test scene offscreen, no window: <out.ppm> [width height scale [colors.toml]]
 ./build/nordend-snapshot scene.ppm 960 820 1.5
 
-# A folder with its file-type icons (needs Noctalia's Tabler icon font), live or offscreen
-./build/nordend --icons ~/Pictures
-./build/nordend-snapshot --icons ~/Pictures icons.ppm
+# A folder offscreen, and the list scrolling benchmark (see docs/benchmarks.md)
+./build/nordend-snapshot --list ~/Pictures list.ppm
+./build/nordend-snapshot --list /tmp/bench-10k --bench 600 list.ppm
 
 # Directory loading benchmark (see docs/benchmarks.md)
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k

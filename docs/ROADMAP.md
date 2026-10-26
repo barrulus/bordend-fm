@@ -69,7 +69,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 4 — Viste
 
-- [ ] **4.1 Lista scorrevole virtualizzata**
+- [x] **4.1 Lista scorrevole virtualizzata**
   Solo le righe visibili vengono disegnate; scroll con inerzia.
 - [ ] **4.2 Vista a colonne (Miller)**
   Navigazione a frecce, colonne ridimensionabili, scorrimento orizzontale animato.
