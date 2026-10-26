@@ -34,6 +34,9 @@ nordend_wayland_protocol(
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/viewporter/viewporter.xml)
 nordend_wayland_protocol(
     ${WAYLAND_PROTOCOLS_DIR}/staging/fractional-scale/fractional-scale-v1.xml)
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/staging/cursor-shape/cursor-shape-v1.xml)
+# cursor-shape references zwp_tablet_tool_v2: its glue code must be linked too.
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/tablet/tablet-v2.xml)
 
 add_library(nordend_wayland_protocols STATIC ${NORDEND_PROTOCOL_SOURCES})
 target_include_directories(nordend_wayland_protocols SYSTEM PUBLIC ${NORDEND_PROTOCOL_DIR})

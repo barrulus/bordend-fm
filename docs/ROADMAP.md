@@ -44,7 +44,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 - [x] **2.1 Tastiera**
   `xkbcommon`, layout dell'utente, ripetizione dei tasti.
-- [ ] **2.2 Puntatore**
+- [x] **2.2 Puntatore**
   Click, doppio click, rotella e touchpad (scroll continuo), `cursor-shape-v1`.
 - [ ] **2.3 Main loop e worker pool**
   `poll()` unico, eventfd, coda risultati, annullamento dei lavori.

@@ -54,4 +54,20 @@ void destroy(wp_fractional_scale_manager_v1* manager) noexcept {
 
 void destroy(wp_fractional_scale_v1* scale) noexcept { wp_fractional_scale_v1_destroy(scale); }
 
+void destroy(wl_pointer* pointer) noexcept {
+    if (wl_pointer_get_version(pointer) >= WL_POINTER_RELEASE_SINCE_VERSION) {
+        wl_pointer_release(pointer);
+    } else {
+        wl_pointer_destroy(pointer);
+    }
+}
+
+void destroy(wp_cursor_shape_manager_v1* manager) noexcept {
+    wp_cursor_shape_manager_v1_destroy(manager);
+}
+
+void destroy(wp_cursor_shape_device_v1* device) noexcept {
+    wp_cursor_shape_device_v1_destroy(device);
+}
+
 }  // namespace nordend::ui

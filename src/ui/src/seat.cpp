@@ -1,9 +1,12 @@
 #include "nordend/ui/seat.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cerrno>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <linux/input-event-codes.h>
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h>
@@ -20,6 +23,55 @@ namespace {
 constexpr xkb_keycode_t kEvdevOffset = 8;
 // Repeats delivered per timer wake-up at most, so a stalled loop does not burst-type.
 constexpr std::uint64_t kMaxRepeatsPerWake = 2;
+// Double-click window and slop. Wayland does not share the desktop's setting; configurable from
+// ROADMAP 2.4.
+constexpr std::uint32_t kMultiClickMs = 400;
+constexpr float kMultiClickSlop = 4.0F;
+// wl_pointer.axis_value120: one wheel notch.
+constexpr float kValue120PerNotch = 120.0F;
+
+PointerButton to_button(std::uint32_t code) {
+    switch (code) {
+        case BTN_LEFT:
+            return PointerButton::left;
+        case BTN_RIGHT:
+            return PointerButton::right;
+        case BTN_MIDDLE:
+            return PointerButton::middle;
+        case BTN_SIDE:
+            return PointerButton::back;
+        case BTN_EXTRA:
+            return PointerButton::forward;
+        default:
+            return PointerButton::other;
+    }
+}
+
+std::uint32_t to_wp_shape(CursorShape shape) {
+    switch (shape) {
+        case CursorShape::standard:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+        case CursorShape::pointer:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_POINTER;
+        case CursorShape::text:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_TEXT;
+        case CursorShape::wait:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_WAIT;
+        case CursorShape::progress:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_PROGRESS;
+        case CursorShape::grab:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRAB;
+        case CursorShape::grabbing:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_GRABBING;
+        case CursorShape::not_allowed:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NOT_ALLOWED;
+        case CursorShape::ew_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
+        case CursorShape::ns_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+    }
+    return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
+}
 
 // Locale for compose tables: the first of LC_ALL, LC_CTYPE, LANG that is set, else "C".
 const char* compose_locale() {
@@ -43,7 +95,8 @@ itimerspec milliseconds_to_timer(std::int32_t first, std::int32_t interval) {
 
 Seat::Seat(Display& display)
     : repeat_fd_{timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC)},
-      context_{xkb_context_new(XKB_CONTEXT_NO_FLAGS)} {
+      context_{xkb_context_new(XKB_CONTEXT_NO_FLAGS)},
+      display_{display} {
     if (repeat_fd_ < 0) {
         throw std::runtime_error{std::string{"timerfd_create: "} + std::strerror(errno)};
     }
@@ -72,6 +125,8 @@ Seat::Seat(Display& display)
 }
 
 Seat::~Seat() {
+    cursor_device_.reset();
+    pointer_.reset();
     keyboard_.reset();
     if (repeat_fd_ >= 0) {
         close(repeat_fd_);
@@ -96,6 +151,171 @@ void Seat::on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities
         self.disarm_repeat();
         self.keyboard_.reset();
     }
+
+    const bool has_pointer = (capabilities & WL_SEAT_CAPABILITY_POINTER) != 0;
+    if (has_pointer && !self.pointer_) {
+        static constexpr wl_pointer_listener kPointerListener{
+            .enter = &Seat::on_pointer_enter,
+            .leave = &Seat::on_pointer_leave,
+            .motion = &Seat::on_pointer_motion,
+            .button = &Seat::on_pointer_button,
+            .axis = &Seat::on_pointer_axis,
+            .frame = &Seat::on_pointer_frame,
+            .axis_source = &Seat::on_pointer_axis_source,
+            .axis_stop = &Seat::on_pointer_axis_stop,
+            .axis_discrete = &Seat::on_pointer_axis_discrete,
+            .axis_value120 = &Seat::on_pointer_axis_value120,
+            // Not sent below their version (v9, v11); we bind v8.
+            .axis_relative_direction = nullptr,
+            .warp = nullptr,
+        };
+        self.pointer_.reset(wl_seat_get_pointer(seat));
+        wl_pointer_add_listener(self.pointer_.get(), &kPointerListener, &self);
+        if (auto* manager = self.display_.cursor_shape_manager()) {
+            self.cursor_device_.reset(
+                wp_cursor_shape_manager_v1_get_pointer(manager, self.pointer_.get()));
+        } else {
+            log::warn("compositor offers no cursor-shape-v1: cursor shapes unavailable");
+        }
+    } else if (!has_pointer && self.pointer_) {
+        self.cursor_device_.reset();
+        self.pointer_.reset();
+        self.pointer_inside_ = false;
+    }
+}
+
+void Seat::set_cursor(CursorShape shape) {
+    if (shape == cursor_) {
+        return;
+    }
+    cursor_ = shape;
+    apply_cursor();
+}
+
+void Seat::apply_cursor() {
+    if (cursor_device_ && pointer_inside_) {
+        wp_cursor_shape_device_v1_set_shape(cursor_device_.get(), pointer_enter_serial_,
+                                            to_wp_shape(cursor_));
+    }
+}
+
+void Seat::emit_pointer(PointerEvent event) {
+    if (state_) {
+        event.modifiers = current_modifiers();
+    }
+    if (pointer_handler_) {
+        pointer_handler_(event);
+    }
+}
+
+void Seat::on_pointer_enter(void* data, wl_pointer* /*pointer*/, std::uint32_t serial,
+                            wl_surface* /*surface*/, wl_fixed_t x, wl_fixed_t y) {
+    auto& self = *static_cast<Seat*>(data);
+    self.pointer_inside_ = true;
+    self.pointer_enter_serial_ = serial;
+    self.pointer_x_ = static_cast<float>(wl_fixed_to_double(x));
+    self.pointer_y_ = static_cast<float>(wl_fixed_to_double(y));
+    self.apply_cursor();  // the cursor must be set on every enter
+    self.emit_pointer(
+        {.kind = PointerEvent::Kind::enter, .x = self.pointer_x_, .y = self.pointer_y_});
+}
+
+void Seat::on_pointer_leave(void* data, wl_pointer* /*pointer*/, std::uint32_t /*serial*/,
+                            wl_surface* /*surface*/) {
+    auto& self = *static_cast<Seat*>(data);
+    self.pointer_inside_ = false;
+    self.emit_pointer({.kind = PointerEvent::Kind::leave});
+}
+
+void Seat::on_pointer_motion(void* data, wl_pointer* /*pointer*/, std::uint32_t /*time*/,
+                             wl_fixed_t x, wl_fixed_t y) {
+    auto& self = *static_cast<Seat*>(data);
+    self.pointer_x_ = static_cast<float>(wl_fixed_to_double(x));
+    self.pointer_y_ = static_cast<float>(wl_fixed_to_double(y));
+    self.emit_pointer(
+        {.kind = PointerEvent::Kind::motion, .x = self.pointer_x_, .y = self.pointer_y_});
+}
+
+void Seat::on_pointer_button(void* data, wl_pointer* /*pointer*/, std::uint32_t /*serial*/,
+                             std::uint32_t time, std::uint32_t button, std::uint32_t state) {
+    auto& self = *static_cast<Seat*>(data);
+    PointerEvent event{.kind = PointerEvent::Kind::release,
+                       .x = self.pointer_x_,
+                       .y = self.pointer_y_,
+                       .button = to_button(button)};
+    if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        event.kind = PointerEvent::Kind::press;
+        LastPress& last = self.last_press_;
+        const bool same_click = last.count > 0 && last.button == event.button &&
+                                time - last.time_ms <= kMultiClickMs &&
+                                std::abs(event.x - last.x) <= kMultiClickSlop &&
+                                std::abs(event.y - last.y) <= kMultiClickSlop;
+        last = {.button = event.button,
+                .time_ms = time,
+                .x = event.x,
+                .y = event.y,
+                .count = same_click ? last.count + 1 : 1};
+        event.click_count = last.count;
+    }
+    self.emit_pointer(event);
+}
+
+void Seat::on_pointer_axis(void* data, wl_pointer* /*pointer*/, std::uint32_t /*time*/,
+                           std::uint32_t axis, wl_fixed_t value) {
+    auto& self = *static_cast<Seat*>(data);
+    const auto amount = static_cast<float>(wl_fixed_to_double(value));
+    self.pending_scroll_.any = true;
+    if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+        self.pending_scroll_.y += amount;
+    } else {
+        self.pending_scroll_.x += amount;
+    }
+}
+
+void Seat::on_pointer_axis_source(void* data, wl_pointer* /*pointer*/, std::uint32_t source) {
+    auto& self = *static_cast<Seat*>(data);
+    self.pending_scroll_.finger = source == WL_POINTER_AXIS_SOURCE_FINGER;
+}
+
+void Seat::on_pointer_axis_stop(void* data, wl_pointer* /*pointer*/, std::uint32_t /*time*/,
+                                std::uint32_t /*axis*/) {
+    auto& self = *static_cast<Seat*>(data);
+    self.pending_scroll_.any = true;
+    self.pending_scroll_.stop = true;
+}
+
+void Seat::on_pointer_axis_discrete(void* /*data*/, wl_pointer* /*pointer*/, std::uint32_t /*axis*/,
+                                    std::int32_t /*discrete*/) {
+    // Not sent to v8 clients: axis_value120 replaces it.
+}
+
+void Seat::on_pointer_axis_value120(void* data, wl_pointer* /*pointer*/, std::uint32_t axis,
+                                    std::int32_t value120) {
+    auto& self = *static_cast<Seat*>(data);
+    const float notches = static_cast<float>(value120) / kValue120PerNotch;
+    self.pending_scroll_.any = true;
+    if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL) {
+        self.pending_scroll_.wheel_y += notches;
+    } else {
+        self.pending_scroll_.wheel_x += notches;
+    }
+}
+
+void Seat::on_pointer_frame(void* data, wl_pointer* /*pointer*/) {
+    auto& self = *static_cast<Seat*>(data);
+    const PendingScroll scroll = std::exchange(self.pending_scroll_, {});
+    if (!scroll.any) {
+        return;
+    }
+    self.emit_pointer({.kind = PointerEvent::Kind::scroll,
+                       .x = self.pointer_x_,
+                       .y = self.pointer_y_,
+                       .scroll_x = scroll.x,
+                       .scroll_y = scroll.y,
+                       .wheel_x = scroll.wheel_x,
+                       .wheel_y = scroll.wheel_y,
+                       .scroll_finger = scroll.finger,
+                       .scroll_stop = scroll.stop});
 }
 
 void Seat::on_name(void* /*data*/, wl_seat* /*seat*/, const char* name) {

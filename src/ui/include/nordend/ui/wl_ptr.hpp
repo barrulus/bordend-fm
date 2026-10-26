@@ -4,6 +4,7 @@
 #include <wayland-client.h>
 #include <wayland-egl.h>
 
+#include "cursor-shape-v1-client-protocol.h"
 #include "fractional-scale-v1-client-protocol.h"
 #include "viewporter-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
@@ -21,6 +22,9 @@ void destroy(wl_surface* surface) noexcept;
 void destroy(wl_callback* callback) noexcept;
 void destroy(wl_seat* seat) noexcept;
 void destroy(wl_keyboard* keyboard) noexcept;
+void destroy(wl_pointer* pointer) noexcept;
+void destroy(wp_cursor_shape_manager_v1* manager) noexcept;
+void destroy(wp_cursor_shape_device_v1* device) noexcept;
 void destroy(wl_egl_window* window) noexcept;
 void destroy(xdg_wm_base* wm_base) noexcept;
 void destroy(xdg_surface* surface) noexcept;

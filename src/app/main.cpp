@@ -84,6 +84,24 @@ std::string describe(const ui::KeyEvent& event) {
     return out;
 }
 
+const char* button_name(ui::PointerButton button) {
+    switch (button) {
+        case ui::PointerButton::left:
+            return "left";
+        case ui::PointerButton::right:
+            return "right";
+        case ui::PointerButton::middle:
+            return "middle";
+        case ui::PointerButton::back:
+            return "back";
+        case ui::PointerButton::forward:
+            return "forward";
+        case ui::PointerButton::other:
+            break;
+    }
+    return "other";
+}
+
 // Temporary loop: Wayland events, key repeat and signals. ROADMAP 2.3 replaces it with the
 // general poll loop (worker results, inotify, timers). Returns the process exit code.
 int run_event_loop(const ui::Display& display, ui::Seat& seat, const ui::Window& window,
@@ -163,8 +181,56 @@ int main(int argc, char** argv) {
             log::debug("key: {}", last_key);
             window.request_redraw();
         });
+        // Pointer test (ROADMAP 2.2): a hover/click target and the last pointer event.
+        const ui::Rect target{760.0F, 32.0F, 160.0F, 48.0F};
+        bool hovered = false;
+        int clicks = 0;
+        std::string last_pointer = "Move the pointer, click the button, scroll";
+        seat.set_pointer_handler([&](const ui::PointerEvent& event) {
+            using Kind = ui::PointerEvent::Kind;
+            const bool inside = event.kind != Kind::leave && event.x >= target.x &&
+                                event.x < target.right() && event.y >= target.y &&
+                                event.y < target.bottom();
+            if (inside != hovered) {
+                hovered = inside;
+                seat.set_cursor(inside ? ui::CursorShape::pointer : ui::CursorShape::standard);
+                window.request_redraw();
+            }
+            switch (event.kind) {
+                case Kind::press:
+                    if (inside && event.button == ui::PointerButton::left) {
+                        ++clicks;
+                    }
+                    last_pointer =
+                        std::format("press {} \u00d7{} at {:.1f}, {:.1f}",
+                                    button_name(event.button), event.click_count, event.x, event.y);
+                    break;
+                case Kind::scroll:
+                    last_pointer =
+                        std::format("scroll {:.2f}, {:.2f} px   wheel {:.2f}, {:.2f}{}{}",
+                                    event.scroll_x, event.scroll_y, event.wheel_x, event.wheel_y,
+                                    event.scroll_finger ? "   (touchpad)" : "",
+                                    event.scroll_stop ? "   stop" : "");
+                    break;
+                case Kind::leave:
+                    last_pointer = "pointer left the window";
+                    break;
+                default:
+                    return;  // motion and enter only matter for hover
+            }
+            log::debug("pointer: {}", last_pointer);
+            window.request_redraw();
+        });
+
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             nordend::app::draw_test_scene(renderer, bounds);
+            renderer.draw_box(target, {.fill = ui::Color::rgb(hovered ? 0x89B4FA : 0x45475A),
+                                       .radius = ui::Corners::all(10)});
+            renderer.draw_text(std::format("Clicks: {}", clicks), target.x + 16.0F,
+                               target.y + 14.0F, 15.0F,
+                               ui::Color::rgb(hovered ? 0x1E1E2E : 0xCDD6F4));
+            renderer.draw_text(last_pointer, 32.0F, bounds.bottom() - 56.0F, 14.0F,
+                               ui::Color::rgb(0xA6E3A1));
             renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F,
                                ui::Color::rgb(0xF9E2AF));
         });

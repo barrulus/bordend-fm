@@ -4,6 +4,35 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Pointer (ROADMAP 2.2)
+
+**Done**
+- `wl_seat` bound at v8 for `axis_value120`. `Seat` gets a `wl_pointer` when the seat has one:
+  enter/leave/motion/button delivered at once as `PointerEvent`s (logical surface coordinates,
+  modifiers); scroll axes, axis source, axis_stop and value120 gathered until `wl_pointer.frame`
+  and delivered as one scroll event (surface pixels + wheel notches + touchpad flag + stop flag
+  for future kinetic scrolling).
+- Click counting: same button, within 400 ms and 4 px (Wayland shares no double-click setting;
+  configurable in 2.4).
+- Cursor shapes through `cursor-shape-v1` (bound v1; Umbriel offers v2), set again on every
+  enter as the protocol requires. Its XML references `zwp_tablet_tool_v2`, so tablet-v2 glue is
+  generated too. The listener fills `axis_relative_direction` (v9) and `warp` (v11) with null:
+  libwayland 1.26's headers know them, but they are never sent to a v8 client.
+- Test scene: a button with hover color + hand cursor and a click counter, and a status line
+  with the last press (button, click count, position) or scroll.
+- Verified by Claude: Release/ASan builds clean, tidy clean, no-display path.
+
+**Tested by the author**
+- Hover color + hand cursor, left/middle/right presses, multi-click counting (slow clicks or a
+  moved pointer restart at 1), wheel: one notch = 15 px and value120 = 1.00 per notch.
+  Step 2.2 closed.
+- Click counts are unbounded (x10 on rapid clicking): consumers map 1/2/3 to their actions.
+- Twice two presses arrived 13 ms apart (179.772 -> 179.785, 180.624 -> 180.637): faster than a
+  human double click. Likely switch chatter in the mouse, not Nordend; if it shows up as
+  accidental double-clicks in the views, consider a small debounce (< 30 ms) on presses.
+
+---
+
 ## 2026-10-26 — Keyboard (ROADMAP 2.1)
 
 **Done**
