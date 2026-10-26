@@ -28,7 +28,7 @@
 
 ## Stack tecnico
 
-Allineato a Noctalia (MIT: il suo codice si può studiare e riusare citandolo).
+Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scriviamo noi (vedi sotto).
 
 | Area | Scelta | Note |
 |---|---|---|
@@ -51,6 +51,19 @@ Allineato a Noctalia (MIT: il suo codice si può studiare e riusare citandolo).
 Protocolli Wayland: `xdg-shell`, `xdg-decoration`, `fractional-scale-v1`, `viewporter`,
 `cursor-shape-v1`, `wl_data_device` (clipboard, DnD), `xdg-activation`. Più avanti `text-input-v3`.
 Il supporto di ciascuno in Umbriel è *da verificare*.
+
+## Codice proprio e codice da altri progetti
+
+**Deciso:** progetto a lungo termine, quindi toolkit, rendering e logica dell'app li scriviamo noi in C++.
+Restano le librerie di sistema della tabella sopra (Wayland, EGL, harfbuzz, exiv2, …): non si riscrivono.
+
+Copiare codice da Noctalia o Umbriel (entrambi MIT) è un'eccezione, valutata caso per caso dal copilot:
+- si copia solo un pezzo isolato e già collaudato, quando riscriverlo aggiungerebbe rischio senza valore;
+- **l'autore viene sempre avvisato prima**, con cosa si copia, da dove e perché;
+- il file copiato riporta in testa progetto d'origine, percorso, commit e licenza;
+- ogni copia è elencata in `THIRD_PARTY.md` (creato alla prima occasione) e annotata nel devlog.
+
+Studiare il loro codice come riferimento resta sempre possibile e incoraggiato.
 
 ## Tema
 
@@ -120,10 +133,6 @@ evidenziazione della sintassi, DnD verso altre app, editor esterno.
 - apertura di una cartella da 10k file: primo frame < 50 ms, lista completa in background
 - Quick Look di un ORF: < 100 ms
 - scroll a frequenza piena del monitor, nessun frame perso nel benchmark di scorrimento
-
-## Domande aperte
-
-- Quanto codice prendere da Noctalia per il toolkit: copia adattata o libreria condivisa?
 
 ## Appendice: editor esterno (helix) — non prioritario
 

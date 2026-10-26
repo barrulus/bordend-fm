@@ -27,7 +27,9 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 - Languages: code, comments, commits, README, buglog and devlog in English; DESIGN and ROADMAP in Italian.
 - Claude is credited in the README as copilot, not listed as a commit co-author. `CLAUDE.md` stays
   out of the repository.
+- Nordend's code is written from scratch in C++; copying from Noctalia/Umbriel only case by case,
+  always announced to the author first and tracked in `THIRD_PARTY.md`.
+- GitHub: private `pankaspe/nordend-fm`; repo-local noreply email (account email privacy).
 
 **Open**
 - DESIGN approval (ROADMAP 0.1).
-- How much toolkit code to take from Noctalia.
