@@ -4,6 +4,37 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — First Wayland window (ROADMAP 1.1, in progress)
+
+**Done**
+- Module layout as in quark++: `src/<module>/include/nordend/<module>/`, one static library per
+  module. `core`: stderr logger, level from `$NORDEND_LOG`. `ui`: `Display` (connection, registry,
+  globals bound at capped versions), `Window` (xdg-shell toplevel, server-side decoration request,
+  configure/resize, close), temporary `ShmBuffer` for a solid background until EGL (1.2).
+- wayland-scanner generates xdg-shell and xdg-decoration glue at build time.
+- `WlPtr<T>`: RAII for proxies. The scanner's `*_destroy` helpers are `static inline`; used as
+  template arguments they gave the owning types internal linkage (`-Wsubobject-linkage`), so the
+  deleters are out-of-line overloads in `wl_ptr.cpp`.
+- Temporary event loop in `main.cpp`: libwayland prepare_read/poll protocol + signalfd, so
+  Ctrl+C/SIGTERM exit through every destructor.
+- Verified by Claude: build without warnings, clang-tidy and clang-format clean, no-display error
+  path (exit 1), SIGTERM path (exit 0).
+
+**Mistake**
+- A test meant to run without a display unset `WAYLAND_DISPLAY`; libwayland falls back to
+  `wayland-0`, so a window opened on the author's screen (closed with SIGTERM). Rule added to
+  CLAUDE.md: use `WAYLAND_DISPLAY=nordend-test-none`.
+
+**Tested by the author on Umbriel**
+- Window, server-side decorations, resize, close button: OK.
+- No title bar by default: Umbriel is a scrolling tiler; `Mod+W` (`column-toggle-tabbed` in the
+  author's Umbriel config) shows the tab with the "Nordend" title. Expected, not a bug.
+
+**Open**
+- ASan/UBSan run blocked on `libsanitizer-devel`.
+
+---
+
 ## 2026-10-26 — CMake skeleton (ROADMAP 0.1, 0.3)
 
 **Done**

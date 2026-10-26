@@ -1,0 +1,90 @@
+#include "nordend/ui/display.hpp"
+
+#include <algorithm>
+#include <stdexcept>
+#include <string_view>
+
+#include "nordend/core/log.hpp"
+
+namespace nordend::ui {
+namespace {
+
+// Highest version of each global whose events we handle. Binding above this would let the
+// compositor send events our listeners leave as null pointers.
+constexpr std::uint32_t kCompositorVersion = 4;  // wl_surface.damage_buffer
+constexpr std::uint32_t kShmVersion = 1;
+constexpr std::uint32_t kWmBaseVersion = 5;  // xdg_toplevel.wm_capabilities
+constexpr std::uint32_t kDecorationManagerVersion = 1;
+
+template <class T>
+T* bind(wl_registry* registry, std::uint32_t name, const wl_interface& interface,
+        std::uint32_t advertised, std::uint32_t supported) {
+    const std::uint32_t version = std::min(advertised, supported);
+    log::debug("bind {} v{} (compositor offers v{})", interface.name, version, advertised);
+    return static_cast<T*>(wl_registry_bind(registry, name, &interface, version));
+}
+
+}  // namespace
+
+Display::Display() : display_{wl_display_connect(nullptr)} {
+    if (!display_) {
+        throw std::runtime_error{"cannot connect to the Wayland display (is WAYLAND_DISPLAY set?)"};
+    }
+
+    static constexpr wl_registry_listener kRegistryListener{
+        .global = &Display::on_global,
+        .global_remove = &Display::on_global_remove,
+    };
+    registry_.reset(wl_display_get_registry(display_.get()));
+    wl_registry_add_listener(registry_.get(), &kRegistryListener, this);
+    if (wl_display_roundtrip(display_.get()) < 0) {
+        throw std::runtime_error{"Wayland roundtrip failed while reading the registry"};
+    }
+
+    if (!compositor_) {
+        throw std::runtime_error{"compositor does not offer wl_compositor"};
+    }
+    if (!shm_) {
+        throw std::runtime_error{"compositor does not offer wl_shm"};
+    }
+    if (!wm_base_) {
+        throw std::runtime_error{"compositor does not offer xdg_wm_base (xdg-shell)"};
+    }
+    if (!decoration_manager_) {
+        log::warn("compositor does not offer xdg-decoration: the window will have no decorations");
+    }
+}
+
+void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
+                        const char* interface, std::uint32_t version) {
+    auto& self = *static_cast<Display*>(data);
+    const std::string_view iface{interface};
+
+    if (iface == wl_compositor_interface.name) {
+        self.compositor_.reset(bind<wl_compositor>(registry, name, wl_compositor_interface, version,
+                                                   kCompositorVersion));
+    } else if (iface == wl_shm_interface.name) {
+        self.shm_.reset(bind<wl_shm>(registry, name, wl_shm_interface, version, kShmVersion));
+    } else if (iface == xdg_wm_base_interface.name) {
+        self.wm_base_.reset(
+            bind<xdg_wm_base>(registry, name, xdg_wm_base_interface, version, kWmBaseVersion));
+        static constexpr xdg_wm_base_listener kWmBaseListener{.ping = &Display::on_ping};
+        xdg_wm_base_add_listener(self.wm_base_.get(), &kWmBaseListener, &self);
+    } else if (iface == zxdg_decoration_manager_v1_interface.name) {
+        self.decoration_manager_.reset(
+            bind<zxdg_decoration_manager_v1>(registry, name, zxdg_decoration_manager_v1_interface,
+                                             version, kDecorationManagerVersion));
+    }
+}
+
+void Display::on_global_remove(void* /*data*/, wl_registry* /*registry*/, std::uint32_t name) {
+    // The globals we bind are never hot-unplugged; outputs and seats will be handled when
+    // Nordend starts tracking them.
+    log::debug("global {} removed", name);
+}
+
+void Display::on_ping(void* /*data*/, xdg_wm_base* wm_base, std::uint32_t serial) {
+    xdg_wm_base_pong(wm_base, serial);
+}
+
+}  // namespace nordend::ui

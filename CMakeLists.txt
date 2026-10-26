@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(nordend VERSION 0.0.1 LANGUAGES CXX)
+project(nordend VERSION 0.0.1 LANGUAGES C CXX)
 
 # ---------------------------------------------------------------------------
 # Global settings
@@ -44,6 +44,7 @@ endif()
 # ---------------------------------------------------------------------------
 # System dependencies (pkg-config). Found here so a missing -devel package
 # fails at configure time; targets link them as the code starts using them.
+# wayland-scanner and wayland-protocols are looked up by src/ui.
 # ---------------------------------------------------------------------------
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client wayland-egl)
@@ -52,10 +53,13 @@ pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
 
 # ---------------------------------------------------------------------------
-# Executable
+# Modules
 # ---------------------------------------------------------------------------
+add_subdirectory(src/core)      # logging
+add_subdirectory(src/ui)        # Wayland connection, windows, rendering
+
 add_executable(nordend src/app/main.cpp)
 target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")
-target_link_libraries(nordend PRIVATE nordend::warnings)
+target_link_libraries(nordend PRIVATE nordend::core nordend::ui nordend::warnings)
 
 install(TARGETS nordend RUNTIME DESTINATION bin)
