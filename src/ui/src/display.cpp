@@ -1,6 +1,7 @@
 #include "nordend/ui/display.hpp"
 
 #include <algorithm>
+#include <poll.h>
 #include <stdexcept>
 #include <string_view>
 
@@ -56,6 +57,38 @@ Display::Display() : display_{wl_display_connect(nullptr)} {
     if (!viewporter_ || !fractional_scale_manager_) {
         log::warn("compositor does not offer fractional-scale + viewporter: rendering at scale 1");
     }
+}
+
+void Display::attach(core::EventLoop& loop) {
+    wl_display* wl = display_.get();
+    const auto lost = [&loop] {
+        log::error("lost the connection to the compositor");
+        loop.quit(1);
+    };
+    loop.add_fd(
+        fd(), POLLIN,
+        [wl, lost](short revents) {
+            if ((revents & POLLIN) != 0) {
+                wl_display_read_events(wl);
+            } else {
+                wl_display_cancel_read(wl);
+            }
+            if (wl_display_dispatch_pending(wl) < 0 || (revents & (POLLERR | POLLHUP)) != 0) {
+                lost();
+            }
+        },
+        {.before_poll =
+             [wl, lost] {
+                 // Dispatch what is already queued until the read can be prepared, then flush.
+                 while (wl_display_prepare_read(wl) != 0) {
+                     if (wl_display_dispatch_pending(wl) < 0) {
+                         lost();
+                         return;
+                     }
+                 }
+                 wl_display_flush(wl);
+             },
+         .notify_always = true});
 }
 
 void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,

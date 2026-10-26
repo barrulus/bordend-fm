@@ -76,6 +76,20 @@ add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
     PRIVATE nordend::core nordend::ui nordend_test_scene nordend::warnings)
 
+# ---------------------------------------------------------------------------
+# Tests (doctest, system package). Skipped with a notice when doctest is missing.
+# ---------------------------------------------------------------------------
+option(NORDEND_BUILD_TESTS "Build the unit tests" ON)
+if(NORDEND_BUILD_TESTS)
+    find_package(doctest CONFIG QUIET)
+    if(doctest_FOUND)
+        enable_testing()
+        add_subdirectory(tests)
+    else()
+        message(STATUS "doctest not found: unit tests disabled (xbps-install doctest-devel)")
+    endif()
+endif()
+
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
     foreach(executable nordend nordend-snapshot)

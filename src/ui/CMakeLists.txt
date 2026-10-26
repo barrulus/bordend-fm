@@ -57,6 +57,7 @@ add_library(nordend::ui ALIAS nordend_ui)
 
 target_include_directories(nordend_ui PUBLIC include PRIVATE src)
 target_link_libraries(nordend_ui
-    PUBLIC nordend_wayland_protocols PkgConfig::EGL PkgConfig::GLESV2 PkgConfig::XKBCOMMON
-    PRIVATE nordend::core nordend::warnings PkgConfig::HARFBUZZ PkgConfig::FREETYPE
+    PUBLIC nordend::core nordend_wayland_protocols PkgConfig::EGL PkgConfig::GLESV2
+           PkgConfig::XKBCOMMON
+    PRIVATE nordend::warnings PkgConfig::HARFBUZZ PkgConfig::FREETYPE
             PkgConfig::FONTCONFIG)

@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <wayland-client.h>
 #include <wayland-egl.h>
 
@@ -56,8 +57,8 @@ public:
     // Schedules a frame: drawn now if none is in flight, otherwise on the next frame callback.
     void request_redraw();
 
-    // The user asked to close the window (title-bar button, compositor keybinding, ...).
-    [[nodiscard]] bool close_requested() const noexcept { return close_requested_; }
+    // Called when the user asks to close the window (title-bar button, compositor keybinding).
+    void set_close_handler(std::function<void()> handler) { close_handler_ = std::move(handler); }
 
     [[nodiscard]] std::int32_t width() const noexcept { return width_; }
 
@@ -102,9 +103,9 @@ private:
     std::int32_t pending_height_{0};
     bool configured_{false};
     bool dirty_{false};
-    bool close_requested_{false};
     Color background_;
     DrawHandler draw_handler_;
+    std::function<void()> close_handler_;
     std::unique_ptr<Renderer> renderer_;      // needs the context current: see ~Window
     EGLSurface egl_surface_{EGL_NO_SURFACE};  // destroyed first, in ~Window
 

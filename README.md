@@ -8,6 +8,7 @@
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
 ![OpenGL ES](https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white)
+![doctest](https://img.shields.io/badge/tests-doctest-4B32C3)
 ![code license](https://img.shields.io/badge/code-MIT-3DA639)
 ![platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)
 
@@ -59,6 +60,13 @@ Development builds:
 # AddressSanitizer + UBSan (needs libsanitizer-devel)
 cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DNORDEND_SANITIZER=address,undefined
 cmake --build build-asan
+
+# ThreadSanitizer
+cmake -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DNORDEND_SANITIZER=thread
+cmake --build build-tsan
+
+# Unit tests (needs doctest-devel), in any build directory
+ctest --test-dir build
 
 # Render the test scene offscreen, no window: <out.ppm> [width height scale]
 ./build/nordend-snapshot scene.ppm 960 820 1.5

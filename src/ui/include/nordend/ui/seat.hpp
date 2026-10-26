@@ -7,6 +7,7 @@
 #include <xkbcommon/xkbcommon-compose.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "nordend/core/event_loop.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/wl_ptr.hpp"
 
@@ -73,8 +74,8 @@ using XkbPtr = std::unique_ptr<T, XkbDeleter<T, Unref>>;
 //
 // The keymap is the compositor's (the user's layout as configured in Umbriel). Dead keys and
 // compose sequences follow the locale's compose table. Key repeat uses the compositor's rate and
-// delay through a timerfd: the event loop must poll repeat_fd() and call dispatch_repeat() when
-// it is readable. Key presses reach the handler only while a Nordend surface has keyboard focus.
+// delay through a timerfd watched by the event loop (attach()). Key presses reach the handler only
+// while a Nordend surface has keyboard focus.
 //
 // Pointer: clicks are counted (double, triple click) when presses of the same button land within
 // the double-click time and a few pixels of each other; scroll axes are gathered per wl_pointer
@@ -101,9 +102,8 @@ public:
     // Cursor over Nordend surfaces; applied at once if the pointer is inside one.
     void set_cursor(CursorShape shape);
 
-    [[nodiscard]] int repeat_fd() const noexcept { return repeat_fd_; }
-
-    void dispatch_repeat();
+    // Hooks key repeat into the loop.
+    void attach(core::EventLoop& loop);
 
 private:
     static void on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities);
@@ -143,6 +143,7 @@ private:
 
     void emit_pointer(PointerEvent event);
     void apply_cursor();
+    void dispatch_repeat();
     void press(xkb_keycode_t keycode, bool repeat);
     void arm_repeat(xkb_keycode_t keycode);
     void disarm_repeat();

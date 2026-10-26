@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <wayland-client.h>
 
+#include "nordend/core/event_loop.hpp"
 #include "nordend/ui/wl_ptr.hpp"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
@@ -21,6 +22,10 @@ public:
     Display& operator=(const Display&) = delete;
     Display(Display&&) = delete;
     Display& operator=(Display&&) = delete;
+
+    // Hooks the Wayland socket into the loop (libwayland's prepare_read / read_events protocol).
+    // A lost connection quits the loop with exit code 1.
+    void attach(core::EventLoop& loop);
 
     [[nodiscard]] wl_display* native() const noexcept { return display_.get(); }
 

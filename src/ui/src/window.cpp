@@ -169,7 +169,10 @@ void Window::on_toplevel_configure(void* data, xdg_toplevel* /*toplevel*/, std::
 }
 
 void Window::on_toplevel_close(void* data, xdg_toplevel* /*toplevel*/) {
-    static_cast<Window*>(data)->close_requested_ = true;
+    auto& self = *static_cast<Window*>(data);
+    if (self.close_handler_) {
+        self.close_handler_();
+    }
 }
 
 void Window::on_toplevel_configure_bounds(void* /*data*/, xdg_toplevel* /*toplevel*/,

@@ -1,5 +1,6 @@
 #include <array>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <format>
@@ -11,6 +12,7 @@
 #include <unistd.h>
 #include <utility>
 
+#include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
@@ -21,6 +23,7 @@
 
 namespace {
 
+namespace core = nordend::core;
 namespace log = nordend::log;
 namespace ui = nordend::ui;
 
@@ -102,53 +105,6 @@ const char* button_name(ui::PointerButton button) {
     return "other";
 }
 
-// Temporary loop: Wayland events, key repeat and signals. ROADMAP 2.3 replaces it with the
-// general poll loop (worker results, inotify, timers). Returns the process exit code.
-int run_event_loop(const ui::Display& display, ui::Seat& seat, const ui::Window& window,
-                   const bool& quit) {
-    const SignalFd signals;
-    wl_display* wl = display.native();
-
-    while (!window.close_requested() && !quit) {
-        // Standard libwayland read protocol: dispatch what is queued, flush, then wait.
-        while (wl_display_prepare_read(wl) != 0) {
-            if (wl_display_dispatch_pending(wl) < 0) {
-                log::error("lost the connection to the compositor");
-                return 1;
-            }
-        }
-        wl_display_flush(wl);
-
-        std::array fds{pollfd{.fd = display.fd(), .events = POLLIN, .revents = 0},
-                       pollfd{.fd = signals.fd(), .events = POLLIN, .revents = 0},
-                       pollfd{.fd = seat.repeat_fd(), .events = POLLIN, .revents = 0}};
-        if (poll(fds.data(), fds.size(), -1) < 0) {
-            wl_display_cancel_read(wl);
-            continue;  // EINTR
-        }
-
-        if ((fds[0].revents & POLLIN) != 0) {
-            wl_display_read_events(wl);
-        } else {
-            wl_display_cancel_read(wl);
-        }
-        if (wl_display_dispatch_pending(wl) < 0) {
-            log::error("lost the connection to the compositor");
-            return 1;
-        }
-
-        if ((fds[1].revents & POLLIN) != 0) {
-            log::info("signal received, closing");
-            return 0;
-        }
-        if ((fds[2].revents & POLLIN) != 0) {
-            seat.dispatch_repeat();
-        }
-    }
-    log::info("{}", quit ? "quit requested" : "window closed");
-    return 0;
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -164,17 +120,31 @@ int main(int argc, char** argv) {
     log::info("nordend {}", NORDEND_VERSION);
 
     try {
+        // Before any other thread exists, so every thread inherits the blocked signals.
+        const SignalFd signals;
+        core::EventLoop loop;
+        loop.add_fd(signals.fd(), POLLIN, [&](short /*revents*/) {
+            log::info("signal received, closing");
+            loop.quit(0);
+        });
+
         ui::Display display;
         ui::EglContext egl{display};
         ui::FontSystem fonts;
         ui::Window window{display, egl, fonts, {.title = "Nordend", .app_id = "nordend"}};
         ui::Seat seat{display};
+        display.attach(loop);
+        seat.attach(loop);
+        window.set_close_handler([&] {
+            log::info("window closed");
+            loop.quit(0);
+        });
 
-        bool quit = false;
         std::string last_key = "Press a key (Ctrl+Q quits)";
         seat.set_key_handler([&](const ui::KeyEvent& event) {
             if (event.modifiers.ctrl && (event.keysym == XKB_KEY_q || event.keysym == XKB_KEY_Q)) {
-                quit = true;
+                log::info("quit requested");
+                loop.quit(0);
                 return;
             }
             last_key = describe(event);
@@ -234,7 +204,7 @@ int main(int argc, char** argv) {
             renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F,
                                ui::Color::rgb(0xF9E2AF));
         });
-        return run_event_loop(display, seat, window, quit);
+        return loop.run();
     } catch (const std::exception& e) {
         log::error("{}", e.what());
         return 1;

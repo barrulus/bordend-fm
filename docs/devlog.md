@@ -4,6 +4,41 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Event loop and worker pool (ROADMAP 2.3)
+
+**Done**
+- `core::EventLoop`: one `poll()` over fd sources, timers (timerfd, one-shot or repeating), and
+  `post()` from any thread (mutex-guarded queue + eventfd). Sources can be added/removed from
+  inside callbacks (removal is deferred to the next iteration; a source removed earlier in the
+  same dispatch is skipped). `FdOptions::before_poll` / `notify_always` carry libwayland's
+  prepare_read / read_events / cancel_read protocol, now inside `Display::attach()`.
+  `FdOptions` lives at namespace scope: GCC rejects a nested struct with default member
+  initializers as a default argument of the enclosing class.
+- `core::WorkerPool`: fixed threads (default half the hardware threads, at least 2: 8 here),
+  three FIFO queues by priority (visible, nearby, prefetch), `CancelToken`; results are posted to
+  the loop and delivered only if neither the job was cancelled nor the pool destroyed. Destruction
+  drops queued jobs and joins running ones.
+- `main.cpp`: temporary loop removed. SIGINT/SIGTERM blocked before any thread exists (so no
+  worker can receive them), signalfd is a loop source; Window gained a close handler; Seat
+  `attach()`es its key repeat timer.
+- First unit tests (doctest, Void package `doctest-devel`: `doctest` alone ships only the
+  license): 11 cases, 5043 assertions. Loop: post order from another thread, timers, removal from a
+  callback, sources added from a callback, before_poll/notify_always. Pool: threads of work and
+  delivery, priority order, cancel while queued / while running, destruction with 100 queued jobs,
+  2000 jobs across all threads delivered exactly once. A use-after-free in a test (detached thread
+  touching a destroyed blocker) was caught in review before the first run.
+- Results: Release and ASan pass; ThreadSanitizer 5 runs out of 5 with no warning.
+- ROADMAP: new step 7.0, compositor compatibility (cursor fallback, client-side decorations,
+  checklist on Umbriel, niri, KDE, GNOME), after the author asked about niri.
+
+**Tested by the author**
+- The app behaves as before on the new loop: keys, pointer, Ctrl+Q, close. Step 2.3 closed.
+
+**Open**
+- Run on the author's niri VM: postponed by the author, to do before ROADMAP 7.0.
+
+---
+
 ## 2026-10-26 — Pointer (ROADMAP 2.2)
 
 **Done**

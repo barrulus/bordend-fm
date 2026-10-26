@@ -46,7 +46,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   `xkbcommon`, layout dell'utente, ripetizione dei tasti.
 - [x] **2.2 Puntatore**
   Click, doppio click, rotella e touchpad (scroll continuo), `cursor-shape-v1`.
-- [ ] **2.3 Main loop e worker pool**
+- [x] **2.3 Main loop e worker pool**
   `poll()` unico, eventfd, coda risultati, annullamento dei lavori.
   Fatto quando: test unitari del pool verdi, nessun data race con TSan.
 - [ ] **2.4 Config**
@@ -100,6 +100,12 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 
 ## Fase 7 — MVP
+
+- [ ] **7.0 Compatibilità compositor**
+  Cursore di riserva (libwayland-cursor + tema xcursor) per i compositor senza cursor-shape;
+  decorazioni client-side nostre (barra, pulsanti, trascinamento, ridimensionamento) dove
+  xdg-decoration manca (GNOME/Mutter); checklist su Umbriel, niri (VM), KDE, GNOME (Ubuntu).
+  Fatto quando: Nordend è usabile, con finestra spostabile/chiudibile e cursore visibile, su tutti e quattro.
 
 - [ ] **7.1 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.2 Uso quotidiano per una settimana**, bug annotati e chiusi

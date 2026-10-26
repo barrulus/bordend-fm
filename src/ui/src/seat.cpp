@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <linux/input-event-codes.h>
+#include <poll.h>
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h>
@@ -131,6 +132,10 @@ Seat::~Seat() {
     if (repeat_fd_ >= 0) {
         close(repeat_fd_);
     }
+}
+
+void Seat::attach(core::EventLoop& loop) {
+    loop.add_fd(repeat_fd_, POLLIN, [this](short /*revents*/) { dispatch_repeat(); });
 }
 
 void Seat::on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities) {
