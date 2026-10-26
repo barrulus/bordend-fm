@@ -17,6 +17,7 @@
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/theme/theme.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/seat.hpp"
@@ -28,6 +29,7 @@ namespace {
 
 namespace core = nordend::core;
 namespace log = nordend::log;
+namespace theme = nordend::theme;
 namespace ui = nordend::ui;
 
 // SIGINT/SIGTERM delivered as a readable fd, so Ctrl+C ends the loop and runs every
@@ -183,7 +185,14 @@ int main(int argc, char** argv) {
         ui::Display display;
         ui::EglContext egl{display};
         ui::FontSystem fonts{config.font.family};
-        ui::Window window{display, egl, fonts, {.title = "Nordend", .app_id = "nordend"}};
+        theme::Theme theme{theme::default_colors_path()};
+        theme.watch(loop);
+        ui::Window window{
+            display,
+            egl,
+            fonts,
+            {.title = "Nordend", .app_id = "nordend", .background = theme.palette().surface}};
+        theme.set_change_handler([&] { window.set_background(theme.palette().surface); });
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
                              static_cast<float>(config.pointer.double_click_distance));
@@ -247,16 +256,17 @@ int main(int argc, char** argv) {
         });
 
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
-            nordend::app::draw_test_scene(renderer, bounds);
-            renderer.draw_box(target, {.fill = ui::Color::rgb(hovered ? 0x89B4FA : 0x45475A),
-                                       .radius = ui::Corners::all(10)});
+            const theme::Palette& palette = theme.palette();
+            nordend::app::draw_test_scene(renderer, bounds, palette);
+            renderer.draw_box(target,
+                              {.fill = hovered ? palette.primary : palette.surface_container_high,
+                               .radius = ui::Corners::all(10)});
             renderer.draw_text(std::format("Clicks: {}", clicks), target.x + 16.0F,
                                target.y + 14.0F, 15.0F,
-                               ui::Color::rgb(hovered ? 0x1E1E2E : 0xCDD6F4));
+                               hovered ? palette.on_primary : palette.on_surface);
             renderer.draw_text(last_pointer, 32.0F, bounds.bottom() - 56.0F, 14.0F,
-                               ui::Color::rgb(0xA6E3A1));
-            renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F,
-                               ui::Color::rgb(0xF9E2AF));
+                               palette.secondary);
+            renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F, palette.tertiary);
         });
         return loop.run();
     } catch (const std::exception& e) {

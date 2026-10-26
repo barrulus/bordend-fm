@@ -4,6 +4,46 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-26 — Noctalia theme (ROADMAP 2.5)
+
+**Done**
+- Noctalia template `nordend` (in `void-noctalia/config/noctalia/templates/nordend`, user
+  template entry in its `config.toml`): `mode` plus a `[colors]` table written by a `for` loop over
+  every Noctalia token (`name = "#rrggbb"`), output `~/.config/nordend/colors.toml`. Nordend reads
+  the roles it knows and ignores the rest, so the template never has to change when Nordend uses
+  a new role: good for the upstream PR (2.6). Checked with `noctalia theme <image> -r in:out`: 79
+  lines, 48 Material tokens + hover + terminal tokens, parsed by Nordend with no problem.
+- How Noctalia writes outputs (5.3.0, `template_engine.cpp`, `renderFile`): only when the content
+  changed, in place (`std::ofstream`, truncate + write), no temp file + rename.
+- `theme::Palette`: 33 roles in Noctalia's names, plus dark/light. Defaults = Noctalia's own
+  built-in "Noctalia" palette, dark, expanded the way Noctalia does it (values dumped with a
+  scratch build of its `fixed_palette.cpp`; listed in `THIRD_PARTY.md`). `parse_palette` /
+  `load_palette`: missing roles keep the default and are listed in one line; bad values
+  (`#rrggbb`/`#rrggbbaa` only) are reported where they are; extra tokens are ignored.
+- `theme::Theme`: loads at startup, reloads on change. A missing file means the default palette;
+  a file that does not parse keeps the palette in use (no flash of default colors).
+- `core::FileWatcher`: inotify on the parent directory (created if missing), so a file that does
+  not exist yet, rename-replacement and removal are seen. `IN_CLOSE_WRITE`, not `IN_MODIFY`
+  (which fires after the truncation, before the content). Events are coalesced: one reload 50 ms
+  after the last event. A queue overflow counts as a change.
+- `core::read_text_file`, shared by config and palette loading.
+- The window clears to `surface`; test scene, button and status lines use palette roles.
+  `nordend-snapshot` takes an optional colors file (default palette otherwise, so snapshots stay
+  reproducible); both the default and a generated palette checked offscreen.
+- 10 new test cases (33 in total): palette parsing, reload rules, watcher (coalescing, other
+  files, rename, removal then rewrite, missing directory). Release, ASan, TSan pass; tidy clean.
+
+**Tested by the author**
+- Tests green. Template deployed, `noctalia msg config-reload` + `templates-apply` write
+  `~/.config/nordend/colors.toml` (Nord). Palette changes in Noctalia reach the open window at
+  once (seven reloads in one session).
+- Broken file at startup: warning with line/column, default palette. With the window open:
+  `templates-apply` restores Nord; a broken file keeps the current palette; removal gives the
+  default palette; `templates-apply` again brings Nord back. Step 2.5 closed.
+- `void-noctalia`: template and config entry committed there.
+
+---
+
 ## 2026-10-26 — Config (ROADMAP 2.4)
 
 **Done**

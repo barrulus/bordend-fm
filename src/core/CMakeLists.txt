@@ -1,6 +1,8 @@
 add_library(nordend_core
     src/config.cpp
     src/event_loop.cpp
+    src/file.cpp
+    src/file_watcher.cpp
     src/log.cpp
     src/worker_pool.cpp)
 add_library(nordend::core ALIAS nordend_core)

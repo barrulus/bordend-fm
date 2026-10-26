@@ -1,20 +1,17 @@
 #include "nordend/core/config.hpp"
 
 #include <algorithm>
-#include <cerrno>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
-#include <fstream>
 #include <functional>
 #include <initializer_list>
-#include <ios>
 #include <string>
-#include <system_error>
 #include <toml++/toml.hpp>
 #include <utility>
 #include <vector>
+
+#include "nordend/core/file.hpp"
 
 namespace nordend::core {
 namespace {
@@ -196,36 +193,16 @@ ConfigResult parse_config(std::string_view text, std::string_view source) {
 }
 
 ConfigResult load_config(const std::filesystem::path& path) {
-    std::error_code error;
-    const auto status = std::filesystem::status(path, error);
-    if (status.type() == std::filesystem::file_type::not_found) {
+    const TextFile file = read_text_file(path);
+    if (!file.exists) {
         return {};
     }
-    const std::string source = path.string();
-    ConfigResult result;
-    if (error) {
-        result.problems.push_back(std::format("{}: {}; using defaults", source, error.message()));
+    if (!file.error.empty()) {
+        ConfigResult result;
+        result.problems.push_back(std::format("{}: {}; using defaults", path.string(), file.error));
         return result;
     }
-    if (status.type() != std::filesystem::file_type::regular) {
-        result.problems.push_back(std::format("{}: not a regular file; using defaults", source));
-        return result;
-    }
-    std::ifstream file{path, std::ios::binary};
-    if (!file.is_open()) {
-        const std::error_code open_error{errno, std::generic_category()};
-        result.problems.push_back(
-            std::format("{}: cannot open: {}; using defaults", source, open_error.message()));
-        return result;
-    }
-    // Sized read: istreambuf_iterator trips GCC 14's -Wnull-dereference inside libstdc++.
-    std::string text(static_cast<std::size_t>(std::filesystem::file_size(path, error)), '\0');
-    file.read(text.data(), static_cast<std::streamsize>(text.size()));
-    if (error || file.gcount() != static_cast<std::streamsize>(text.size())) {
-        result.problems.push_back(std::format("{}: read error; using defaults", source));
-        return result;
-    }
-    return parse_config(text, source);
+    return parse_config(file.text, path.string());
 }
 
 }  // namespace nordend::core

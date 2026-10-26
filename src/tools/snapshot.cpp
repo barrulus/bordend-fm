@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "nordend/core/log.hpp"
+#include "nordend/theme/palette.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
@@ -121,8 +122,9 @@ void write_ppm(const std::string& path, std::int32_t width, std::int32_t height,
 
 int main(int argc, char** argv) {
     const std::span args{argv, static_cast<std::size_t>(argc)};
-    if (args.size() != 2 && args.size() != 5) {
-        log::error("usage: nordend-snapshot <out.ppm> [logical-width logical-height scale]");
+    if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
+        log::error(
+            "usage: nordend-snapshot <out.ppm> [logical-width logical-height scale [colors.toml]]");
         return 2;
     }
     try {
@@ -130,6 +132,13 @@ int main(int argc, char** argv) {
         const float width = args.size() == 5 ? std::stof(args[2]) : 960.0F;
         const float height = args.size() == 5 ? std::stof(args[3]) : 640.0F;
         const float scale = args.size() == 5 ? std::stof(args[4]) : 1.0F;
+        // The default palette unless a colors.toml is given: snapshots stay reproducible.
+        const nordend::theme::PaletteResult palette = args.size() == 6
+                                                          ? nordend::theme::load_palette(args[5])
+                                                          : nordend::theme::PaletteResult{};
+        for (const std::string& problem : palette.problems) {
+            log::warn("{}", problem);
+        }
         const auto buffer_width = static_cast<std::int32_t>(std::lround(width * scale));
         const auto buffer_height = static_cast<std::int32_t>(std::lround(height * scale));
 
@@ -140,8 +149,8 @@ int main(int argc, char** argv) {
         {
             ui::FontSystem fonts;
             ui::Renderer renderer{fonts};
-            renderer.begin_frame(buffer_width, buffer_height, scale, ui::Color::rgb(0x1E1E2E));
-            nordend::app::draw_test_scene(renderer, {0.0F, 0.0F, width, height});
+            renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
+            nordend::app::draw_test_scene(renderer, {0.0F, 0.0F, width, height}, palette.palette);
             renderer.end_frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,
                          pixels.data());

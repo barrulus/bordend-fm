@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 
+#include "nordend/theme/palette.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/text.hpp"
 
@@ -15,16 +16,30 @@ using ui::Corners;
 using ui::Rect;
 using ui::Renderer;
 
-// Catppuccin Mocha-like placeholders until the Noctalia palette is wired in (ROADMAP 2.5).
-constexpr Color kRed = Color::rgb(0xF38BA8);
-constexpr Color kPeach = Color::rgb(0xFAB387);
-constexpr Color kYellow = Color::rgb(0xF9E2AF);
-constexpr Color kGreen = Color::rgb(0xA6E3A1);
-constexpr Color kBlue = Color::rgb(0x89B4FA);
-constexpr Color kMauve = Color::rgb(0xCBA6F7);
-constexpr Color kText = Color::rgb(0xCDD6F4);
-constexpr Color kSurface0 = Color::rgb(0x313244);
-constexpr Color kSurface1 = Color::rgb(0x45475A);
+// The scene's colors, from the theme's roles; the shadow demo keeps a light panel of its own.
+struct Ink {
+    Color red;
+    Color peach;
+    Color yellow;
+    Color green;
+    Color blue;
+    Color mauve;
+    Color text;
+    Color surface0;
+    Color surface1;
+
+    explicit Ink(const theme::Palette& palette)
+        : red{palette.error},
+          peach{palette.primary_container},
+          yellow{palette.tertiary},
+          green{palette.secondary},
+          blue{palette.primary},
+          mauve{palette.tertiary_container},
+          text{palette.on_surface},
+          surface0{palette.surface_container},
+          surface1{palette.surface_container_high} {}
+};
+
 constexpr Color kLightPanel = Color::rgb(0xDCE0E8);
 constexpr Color kWhite = Color::rgb(0xFFFFFF);
 
@@ -34,52 +49,55 @@ constexpr float kGap = 12.0F;
 constexpr float kRowStep = kSwatch + 24.0F;
 constexpr float kRightColumn = 560.0F;
 
-constexpr std::array kSwatchColors{kRed, kPeach, kYellow, kGreen, kBlue};
-
 float column_x(float origin, std::size_t index) {
     return origin + (static_cast<float>(index) * (kSwatch + kGap));
 }
 
-void draw_solid_rects(Renderer& r, float y) {
-    for (std::size_t i = 0; i < kSwatchColors.size(); ++i) {
-        r.fill_rect({column_x(kMargin, i), y, kSwatch, kSwatch}, kSwatchColors.at(i));
+void draw_solid_rects(Renderer& r, const Ink& ink, float y) {
+    const std::array swatches{ink.red, ink.peach, ink.yellow, ink.green, ink.blue};
+    for (std::size_t i = 0; i < swatches.size(); ++i) {
+        r.fill_rect({column_x(kMargin, i), y, kSwatch, kSwatch}, swatches.at(i));
     }
     // Fractional positions and sizes must still land on whole physical pixels: sharp edges.
-    const float x = column_x(kMargin, kSwatchColors.size());
-    r.fill_rect({x + 0.3F, y + 0.4F, 20.6F, kSwatch}, kMauve);
-    r.fill_rect({x + 28.5F, y + 0.5F, 20.5F, kSwatch - 0.5F}, kMauve);
+    const float x = column_x(kMargin, swatches.size());
+    r.fill_rect({x + 0.3F, y + 0.4F, 20.6F, kSwatch}, ink.mauve);
+    r.fill_rect({x + 28.5F, y + 0.5F, 20.5F, kSwatch - 0.5F}, ink.mauve);
 }
 
-void draw_radii(Renderer& r, float y) {
+void draw_radii(Renderer& r, const Ink& ink, float y) {
     constexpr std::array radii{0.0F, 4.0F, 8.0F, 16.0F, kSwatch / 2.0F};
     for (std::size_t i = 0; i < radii.size(); ++i) {
         r.draw_box({column_x(kMargin, i), y, kSwatch, kSwatch},
-                   {.fill = kBlue, .radius = Corners::all(radii.at(i))});
+                   {.fill = ink.blue, .radius = Corners::all(radii.at(i))});
     }
     // Per-corner radii, and a pill wider than tall.
     r.draw_box({column_x(kMargin, radii.size()), y, kSwatch, kSwatch},
-               {.fill = kGreen,
+               {.fill = ink.green,
                 .radius = {.top_left = 0, .top_right = 24, .bottom_right = 0, .bottom_left = 24}});
     r.draw_box({column_x(kMargin, radii.size() + 1), y + 14.0F, 96.0F, 28.0F},
-               {.fill = kPeach, .radius = Corners::all(14.0F)});
+               {.fill = ink.peach, .radius = Corners::all(14.0F)});
 }
 
-void draw_borders(Renderer& r, float y) {
+void draw_borders(Renderer& r, const Ink& ink, float y) {
     const std::array styles{
-        BoxStyle{.fill = kSurface1, .border_width = 1.0F, .border = kText},
-        BoxStyle{
-            .fill = kSurface1, .radius = Corners::all(8), .border_width = 1.0F, .border = kText},
-        BoxStyle{
-            .fill = kSurface1, .radius = Corners::all(12), .border_width = 2.0F, .border = kMauve},
-        BoxStyle{.fill = kSurface1,
-                 .radius = Corners::all(kSwatch / 2.0F),
-                 .border_width = 4.0F,
-                 .border = kYellow},
-        // Border only: transparent fill.
-        BoxStyle{.fill = kSurface1.with_alpha(0.0F),
+        BoxStyle{.fill = ink.surface1, .border_width = 1.0F, .border = ink.text},
+        BoxStyle{.fill = ink.surface1,
                  .radius = Corners::all(8),
                  .border_width = 1.0F,
-                 .border = kGreen},
+                 .border = ink.text},
+        BoxStyle{.fill = ink.surface1,
+                 .radius = Corners::all(12),
+                 .border_width = 2.0F,
+                 .border = ink.mauve},
+        BoxStyle{.fill = ink.surface1,
+                 .radius = Corners::all(kSwatch / 2.0F),
+                 .border_width = 4.0F,
+                 .border = ink.yellow},
+        // Border only: transparent fill.
+        BoxStyle{.fill = ink.surface1.with_alpha(0.0F),
+                 .radius = Corners::all(8),
+                 .border_width = 1.0F,
+                 .border = ink.green},
     };
     for (std::size_t i = 0; i < styles.size(); ++i) {
         r.draw_box({column_x(kMargin, i), y, kSwatch, kSwatch}, styles.at(i));
@@ -108,56 +126,57 @@ void draw_shadows(Renderer& r, float y) {
     }
 }
 
-void draw_blending(Renderer& r, float y) {
+void draw_blending(Renderer& r, const Ink& ink, float y) {
     constexpr float size = 96.0F;
     const std::array circles{
         Rect{kRightColumn, y, size, size},
         Rect{kRightColumn + 56.0F, y, size, size},
         Rect{kRightColumn + 28.0F, y + 48.0F, size, size},
     };
-    const std::array colors{kRed, kGreen, kBlue};
+    const std::array colors{ink.red, ink.green, ink.blue};
     for (std::size_t i = 0; i < circles.size(); ++i) {
         r.draw_box(circles.at(i),
                    {.fill = colors.at(i).with_alpha(0.5F), .radius = Corners::all(size / 2.0F)});
     }
 }
 
-void draw_clipping(Renderer& r, float y) {
+void draw_clipping(Renderer& r, const Ink& ink, float y) {
     const Rect outer{kRightColumn, y, 320.0F, 120.0F};
     // Outline just outside the clip, to see where it is.
-    r.draw_box(outer.inset(-1.0F), {.fill = kSurface0, .border_width = 1.0F, .border = kText});
+    r.draw_box(outer.inset(-1.0F),
+               {.fill = ink.surface0, .border_width = 1.0F, .border = ink.text});
 
     r.push_clip(outer);
     // Larger than the clip on every side: only the clipped part may appear.
     r.draw_box({outer.x - 40.0F, outer.y + 20.0F, 200.0F, 160.0F},
-               {.fill = kMauve, .radius = Corners::all(24)});
+               {.fill = ink.mauve, .radius = Corners::all(24)});
     const Rect inner{outer.x + 180.0F, outer.y + 20.0F, 120.0F, 80.0F};
-    r.draw_box(inner, {.fill = kSurface1});
+    r.draw_box(inner, {.fill = ink.surface1});
     r.push_clip(inner);  // nested: intersects with outer
     r.draw_box({inner.x + 60.0F, inner.y - 30.0F, 120.0F, 120.0F},
-               {.fill = kYellow, .radius = Corners::all(60)});
+               {.fill = ink.yellow, .radius = Corners::all(60)});
     r.pop_clip();
     r.pop_clip();
 }
 
-void draw_hairlines(Renderer& r, float y) {
+void draw_hairlines(Renderer& r, const Ink& ink, float y) {
     // Lines exactly one physical pixel wide, one pixel apart: crisp at any scale.
     const float pixel = 1.0F / r.scale();
     const Rect band{kRightColumn, y, 320.0F, 60.0F};
-    r.fill_rect(band, kSurface0);
+    r.fill_rect(band, ink.surface0);
     const auto lines = static_cast<int>(band.width * r.scale() / 2.0F);
     for (int i = 0; i < lines; ++i) {
         r.fill_rect({band.x + (static_cast<float>(i) * 2.0F * pixel), band.y, pixel, band.height},
-                    kText);
+                    ink.text);
     }
     // One logical pixel border: one physical pixel at scale 1, more at higher scales.
     r.draw_box({kRightColumn, y + 76.0F, 320.0F, 40.0F},
-               {.fill = kSurface0, .border_width = 1.0F, .border = kText});
+               {.fill = ink.surface0, .border_width = 1.0F, .border = ink.text});
 }
 
-void draw_text_samples(Renderer& r, float y, float width) {
+void draw_text_samples(Renderer& r, const Ink& ink, float y, float width) {
     const Rect panel{kMargin, y, width, 300.0F};
-    r.draw_box(panel, {.fill = kSurface0, .radius = Corners::all(12)});
+    r.draw_box(panel, {.fill = ink.surface0, .radius = Corners::all(12)});
     const float x = panel.x + 16.0F;
     float line = panel.y + 12.0F;
 
@@ -183,7 +202,7 @@ void draw_text_samples(Renderer& r, float y, float width) {
     };
     for (const Sample& sample : samples) {
         const ui::TextLayout& layout = r.fonts().layout(sample.text, sample.size, r.scale());
-        r.draw_layout(layout, x, line, kText);
+        r.draw_layout(layout, x, line, ink.text);
         line += ((layout.ascent + layout.descent) / r.scale()) + 6.0F;
     }
 
@@ -194,29 +213,31 @@ void draw_text_samples(Renderer& r, float y, float width) {
     for (std::size_t i = 0; i < modes.size(); ++i) {
         const Rect box{x + (static_cast<float>(i) * (box_width + 16.0F)), line + 4.0F, box_width,
                        24.0F};
-        r.draw_box(box.inset(-1.0F), {.fill = kSurface1, .border_width = 1.0F, .border = kBlue});
-        r.draw_text(name, box.x, box.y + 3.0F, 14.0F, kText, box.width, modes.at(i));
+        r.draw_box(box.inset(-1.0F),
+                   {.fill = ink.surface1, .border_width = 1.0F, .border = ink.blue});
+        r.draw_text(name, box.x, box.y + 3.0F, 14.0F, ink.text, box.width, modes.at(i));
     }
 }
 
 }  // namespace
 
-void draw_test_scene(Renderer& renderer, const Rect& bounds) {
+void draw_test_scene(Renderer& renderer, const Rect& bounds, const theme::Palette& palette) {
+    const Ink ink{palette};
     renderer.push_clip(bounds);
 
     float y = kMargin;
-    draw_solid_rects(renderer, y);
+    draw_solid_rects(renderer, ink, y);
     y += kRowStep;
-    draw_radii(renderer, y);
+    draw_radii(renderer, ink, y);
     y += kRowStep;
-    draw_borders(renderer, y);
+    draw_borders(renderer, ink, y);
     y += kRowStep;
     draw_shadows(renderer, y);
 
-    draw_blending(renderer, kMargin);
-    draw_clipping(renderer, kMargin + 180.0F);
-    draw_hairlines(renderer, kMargin + 340.0F);
-    draw_text_samples(renderer, 500.0F, 896.0F);
+    draw_blending(renderer, ink, kMargin);
+    draw_clipping(renderer, ink, kMargin + 180.0F);
+    draw_hairlines(renderer, ink, kMargin + 340.0F);
+    draw_text_samples(renderer, ink, 500.0F, 896.0F);
 
     renderer.pop_clip();
 }

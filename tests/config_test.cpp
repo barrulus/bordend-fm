@@ -2,20 +2,21 @@
 
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <string>
 #include <string_view>
-#include <system_error>
-#include <unistd.h>
 #include <utility>
 
 #include <doctest/doctest.h>
+
+#include "temp_dir.hpp"
 
 using nordend::core::Config;
 using nordend::core::ConfigResult;
 using nordend::core::default_config_path;
 using nordend::core::load_config;
 using nordend::core::parse_config;
+
+using nordend::test::TempDir;
 
 namespace {
 
@@ -31,35 +32,6 @@ void check_defaults(const Config& config) {
 bool contains(const std::string& text, std::string_view part) {
     return text.find(part) != std::string::npos;
 }
-
-// A file in its own temporary directory, removed with it.
-struct TempDir {
-    std::filesystem::path path;
-
-    TempDir() {
-        std::string pattern =
-            (std::filesystem::temp_directory_path() / "nordend-test-XXXXXX").string();
-        REQUIRE(mkdtemp(pattern.data()) != nullptr);
-        path = pattern;
-    }
-
-    ~TempDir() {
-        std::error_code ignored;
-        std::filesystem::remove_all(path, ignored);
-    }
-
-    TempDir(const TempDir&) = delete;
-    TempDir& operator=(const TempDir&) = delete;
-    TempDir(TempDir&&) = delete;
-    TempDir& operator=(TempDir&&) = delete;
-
-    [[nodiscard]] std::filesystem::path write(const std::string& name,
-                                              std::string_view text) const {
-        const std::filesystem::path file = path / name;
-        std::ofstream{file} << text;
-        return file;
-    }
-};
 
 // Sets an environment variable for one scope, restoring the old value after.
 struct ScopedEnv {

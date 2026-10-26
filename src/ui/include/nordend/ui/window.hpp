@@ -28,7 +28,7 @@ struct WindowOptions {
     std::int32_t height{640};
     std::int32_t min_width{480};
     std::int32_t min_height{320};
-    Color background{Color::rgb(0x1E1E2E)};  // placeholder until the theme (ROADMAP 2.5)
+    Color background{Color::rgb(0x000000)};  // behind the content; the app passes the theme's
 };
 
 // A top-level xdg-shell window rendered with OpenGL ES, with server-side decorations when the
@@ -56,6 +56,12 @@ public:
 
     // Schedules a frame: drawn now if none is in flight, otherwise on the next frame callback.
     void request_redraw();
+
+    // Color the frame is cleared to before the draw handler runs; redraws.
+    void set_background(Color color) {
+        background_ = color;
+        request_redraw();
+    }
 
     // Called when the user asks to close the window (title-bar button, compositor keybinding).
     void set_close_handler(std::function<void()> handler) { close_handler_ = std::move(handler); }

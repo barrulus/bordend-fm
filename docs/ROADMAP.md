@@ -51,7 +51,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Fatto quando: test unitari del pool verdi, nessun data race con TSan.
 - [x] **2.4 Config**
   `config.toml` con `toml++`, valori di default, errori leggibili.
-- [ ] **2.5 Tema Noctalia**
+- [x] **2.5 Tema Noctalia**
   `colors.toml` con ricarica a caldo; template `nordend` per Noctalia.
   Fatto quando: cambiando tema in Noctalia, Nordend si aggiorna senza riavvio.
 - [ ] **2.6 PR upstream del template a Noctalia**
