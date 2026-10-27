@@ -4,6 +4,60 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Grid view (ROADMAP 4.4)
+
+**Done**
+- `views::Folder`: the per-folder state split out of `Column` (model, cursor, selection, anchor,
+  sniffed types), with nothing about drawing. Views hold it by `shared_ptr`, so the same object
+  passes between the columns and the grid: cursor, selection and sniffed types stay, nothing
+  reloads. Where the cursor sits on screen is the view's job: the Folder only records how to
+  bring it into sight (`take_reveal()`: glide after a move, jump after it lands or is asked for
+  by name), and each view applies it at its next draw with its own geometry. `Column` is now
+  only drawing, scrolling and hit testing.
+- `views::GridView`: one folder as a grid of cells (icon and name, middle-ellipsized), filled row
+  by row, stretched to the width, virtualized by rows like the list. Six sizes, 48 to 256 px
+  (default 96): Ctrl+plus/minus, Ctrl+wheel, Ctrl+0; a zoom keeps the cursor (or the first
+  visible cell) where it was on screen. Keys: arrows (Up/Down by a row, not past the first or
+  last row), Page Up/Down, Home/End, the selection keys of the column view; Enter, Alt+Down or a
+  double click open a folder, Backspace, Alt+Up or mouse back open the parent with the cursor on
+  where we were. Plain Space stays free for Quick Look.
+- `views::Browser`: owns both views; Ctrl+1 columns, Ctrl+2 grid. The grid takes the focused
+  column's folder; the column view meanwhile is suspended (its folders' changes are not synced
+  while hidden). Coming back, `ColumnView::show(folder)` brings the columns up to date and
+  focuses the column holding that folder; if the grid went elsewhere, the columns unfold from
+  the deepest column that leads to the grid's folder (its parent, when none does) and the grid's
+  folder object becomes the last column as it is.
+- Title bar and the item colors are shared by both views (`draw_helpers`, `item_style`).
+- `nordend-snapshot --keys "Ctrl+2,..."` reaches the grid; `--bench` scrolls the grid when it
+  is shown.
+- 4 new test cases (81 in total): the grid shares the column's folder and the columns follow its
+  changes; Enter/Backspace in the grid and the columns rebuilt around the grid's folder (also
+  from above the first column); cell sizes and their limits. Release (10 runs), ASan, TSan
+  (5 runs) pass; tidy clean apart from the reference members the views already had.
+
+**Measured**: scrolling the 10 000-entry folder at 2880x1620, 0.33 ms median at the default size,
+0.84 ms with the smallest cells all selected (docs/benchmarks.md).
+
+**Decisions**
+- Ctrl+1 / Ctrl+2 as in Nautilus (the Linux habit), not Finder's Cmd+1..4.
+- The grid has no info pane: Quick Look (5.3) is its preview.
+- A folder opened from the grid starts without a cursor (the first arrow puts it on the first
+  cell); the columns put it on the first row when entering, because the next column shows it.
+- Cells are at least 132 px wide, so a `P1234567.ORF` name fits at the smallest size.
+
+**Tested by the author**
+- On screen: switching columns ↔ grid with the selection kept, keys and clicks in the grid,
+  zoom, touchpad and wheel scrolling, opening folders and going back: "all smooth", and the
+  test suite passes on their machine. Step 4.4 closed, and with it phase 4's views.
+
+**Open**
+- The cell size is not remembered across sessions (a config entry, later).
+- Keys pressed before the grid's first draw step one cell at a time (the row width is known at
+  the draw): only the snapshot tool can do that.
+- Thumbnails replace the icons in phase 5; names on one line for now (Finder uses two).
+
+---
+
 ## 2026-10-26 — Selection (ROADMAP 4.3)
 
 **Done**

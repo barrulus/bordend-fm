@@ -42,6 +42,9 @@ namespace nordend::views {
 // the focused column and the one it opens in view. A touchpad gesture is locked to the axis it
 // starts on.
 //
+// The grid can take over the focused column's folder (focused_folder(), then suspend()) and hand
+// a folder back (show()), so the cursor and the selection survive the switch.
+//
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class ColumnView {
 public:
@@ -69,6 +72,17 @@ public:
     // Columns from root down to target, with the cursor on each step of the way (they unfold
     // as each folder loads). target must be inside root.
     void reveal(const std::filesystem::path& root, const std::filesystem::path& target);
+
+    // The folder of the focused column; nullptr before open().
+    [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
+
+    // Another view shows the folders for now: changes to their selections wait for show().
+    void suspend() noexcept { suspended_ = true; }
+
+    // Back on screen, with folder in the focused column: the column that holds it, or columns
+    // from the deepest one that leads to it (its parent's, when none does), down to folder
+    // itself, with its cursor and selection as they are.
+    void show(std::shared_ptr<Folder> folder);
 
     // Lays out and draws into bounds at time now (advancing every animation).
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -101,11 +115,12 @@ private:
     enum class Axis : std::uint8_t { none, vertical, horizontal };
 
     std::unique_ptr<Column> make_column(const std::filesystem::path& directory);
-    void on_cursor_changed(const Column* column);
+    std::unique_ptr<Column> make_column(std::shared_ptr<Folder> folder);
+    void on_cursor_changed(const Folder* folder);
     void sync_after(std::size_t index);
     void truncate(std::size_t count);
-    void go_left(Clock::time_point now);
-    void go_right(Clock::time_point now);
+    void go_left();
+    void go_right();
     void focus_on(std::size_t index);
     void layout();
     [[nodiscard]] bool shows_info() const;
@@ -114,7 +129,6 @@ private:
     [[nodiscard]] std::optional<std::size_t> divider_at(float x, float y) const;
     void scroll(const ui::PointerEvent& event, Clock::time_point now);
     void update_hover();
-    void draw_title(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
     void draw_info(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons);
 
@@ -127,10 +141,12 @@ private:
 
     std::vector<Slot> columns_;
     std::size_t focus_{0};
-    std::filesystem::path reveal_;  // where reveal() is heading; empty when done
-    ui::Scroller scroller_;         // horizontal
-    bool reveal_focus_{false};      // glide to show the focused column at the next draw
-    float shift_{0.0F};             // added to the offset at the next draw (a column prepended)
+    std::filesystem::path reveal_;   // where reveal() is heading; empty when done
+    std::shared_ptr<Folder> adopt_;  // the folder show() unfolds to, used as its column
+    bool suspended_{false};
+    ui::Scroller scroller_;     // horizontal
+    bool reveal_focus_{false};  // glide to show the focused column at the next draw
+    float shift_{0.0F};         // added to the offset at the next draw (a column prepended)
 
     ui::Rect area_{};  // where the columns were last drawn
     float pointer_x_{0.0F};

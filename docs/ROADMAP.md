@@ -75,7 +75,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Navigazione a frecce, colonne ridimensionabili, scorrimento orizzontale animato.
 - [x] **4.3 Selezione**
   Singola, multipla (Ctrl/Shift), da tastiera.
-- [ ] **4.4 Vista a griglia**
+- [x] **4.4 Vista a griglia**
   Celle virtualizzate, dimensione regolabile, passaggio colonne ↔ griglia.
 
 ## Fase 5 — Miniature e Quick Look

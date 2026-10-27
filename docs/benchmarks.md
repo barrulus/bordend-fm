@@ -137,6 +137,29 @@ Selected rows cost their fill (pixels, not entries): the worst case is 3 % of a 
 (The unselected median is 0.26 ms here against 0.23 ms in the first run: same code path, run
 to run spread.)
 
+## Grid scrolling (ROADMAP 4.4)
+
+**Tool:** `nordend-snapshot --columns PARENT --reveal DIR --keys "Right,Ctrl+2[,...]" --bench
+FRAMES out.ppm [w h scale]`: switches to the grid on DIR (with `Ctrl+minus`/`Ctrl+plus` for
+other sizes, `Ctrl+a` to select everything), then scrolls it from top to bottom over FRAMES
+frames, drawing the whole view and waiting for the GPU after each frame.
+
+### 2026-10-27
+
+The generated 10 000-entry folder, 600 frames at 2880x1620 (1920x1080 at scale 1.5), two runs
+each (the spread between runs is in the ranges).
+
+| Icon size (cells on screen) | Selected | median | p95 | max |
+|-----------------------------|----------|-------:|----:|----:|
+| 96 px, default (12 x 8) | nothing | 0.32-0.33 ms | 0.57-0.60 ms | 1.3-3.1 ms |
+| 96 px | all 10 000 | 0.74-0.75 ms | 0.85-0.89 ms | 1.6 ms |
+| 48 px (14 x 11) | nothing | 0.48 ms | 0.71-0.72 ms | 1.7-4.0 ms |
+| 48 px | all 10 000 | 0.84 ms | 0.96-0.98 ms | 1.6-2.5 ms |
+| 256 px (6 x 4) | nothing | 0.25-0.26 ms | 0.36 ms | 2.3 ms |
+
+The cost follows the cells on screen (an icon, a name, a box when selected), not the folder
+size. The worst case, the smallest cells all selected, is about 5 % of a 60 Hz frame.
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

@@ -30,7 +30,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
-#include "nordend/views/column_view.hpp"
+#include "nordend/views/browser.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -236,10 +236,11 @@ int main(int argc, char** argv) {
         core::WorkerPool pool{loop};
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
-        // The column view (ROADMAP 4.2), unless the renderer test scene was asked for.
-        std::unique_ptr<views::ColumnView> columns;
+        // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
+        // asked for.
+        std::unique_ptr<views::Browser> columns;
         if (!test_scene) {
-            columns = std::make_unique<views::ColumnView>(
+            columns = std::make_unique<views::Browser>(
                 loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); },
                 [&](ui::CursorShape shape) { seat.set_cursor(shape); });
             columns->open(start_folder(start_dir));
@@ -253,7 +254,7 @@ int main(int argc, char** argv) {
                 return;
             }
             if (columns) {
-                columns->key(event, views::ColumnView::Clock::now());
+                columns->key(event, views::Browser::Clock::now());
                 return;
             }
             last_key = describe(event);
@@ -267,7 +268,7 @@ int main(int argc, char** argv) {
         std::string last_pointer = "Move the pointer, click the button, scroll";
         seat.set_pointer_handler([&](const ui::PointerEvent& event) {
             if (columns) {
-                columns->pointer(event, views::ColumnView::Clock::now());
+                columns->pointer(event, views::Browser::Clock::now());
                 return;
             }
             using Kind = ui::PointerEvent::Kind;
@@ -308,7 +309,7 @@ int main(int argc, char** argv) {
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             const theme::Palette& palette = theme.palette();
             if (columns) {
-                columns->draw(renderer, bounds, palette, icons, views::ColumnView::Clock::now());
+                columns->draw(renderer, bounds, palette, icons, views::Browser::Clock::now());
                 if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }

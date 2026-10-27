@@ -38,6 +38,10 @@ What already works, the way it is meant to stay:
 - **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
   Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
   A selection of many files shows how many and how big.
+- **A grid when you want to see more.** Ctrl+2 lays the folder out as large icons, Ctrl+1
+  brings the columns back: where you were and what you selected come along. Ctrl+plus/minus
+  (or Ctrl+wheel) make the cells bigger or smaller, from 48 to 256 px; the arrows, Enter and
+  Backspace walk the folders as in the columns.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -76,7 +80,7 @@ What already works, the way it is meant to stay:
 - File-type icons from Noctalia's Tabler set, tinted by the theme; camera RAW files and
   darktable sidecars have their own
 
-**Phase 4 — views: in progress.**
+**Phase 4 — views: complete.**
 
 - Virtualized scrolling list with touchpad inertia and wheel glide (0.2 ms per frame in a
   10 000-file folder)
@@ -84,8 +88,11 @@ What already works, the way it is meant to stay:
   info pane for the selected file
 - Selection: click, Ctrl+click, Shift+click, and the same from the keyboard (Shift+arrows,
   Ctrl+arrows and Ctrl+Space, Ctrl+A); a summary of what is selected
+- Grid view: virtualized cells, size from 48 to 256 px (Ctrl+plus/minus, Ctrl+wheel, Ctrl+0),
+  Ctrl+1 / Ctrl+2 switch columns and grid keeping cursor and selection
 
-**Next:** the thumbnail grid. The full plan is in the [roadmap](docs/ROADMAP.md).
+**Next:** image decoding and thumbnails (phase 5). The full plan is in the
+[roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 

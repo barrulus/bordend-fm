@@ -9,6 +9,8 @@
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "draw_helpers.hpp"
+#include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
 
@@ -16,34 +18,14 @@ namespace nordend::views {
 namespace {
 
 constexpr float kPadding = 16.0F;
-constexpr float kTitleHeight = 40.0F;
 constexpr float kSmallTextSize = 12.0F;
 constexpr float kDividerGrab = 4.0F;  // either side of a column edge
 constexpr float kInfoIconSize = 64.0F;
 constexpr float kScrollbarHeight = 4.0F;
 
-float text_width(ui::Renderer& renderer, std::string_view text, float size) {
-    return renderer.fonts().layout(text, size, renderer.scale()).width / renderer.scale();
-}
-
-void draw_right_aligned(ui::Renderer& renderer, std::string_view text, float right_x, float top_y,
-                        float font_size, ui::Color color) {
-    renderer.draw_text(text, right_x - text_width(renderer, text, font_size), top_y, font_size,
-                       color);
-}
-
 // "1 file", "3 files".
 std::string count_of(std::size_t count, std::string_view noun) {
     return std::format("{} {}{}", count, noun, count == 1 ? "" : "s");
-}
-
-// The selection mode of a click or a key: Shift extends from the anchor, Ctrl does what `ctrl`
-// says (toggle for a click, cursor alone for a key), neither replaces.
-SelectMode select_mode(const ui::Modifiers& modifiers, SelectMode ctrl) {
-    if (modifiers.shift) {
-        return SelectMode::extend;
-    }
-    return modifiers.ctrl ? ctrl : SelectMode::replace;
 }
 
 }  // namespace
@@ -61,16 +43,19 @@ ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::Direct
 ColumnView::~ColumnView() = default;
 
 std::unique_ptr<Column> ColumnView::make_column(const std::filesystem::path& directory) {
-    // The column reports its cursor changes with its own address, known once it exists.
-    auto self = std::make_shared<const Column*>(nullptr);
-    auto column = std::make_unique<Column>(loop_, pool_, watcher_, mime_, directory, redraw_,
-                                           [this, self] { on_cursor_changed(*self); });
-    *self = column.get();
-    return column;
+    return make_column(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_));
+}
+
+std::unique_ptr<Column> ColumnView::make_column(std::shared_ptr<Folder> folder) {
+    // The folder reports its cursor changes with its own address.
+    folder->set_changed_handler([this, self = folder.get()] { on_cursor_changed(self); });
+    return std::make_unique<Column>(std::move(folder));
 }
 
 void ColumnView::open(const std::filesystem::path& directory) {
     reveal_.clear();
+    adopt_.reset();
+    suspended_ = false;
     columns_.clear();
     focus_ = 0;
     resizing_.reset();
@@ -88,12 +73,62 @@ void ColumnView::reveal(const std::filesystem::path& root, const std::filesystem
         return;  // not inside root
     }
     reveal_ = target;
-    columns_.front().column->select_name(relative.begin()->string());
+    columns_.front().column->folder().select_name(relative.begin()->string());
+}
+
+std::shared_ptr<Folder> ColumnView::focused_folder() const {
+    return columns_.empty() ? nullptr : columns_[focus_].column->shared_folder();
+}
+
+void ColumnView::show(std::shared_ptr<Folder> folder) {
+    suspended_ = false;
+    reveal_.clear();
+    adopt_.reset();
+    // Selections may have changed while suspended: bring the columns up to date first.
+    for (std::size_t i = 0; i < columns_.size(); ++i) {
+        sync_after(i);
+    }
+    const auto held = std::ranges::find_if(
+        columns_, [&folder](const Slot& slot) { return slot.column->shared_folder() == folder; });
+    if (held != columns_.end()) {
+        focus_on(static_cast<std::size_t>(held - columns_.begin()));
+        redraw_();
+        return;
+    }
+    const std::filesystem::path target = folder->path();
+    const auto inside = [&target](const std::filesystem::path& root) {
+        const std::filesystem::path relative = target.lexically_relative(root);
+        return !relative.empty() && relative != "." && *relative.begin() != "..";
+    };
+    // The deepest column that leads to target; else target's parent as the only column.
+    std::optional<std::size_t> base;
+    for (std::size_t i = 0; i < columns_.size(); ++i) {
+        if (inside(columns_[i].column->path())) {
+            base = i;
+        }
+    }
+    if (!base) {
+        const std::filesystem::path parent = target.parent_path();
+        if (parent == target || target.filename().empty()) {
+            open(target);  // the root: nothing leads to it
+            columns_.front() = Slot{.column = make_column(std::move(folder))};
+            return;
+        }
+        open(parent);
+        base = 0;
+    }
+    truncate(*base + 1);
+    focus_on(*base);
+    reveal_ = target;
+    adopt_ = std::move(folder);
+    columns_[*base].column->folder().select_name(
+        target.lexically_relative(columns_[*base].column->path()).begin()->string());
 }
 
 bool ColumnView::loading() const {
     return std::ranges::any_of(columns_, [](const Slot& slot) {
-        return slot.column->model().loading() || slot.column->cursor_pending();
+        const Folder& folder = slot.column->folder();
+        return folder.model().loading() || folder.cursor_pending();
     });
 }
 
@@ -102,11 +137,14 @@ bool ColumnView::animating() const noexcept {
            std::ranges::any_of(columns_, [](const Slot& slot) { return slot.column->animating(); });
 }
 
-void ColumnView::on_cursor_changed(const Column* column) {
+void ColumnView::on_cursor_changed(const Folder* folder) {
+    if (suspended_) {
+        return;  // show() catches up
+    }
     const auto it = std::ranges::find_if(
-        columns_, [column](const Slot& slot) { return slot.column.get() == column; });
+        columns_, [folder](const Slot& slot) { return &slot.column->folder() == folder; });
     if (it == columns_.end()) {
-        return;  // still being built
+        return;  // still being built, or no longer a column
     }
     sync_after(static_cast<std::size_t>(it - columns_.begin()));
 }
@@ -114,13 +152,14 @@ void ColumnView::on_cursor_changed(const Column* column) {
 // Keeps column index + 1 showing what column index has selected, when that is one entry: the
 // same folder (kept as it is), another folder (a new column, and nothing after it), or a file or
 // nothing (no column after it: the info pane shows the file, or sums up a larger selection).
+// NOLINTNEXTLINE(misc-no-recursion): one level, for the column show() hands over
 void ColumnView::sync_after(std::size_t index) {
-    Column* const column = columns_.at(index).column.get();
-    if (column->cursor_pending()) {
+    const Folder& folder = columns_.at(index).column->folder();
+    if (folder.cursor_pending()) {
         return;  // keep what is there until the cursor lands
     }
-    const fs::Entry* const entry = column->single_selection();
-    if (!reveal_.empty() && entry != nullptr && column->path() / entry->name == reveal_) {
+    const fs::Entry* const entry = folder.single_selection();
+    if (!reveal_.empty() && entry != nullptr && folder.path() / entry->name == reveal_) {
         reveal_.clear();  // arrived
         focus_ = index;
     }
@@ -130,20 +169,30 @@ void ColumnView::sync_after(std::size_t index) {
         redraw_();
         return;
     }
-    const std::filesystem::path child = column->path() / entry->name;
+    const std::filesystem::path child = folder.path() / entry->name;
     if (index + 1 < columns_.size() && columns_[index + 1].column->path() == child) {
         return;
     }
     const float width =
         index + 1 < columns_.size() ? columns_[index + 1].width : kDefaultColumnWidth;
     truncate(index + 1);
+    if (adopt_ && adopt_->path() == child) {
+        // show() arrived: the folder handed over becomes the column, as it is.
+        columns_.push_back({.column = make_column(std::move(adopt_)), .width = width});
+        adopt_.reset();
+        focus_ = index + 1;
+        reveal_focus_ = true;
+        sync_after(index + 1);
+        redraw_();
+        return;
+    }
     columns_.push_back({.column = make_column(child), .width = width});
     reveal_focus_ = true;
     redraw_();
     if (!reveal_.empty()) {
         const std::filesystem::path rest = reveal_.lexically_relative(child);
         if (!rest.empty() && rest != "." && *rest.begin() != "..") {
-            columns_.back().column->select_name(rest.begin()->string());  // may sync again
+            columns_.back().column->folder().select_name(rest.begin()->string());  // may sync
         } else {
             reveal_.clear();
         }
@@ -175,21 +224,21 @@ void ColumnView::focus_on(std::size_t index) {
     reveal_focus_ = true;
 }
 
-void ColumnView::go_right(Clock::time_point now) {
-    const fs::Entry* const entry = columns_[focus_].column->single_selection();
+void ColumnView::go_right() {
+    const fs::Entry* const entry = columns_[focus_].column->folder().single_selection();
     if (entry == nullptr || !entry->is_directory() || focus_ + 1 >= columns_.size()) {
         return;
     }
     focus_on(focus_ + 1);
-    Column& next = *columns_[focus_].column;
+    Folder& next = columns_[focus_].column->folder();
     if (!next.cursor() && !next.cursor_pending()) {
-        next.set_cursor(0, now);
+        next.set_cursor(0);
     }
 }
 
-void ColumnView::go_left(Clock::time_point now) {
+void ColumnView::go_left() {
     if (focus_ > 0) {
-        columns_[focus_].column->set_cursor(std::nullopt, now);  // closes what it opened
+        columns_[focus_].column->folder().set_cursor(std::nullopt);  // closes what it opened
         focus_on(focus_ - 1);
         return;
     }
@@ -199,7 +248,7 @@ void ColumnView::go_left(Clock::time_point now) {
     if (parent == current || current.filename().empty()) {
         return;  // at the root
     }
-    columns_.front().column->set_cursor(std::nullopt, now);
+    columns_.front().column->folder().set_cursor(std::nullopt);
     columns_.insert(columns_.begin(), Slot{.column = make_column(parent)});
     if (resizing_) {
         ++*resizing_;
@@ -211,7 +260,7 @@ void ColumnView::go_left(Clock::time_point now) {
     // The horizontal offset now counts from the new column: keep the old ones where they were,
     // then glide the new one in.
     shift_ += columns_.front().width;
-    columns_.front().column->select_name(current.filename().string());
+    columns_.front().column->folder().select_name(current.filename().string());
     redraw_();
 }
 
@@ -227,7 +276,7 @@ bool ColumnView::shows_info() const {
     if (columns_.empty()) {
         return false;
     }
-    const Column& last = *columns_.back().column;
+    const Folder& last = columns_.back().column->folder();
     const fs::Entry* const entry = last.single_selection();
     return entry != nullptr ? !entry->is_directory() : last.selected_count() > 1;
 }
@@ -288,11 +337,11 @@ void ColumnView::update_hover() {
 
 void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                       ui::IconSet& icons, Clock::time_point now) {
-    draw_title(renderer, bounds, palette);
+    if (!columns_.empty()) {
+        draw_title_bar(renderer, bounds, palette, columns_[focus_].column->folder());
+    }
     area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width,
              std::max(0.0F, bounds.height - kTitleHeight)};
-    renderer.fill_rect({bounds.x, area_.y - 1.0F, bounds.width, 1.0F / renderer.scale()},
-                       palette.outline_variant);
 
     layout();
     scroller_.set_extent(content_width(), area_.width);
@@ -357,38 +406,9 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     update_hover();  // content may have moved under a still pointer
 }
 
-void ColumnView::draw_title(ui::Renderer& renderer, const ui::Rect& bounds,
-                            const theme::Palette& palette) {
-    if (columns_.empty()) {
-        return;
-    }
-    const Column& column = *columns_[focus_].column;
-    const fs::DirectoryModel& model = column.model();
-    const std::size_t count = model.listing().entries().size();
-    std::string status;
-    if (model.error()) {
-        status = model.error().message();
-    } else if (column.selected_count() > 1) {
-        status = std::format("{} of {} selected", column.selected_count(), count);
-    } else if (model.loading()) {
-        status = std::format("{} items, loading…", count);
-    } else {
-        status = std::format("{} items", count);
-    }
-    const float title_y = bounds.y + 12.0F;
-    const float status_width = text_width(renderer, status, kSmallTextSize);
-    draw_right_aligned(renderer, status, bounds.right() - kPadding, title_y + 2.0F, kSmallTextSize,
-                       palette.on_surface_variant);
-    const fs::Entry* const entry = column.cursor_entry();
-    const std::filesystem::path shown =
-        entry != nullptr ? column.path() / entry->name : column.path();
-    renderer.draw_text(shown.string(), bounds.x + kPadding, title_y, 15.0F, palette.on_surface,
-                       bounds.width - (3.0F * kPadding) - status_width, ui::Ellipsis::middle);
-}
-
 void ColumnView::draw_info(ui::Renderer& renderer, const ui::Rect& bounds,
                            const theme::Palette& palette, ui::IconSet& icons) {
-    const Column& column = *columns_.back().column;
+    const Folder& column = columns_.back().column->folder();
     const fs::Entry* const single = column.single_selection();
     const float width = std::min(bounds.width, kInfoWidth);  // content stays at the left
     float y = bounds.y + 32.0F;
@@ -493,7 +513,7 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
         case Kind::press:
             if (event.button == ui::PointerButton::back) {
                 reveal_.clear();
-                go_left(now);
+                go_left();
                 break;
             }
             if (event.button != ui::PointerButton::left) {
@@ -521,7 +541,7 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 const std::optional<std::size_t> row = column.row_at(event.x, event.y);
                 const SelectMode mode = select_mode(event.modifiers, SelectMode::toggle);
                 if (row || mode == SelectMode::replace) {
-                    column.set_cursor(row, now, mode);  // a plain click on nothing clears
+                    column.folder().set_cursor(row, mode);  // a plain click on nothing clears
                 }
                 redraw_();
             }
@@ -589,62 +609,62 @@ void ColumnView::scroll(const ui::PointerEvent& event, Clock::time_point now) {
     redraw_();
 }
 
-void ColumnView::key(const ui::KeyEvent& event, Clock::time_point now) {
+void ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     if (columns_.empty()) {
         return;
     }
-    Column& column = *columns_[focus_].column;
-    const auto page = static_cast<std::ptrdiff_t>(column.page_rows());
+    Folder& folder = columns_[focus_].column->folder();
+    const auto page = static_cast<std::ptrdiff_t>(columns_[focus_].column->page_rows());
     // Shift extends the selection, Ctrl moves the cursor alone.
     const SelectMode mode = select_mode(event.modifiers, SelectMode::keep);
     const bool ctrl = event.modifiers.ctrl;
     switch (event.keysym) {
         case XKB_KEY_Down:
-            column.move_cursor(1, now, mode);
+            folder.move_cursor(1, mode);
             break;
         case XKB_KEY_Up:
             if (event.modifiers.alt) {
-                go_left(now);
+                go_left();
             } else {
-                column.move_cursor(-1, now, mode);
+                folder.move_cursor(-1, mode);
             }
             break;
         case XKB_KEY_Page_Down:
-            column.move_cursor(page, now, mode);
+            folder.move_cursor(page, mode);
             break;
         case XKB_KEY_Page_Up:
-            column.move_cursor(-page, now, mode);
+            folder.move_cursor(-page, mode);
             break;
         case XKB_KEY_Home:
-            column.set_cursor(0, now, mode);
+            folder.set_cursor(0, mode);
             break;
         case XKB_KEY_End:
-            column.set_cursor(std::numeric_limits<std::size_t>::max(), now, mode);
+            folder.set_cursor(std::numeric_limits<std::size_t>::max(), mode);
             break;
         case XKB_KEY_space:
-            if (!ctrl || !column.cursor()) {
+            if (!ctrl || !folder.cursor()) {
                 return;  // plain Space is for Quick Look (ROADMAP 5.3)
             }
-            column.set_cursor(column.cursor(), now, SelectMode::toggle);
+            folder.set_cursor(folder.cursor(), SelectMode::toggle);
             break;
         case XKB_KEY_a:
         case XKB_KEY_A:
             if (!ctrl) {
                 return;
             }
-            column.select_all();
+            folder.select_all();
             break;
         case XKB_KEY_Escape:
-            column.collapse_selection();
+            folder.collapse_selection();
             break;
         case XKB_KEY_Right:
         case XKB_KEY_Return:
         case XKB_KEY_KP_Enter:
-            go_right(now);
+            go_right();
             break;
         case XKB_KEY_Left:
         case XKB_KEY_BackSpace:
-            go_left(now);
+            go_left();
             break;
         default:
             return;
