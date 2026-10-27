@@ -1,7 +1,6 @@
 #include "nordend/views/breadcrumb.hpp"
 
 #include <algorithm>
-#include <format>
 #include <utility>
 
 #include "draw_helpers.hpp"
@@ -16,23 +15,7 @@ constexpr float kChevronSize = 12.0F;
 constexpr float kChevronGap = 2.0F;  // either side of a chevron
 constexpr float kBoxHeight = 26.0F;
 constexpr float kTextSize = 14.0F;
-constexpr float kSmallTextSize = 12.0F;
 constexpr std::string_view kEllipsis = "…";
-
-std::string status_of(const Folder& folder) {
-    const fs::DirectoryModel& model = folder.model();
-    const std::size_t count = folder.entries().size();
-    if (model.error()) {
-        return model.error().message();
-    }
-    if (folder.selected_count() > 1) {
-        return std::format("{} of {} selected", folder.selected_count(), count);
-    }
-    if (model.loading()) {
-        return std::format("{} items, loading…", count);
-    }
-    return std::format("{} items", count);
-}
 
 }  // namespace
 
@@ -72,12 +55,7 @@ void Breadcrumb::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
         hovered_.reset();
     }
 
-    const std::string status = status_of(folder);
-    const float status_width = text_width(renderer, status, kSmallTextSize);
     const float top = bounds.y + ((kTitleHeight - kBoxHeight) / 2.0F);
-    draw_right_aligned(renderer, status, bounds.right() - kPadding, bounds.y + 14.0F,
-                       kSmallTextSize,
-                       folder.model().error() ? palette.error : palette.on_surface_variant);
 
     // Every step's width, then which fit: the first, "…", and as many of the last as there is
     // room for (the last one always, cut in the middle when even it is too long).
@@ -86,7 +64,7 @@ void Breadcrumb::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
                (2.0F * kInset);
     };
     const float separator = kChevronSize + (2.0F * kChevronGap);
-    const float room = std::max(0.0F, bounds.width - status_width - (3.0F * kPadding));
+    const float room = std::max(0.0F, bounds.width - (2.0F * kPadding));
     std::vector<float> widths;
     widths.reserve(crumbs_.size());
     float total = 0.0F;

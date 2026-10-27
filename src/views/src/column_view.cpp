@@ -72,6 +72,9 @@ void ColumnView::reveal(const std::filesystem::path& root, const std::filesystem
 bool ColumnView::focus_folder(const std::filesystem::path& directory) {
     for (std::size_t i = 0; i < columns_.size(); ++i) {
         if (columns_[i].column->folder().path() == directory) {
+            // The folder its cursor is on opens again from the top, and nothing after it.
+            truncate(i + 1);
+            sync_after(i);
             focus_on(i);
             return true;
         }
@@ -548,9 +551,9 @@ void ColumnView::scroll(const ui::PointerEvent& event, Clock::time_point now) {
     redraw_();
 }
 
-void ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
+bool ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     if (columns_.empty()) {
-        return;
+        return false;
     }
     Folder& folder = columns_[focus_].column->folder();
     const auto page = static_cast<std::ptrdiff_t>(columns_[focus_].column->page_rows());
@@ -582,14 +585,14 @@ void ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             break;
         case XKB_KEY_space:
             if (!ctrl || !folder.cursor()) {
-                return;  // plain Space is for Quick Look (ROADMAP 5.3)
+                return false;  // plain Space is for Quick Look (ROADMAP 5.3)
             }
             folder.set_cursor(folder.cursor(), SelectMode::toggle);
             break;
         case XKB_KEY_a:
         case XKB_KEY_A:
             if (!ctrl) {
-                return;
+                return false;
             }
             folder.select_all();
             break;
@@ -606,11 +609,12 @@ void ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             go_left();
             break;
         default:
-            return;
+            return false;
     }
     reveal_.clear();
     reveal_focus_ = true;
     redraw_();
+    return true;
 }
 
 }  // namespace nordend::views

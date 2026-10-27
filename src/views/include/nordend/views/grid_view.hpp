@@ -64,7 +64,8 @@ public:
     [[nodiscard]] bool animating() const noexcept { return scroller_.animating(); }
 
     void pointer(const ui::PointerEvent& event, Clock::time_point now);
-    void key(const ui::KeyEvent& event, Clock::time_point now);
+    // false when event is not one of its keys.
+    bool key(const ui::KeyEvent& event, Clock::time_point now);
 
     // The folder has loaded and its cursor landed (snapshots, tests).
     [[nodiscard]] bool loading() const;

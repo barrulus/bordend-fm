@@ -278,6 +278,23 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Status bar (ROADMAP 5.11)
+
+### 2026-10-28: scrolling with the status bar
+
+Same folder and command as for the breadcrumb, sidebar shown.
+
+| View | Median | p95 |
+|------|-------:|----:|
+| Details | 0.42-0.50 ms | 0.58-0.60 ms |
+| Grid | 0.30-0.33 ms | 0.51-0.52 ms |
+| Columns | 0.26 ms | 0.33-0.47 ms |
+
+The details' median jumps between about 0.36 and 0.50 ms from run to run; five runs of the code
+before this step gave the same two values (0.36, 0.50, 0.50, 0.37, 0.50 ms; GPU clock states,
+*to be verified*). The p95 is unchanged: the bar costs nothing measurable. The free space is
+read with one `statvfs` on a worker when the folder or its listing changes, never per frame.
+
 ## Breadcrumb (ROADMAP 5.10)
 
 ### 2026-10-27: scrolling with the breadcrumb

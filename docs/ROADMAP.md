@@ -122,7 +122,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   vista corrente; nelle colonne mette a fuoco la colonna che la mostra, se c'è già.
   Fatto quando: un clic su qualsiasi segmento porta lì in tutte e tre le viste, con il cursore
   sulla cartella da cui si è risaliti.
-- [ ] **5.11 Barra di stato e scorciatoie**
+- [x] **5.11 Barra di stato e scorciatoie**
   In basso: a sinistra elementi e selezione (tolti dalla barra in alto) e lo spazio libero
   dell'unità (`statvfs` su un worker); a destra i pulsanti delle tre viste (quella attiva
   evidenziata) e "?", che come F1 apre un overlay con tutte le scorciatoie, generate dalla stessa

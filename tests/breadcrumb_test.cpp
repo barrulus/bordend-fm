@@ -109,11 +109,16 @@ TEST_CASE("breadcrumb: going up in the columns") {
     auto& columns = f.browser.columns();
     REQUIRE(columns.column_count() >= 3);
 
-    // A folder with a column: that column is focused, its cursor still on the way down.
+    // A folder with a column: that column is focused, its cursor still on the way down; the
+    // folder we came from shows again from the top, the columns after it close.
     f.browser.go_to(f.root / "a", "b");
     CHECK(columns.focused_folder()->path() == f.root / "a");
     CHECK(cursor_name(*columns.focused_folder()) == "b");
-    CHECK(columns.column_count() >= 3);  // the columns after it stay
+    REQUIRE(columns.column_count() == 3);
+    CHECK(columns.column(2).folder().path() == f.root / "a" / "b");
+    REQUIRE(f.settled());
+    CHECK_FALSE(columns.column(2).folder().cursor().has_value());
+    CHECK(columns.column_count() == 3);
 
     // A folder above the first column: columns from it, the cursor on where we came from.
     f.browser.open(f.root / "a" / "b");

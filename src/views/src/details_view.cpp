@@ -516,9 +516,9 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
     }
 }
 
-void DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
+bool DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     if (!folder_) {
-        return;
+        return false;
     }
     Folder& folder = *folder_;
     const auto visible = static_cast<std::ptrdiff_t>(rows_.height / kRowHeight);
@@ -561,14 +561,14 @@ void DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             break;
         case XKB_KEY_space:
             if (!ctrl || !cursor) {
-                return;  // plain Space is for Quick Look
+                return false;  // plain Space is for Quick Look
             }
             folder.set_cursor(cursor, SelectMode::toggle);
             break;
         case XKB_KEY_a:
         case XKB_KEY_A:
             if (!ctrl) {
-                return;
+                return false;
             }
             folder.select_all();
             break;
@@ -583,9 +583,10 @@ void DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             go_up();
             break;
         default:
-            return;
+            return false;
     }
     redraw_();
+    return true;
 }
 
 }  // namespace nordend::views

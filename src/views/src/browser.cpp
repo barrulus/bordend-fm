@@ -31,11 +31,14 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       quick_look_{pool, std::move(mime), std::move(thumbnails), redraw},
       sidebar_{redraw, std::move(set_cursor),
                [this](const std::filesystem::path& place) { open(place); }},
-      breadcrumb_{std::move(redraw),
+      breadcrumb_{redraw,
                   [this](const std::filesystem::path& folder, const std::string& child) {
                       go_to(folder, child);
                   },
-                  home_directory()} {}
+                  home_directory()},
+      status_bar_{pool, redraw, [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
+                  [this] { shortcuts_.open(); }},
+      shortcuts_{std::move(redraw)} {}
 
 void Browser::open(const std::filesystem::path& directory) {
     columns_.open(directory);
@@ -130,18 +133,22 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     }
     const ui::Rect view{bounds.x + sidebar_width, bounds.y, bounds.width - sidebar_width,
                         bounds.height};
+    const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - kTitleHeight));
     if (folder) {
         breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
                          *folder);
+        status_bar_.draw(renderer, {view.x, view.bottom() - bar, view.width, bar}, palette, icons,
+                         *folder, static_cast<std::size_t>(mode_));
     }
-    draw_view(
-        renderer,
-        {view.x, view.y + kTitleHeight, view.width, std::max(0.0F, view.height - kTitleHeight)},
-        palette, icons, now);
+    draw_view(renderer,
+              {view.x, view.y + kTitleHeight, view.width,
+               std::max(0.0F, view.height - kTitleHeight - bar)},
+              palette, icons, now);
     if (quick_look_.is_open()) {
         quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
     }
     quick_look_.draw(renderer, bounds, palette, icons, now);
+    shortcuts_.draw(renderer, bounds, palette);
     if (thumbnails_) {
         thumbnails_->end_frame();
     }
@@ -180,7 +187,7 @@ bool Browser::animating() const {
 }
 
 bool Browser::loading() const {
-    if (quick_look_.loading() || info_pane_.loading()) {
+    if (quick_look_.loading() || info_pane_.loading() || status_bar_.loading()) {
         return true;
     }
     switch (mode_) {
@@ -195,6 +202,17 @@ bool Browser::loading() const {
 }
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    if (shortcuts_.is_open()) {
+        // A click anywhere closes the shortcuts; nothing under them reacts meanwhile.
+        if (event.kind == ui::PointerEvent::Kind::press) {
+            shortcuts_.close();
+        }
+        if (event.kind != ui::PointerEvent::Kind::leave) {
+            pointer_x_ = event.x;
+            pointer_y_ = event.y;
+        }
+        return;
+    }
     if (quick_look_.is_open()) {
         // Over the overlay: a click closes it, scrolling moves a text page, the rest waits
         // until it is gone.
@@ -234,6 +252,8 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
             target = Target::sidebar;
         } else if (breadcrumb_.claims(event.x, event.y)) {
             target = Target::breadcrumb;
+        } else if (status_bar_.claims(event.x, event.y)) {
+            target = Target::status_bar;
         }
         if (target != pointer_target_) {
             send_pointer(pointer_target_, {.kind = Kind::leave}, now);
@@ -261,6 +281,9 @@ void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::
             break;
         case Target::breadcrumb:
             breadcrumb_.pointer(event);
+            break;
+        case Target::status_bar:
+            status_bar_.pointer(event);
             break;
     }
 }
@@ -306,84 +329,92 @@ std::shared_ptr<Folder> Browser::current_folder() const {
     return columns_.focused_folder();
 }
 
-void Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
-    const bool plain = event.modifiers == ui::Modifiers{};
+bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
+    const Command command = command_for(event);
+    if (shortcuts_.is_open()) {
+        if (command == Command::show_shortcuts ||
+            (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{})) {
+            shortcuts_.close();
+        }
+        return true;  // nothing under them reacts meanwhile
+    }
     if (quick_look_.is_open()) {
-        if ((plain && event.keysym == XKB_KEY_space) || event.keysym == XKB_KEY_Escape) {
+        if (command == Command::quick_look ||
+            (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{})) {
             quick_look_.close();
-            return;
+            return true;
         }
-        // Everything else moves the view underneath; Quick Look shows where it lands.
-        view_key(event, now);
+        if (command != Command::none) {
+            run(command, now);
+            return true;
+        }
+        // The rest moves the view underneath; Quick Look shows where it lands.
+        const bool handled = view_key(event, now);
         quick_look_.follow(current_folder());
-        return;
+        return handled;
     }
-    if (browser_key(event)) {
-        return;
-    }
-    if (sidebar_.focused()) {
-        static_cast<void>(sidebar_.key(event));  // the view does not see keys meanwhile
-        return;
-    }
-    if (plain && event.keysym == XKB_KEY_space) {
-        quick_look_.open(current_folder(), now);
-        return;
-    }
-    view_key(event, now);
-}
-
-bool Browser::browser_key(const ui::KeyEvent& event) {
-    if (event.keysym == XKB_KEY_F6 && event.modifiers == ui::Modifiers{}) {
-        if (!sidebar_.focused()) {
-            set_sidebar_visible(true);
-        }
-        sidebar_.set_focused(!sidebar_.focused());
+    // Space in the sidebar is nothing: Quick Look shows the view's entries.
+    const bool ignored = command == Command::quick_look && sidebar_.focused();
+    if (command != Command::none && !ignored) {
+        run(command, now);
         return true;
     }
-    if (!event.modifiers.ctrl || event.modifiers.shift || event.modifiers.alt) {
-        return false;
+    if (sidebar_.focused()) {
+        // The view does not see keys meanwhile.
+        return listed(event, scope::kSidebar) && sidebar_.key(event);
     }
-    switch (event.keysym) {
-        case XKB_KEY_1:
-        case XKB_KEY_KP_1:
+    return view_key(event, now);
+}
+
+void Browser::run(Command command, Clock::time_point now) {
+    switch (command) {
+        case Command::none:
+            break;
+        case Command::columns_view:
             set_mode(Mode::columns);
-            return true;
-        case XKB_KEY_2:
-        case XKB_KEY_KP_2:
+            break;
+        case Command::grid_view:
             set_mode(Mode::grid);
-            return true;
-        case XKB_KEY_3:
-        case XKB_KEY_KP_3:
+            break;
+        case Command::details_view:
             set_mode(Mode::details);
-            return true;
-        case XKB_KEY_i:
-        case XKB_KEY_I:
+            break;
+        case Command::toggle_info:
             set_info_visible(!info_visible_);
-            return true;
-        case XKB_KEY_b:
-        case XKB_KEY_B:
+            break;
+        case Command::toggle_sidebar:
             set_sidebar_visible(!sidebar_visible_);
-            return true;
-        default:
-            return false;
+            break;
+        case Command::focus_sidebar:
+            if (!sidebar_.focused()) {
+                set_sidebar_visible(true);
+            }
+            sidebar_.set_focused(!sidebar_.focused());
+            break;
+        case Command::quick_look:
+            if (quick_look_.is_open()) {
+                quick_look_.close();
+            } else {
+                quick_look_.open(current_folder(), now);
+            }
+            break;
+        case Command::show_shortcuts:
+            shortcuts_.open();
+            break;
     }
 }
 
-void Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
-    if (browser_key(event)) {
-        return;  // with Quick Look open too
-    }
+bool Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
+    // Only what the shortcuts list reaches the view.
     switch (mode_) {
         case Mode::columns:
-            columns_.key(event, now);
-            break;
+            return listed(event, scope::kColumns) && columns_.key(event, now);
         case Mode::grid:
-            grid_.key(event, now);
-            break;
+            return listed(event, scope::kGrid) && grid_.key(event, now);
         case Mode::details:
-            details_.key(event, now);
-            break;
+            return listed(event, scope::kDetails) && details_.key(event, now);
     }
+    return false;
 }
 
 }  // namespace nordend::views

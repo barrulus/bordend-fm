@@ -31,9 +31,8 @@ struct Crumb {
                                            const std::filesystem::path& home);
 
 // The bar above the view: the folder's path as clickable steps, cut from the left with "…" when
-// it does not fit (the first step and the last ones stay), and the folder's status at the right
-// ("12 items", "3 of 12 selected", its error). A click on a step asks to go there, with the
-// cursor on the step after it, the folder we came from.
+// it does not fit (the first step and the last ones stay). A click on a step asks to go there,
+// with the cursor on the step after it, the folder we came from.
 //
 // Loop thread only.
 class Breadcrumb {

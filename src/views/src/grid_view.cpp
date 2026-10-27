@@ -419,9 +419,9 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     }
 }
 
-void GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
+bool GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     if (!folder_) {
-        return;
+        return false;
     }
     Folder& folder = *folder_;
     const auto columns = static_cast<std::ptrdiff_t>(columns_);
@@ -466,14 +466,14 @@ void GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             break;
         case XKB_KEY_space:
             if (!ctrl || !cursor) {
-                return;  // plain Space is for Quick Look (ROADMAP 5.3)
+                return false;  // plain Space is for Quick Look (ROADMAP 5.3)
             }
             folder.set_cursor(cursor, SelectMode::toggle);
             break;
         case XKB_KEY_a:
         case XKB_KEY_A:
             if (!ctrl) {
-                return;
+                return false;
             }
             folder.select_all();
             break;
@@ -481,21 +481,21 @@ void GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
         case XKB_KEY_equal:
         case XKB_KEY_KP_Add:
             if (!ctrl) {
-                return;
+                return false;
             }
             zoom(size_ + 1);
             break;
         case XKB_KEY_minus:
         case XKB_KEY_KP_Subtract:
             if (!ctrl) {
-                return;
+                return false;
             }
             zoom(size_ > 0 ? size_ - 1 : 0);
             break;
         case XKB_KEY_0:
         case XKB_KEY_KP_0:
             if (!ctrl) {
-                return;
+                return false;
             }
             zoom(kDefaultSize);
             break;
@@ -510,9 +510,10 @@ void GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             go_up();
             break;
         default:
-            return;
+            return false;
     }
     redraw_();
+    return true;
 }
 
 }  // namespace nordend::views

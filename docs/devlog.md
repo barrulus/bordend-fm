@@ -4,6 +4,52 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-28 — Status bar and shortcuts (ROADMAP 5.11)
+
+**Done**
+- `views::StatusBar` under every view: at the left the folder's status (moved from the top
+  bar: "12 items", "1 item", "3 of 12 selected", the error) and "824.7 GB free of 1.0 TB"
+  (`statvfs` on a worker, `f_bavail`: what the user may write); at the right a button per view
+  (layout-columns, layout-grid, list-details; the one shown marked) and "?" (help).
+- The free space is read again when the folder or its listing changes:
+  `DirectoryModel::revision()` counts the notifications, so a copy into the folder shown
+  (any program) refreshes it.
+- `views::shortcuts()`: one table of every shortcut (group, keys as shown, action, where it
+  works, modifiers, keysyms, the browser's command if any). The browser runs its commands from
+  it (Ctrl+1/2/3, Ctrl+I, Ctrl+B, F6, Space, F1/?) and passes a view or the sidebar only the
+  chords listed for it (`listed()`). The views' `key()` now returns whether it used the key.
+  Consequence: chords that worked by accident are gone (Alt+Left, Shift+Enter, Ctrl+Escape,
+  Alt+Page Down... did the same as the plain key).
+- `views::ShortcutsOverlay`: F1, "?" (Shift ignored: it needs it on most layouts) or the "?"
+  button show the table on a card, two columns of groups; F1, "?", Escape or a click close it,
+  and nothing under it reacts meanwhile.
+- Tests (136 with the raw samples): every chord of every shortcut does something in every view
+  it is listed for, in the sidebar and in Quick Look (checked to fail with a bogus Ctrl+Z
+  entry); a sweep of ~70 keys with no modifier, Ctrl, Shift, Alt finds nothing that works
+  without being listed; Ctrl+Q stays the window's; the overlay swallows keys; the status texts;
+  the free space read once per listing and again after a file arrives. Release (6 runs of the
+  new tests), ASan, TSan pass; snapshots under ASan and TSan; tidy and format clean.
+
+**Measured**: nothing per frame (see benchmarks).
+
+**Tested by the author**
+- On screen (screenshots with Noctalia's `screenshot-window`): the status bar, the view
+  buttons, the shortcuts overlay, the free space after a copy, and the breadcrumb fix below:
+  "funziona tutto".
+
+**Breadcrumb fix** (found by the author on screen, from 5.10): in the columns, a click on a step
+whose column was open only focused it, and the deeper columns stayed. Now
+`ColumnView::focus_folder` closes the columns after the next one and that one, the folder we
+came from, shows again without a cursor (test updated).
+
+**Open**
+- Ctrl+Q is in the table but handled by the app (`main.cpp`), so the tests cannot drive it.
+- The sweep leaves out Ctrl+Shift and Ctrl+Alt combinations: they are not listed, so the
+  browser filters them, but no test sends them.
+- Buttons have no tooltips.
+
+---
+
 ## 2026-10-27 — A breadcrumb (ROADMAP 5.10)
 
 Asked by the author with the status bar, the shortcuts overlay and a settings panel; agreed
@@ -21,7 +67,8 @@ remembered state (7.0b). System information (distro, Noctalia, Umbriel) goes to 
   5.11 moves it.
 - A click on a step: `Browser::go_to(folder, child)`. In the grid and the details the folder
   opens with the cursor on the step after it. In the columns, the column showing that folder
-  is focused (its cursor is already on the way down; the columns after it stay); above the
+  is focused (its cursor is already on the way down; the columns after it stayed: fixed with
+  5.11, they close); above the
   first column, the columns are revealed from it down to the step after it.
 - The pointer goes to the sidebar, the breadcrumb or the view, and stays with the one that got
   a press until the release: a drag of the info pane's edge that crosses the sidebar no longer

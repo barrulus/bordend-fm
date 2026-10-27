@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -69,6 +70,9 @@ public:
 
     [[nodiscard]] bool loading() const noexcept { return loading_; }
 
+    // Counts the changes notified: a new value means the listing changed (or was replaced).
+    [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
+
     // Why the directory cannot be shown (cannot be read, was deleted or moved); empty when fine.
     [[nodiscard]] const std::error_code& error() const noexcept { return error_; }
 
@@ -95,6 +99,7 @@ private:
     std::unordered_set<std::string> names_;  // what is in the listing
     std::error_code error_;
     bool loading_{false};
+    std::uint64_t revision_{0};
 
     DirectoryWatcher::WatchId watch_{0};
     core::CancelToken load_;

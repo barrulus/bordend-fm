@@ -1,0 +1,277 @@
+#include "nordend/views/shortcuts.hpp"
+
+#include <array>
+#include <chrono>
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <memory>
+#include <set>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <xkbcommon/xkbcommon-keysyms.h>
+
+#include <doctest/doctest.h>
+
+#include "nordend/core/event_loop.hpp"
+#include "nordend/core/worker_pool.hpp"
+#include "nordend/fs/directory_watcher.hpp"
+#include "nordend/fs/mime.hpp"
+#include "nordend/views/browser.hpp"
+#include "nordend/views/status_bar.hpp"
+#include "temp_dir.hpp"
+
+using nordend::core::EventLoop;
+using nordend::test::TempDir;
+using nordend::ui::KeyEvent;
+using nordend::ui::Modifiers;
+using nordend::views::Browser;
+using nordend::views::Command;
+using nordend::views::Folder;
+using nordend::views::Shortcut;
+using nordend::views::shortcuts;
+namespace scope = nordend::views::scope;
+using namespace std::chrono_literals;
+namespace fs = std::filesystem;
+
+namespace {
+
+bool run_until(EventLoop& loop, const std::function<bool()>& done) {
+    bool ok = false;
+    const auto poll = loop.add_timer(1ms, 1ms, [&] {
+        if (done()) {
+            ok = true;
+            loop.quit(0);
+        }
+    });
+    const auto watchdog = loop.add_timer(5s, 0ms, [&loop] { loop.quit(1); });
+    loop.run();
+    loop.remove(poll);
+    loop.remove(watchdog);
+    return ok;
+}
+
+bool cursor_name_is(const Folder& folder, std::string_view name) {
+    const nordend::fs::Entry* entry = folder.cursor_entry();
+    return entry != nullptr && entry->name == name;
+}
+
+KeyEvent chord(xkb_keysym_t keysym, Modifiers modifiers) {
+    KeyEvent event;
+    event.keysym = keysym;
+    event.modifiers = modifiers;
+    return event;
+}
+
+std::string describe(const KeyEvent& event) {
+    std::string out;
+    out += event.modifiers.ctrl ? "Ctrl+" : "";
+    out += event.modifiers.shift ? "Shift+" : "";
+    out += event.modifiers.alt ? "Alt+" : "";
+    std::array<char, 64> name{};
+    xkb_keysym_get_name(event.keysym, name.data(), name.size());
+    return out + name.data();
+}
+
+// root/{sub/{inner.txt}, a.txt, b.txt}
+struct Fixture {
+    TempDir dir;
+    fs::path root = dir.path / "root";
+    EventLoop loop;
+    nordend::core::WorkerPool pool{loop, 2};
+    nordend::fs::DirectoryWatcher watcher{loop};
+    Browser browser{loop,    pool,
+                    watcher, nordend::fs::MimeDatabase::load(),
+                    [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
+
+    Fixture() {
+        fs::create_directories(root / "sub");
+        std::ofstream{root / "sub" / "inner.txt"} << "x";
+        std::ofstream{root / "a.txt"} << "a";
+        std::ofstream{root / "b.txt"} << "b";
+        browser.set_places({{.label = "root", .path = root, .icon = "folder"},
+                            {.label = "sub", .path = root / "sub", .icon = "folder"}});
+    }
+
+    std::shared_ptr<Folder> folder() {
+        switch (browser.mode()) {
+            case Browser::Mode::grid:
+                return browser.grid().folder();
+            case Browser::Mode::details:
+                return browser.details().folder();
+            case Browser::Mode::columns:
+                break;
+        }
+        return browser.columns().focused_folder();
+    }
+
+    // The root in mode, loaded, the cursor on cursor_on, nothing over the view.
+    void reset(Browser::Mode mode, const std::string& cursor_on = "sub") {
+        browser.quick_look().close();
+        browser.shortcuts_overlay().close();
+        browser.sidebar().set_focused(false);
+        browser.open(root);
+        browser.set_mode(mode);
+        REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
+        folder()->select_name(cursor_on);
+        REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
+    }
+};
+
+constexpr std::array<Browser::Mode, 3> kModes{Browser::Mode::columns, Browser::Mode::grid,
+                                              Browser::Mode::details};
+
+std::uint8_t scope_of(Browser::Mode mode) {
+    switch (mode) {
+        case Browser::Mode::grid:
+            return scope::kGrid;
+        case Browser::Mode::details:
+            return scope::kDetails;
+        case Browser::Mode::columns:
+            break;
+    }
+    return scope::kColumns;
+}
+
+// Every chord a shortcut stands for.
+std::vector<KeyEvent> chords_of(const Shortcut& shortcut) {
+    std::vector<KeyEvent> out;
+    for (const xkb_keysym_t keysym : shortcut.keysyms) {
+        if (keysym != XKB_KEY_NoSymbol) {
+            out.push_back(chord(keysym, shortcut.modifiers));
+        }
+    }
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("shortcuts: the groups are the overlay's") {
+    const std::set<std::string_view> expected{"General", "Moving",  "Selecting",
+                                              "Grid",    "Sidebar", "Quick Look"};
+    for (const Shortcut& shortcut : shortcuts()) {
+        CHECK_MESSAGE(expected.contains(shortcut.group), shortcut.group);
+        CHECK(shortcut.scope != 0);
+        CHECK(!chords_of(shortcut).empty());
+    }
+}
+
+TEST_CASE("shortcuts: every one listed for a view works there") {
+    Fixture f;
+    for (const Browser::Mode mode : kModes) {
+        for (const Shortcut& shortcut : shortcuts()) {
+            if ((shortcut.scope & scope_of(mode)) == 0) {
+                continue;
+            }
+            for (const KeyEvent& event : chords_of(shortcut)) {
+                f.reset(mode);
+                CHECK_MESSAGE(f.browser.key(event, Browser::Clock::now()),
+                              describe(event) << " in mode " << static_cast<int>(mode));
+            }
+        }
+    }
+}
+
+TEST_CASE("shortcuts: every one listed for the sidebar and Quick Look works there") {
+    Fixture f;
+    for (const Shortcut& shortcut : shortcuts()) {
+        for (const KeyEvent& event : chords_of(shortcut)) {
+            if ((shortcut.scope & scope::kSidebar) != 0) {
+                f.reset(Browser::Mode::grid);
+                f.browser.sidebar().set_focused(true);
+                CHECK_MESSAGE(f.browser.key(event, Browser::Clock::now()),
+                              describe(event) << " in the sidebar");
+            }
+            if ((shortcut.scope & scope::kQuickLook) != 0) {
+                f.reset(Browser::Mode::grid, "a.txt");
+                f.browser.key(chord(XKB_KEY_space, {}), Browser::Clock::now());
+                REQUIRE(f.browser.quick_look().is_open());
+                CHECK_MESSAGE(f.browser.key(event, Browser::Clock::now()), describe(event)
+                                                                               << " in Quick Look");
+            }
+        }
+    }
+}
+
+TEST_CASE("shortcuts: nothing else does anything") {
+    // The keys a file manager could plausibly react to, with each modifier.
+    std::vector<xkb_keysym_t> keys{
+        XKB_KEY_Up,        XKB_KEY_Down,   XKB_KEY_Left,       XKB_KEY_Right,  XKB_KEY_Page_Up,
+        XKB_KEY_Page_Down, XKB_KEY_Home,   XKB_KEY_End,        XKB_KEY_Return, XKB_KEY_KP_Enter,
+        XKB_KEY_BackSpace, XKB_KEY_Escape, XKB_KEY_space,      XKB_KEY_Tab,    XKB_KEY_Delete,
+        XKB_KEY_Insert,    XKB_KEY_plus,   XKB_KEY_minus,      XKB_KEY_equal,  XKB_KEY_question,
+        XKB_KEY_slash,     XKB_KEY_KP_Add, XKB_KEY_KP_Subtract};
+    for (xkb_keysym_t key = XKB_KEY_a; key <= XKB_KEY_z; ++key) {
+        keys.push_back(key);
+    }
+    for (xkb_keysym_t key = XKB_KEY_0; key <= XKB_KEY_9; ++key) {
+        keys.push_back(key);
+    }
+    for (xkb_keysym_t key = XKB_KEY_F1; key <= XKB_KEY_F12; ++key) {
+        keys.push_back(key);
+    }
+    const std::array<Modifiers, 4> modifiers{Modifiers{}, Modifiers{.ctrl = true},
+                                             Modifiers{.shift = true}, Modifiers{.alt = true}};
+    Fixture f;
+    for (const Browser::Mode mode : kModes) {
+        f.reset(mode);
+        for (const xkb_keysym_t key : keys) {
+            for (const Modifiers& mods : modifiers) {
+                const KeyEvent event = chord(key, mods);
+                if (!f.browser.key(event, Browser::Clock::now())) {
+                    continue;
+                }
+                CHECK_MESSAGE((nordend::views::listed(event, scope_of(mode)) ||
+                               nordend::views::command_for(event) != Command::none),
+                              describe(event) << " in mode " << static_cast<int>(mode));
+                f.reset(mode);
+            }
+        }
+    }
+    // Ctrl+Q is the window's: the browser leaves it alone.
+    f.reset(Browser::Mode::grid);
+    CHECK_FALSE(f.browser.key(chord(XKB_KEY_q, {.ctrl = true}), Browser::Clock::now()));
+}
+
+TEST_CASE("shortcuts: the overlay opens and closes, and takes every key meanwhile") {
+    Fixture f;
+    f.reset(Browser::Mode::details);
+    const auto now = Browser::Clock::now();
+    f.browser.key(chord(XKB_KEY_F1, {}), now);
+    CHECK(f.browser.shortcuts_overlay().is_open());
+    CHECK(f.browser.key(chord(XKB_KEY_Down, {}), now));
+    CHECK(cursor_name_is(*f.folder(), "sub"));
+    f.browser.key(chord(XKB_KEY_Escape, {}), now);
+    CHECK_FALSE(f.browser.shortcuts_overlay().is_open());
+    // "?" comes with Shift on most layouts.
+    f.browser.key(chord(XKB_KEY_question, {.shift = true}), now);
+    CHECK(f.browser.shortcuts_overlay().is_open());
+    f.browser.key(chord(XKB_KEY_question, {.shift = true}), now);
+    CHECK_FALSE(f.browser.shortcuts_overlay().is_open());
+}
+
+TEST_CASE("status bar: the status and the free space") {
+    Fixture f;
+    f.reset(Browser::Mode::details);
+    std::shared_ptr<Folder> folder = f.folder();
+    CHECK(nordend::views::status_of(*folder) == "3 items");
+    folder->select_all();
+    CHECK(nordend::views::status_of(*folder) == "3 of 3 selected");
+
+    nordend::views::StatusBar& bar = f.browser.status_bar();
+    bar.update(*folder);
+    REQUIRE(run_until(f.loop, [&] { return !bar.loading(); }));
+    REQUIRE(bar.free_space().has_value());
+    CHECK(bar.free_space().value_or(nordend::views::FreeSpace{}).total > 0);
+    bar.update(*folder);
+    CHECK_FALSE(bar.loading());  // known for this listing
+
+    // A file arrives: the listing changes, and the free space is read again.
+    std::ofstream{f.root / "c.txt"} << "c";
+    REQUIRE(run_until(f.loop, [&] { return folder->entries().size() == 4; }));
+    bar.update(*folder);
+    CHECK(bar.loading());
+    CHECK(run_until(f.loop, [&] { return !bar.loading(); }));
+}

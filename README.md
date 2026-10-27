@@ -69,6 +69,9 @@ What already works, the way it is meant to stay:
 - **The path, one step at a time.** Above every view the folder's path is a row of steps,
   starting from your home; click one to go back up there, with the cursor on the folder you
   came from. A long path keeps its first and last steps.
+- **Everything at hand.** The bar at the bottom tells how many items there are, what is
+  selected and how much space is left on the disk, and switches between the three views with a
+  click; "?" (or F1) shows every keyboard shortcut.
 - **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
   dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
   make it wider. Cursor and selection go along between all three views, and so does the info
@@ -96,7 +99,8 @@ What already works, the way it is meant to stay:
 
 `nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
 the thumbnail grid, Ctrl+3 to the details table, Ctrl+1 back, Ctrl+I shows or hides the info
-pane of the grid and the details, Ctrl+B the sidebar, Space opens Quick Look.
+pane of the grid and the details, Ctrl+B the sidebar, Space opens Quick Look, F1 lists every
+shortcut.
 `nordend --test-scene` shows everything the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
@@ -171,6 +175,9 @@ pane of the grid and the details, Ctrl+B the sidebar, Space opens Quick Look.
 
 - A breadcrumb above every view: the folder's path, each step a click away,
   the cursor on the folder you came from
+
+- A status bar with the folder's items, the selection and the free space, a
+  button for each view, and "?" (or F1) for every keyboard shortcut
 
 **Next:** phase 6, file operations: open with the default app, new folder and rename, copy and
 move with progress, trash, clipboard.

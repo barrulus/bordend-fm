@@ -74,7 +74,8 @@ public:
     // as each folder loads). target must be inside root.
     void reveal(const std::filesystem::path& root, const std::filesystem::path& target);
 
-    // Focuses the column showing directory, if one does: true then.
+    // Focuses the column showing directory, if one does (true then), and goes back there: the
+    // folder under its cursor shows again without a cursor, the columns after it close.
     bool focus_folder(const std::filesystem::path& directory);
 
     // The folder of the focused column; nullptr before open().
@@ -96,7 +97,8 @@ public:
     [[nodiscard]] bool animating() const noexcept;
 
     void pointer(const ui::PointerEvent& event, Clock::time_point now);
-    void key(const ui::KeyEvent& event, Clock::time_point now);
+    // false when event is not one of its keys.
+    bool key(const ui::KeyEvent& event, Clock::time_point now);
 
     [[nodiscard]] std::size_t column_count() const noexcept { return columns_.size(); }
 

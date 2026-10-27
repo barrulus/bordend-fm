@@ -1,0 +1,97 @@
+#pragma once
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include "nordend/core/worker_pool.hpp"
+#include "nordend/theme/palette.hpp"
+#include "nordend/ui/geometry.hpp"
+#include "nordend/ui/icons.hpp"
+#include "nordend/ui/renderer.hpp"
+#include "nordend/ui/seat.hpp"
+#include "nordend/views/folder.hpp"
+
+namespace nordend::views {
+
+// The space on the file system that holds a folder.
+struct FreeSpace {
+    std::uint64_t free{0};  // what an unprivileged user may still write
+    std::uint64_t total{0};
+
+    bool operator==(const FreeSpace&) const = default;
+};
+
+// statvfs(path); nullopt when it fails.
+[[nodiscard]] std::optional<FreeSpace> free_space_of(const std::filesystem::path& path);
+
+// "12 items", "3 of 12 selected", "12 items, loading…", or the folder's error.
+[[nodiscard]] std::string status_of(const Folder& folder);
+
+// The bar under the view: at the left the folder's status and the free space of its file system
+// (read on a worker when the folder or its listing changes, so it follows copies into it); at the
+// right a button for each view, the one shown marked, and "?" for the shortcuts.
+//
+// Loop thread only. Must not outlive the pool.
+class StatusBar {
+public:
+    static constexpr float kHeight = 30.0F;
+    static constexpr std::size_t kViews = 3;  // columns, grid, details: the browser's modes
+
+    // choose_view(i): a view's button was clicked; help: the "?" button was.
+    StatusBar(core::WorkerPool& pool, std::function<void()> redraw,
+              std::function<void(std::size_t view)> choose_view, std::function<void()> help);
+    ~StatusBar();
+
+    StatusBar(const StatusBar&) = delete;
+    StatusBar& operator=(const StatusBar&) = delete;
+    StatusBar(StatusBar&&) = delete;
+    StatusBar& operator=(StatusBar&&) = delete;
+
+    // view: the index of the view shown.
+    void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
+              ui::IconSet& icons, const Folder& folder, std::size_t view);
+
+    // Reads the free space of folder unless it is known for its current listing (draw() does
+    // this; tests call it without drawing).
+    void update(const Folder& folder);
+
+    [[nodiscard]] bool claims(float x, float y) const;
+
+    void pointer(const ui::PointerEvent& event);
+
+    // The free space as last read; nullopt before it arrives or when it cannot be read.
+    [[nodiscard]] const std::optional<FreeSpace>& free_space() const noexcept { return free_; }
+
+    // The free space is being read (snapshots, tests).
+    [[nodiscard]] bool loading() const noexcept { return job_.has_value(); }
+
+private:
+    // A button: a view's (0 to kViews - 1) or help (kViews).
+    [[nodiscard]] std::optional<std::size_t> button_at(float x, float y) const;
+
+    core::WorkerPool& pool_;
+    std::function<void()> redraw_;
+    std::function<void(std::size_t)> choose_view_;
+    std::function<void()> help_;
+
+    // What free_ is about: the folder and its listing's revision.
+    std::filesystem::path path_;
+    std::uint64_t revision_{0};
+    bool known_{false};
+    std::optional<FreeSpace> free_;
+    std::optional<core::CancelToken> job_;
+
+    ui::Rect bounds_{};
+    std::array<ui::Rect, kViews + 1> buttons_{};  // as last drawn
+    std::optional<std::size_t> hovered_;
+    // False once destroyed: results still on their way find out here.
+    std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
+};
+
+}  // namespace nordend::views

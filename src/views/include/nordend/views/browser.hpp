@@ -24,7 +24,10 @@
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/quick_look.hpp"
+#include "nordend/views/shortcuts.hpp"
+#include "nordend/views/shortcuts_overlay.hpp"
 #include "nordend/views/sidebar.hpp"
+#include "nordend/views/status_bar.hpp"
 #include "nordend/views/thumbnails.hpp"
 
 namespace nordend::views {
@@ -87,7 +90,8 @@ public:
     [[nodiscard]] bool animating() const;
 
     void pointer(const ui::PointerEvent& event, Clock::time_point now);
-    void key(const ui::KeyEvent& event, Clock::time_point now);
+    // false when event did nothing: no shortcut (shortcuts()) where the keyboard is.
+    bool key(const ui::KeyEvent& event, Clock::time_point now);
 
     // The view shown is still loading, or its thumbnails are being made (snapshots, tests).
     [[nodiscard]] bool loading() const;
@@ -106,17 +110,20 @@ public:
 
     [[nodiscard]] Breadcrumb& breadcrumb() noexcept { return breadcrumb_; }
 
+    [[nodiscard]] StatusBar& status_bar() noexcept { return status_bar_; }
+
+    [[nodiscard]] ShortcutsOverlay& shortcuts_overlay() noexcept { return shortcuts_; }
+
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
-    // Ctrl+1/2/3, Ctrl+I, Ctrl+B, F6: true when event was one of them.
-    bool browser_key(const ui::KeyEvent& event);
-    void view_key(const ui::KeyEvent& event, Clock::time_point now);
+    void run(Command command, Clock::time_point now);
+    bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // Who gets the pointer: the view, the sidebar or the breadcrumb above the view.
-    enum class Target : std::uint8_t { view, sidebar, breadcrumb };
+    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar };
 
     void send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now);
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -131,6 +138,8 @@ private:
     QuickLook quick_look_;
     Sidebar sidebar_;
     Breadcrumb breadcrumb_;
+    StatusBar status_bar_;
+    ShortcutsOverlay shortcuts_;
     Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};

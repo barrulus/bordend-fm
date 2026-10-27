@@ -213,6 +213,7 @@ void DirectoryModel::apply(const std::vector<std::string>& names,
 }
 
 void DirectoryModel::notify(const ModelChange& change) {
+    ++revision_;
     if (change_handler_) {
         change_handler_(change);
     }
