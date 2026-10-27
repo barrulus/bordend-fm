@@ -149,6 +149,8 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
         result.jpeg = std::move(data);
         result.width = chosen.width;
         result.height = chosen.height;
+        result.full_width = image->pixelWidth();
+        result.full_height = image->pixelHeight();
         const auto orientation = number(image->exifData(), "Exif.Image.Orientation");
         if (orientation && *orientation >= 1 && *orientation <= 8) {
             result.orientation = static_cast<std::uint8_t>(*orientation);

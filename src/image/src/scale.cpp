@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 
 namespace nordend::image {
@@ -68,37 +69,57 @@ Image halve(const Image& image) {
 
 Image area_scale(const Image& image, std::size_t out_width, std::size_t out_height) {
     const std::size_t in_width = image.width;
-    const std::size_t in_height = image.height;
     const std::vector<Span> columns = spans(in_width, out_width);
-    const std::vector<Span> rows = spans(in_height, out_height);
+    const std::vector<Span> rows = spans(image.height, out_height);
+    // Photos are opaque: then there is no alpha to weight by or to divide by.
+    bool opaque = true;
+    for (std::size_t i = 3; i < image.rgba.size() && opaque; i += 4) {
+        opaque = image.rgba[i] == 255;
+    }
 
-    // Across: every input row to out_width premultiplied pixels.
-    std::vector<float> across(in_height * out_width * 4);
-    for (std::size_t y = 0; y < in_height; ++y) {
+    // One input row as premultiplied floats (0-255), then averaged across to out_width pixels.
+    std::vector<float> input(in_width * 4);
+    std::vector<float> across(out_width * 4);
+    std::size_t across_row = SIZE_MAX;  // the input row in across
+    const auto scale_row = [&](std::size_t y) {
         const std::uint8_t* const row = &image.rgba[y * in_width * 4];
-        float* const to = &across[y * out_width * 4];
+        if (opaque) {
+            for (std::size_t i = 0; i < input.size(); ++i) {
+                input[i] = static_cast<float>(row[i]);
+            }
+        } else {
+            for (std::size_t x = 0; x < in_width; ++x) {
+                const auto alpha = static_cast<float>(row[(x * 4) + 3]);
+                for (std::size_t c = 0; c < 3; ++c) {
+                    input[(x * 4) + c] = static_cast<float>(row[(x * 4) + c]) * alpha / 255.0F;
+                }
+                input[(x * 4) + 3] = alpha;
+            }
+        }
         for (std::size_t x = 0; x < out_width; ++x) {
             const Span& span = columns[x];
+            const float* pixel = &input[span.first * 4];
             float r = 0.0F;
             float g = 0.0F;
             float b = 0.0F;
             float a = 0.0F;
-            for (std::size_t k = 0; k < span.weights.size(); ++k) {
-                const std::uint8_t* const pixel = row + ((span.first + k) * 4);
-                const float weight = span.weights[k] * static_cast<float>(pixel[3]);
-                r += weight * static_cast<float>(pixel[0]);
-                g += weight * static_cast<float>(pixel[1]);
-                b += weight * static_cast<float>(pixel[2]);
-                a += weight;
+            for (const float weight : span.weights) {
+                r += weight * pixel[0];
+                g += weight * pixel[1];
+                b += weight * pixel[2];
+                a += weight * pixel[3];
+                pixel += 4;
             }
-            to[(x * 4) + 0] = r;
-            to[(x * 4) + 1] = g;
-            to[(x * 4) + 2] = b;
-            to[(x * 4) + 3] = a;
+            across[(x * 4) + 0] = r;
+            across[(x * 4) + 1] = g;
+            across[(x * 4) + 2] = b;
+            across[(x * 4) + 3] = a;
         }
-    }
+        across_row = y;
+    };
 
-    // Down: the rows of that to out_height, back to straight alpha.
+    // Down, one output row at a time: the input rows it covers, each scaled across once (a row
+    // shared by two output rows is the last of one and the first of the next).
     Image out;
     out.width = static_cast<std::uint32_t>(out_width);
     out.height = static_cast<std::uint32_t>(out_height);
@@ -108,18 +129,27 @@ Image area_scale(const Image& image, std::size_t out_width, std::size_t out_heig
         const Span& span = rows[y];
         std::ranges::fill(sum, 0.0F);
         for (std::size_t k = 0; k < span.weights.size(); ++k) {
-            const float* const from = &across[(span.first + k) * out_width * 4];
+            if (across_row != span.first + k) {
+                scale_row(span.first + k);
+            }
             const float weight = span.weights[k];
             for (std::size_t i = 0; i < sum.size(); ++i) {
-                sum[i] += weight * from[i];
+                sum[i] += weight * across[i];
             }
         }
         std::uint8_t* const to = &out.rgba[y * out_width * 4];
+        if (opaque) {
+            for (std::size_t i = 0; i < sum.size(); ++i) {
+                to[i] = static_cast<std::uint8_t>(std::clamp(sum[i] + 0.5F, 0.0F, 255.0F));
+            }
+            continue;
+        }
         for (std::size_t x = 0; x < out_width; ++x) {
-            const float alpha = sum[(x * 4) + 3];  // 0-255
+            const float alpha = sum[(x * 4) + 3];
+            const float unpremultiply = alpha > 0.0F ? 255.0F / alpha : 0.0F;
             for (std::size_t c = 0; c < 3; ++c) {
-                const float value = alpha > 0.0F ? sum[(x * 4) + c] / alpha : 0.0F;
-                to[(x * 4) + c] = static_cast<std::uint8_t>(std::clamp(value + 0.5F, 0.0F, 255.0F));
+                to[(x * 4) + c] = static_cast<std::uint8_t>(
+                    std::clamp((sum[(x * 4) + c] * unpremultiply) + 0.5F, 0.0F, 255.0F));
             }
             to[(x * 4) + 3] = static_cast<std::uint8_t>(std::clamp(alpha + 0.5F, 0.0F, 255.0F));
         }

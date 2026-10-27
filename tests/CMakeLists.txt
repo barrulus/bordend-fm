@@ -11,6 +11,7 @@ add_executable(nordend-tests
     image_test.cpp
     mime_test.cpp
     palette_test.cpp
+    quick_look_test.cpp
     scroller_test.cpp
     sort_test.cpp
     thumbs_test.cpp

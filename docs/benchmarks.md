@@ -235,6 +235,8 @@ around the same calls):
 Two changes came from these numbers: zlib level 1 instead of 6 (PNG of an xx-large thumbnail
 171 ms → 36 ms, files about 13 % larger) and halving 2x2 before the area filter (3200 → 1024:
 42 ms → 26 ms). Finding the preview with exiv2 (open, metadata, preview list) costs 1-2.5 ms.
+With ROADMAP 5.3 the area filter became streaming (below): the xx-large scales are now 6.0 ms
+(JPEG preview) and 15.6 ms (ORF preview).
 
 ### 2026-10-27: a screenful of thumbnails in the grid
 
@@ -251,6 +253,30 @@ the worker pool, 8 threads on the Ryzen 7 5700G). 1600x1000 at scale 1.5.
 
 Scrolling the grid with thumbnails (`--bench 600`, 90 JPEGs, warm, 2880x1620): 0.62 ms median,
 0.76 ms p95, against 0.32 ms with icons only; one draw call per thumbnail.
+
+## Quick Look (ROADMAP 5.3)
+
+### 2026-10-27: an image fitted to the screen
+
+`image::load_to_fit(file, 2880, 1620)` (1920x1080 at scale 1.5, minus nothing), best of 4, warm
+cache: the preview when it is at least as large as the screen (or the file is raw), else the
+whole image; scaled, then turned.
+
+| File | Shown | From | Time |
+|------|-------|------|-----:|
+| OM-1 ORF (5 files) | 2160x1620 or 1620x2160 | 3200x2400 preview | 51-55 ms |
+| OM-1 JPEG, 20 MP | 1620x2160 | whole image (preview 1600 < 2880) | 212 ms |
+| Sony A7 II ARW | 1616x1080 | preview | 17 ms |
+| Nikon D800 NEF | 2427x1620 | preview (full size) | 248 ms |
+| WebP 1536x2048 | 1215x1620 | whole image | 56 ms |
+
+Quick Look shows the cached thumbnail at once and this image when it arrives; the entries
+before and after are made in advance.
+
+The area filter had to change for this: 3200x2400 → 2160x1620 took 84 ms, because the
+horizontal pass filled an intermediate buffer of input rows x output width (83 MB here). Now it
+streams (each input row scaled across once, accumulated into the output row it belongs to), with
+an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
 ## MIME detection (ROADMAP 3.2)
 

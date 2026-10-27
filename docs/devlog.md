@@ -4,6 +4,61 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Quick Look (ROADMAP 5.3)
+
+**Done**
+- `image::load_to_fit(file, w, h)`: the image to show in w x h physical pixels: an embedded
+  preview when it is at least that large (or the file is raw), else the whole image; scaled
+  first, turned after; reports the full image's size (exiv2's pixel size for previews).
+  `EmbeddedPreview` now carries the main image's size.
+- `views::QuickLook`, owned by `Browser`: Space (no modifiers) opens it on the cursor entry of
+  the current folder (focused column, or the grid's). It follows the cursor: every other key goes
+  to the view underneath (arrows, Page, Home/End, also Enter or Ctrl+1/2) and Quick Look shows
+  where the cursor lands, closing when it is on nothing; Space, Escape or a click close it
+  (Escape does not reach the view: a multiple selection survives). Over a scrim with a 140 ms
+  fade: images and raw files fitted to the window and never enlarged past their pixels, rounded,
+  with a shadow and a caption (name, full size, file size). Two stages: the cached thumbnail at
+  once (stretched where the image will land), then the sharp image. The entries before and after
+  are made in advance (nearby priority); everything else is cancelled. Other entries get an
+  information card (icon, name, type, size, date); text previews are ROADMAP 5.5.
+- `image::scale_to_fit` rewritten as a streaming area filter: no intermediate image (it was 83 MB
+  for 3200x2400 → 2160x1620), an opaque fast path, one reciprocal per pixel: 84 ms → 27 ms.
+  Thumbnails gain too (xx-large from an ORF preview: 26 → 16 ms).
+- Textures dropped outside a draw are kept until the next draw, so GL deletes always happen with
+  the context current.
+- 4 new test cases (101 in total): open on the cursor, arrows follow, upright size, information
+  card, Escape and Space close; Escape does not collapse a selection, Ctrl+Space stays
+  selection; over the grid, a click closes; an image whose type is not known yet is shown once
+  sniffed. Release (5 runs), ASan, TSan pass, also `nordend-snapshot` with Quick Look open over
+  JPEGs and ORFs under ASan and TSan; tidy clean apart from reference members.
+
+**Found by the tests**: `a.png` has no type from its name alone: shared-mime-info gives `*.png`
+to both image/png (weight 50) and image/apng (40), so, as in GLib, the content decides and the
+type arrives when the views sniff the visible rows. Quick Look decided only once whether an
+entry was an image; now `follow()` checks again every frame (cheap, idempotent) and asks for the
+sniffing of the shown entry and its neighbours itself.
+
+**Measured** (docs/benchmarks.md): an OM-1 ORF fitted to a 2880x1620 screen in 51-55 ms (the
+5.4 target is < 100 ms), a 20 MP JPEG in 212 ms (its preview is smaller than the screen, so the
+whole image is decoded; the thumbnail shows meanwhile).
+
+**Decisions**
+- Quick Look follows the view's cursor rather than keeping its own position: one cursor, and
+  closing leaves it on the last entry seen (as Finder).
+- The sharp stage is made for the image area of the last draw (the window size), not the
+  image's full size: no zoom yet.
+
+**Tested by the author**
+- On screen, in columns and grid, over ORF, WebP, JPEG and the raw samples: "tutto perfetto,
+  fluidità ottima, caricamento fulmineo". Step 5.3 closed.
+
+**Open**
+- GIF and WebP animations show their first frame.
+- No zoom or 1:1 view; a window made larger after opening keeps the image made for the old size
+  until the next entry.
+
+---
+
 ## 2026-10-27 — Thumbnails (ROADMAP 5.2)
 
 **Done**

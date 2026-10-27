@@ -8,6 +8,7 @@ endif()
 
 add_library(nordend_image
     src/decode.cpp
+    src/fit.cpp
     src/jpeg_segments.cpp
     src/jxl_decoder.cpp
     src/png.cpp

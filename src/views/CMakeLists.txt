@@ -6,6 +6,7 @@ add_library(nordend_views
     src/folder.cpp
     src/format.cpp
     src/grid_view.cpp
+    src/quick_look.cpp
     src/thumbnails.cpp)
 add_library(nordend::views ALIAS nordend_views)
 

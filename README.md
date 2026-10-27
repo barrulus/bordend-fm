@@ -3,7 +3,7 @@
 **A native, Wayland-only file manager for the [Noctalia](https://github.com/noctalia-dev) ecosystem.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%203-complete-3DA639)
+![phase](https://img.shields.io/badge/phase%204-complete-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -45,6 +45,9 @@ What already works, the way it is meant to stay:
 - **Your photos at a glance.** In the grid, photos and camera raw files show their thumbnails,
   upright, in a fraction of a second: Nordend uses the previews your camera already stored in
   the file, and keeps the thumbnails in the shared cache other apps read too.
+- **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
+  walk the folder without closing it, and the next photo is already there. Space or Escape
+  closes it, and you are where you stopped.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -53,8 +56,9 @@ What already works, the way it is meant to stay:
 
 ## Progress
 
-`nordend [DIR]` opens a folder (default: your home) in Finder-style columns;
-`nordend --test-scene` shows everything the renderer can draw.
+`nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
+the thumbnail grid, Ctrl+1 back, Space opens Quick Look. `nordend --test-scene` shows everything
+the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
 
@@ -102,8 +106,12 @@ What already works, the way it is meant to stay:
 - Thumbnails in the grid through the freedesktop cache (`~/.cache/thumbnails`, shared with
   other apps), made from the previews camera files carry (OM System JPEG and ORF) or from the
   whole image; a screenful in 0.15-0.4 s the first time, about 20 ms after
+- Quick Look: Space shows the entry under the cursor over the window, arrows walk the folder
+  underneath; images and raw files fitted to the screen (an ORF in about 55 ms), the thumbnail
+  first, neighbours prepared ahead; an information card for the rest
 
-**Next:** Quick Look. The full plan is in the [roadmap](docs/ROADMAP.md).
+**Next:** raw files in depth (TIFF previews, crops). The full plan is in the
+[roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 
@@ -113,6 +121,15 @@ Measured, not assumed. Opening a folder of **10 000 files** on a SATA SSD:
 |-------|--------------------:|-------------------------------:|---------------------------:|
 | warm (median of 20) | **0.8 ms** | **19.5 ms** | < 50 ms |
 | cold (after `drop_caches`) | **1.7 ms** | **81 ms** | < 50 ms |
+
+Photos (OM System OM-1: 20 MP JPEGs and ORF raw files), Ryzen 7 5700G, warm cache:
+
+| What | Time |
+|------|-----:|
+| A grid screenful of thumbnails, made the first time / read from the cache | **0.15-0.4 s** / **12-22 ms** |
+| One thumbnail from an OM-1 JPEG / ORF (embedded preview, scaled, PNG written) | **12 ms** / **36 ms** |
+| Quick Look of an ORF, fitted to a 2880x1620 screen | **51-55 ms** |
+| Scrolling the grid with thumbnails, per frame at 2880x1620 | **0.62 ms** |
 
 Method, machine, cold-cache numbers and more folders: [docs/benchmarks.md](docs/benchmarks.md).
 
@@ -158,6 +175,14 @@ ctest --test-dir build
 # Directory loading benchmark (see docs/benchmarks.md)
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k
 ./build/nordend-bench-dir --runs 20 /tmp/bench-10k
+
+# The grid and Quick Look offscreen, keys pressed first, thumbnails in a scratch cache
+./build/nordend-snapshot --columns ~/Pictures --keys "Ctrl+2,Right,space" \
+    --thumbnails /tmp/thumbs quick-look.ppm 1600 1000 1.5
+
+# Image decoding and thumbnails: sizes, timings, and a PPM to look at
+./build/nordend-decode --runs 5 --ppm photo.ppm photo.jpg
+./build/nordend-thumb --size large --cache /tmp/thumbs photo.ORF
 ```
 
 ## Documentation
@@ -176,4 +201,5 @@ are the author's.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Third-party code and data in the repository (the wuffs decoder, Noctalia's
+default palette) are listed with their origin and license in [THIRD_PARTY.md](THIRD_PARTY.md).

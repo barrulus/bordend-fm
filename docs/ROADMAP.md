@@ -84,7 +84,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   png, jpeg, gif (wuffs), webp, jxl.
 - [x] **5.2 Cache miniature freedesktop**
   Lettura e scrittura in `~/.cache/thumbnails`, compatibile con le altre app.
-- [ ] **5.3 Quick Look immagini**
+- [x] **5.3 Quick Look immagini**
   Overlay con barra spazio, frecce per scorrere, Esc per chiudere.
 - [ ] **5.4 RAW**
   JPEG incorporato negli ORF via exiv2, orientamento corretto.
