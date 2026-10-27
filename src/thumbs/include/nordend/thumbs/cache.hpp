@@ -20,7 +20,9 @@ enum class Size : std::uint8_t { normal, large, x_large, xx_large };
 [[nodiscard]] Size size_for(std::uint32_t side) noexcept;
 
 // Whether a thumbnail can be made for this MIME type: the image formats Nordend decodes, and
-// camera raw files (from their embedded previews).
+// camera raw files (from their embedded previews), TIFF included: Nikon's TIFF and Hasselblad's
+// 3FR (which shared-mime-info calls image/tiff) carry previews. A TIFF without one is tried once
+// and remembered as failed.
 [[nodiscard]] bool can_make(std::string_view mime) noexcept;
 
 // The file:// URI of an absolute path, escaped exactly as GLib's g_filename_to_uri does: other

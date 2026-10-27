@@ -10,6 +10,7 @@
 
 #include "decoders.hpp"
 #include "jpeg_segments.hpp"
+#include "tiff.hpp"
 
 namespace nordend::image {
 namespace {
@@ -31,34 +32,8 @@ constexpr std::array<std::uint8_t, 6> kExif{'E', 'x', 'i', 'f', 0, 0};
 constexpr std::array<std::uint8_t, 4> kTiffLittle{'I', 'I', 42, 0};
 constexpr std::array<std::uint8_t, 4> kTiffBig{'M', 'M', 0, 42};
 constexpr std::uint16_t kOrientationTag = 0x0112;
-constexpr std::uint16_t kTiffShort = 3;
-constexpr std::ptrdiff_t kTile = 32;  // apply_orientation works in kTile x kTile blocks
-
-// Reads TIFF integers in the byte order the block declares.
-class TiffReader {
-public:
-    TiffReader(std::span<const std::uint8_t> data, bool little) : data_{data}, little_{little} {}
-
-    [[nodiscard]] bool has(std::size_t offset, std::size_t size) const {
-        return offset <= data_.size() && size <= data_.size() - offset;
-    }
-
-    [[nodiscard]] std::uint16_t u16(std::size_t offset) const {
-        const auto a = data_[offset];
-        const auto b = data_[offset + 1];
-        return static_cast<std::uint16_t>(little_ ? a | (b << 8) : (a << 8) | b);
-    }
-
-    [[nodiscard]] std::uint32_t u32(std::size_t offset) const {
-        const std::uint32_t high = u16(offset + (little_ ? 2 : 0));
-        const std::uint32_t low = u16(offset + (little_ ? 0 : 2));
-        return (high << 16) | low;
-    }
-
-private:
-    std::span<const std::uint8_t> data_;
-    bool little_;
-};
+constexpr std::size_t kSniffBytes = 16;  // enough for sniff()
+constexpr std::ptrdiff_t kTile = 32;     // apply_orientation works in kTile x kTile blocks
 
 // The EXIF orientation of a JPEG: wuffs does not report JPEG metadata, so it is read from the
 // APP1 "Exif" segment here.
@@ -110,32 +85,15 @@ std::uint8_t exif_orientation(std::span<const std::uint8_t> exif) noexcept {
     if (starts_with(exif, kExif)) {
         exif = exif.subspan(6);
     }
-    bool little = false;
-    if (starts_with(exif, kTiffLittle)) {
-        little = true;
-    } else if (!starts_with(exif, kTiffBig)) {
+    if (!starts_with(exif, kTiffLittle) && !starts_with(exif, kTiffBig)) {
         return 1;
     }
-    const TiffReader tiff{exif, little};
-    if (!tiff.has(4, 4)) {
+    const std::optional<detail::TiffReader> tiff = detail::TiffReader::open(exif);
+    if (!tiff) {
         return 1;
     }
-    const std::size_t ifd = tiff.u32(4);
-    if (!tiff.has(ifd, 2)) {
-        return 1;
-    }
-    const std::size_t count = tiff.u16(ifd);
-    for (std::size_t i = 0; i < count; ++i) {
-        const std::size_t entry = ifd + 2 + (i * 12);
-        if (!tiff.has(entry, 12)) {
-            break;
-        }
-        if (tiff.u16(entry) == kOrientationTag && tiff.u16(entry + 2) == kTiffShort) {
-            const std::uint16_t value = tiff.u16(entry + 8);
-            return value >= 1 && value <= 8 ? static_cast<std::uint8_t>(value) : 1;
-        }
-    }
-    return 1;
+    const std::uint32_t value = tiff->number(tiff->first_ifd(), kOrientationTag).value_or(1);
+    return value >= 1 && value <= 8 ? static_cast<std::uint8_t>(value) : 1;
 }
 
 Image apply_orientation(Image image, std::uint8_t orientation) {
@@ -247,10 +205,25 @@ Decoded decode_file(const std::filesystem::path& path, const DecodeOptions& opti
         result.error = error.message();
         return result;
     }
-    std::vector<std::uint8_t> data(size);
+    // The head first: a file of a format not decoded here (a raw file of 50 MB) is not read.
+    const std::size_t head = std::min<std::size_t>(size, kSniffBytes);
+    std::vector<std::uint8_t> data(head);
     std::ifstream file{path, std::ios::binary};
-    if (!file.read(reinterpret_cast<char*>(data.data()),  // NOLINT: bytes to char for read
-                   static_cast<std::streamsize>(size))) {
+    const auto read = [&](std::size_t from, std::size_t count) {
+        return static_cast<bool>(
+            file.read(reinterpret_cast<char*>(data.data() + from),  // NOLINT: bytes to char
+                      static_cast<std::streamsize>(count)));
+    };
+    if (!read(0, head)) {
+        Decoded result;
+        result.error = "cannot read the file";
+        return result;
+    }
+    if (sniff(data) == Format::unknown) {
+        return decode(data, options);  // fails with the reason
+    }
+    data.resize(size);
+    if (!read(head, size - head)) {
         Decoded result;
         result.error = "cannot read the file";
         return result;

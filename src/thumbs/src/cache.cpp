@@ -160,11 +160,12 @@ Size size_for(std::uint32_t side) noexcept {
 }
 
 bool can_make(std::string_view mime) noexcept {
-    static constexpr std::array<std::string_view, 27> kTypes{"image/png",
+    static constexpr std::array<std::string_view, 28> kTypes{"image/png",
                                                              "image/jpeg",
                                                              "image/gif",
                                                              "image/webp",
                                                              "image/jxl",
+                                                             "image/tiff",
                                                              "image/x-adobe-dng",
                                                              "image/x-canon-cr2",
                                                              "image/x-canon-cr3",
@@ -285,8 +286,8 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
     std::string error;
     const image::EmbeddedPreview preview = image::embedded_preview(file, side);
     const bool preview_enough = std::max(preview.width, preview.height) >= side;
-    if (!preview.jpeg.empty() && preview_enough) {
-        image::Decoded decoded = image::decode(preview.jpeg, {.apply_orientation = false});
+    if (!preview.data.empty() && preview_enough) {
+        image::Decoded decoded = image::decode_preview(preview);
         if (decoded.error.empty()) {
             picture = std::move(decoded.image);
             orientation = preview.orientation;
@@ -299,9 +300,9 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
             picture = std::move(decoded.image);
             orientation = decoded.orientation;
             source = Source::decoded;
-        } else if (!preview.jpeg.empty()) {
+        } else if (!preview.data.empty()) {
             // Not decodable (a raw file): the largest preview there is will do.
-            image::Decoded small = image::decode(preview.jpeg, {.apply_orientation = false});
+            image::Decoded small = image::decode_preview(preview);
             if (small.error.empty()) {
                 picture = std::move(small.image);
                 orientation = preview.orientation;

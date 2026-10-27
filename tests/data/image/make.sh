@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regenerates the image decoding and thumbnail fixtures (ROADMAP 5.1, 5.2) with ImageMagick 7 and exiftool.
+# Regenerates the image decoding and thumbnail fixtures (ROADMAP 5.1, 5.2, 5.4) with ImageMagick 7 and exiftool.
 # blocks.*: 48x32, six 16x16 blocks:
 #   red    green  blue
 #   white* black  yellow      (* half transparent where the format has alpha)
@@ -25,4 +25,9 @@ magick opaque.ppm -scale 400% -quality 90 -sampling-factor 4:4:4 -strip thumbnai
 exiftool -q -overwrite_original -n '-ThumbnailImage<=thumbnail.jpg' -Orientation=6 \
     with-thumbnail.jpg
 rm thumbnail.jpg
+# 96x64, uncompressed 8-bit RGB in strips of 7 rows (the last one short), marked as a
+# reduced-resolution image: exiv2 lists such an IFD0 as a TIFF preview, as in Hasselblad's 3FR.
+magick opaque.ppm -scale 200% -depth 8 -compress none -define tiff:rows-per-strip=7 \
+    tiff-preview.tif
+exiftool -q -overwrite_original -n -SubfileType=1 tiff-preview.tif
 rm opaque.ppm

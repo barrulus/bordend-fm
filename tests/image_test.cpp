@@ -241,11 +241,12 @@ TEST_CASE("image: an embedded EXIF thumbnail is found, with the main image's ori
     const image::EmbeddedPreview preview =
         image::embedded_preview(kData / "with-thumbnail.jpg", 16);
     CHECK(preview.error.empty());
-    REQUIRE_FALSE(preview.jpeg.empty());
+    REQUIRE_FALSE(preview.data.empty());
+    CHECK_FALSE(preview.tiff);
     CHECK(preview.width == 192);
     CHECK(preview.height == 128);
     CHECK(preview.orientation == 6);
-    const image::Decoded decoded = image::decode(preview.jpeg, {.apply_orientation = false});
+    const image::Decoded decoded = image::decode_preview(preview);
     REQUIRE(decoded.error.empty());
     REQUIRE(decoded.image.width == 192);
     CHECK(pixel(decoded.image, 32, 32).r > 240);  // red block, top left
@@ -253,9 +254,98 @@ TEST_CASE("image: an embedded EXIF thumbnail is found, with the main image's ori
 
     // None in a plain file, and an error only when the file cannot be read.
     const image::EmbeddedPreview none = image::embedded_preview(kData / "blocks.png", 16);
-    CHECK(none.jpeg.empty());
+    CHECK(none.data.empty());
     CHECK(none.error.empty());
     const image::EmbeddedPreview missing = image::embedded_preview(kData / "nothing.jpg", 16);
-    CHECK(missing.jpeg.empty());
+    CHECK(missing.data.empty());
     CHECK_FALSE(missing.error.empty());
+}
+
+TEST_CASE("image: an uncompressed TIFF preview is read, strip by strip") {
+    const image::EmbeddedPreview preview = image::embedded_preview(kData / "tiff-preview.tif", 16);
+    CHECK(preview.error.empty());
+    REQUIRE_FALSE(preview.data.empty());
+    CHECK(preview.tiff);
+    CHECK(preview.width == 96);
+    CHECK(preview.height == 64);
+    CHECK_FALSE(preview.crop);
+    const image::Decoded decoded = image::decode_preview(preview);
+    REQUIRE(decoded.error.empty());
+    REQUIRE(decoded.image.width == 96);
+    REQUIRE(decoded.image.height == 64);
+    // Each block is 32x32: the centers, and the last rows (in the short last strip).
+    for (std::size_t block = 0; block < kBlocks.size(); ++block) {
+        const Rgba expected = kBlocks.at(block);
+        const Rgba actual = pixel(decoded.image, ((block % 3) * 32) + 16, ((block / 3) * 32) + 16);
+        INFO("block " << block);
+        CHECK(actual.r == expected.r);
+        CHECK(actual.g == expected.g);
+        CHECK(actual.b == expected.b);
+        CHECK(actual.a == 255);
+    }
+    CHECK(pixel(decoded.image, 80, 63).r == 255);  // yellow, bottom right
+    CHECK(pixel(decoded.image, 80, 63).b == 0);
+
+    // A cut TIFF fails with a reason; a crop that does not fit leaves the preview whole.
+    image::EmbeddedPreview cut = preview;
+    cut.data.resize(cut.data.size() / 2);
+    CHECK_FALSE(image::decode_preview(cut).error.empty());
+    image::EmbeddedPreview cropped = preview;
+    cropped.crop = image::PreviewCrop{.x = 32, .y = 0, .width = 64, .height = 32};
+    const image::Decoded part = image::decode_preview(cropped);
+    REQUIRE(part.image.width == 64);
+    REQUIRE(part.image.height == 32);
+    CHECK(pixel(part.image, 16, 16).g == 255);  // green, now top left
+    CHECK(pixel(part.image, 16, 16).r == 0);
+    cropped.crop = image::PreviewCrop{.x = 64, .y = 0, .width = 64, .height = 32};
+    CHECK(image::decode_preview(cropped).image.width == 96);
+}
+
+// The raw samples of other cameras (rawsamples.ch, CLAUDE.md), when this machine has them.
+namespace {
+const std::filesystem::path kRawSamples{"/run/media/pankaspe/DATA/fotografia/raw_text_examples"};
+}  // namespace
+
+TEST_CASE("image: raw samples of other cameras" *
+          doctest::skip(!std::filesystem::is_directory(kRawSamples))) {
+    for (const auto& entry : std::filesystem::directory_iterator{kRawSamples}) {
+        INFO(entry.path().filename().string());
+        for (const std::uint32_t side : {128U, 256U, 1024U, 2880U}) {
+            INFO("side " << side);
+            const image::EmbeddedPreview preview = image::embedded_preview(entry.path(), side);
+            CHECK(preview.error.empty());
+            REQUIRE_FALSE(preview.data.empty());
+            const image::Decoded decoded = image::decode_preview(preview);
+            REQUIRE(decoded.error.empty());
+            CHECK(decoded.image.width == preview.width);
+            CHECK(decoded.image.height == preview.height);
+        }
+    }
+    const auto preview = [&](const char* name, std::uint32_t side) {
+        return image::embedded_preview(kRawSamples / name, side);
+    };
+    // Only a TIFF preview in a 3FR.
+    const image::EmbeddedPreview hasselblad = preview("RAW_HASSELBLAD_H3D39II.3FR", 256);
+    CHECK(hasselblad.tiff);
+    CHECK(hasselblad.width == 320);
+    // Canon's TIFF previews are never taken, even where one would be big enough.
+    CHECK_FALSE(preview("RAW_CANON_EOS_5DS.CR2", 256).tiff);
+    CHECK(preview("RAW_CANON_EOS_5DS.CR2", 256).width == 8688);
+    // A 4:3 EXIF thumbnail of a 3:2 photo has black bars: the next preview is taken instead.
+    CHECK(preview("RAW_SONY_RX10M2.ARW", 128).width == 1616);
+    CHECK(preview("RAW_NIKON_D800_L.TIFF", 128).width == 570);
+    CHECK(preview("RAW_PANASONIC_DMC-GX-7_11.RW2", 128).width == 1920);
+    CHECK(preview("RAW_PANASONIC_DMC-GX-7_43.RW2", 128).width == 160);
+    // The GX8 crops its 4:3 preview to the aspect ratio shot; the GX7 stores it cropped.
+    const image::EmbeddedPreview wide = preview("RAW_PANASONIC_GX8_169.RW2", 1024);
+    REQUIRE(wide.crop);
+    CHECK(wide.width == 1920);
+    CHECK(wide.height == 1082);
+    CHECK(wide.full_width == 5184);
+    CHECK(wide.full_height == 2920);
+    const image::EmbeddedPreview square = preview("RAW_PANASONIC_GX8_11.RW2", 1024);
+    CHECK(square.width == 1440);
+    CHECK(square.height == 1440);
+    CHECK_FALSE(preview("RAW_PANASONIC_GX8_43.RW2", 1024).crop);
+    CHECK_FALSE(preview("RAW_PANASONIC_DMC-GX-7_169.RW2", 1024).crop);
 }

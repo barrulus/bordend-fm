@@ -14,6 +14,7 @@ add_library(nordend_image
     src/png.cpp
     src/preview.cpp
     src/scale.cpp
+    src/tiff.cpp
     src/webp_decoder.cpp
     src/wuffs_decoder.cpp)
 add_library(nordend::image ALIAS nordend_image)

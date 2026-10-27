@@ -278,6 +278,57 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Raw previews (ROADMAP 5.4)
+
+### 2026-10-27: other cameras (rawsamples.ch, 22 files)
+
+Files in `/run/media/pankaspe/DATA/fotografia/raw_text_examples` (not in the repository), warm
+cache, Release.
+
+**What the files carry** (`exiv2 -pp`, then the TIFFs extracted with `exiv2 -ep` and looked at):
+every one has a 160x120 EXIF thumbnail, and a JPEG of 1536-8688 px except the Hasselblad 3FR
+(only an uncompressed 320x240 TIFF). Canon's TIFF previews (CR2, 384x256 to 668x448, 8 or
+16 bits) are sensor data without white balance or tone curve: green and dark, not usable. The
+EXIF thumbnail is always 4:3: for 3:2, 16:9 and 1:1 photos it has black bars (6-8 rows, or 20
+columns; measured with `magick -crop ... -format %[fx:mean]`).
+
+**Quick Look**, `image::load_to_fit(file, 2880, 1620)`, best of 4 (a scratch program linking
+`libnordend_image.a`):
+
+| File | Shown | Whole file read first | Head read first |
+|------|-------|---------------------:|----------------:|
+| OM-1 ORF (preview large enough) | 1620x2160 | 51.9 ms | 51.6 ms |
+| Hasselblad 3FR (TIFF preview) | 320x240 | 42.1 ms | 0.4 ms |
+| Nikon D800 TIFF | 570x375 | 89.2 ms | 2.3 ms |
+| Panasonic GX8 16:9 (cropped) | 1920x1082 | 17.6 ms | 10.8 ms |
+| Sony A7 II ARW | 1616x1080 | 16.4 ms | 12.6 ms |
+| Nikon D800 NEF (preview large enough) | 2427x1620 | — | 265 ms |
+| Canon 5DS CR2 (8688x5792 JPEG) | 2430x1620 | — | 379 ms |
+
+When the preview is smaller than the screen, `decode_file` is tried on the raw file first (it
+could be an image format) and fails; it allocated and read the whole file before finding out
+(55 MB for the 3FR, 112 MB for the TIFF). Now it reads 16 bytes first and stops on a format it
+does not decode. The NEF and the CR2 decode a full-size JPEG preview (wuffs has no reduced-scale
+JPEG decoding).
+
+**Thumbnails**, `nordend-thumb --make --size SIZE`, a fresh cache each run, best of 3:
+
+| File | normal (128), before | normal, after | large (256) |
+|------|--------------------:|--------------:|------------:|
+| Canon 5DS CR2 | 8.9 ms | 372 ms | 376 ms |
+| Canon 1D X CR2 | 9.0 ms | 143 ms | 146 ms |
+| Sony RX10 II ARW | 7.5 ms | 22 ms | 24 ms |
+| Panasonic GX7 1:1 RW2 | 4.3 ms | 33 ms | 37 ms |
+| Nikon D800 TIFF | 10.0 ms | 9.8 ms | 11.8 ms |
+| Hasselblad 3FR | no thumbnail | 2.9 ms | 5.5 ms |
+| Panasonic GX8 16:9 RW2 | 4.2 ms (4:3) | 4.2 ms | 30 ms |
+
+The normal size got slower for 3:2 and 1:1 photos: their EXIF thumbnail has black bars and is
+now skipped, so the next preview is decoded (for the Canons, the full-size JPEG: wuffs cannot
+decode a JPEG at a reduced scale). The large size, which a 96 px cell uses at scale 2, already
+decoded it before. A grid of the 22 files at scale 1 is ready in 401 ms instead of 48 ms the
+first time; from the cache, nothing changes.
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

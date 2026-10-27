@@ -4,6 +4,67 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Raw previews (ROADMAP 5.4)
+
+The "Fatto quando" (Quick Look of an ORF < 100 ms) was already met in 5.3 (51-55 ms); this step
+went through the open points of 5.2 with the rawsamples.ch files of other cameras.
+
+**Done**
+- TIFF previews: `EmbeddedPreview` now carries `data` (a JPEG or a TIFF) and `image::decode_preview`
+  decodes either, cropped. Our reader for the simple kind raw files carry (uncompressed, chunky,
+  8-bit RGB, in strips) in `src/image/src/tiff.{hpp,cpp}`, with the TIFF integer reader moved
+  there from `decode.cpp`. A TIFF is taken only when no JPEG is large enough and the TIFF is
+  larger: the Hasselblad 3FR now has a thumbnail and a Quick Look (320x240, its only preview).
+- Canon's TIFF previews are never taken: extracted and looked at, they are sensor data without
+  white balance (green, dark), 16 bits on the 1D X and 5DS. So the Canon 5DS large thumbnail
+  stays at ~370 ms (its next preview is the 50 MP JPEG).
+- Panasonic crop: the GX8 stores a 4:3 preview whatever the aspect ratio, with the frame in its
+  first IFD (CropTop/Left/Bottom/Right, tags 0x2F-0x32, which exiv2 0.28.9 does not expose),
+  relative to the sensor borders (0x04-0x07). Read by us; the crop applies to every preview of
+  the file, and the full size reported is the cropped one (16:9: 5184x2920). The GX7 has no
+  crop tags (it stores the preview cropped).
+- Previews shaped unlike the largest one (over 2 %) are dropped: the 4:3 EXIF thumbnail of 3:2,
+  16:9 and 1:1 photos has black bars (Canon, Nikon, Sony, GX7 1:1, LX3 16:9; seen in the grid,
+  then measured). A centered crop was tried on paper and rejected: the bars are not exactly
+  where the aspect ratio puts them (Nikon: 104 content rows, not 106.7), a dark line would stay.
+- `image/tiff` is in `thumbs::can_make` (Nikon TIFF, 3FR; a TIFF without a preview is tried once
+  and remembered as failed).
+- `decode_file` reads 16 bytes and sniffs before reading the rest: Quick Look of a raw file
+  whose preview is smaller than the screen no longer reads (and zeroes) the whole file first.
+- Tests (104 in total): a TIFF-preview fixture (96x64 in strips of 7 rows, from `make.sh`),
+  cut TIFF, crop in and out of bounds, `can_make`; one test over the raw samples, skipped when
+  the folder is missing: every file and size gives a decodable preview of the size it says;
+  3FR TIFF, no Canon TIFF, no barred EXIF thumbnail, GX8 crops, GX7 untouched. Release (5
+  runs), ASan, TSan pass, also `nordend-snapshot` (grid and Quick Look over the samples, Quick
+  Look over JPEG/WebP) under ASan and TSan; tidy and format clean.
+
+**Measured** (docs/benchmarks.md): Quick Look of the 3FR 42 → 0.4 ms, Nikon TIFF 89 → 2.3 ms,
+GX8 18 → 11 ms, ARW 16 → 13 ms; the ORF unchanged (51.6 ms). Normal-size (128) thumbnails of
+3:2 and 1:1 photos got slower, since the barred EXIF thumbnail is skipped: Canon 5DS 9 → 372 ms,
+1D X 9 → 143 ms, ARW 7.5 → 22 ms. Large (256), which the grid uses at scale 2, was already
+that slow before.
+
+**Decisions**
+- Correct shape over speed for the normal size: a thumbnail with black bars is wrong forever (it
+  is cached), the cost is paid once per file.
+- TIFF previews are a last resort, behind JPEGs, because only some can be read and some are
+  not images at all (Canon).
+
+**Tested by the author**
+- On screen, with a fresh cache over the raw samples (grid: every file has a thumbnail, no
+  black bars, GX8 in its aspect ratio; Quick Look of the GX8 and the 3FR) and over ORF folders:
+  "funziona tutto come hai detto". Step 5.4 closed.
+
+**Open**
+- Canon 5DS / 1D X: thumbnails and Quick Look decode the full-size JPEG (370 / 143 ms). Only a
+  JPEG decoder with reduced-scale decoding would fix it (TurboJPEG 1/8: measured in 5.2 at half
+  the cost for an OM-1 JPEG); not needed for the author's ORFs.
+- Thumbnails already in `~/.cache/thumbnails` from before (barred, or GX8 uncropped) stay until
+  the file changes: the freedesktop cache has no version. Deleting the folder remakes them.
+- The 3FR shows at 320x240 in Quick Look: never enlarged, as every image.
+
+---
+
 ## 2026-10-27 — Quick Look (ROADMAP 5.3)
 
 **Done**

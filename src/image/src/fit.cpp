@@ -16,7 +16,7 @@ Fitted load_to_fit(const std::filesystem::path& file, std::uint32_t max_width,
     Image picture;
     std::uint8_t orientation = 1;
     const auto from_preview = [&] {
-        Decoded decoded = decode(preview.jpeg, {.apply_orientation = false});
+        Decoded decoded = decode_preview(preview);
         if (!decoded.error.empty()) {
             return false;
         }
@@ -25,7 +25,7 @@ Fitted load_to_fit(const std::filesystem::path& file, std::uint32_t max_width,
         result.from_preview = true;
         return true;
     };
-    if (!preview.jpeg.empty() && std::max(preview.width, preview.height) >= side) {
+    if (!preview.data.empty() && std::max(preview.width, preview.height) >= side) {
         from_preview();
     }
     if (picture.empty()) {
@@ -35,7 +35,7 @@ Fitted load_to_fit(const std::filesystem::path& file, std::uint32_t max_width,
             orientation = decoded.orientation;
             result.full_width = picture.width;
             result.full_height = picture.height;
-        } else if (preview.jpeg.empty() || !from_preview()) {
+        } else if (preview.data.empty() || !from_preview()) {
             result.error = decoded.error;
             return result;
         }
