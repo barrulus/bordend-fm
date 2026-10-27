@@ -1,0 +1,22 @@
+#pragma once
+
+// One function per decoding library, behind decode(). Each fills result.image (RGBA, straight
+// alpha), result.orientation when the library reports EXIF, or result.error.
+
+#include <span>
+
+#include "nordend/image/decode.hpp"
+
+namespace nordend::image::detail {
+
+// PNG, JPEG and GIF (first frame), with wuffs.
+void decode_wuffs(std::span<const std::uint8_t> data, const DecodeOptions& options,
+                  Decoded& result);
+
+// WebP, still or the first frame of an animation, with libwebp.
+void decode_webp(std::span<const std::uint8_t> data, const DecodeOptions& options, Decoded& result);
+
+// JPEG XL, with libjxl (which applies the orientation itself).
+void decode_jxl(std::span<const std::uint8_t> data, const DecodeOptions& options, Decoded& result);
+
+}  // namespace nordend::image::detail

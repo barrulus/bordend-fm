@@ -160,6 +160,37 @@ each (the spread between runs is in the ranges).
 The cost follows the cells on screen (an icon, a name, a box when selected), not the folder
 size. The worst case, the smallest cells all selected, is about 5 % of a 60 Hz frame.
 
+## Image decoding (ROADMAP 5.1)
+
+**Tool:** `nordend-decode [--runs N] [--stored] FILE...`: reads each file, then decodes it N
+times from memory and prints the median (the first run is not counted). `--stored` skips the
+EXIF turn.
+
+### 2026-10-27: 20 MP photos, warm cache
+
+OM-1 JPEGs from the photo library (5184x3888, 4:2:2, 9-14 MB, EXIF orientation 8), and one of
+them converted with ImageMagick to the other formats (after the turn: 3888x5184).
+
+| What | Size | Decode |
+|------|-----:|-------:|
+| JPEG, wuffs, 20 files, as stored | 9-14 MB | median 149 ms (133-159) |
+| JPEG, wuffs, turned upright (orientation 8) | 13.4 MB | 218 ms |
+| PNG, wuffs | 27.5 MB | 229 ms |
+| WebP lossy (q90), libwebp | 2.8 MB | 210 ms |
+| JPEG XL lossy (q90), libjxl, one thread | 2.8 MB | 394 ms |
+| GIF, wuffs (2592x1944) | 2.9 MB | 12 ms |
+| WebP from the library (2048x1536 and 1536x2048) | 0.2-0.7 MB | 16-33 ms |
+
+Reading a 13 MB JPEG from the SATA SSD with a warm cache: 10-37 ms.
+
+- The EXIF turn of a full 20 MP image costs about 65 ms (80 MB read and written, even in 32x32
+  tiles). The views will not pay it at full size: thumbnails turn after scaling down, Quick Look
+  can turn with the texture coordinates.
+- A rough comparison for the thumbnails of ROADMAP 5.2: ImageMagick, which decodes JPEG with
+  libjpeg-turbo, takes 284 ms for this file in full and 97 ms with DCT scaling to 1/8
+  (`-define jpeg:size=648x486`). Its 16-bit float pipeline inflates both numbers; what
+  libjpeg-turbo scaling gains on its own is *to be verified* with a real benchmark.
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

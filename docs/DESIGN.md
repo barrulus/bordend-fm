@@ -78,6 +78,7 @@ app/        main loop, comandi, keybinding, palette comandi
 ui/         toolkit minimo: surface, renderer GLES, testo, layout, widget, animazioni
 fs/         modello directory, loader asincrono, watcher inotify, operazioni file, MIME
 views/      vista a colonne (Miller), vista a griglia
+image/      decodifica immagini (wuffs, libwebp, libjxl) e orientamento EXIF, per preview/ e thumbs/
 preview/    quick look: un provider per tipo (immagine, raw, testo, fallback info)
 thumbs/     generazione e cache miniature (spec freedesktop, ~/.cache/thumbnails)
 theme/      palette Noctalia, ricarica a caldo

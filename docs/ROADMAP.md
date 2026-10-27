@@ -80,7 +80,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 5 — Miniature e Quick Look
 
-- [ ] **5.1 Decodifica immagini**
+- [x] **5.1 Decodifica immagini**
   png, jpeg, gif (wuffs), webp, jxl.
 - [ ] **5.2 Cache miniature freedesktop**
   Lettura e scrittura in `~/.cache/thumbnails`, compatibile con le altre app.

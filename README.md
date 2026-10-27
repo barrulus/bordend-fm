@@ -91,7 +91,13 @@ What already works, the way it is meant to stay:
 - Grid view: virtualized cells, size from 48 to 256 px (Ctrl+plus/minus, Ctrl+wheel, Ctrl+0),
   Ctrl+1 / Ctrl+2 switch columns and grid keeping cursor and selection
 
-**Next:** image decoding and thumbnails (phase 5). The full plan is in the
+**Phase 5 — thumbnails and Quick Look: in progress.**
+
+- Image decoding: PNG, JPEG and GIF (wuffs, memory-safe by construction), WebP and JPEG XL
+  (libwebp, libjxl), first frame of animations, EXIF orientation; a 20 MP JPEG in about
+  150 ms
+
+**Next:** the freedesktop thumbnail cache. The full plan is in the
 [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
@@ -112,7 +118,8 @@ Void Linux package names:
 ```sh
 sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
-    harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
+    harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
+    libwebp-devel libjxl-devel
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one

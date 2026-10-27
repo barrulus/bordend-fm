@@ -8,15 +8,17 @@ add_executable(nordend-tests
     file_watcher_test.cpp
     format_test.cpp
     icon_test.cpp
+    image_test.cpp
     mime_test.cpp
     palette_test.cpp
     scroller_test.cpp
     sort_test.cpp
     worker_pool_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image doctest::doctest nordend::warnings)
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
-    PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml")
+    PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
+            NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data")
 if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()

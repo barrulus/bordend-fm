@@ -55,6 +55,8 @@ pkg_check_modules(HARFBUZZ REQUIRED IMPORTED_TARGET harfbuzz)
 pkg_check_modules(FREETYPE REQUIRED IMPORTED_TARGET freetype2)
 pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 pkg_check_modules(TOMLPLUSPLUS REQUIRED IMPORTED_TARGET tomlplusplus)
+pkg_check_modules(WEBP REQUIRED IMPORTED_TARGET libwebp libwebpdemux)
+pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
 
 # ---------------------------------------------------------------------------
 # Modules
@@ -63,7 +65,8 @@ add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
-add_subdirectory(src/views)     # list view (columns and grid to come)
+add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl)
+add_subdirectory(src/views)     # column view and grid
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
 add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
@@ -95,6 +98,10 @@ target_link_libraries(nordend-mime PRIVATE nordend::core nordend::fs nordend::wa
 add_executable(nordend-watch src/tools/watch.cpp)
 target_link_libraries(nordend-watch PRIVATE nordend::core nordend::fs nordend::warnings)
 
+# Development tool: decodes images, prints sizes and timings (ROADMAP 5.1). Not installed.
+add_executable(nordend-decode src/tools/decode.cpp)
+target_link_libraries(nordend-decode PRIVATE nordend::core nordend::image nordend::warnings)
+
 # ---------------------------------------------------------------------------
 # Tests (doctest, system package). Skipped with a notice when doctest is missing.
 # ---------------------------------------------------------------------------
@@ -111,7 +118,8 @@ endif()
 
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
-    foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch)
+    foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch
+            nordend-decode)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()
