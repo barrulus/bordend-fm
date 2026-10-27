@@ -11,9 +11,10 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  std::shared_ptr<const thumbs::Cache> thumbnails)
     : redraw_{redraw},
       thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, thumbnails, redraw) : nullptr},
-      columns_{loop, pool, watcher, mime, redraw, set_cursor},
-      grid_{loop, pool, watcher, mime, redraw, thumbnails_.get()},
-      details_{loop, pool, watcher, mime, redraw, std::move(set_cursor)},
+      info_pane_{pool, thumbnails_.get(), redraw},
+      columns_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
+      grid_{loop, pool, watcher, mime, redraw, set_cursor, thumbnails_.get(), &info_pane_},
+      details_{loop, pool, watcher, mime, redraw, std::move(set_cursor), &info_pane_},
       quick_look_{pool, std::move(mime), std::move(thumbnails), std::move(redraw)} {}
 
 void Browser::open(const std::filesystem::path& directory) {
@@ -34,7 +35,6 @@ void Browser::reveal(const std::filesystem::path& root, const std::filesystem::p
 
 void Browser::set_info_visible(bool visible) {
     info_visible_ = visible;
-    columns_.set_info_visible(visible);
     grid_.set_info_visible(visible);
     details_.set_info_visible(visible);
 }
@@ -117,11 +117,11 @@ bool Browser::animating() const {
             view = details_.animating();
             break;
     }
-    return view || quick_look_.animating(Clock::now());
+    return view || info_pane_.animating() || quick_look_.animating(Clock::now());
 }
 
 bool Browser::loading() const {
-    if (quick_look_.loading()) {
+    if (quick_look_.loading() || info_pane_.loading()) {
         return true;
     }
     switch (mode_) {

@@ -141,3 +141,28 @@ TEST_CASE("preview: the provider for a type") {
     CHECK(std::holds_alternative<preview::Info>(
         preview::provider_for(*mime, nordend::fs::kUnknownMime).load({.path = json}, token)));
 }
+
+TEST_CASE("preview: the info pane's summary of a photo, a text file and a folder") {
+    const TempDir dir;
+    const nordend::core::CancelToken token;
+    const preview::Summary photo = preview::summarize(
+        fs::path{NORDEND_TEST_DATA} / "image" / "shot.jpg", preview::Kind::image, token);
+    REQUIRE(photo.photo.has_value());
+    CHECK(photo.photo.value_or(nordend::image::PhotoInfo{}).camera == "OM-1");
+    CHECK_FALSE(photo.text);
+    CHECK_FALSE(photo.info.permissions.empty());
+
+    std::string many;
+    for (int i = 0; i < 100; ++i) {
+        many += "line\n";
+    }
+    const preview::Summary text =
+        preview::summarize(write(dir.path / "a.txt", many), preview::Kind::text, token);
+    const preview::Text lines = text.text.value_or(preview::Text{});
+    CHECK(lines.lines.size() == preview::kSummaryLines);
+    CHECK(lines.truncated);
+    CHECK_FALSE(text.photo);
+
+    const preview::Summary folder = preview::summarize(dir.path, preview::Kind::info, token);
+    CHECK(folder.info.items == std::optional<std::uint64_t>{1});
+}

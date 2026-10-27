@@ -30,4 +30,11 @@ rm thumbnail.jpg
 magick opaque.ppm -scale 200% -depth 8 -compress none -define tiff:rows-per-strip=7 \
     tiff-preview.tif
 exiftool -q -overwrite_original -n -SubfileType=1 tiff-preview.tif
+# 48x32 with the shot written in EXIF (an OM-1's values) and a darktable-like sidecar rated 3.
+cp blocks.jpg shot.jpg
+exiftool -q -overwrite_original -Make='OM Digital Solutions' -Model=OM-1 \
+    -LensModel='OLYMPUS M.12-100mm F4.0' -ExposureTime=1/2000 -FNumber=5.6 -ISO=200 \
+    -FocalLength=25 -DateTimeOriginal='2026:08:31 16:34:10' -Orientation#=6 shot.jpg
+rm -f shot.jpg.xmp
+exiftool -q -o shot.jpg.xmp -XMP-xmp:Rating=3 shot.jpg
 rm opaque.ppm

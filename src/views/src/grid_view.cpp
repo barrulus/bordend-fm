@@ -8,7 +8,6 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
-#include "info_pane.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
@@ -33,13 +32,16 @@ constexpr float kScrollbarMinThumb = 24.0F;
 
 GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                    std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-                   Thumbnails* thumbnails)
+                   std::function<void(ui::CursorShape)> set_cursor, Thumbnails* thumbnails,
+                   InfoPane* info_pane)
     : loop_{loop},
       pool_{pool},
       watcher_{watcher},
       mime_{std::move(mime)},
       redraw_{std::move(redraw)},
-      thumbnails_{thumbnails} {}
+      thumbnails_{thumbnails},
+      info_pane_{info_pane},
+      set_cursor_{std::move(set_cursor)} {}
 
 void GridView::show(std::shared_ptr<Folder> folder) {
     folder_ = std::move(folder);
@@ -166,9 +168,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         return;
     }
     draw_title_bar(renderer, bounds, palette, *folder_);
-    const bool pane = info_visible_ && info_pane_fits(bounds.width);
-    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width - (pane ? kInfoPaneWidth : 0.0F),
+    const float pane_width =
+        info_visible_ && info_pane_ != nullptr ? info_pane_->width_in(bounds.width) : 0.0F;
+    const bool pane = pane_width > 0.0F;
+    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width - pane_width,
              std::max(0.0F, bounds.height - kTitleHeight)};
+    pane_edge_ = pane ? area_.right() : -1.0F;
     layout(area_.width);
     const std::vector<fs::Entry>& entries = folder_->entries();
     const float height = cell_height();
@@ -266,10 +271,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     }
     renderer.pop_clip();
     if (pane) {
-        renderer.fill_rect({area_.right(), area_.y, 1.0F / renderer.scale(), area_.height},
-                           palette.outline_variant);
-        draw_info_pane(renderer, {area_.right(), area_.y, kInfoPaneWidth, area_.height}, palette,
-                       icons, *folder_);
+        const bool grabbed = pane_drag_ || over_pane_edge_;
+        const float line = grabbed ? 2.0F : 1.0F / renderer.scale();
+        info_pane_->draw(renderer, {area_.right(), area_.y, pane_width, area_.height}, palette,
+                         icons, *folder_, now);
+        renderer.fill_rect({area_.right() - (grabbed ? 1.0F : 0.0F), area_.y, line, area_.height},
+                           grabbed ? palette.primary : palette.outline_variant);
     }
 
     folder_->sniff(range.first * columns_, range.last * columns_);
@@ -297,11 +304,22 @@ std::optional<std::size_t> GridView::cell_at(float x, float y) const {
     return index;
 }
 
+bool GridView::on_pane_edge(float x, float y) const {
+    return pane_edge_ >= 0.0F && std::abs(x - pane_edge_) <= InfoPane::kEdgeGrab && y >= area_.y &&
+           y < area_.bottom();
+}
+
 void GridView::update_hover() {
     const std::optional<std::size_t> cell =
-        pointer_inside_ ? cell_at(pointer_x_, pointer_y_) : std::nullopt;
+        pointer_inside_ && !pane_drag_ ? cell_at(pointer_x_, pointer_y_) : std::nullopt;
     if (cell != hovered_) {
         hovered_ = cell;
+        redraw_();
+    }
+    const bool over = pane_drag_ || (pointer_inside_ && on_pane_edge(pointer_x_, pointer_y_));
+    if (over != over_pane_edge_) {
+        over_pane_edge_ = over;
+        set_cursor_(over ? ui::CursorShape::ew_resize : ui::CursorShape::standard);
         redraw_();
     }
 }
@@ -317,6 +335,12 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             pointer_inside_ = true;
             pointer_x_ = event.x;
             pointer_y_ = event.y;
+            if (pane_drag_ && info_pane_ != nullptr) {
+                // The edge follows the pointer; the cells per row change, the cursor's row stays.
+                const float width = pane_drag_->start_width + (pane_drag_->start_x - event.x);
+                keep_place();
+                info_pane_->set_width(width);
+            }
             update_hover();
             break;
         case Kind::leave:
@@ -324,6 +348,10 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             update_hover();
             break;
         case Kind::scroll:
+            if (event.x >= area_.right() && info_pane_ != nullptr &&
+                info_pane_->scroll(event, now)) {
+                break;
+            }
             if (event.modifiers.ctrl && event.wheel_y != 0.0F) {
                 // Ctrl+wheel: up makes the cells bigger, one size per notch.
                 zoom_wheel_ += event.wheel_y;
@@ -356,6 +384,22 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 event.y >= area_.bottom()) {
                 break;
             }
+            if (info_pane_ != nullptr && on_pane_edge(event.x, event.y)) {
+                if (event.click_count == 2) {
+                    keep_place();
+                    info_pane_->set_width(InfoPane::kWidth);  // double click: the default
+                } else {
+                    pane_drag_ = PaneDrag{.start_x = event.x, .start_width = info_pane_->width()};
+                }
+                update_hover();
+                break;
+            }
+            if (event.x >= area_.right()) {
+                if (info_pane_ != nullptr) {
+                    static_cast<void>(info_pane_->click(event.x, event.y));
+                }
+                break;  // the pane, not a cell
+            }
             const std::optional<std::size_t> cell = cell_at(event.x, event.y);
             const SelectMode mode = select_mode(event.modifiers, SelectMode::toggle);
             if (event.click_count == 2 && cell && mode == SelectMode::replace) {
@@ -369,6 +413,10 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             break;
         }
         case Kind::release:
+            if (pane_drag_ && event.button == ui::PointerButton::left) {
+                pane_drag_.reset();
+                update_hover();
+            }
             break;
     }
 }

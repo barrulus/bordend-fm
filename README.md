@@ -4,7 +4,7 @@
 desktop.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%205-in%20progress-FCC624)
+![phase](https://img.shields.io/badge/phase%205-complete-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -57,6 +57,11 @@ What already works, the way it is meant to stay:
 - **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
   Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
   A selection of many files shows how many and how big.
+- **A preview beside every view.** The pane at the right shows the photo under the cursor
+  with what it is: size, pixels, dates, and the shot itself (camera, lens, exposure, focal
+  length, when, your darktable rating); text files show their first lines. "More details"
+  opens the rest. In the grid and the details Ctrl+I hides it, and its edge can be dragged to
+  make it (and the photo) larger.
 - **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
   dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
   make it wider. Cursor and selection go along between all three views, and so does the info
@@ -84,7 +89,7 @@ What already works, the way it is meant to stay:
 
 `nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
 the thumbnail grid, Ctrl+3 to the details table, Ctrl+1 back, Ctrl+I shows or hides the info
-pane, Space opens Quick Look. `nordend --test-scene` shows everything
+pane of the grid and the details, Space opens Quick Look. `nordend --test-scene` shows everything
 the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
@@ -125,7 +130,7 @@ the renderer can draw.
 - Grid view: virtualized cells, size from 48 to 256 px (Ctrl+plus/minus, Ctrl+wheel, Ctrl+0),
   Ctrl+1 / Ctrl+2 switch columns and grid keeping cursor and selection
 
-**Phase 5 — thumbnails and Quick Look: in progress.**
+**Phase 5 — thumbnails, Quick Look and the details view: complete.**
 
 - Image decoding: PNG, JPEG and GIF (wuffs, memory-safe by construction), WebP and JPEG XL
   (libwebp, libjxl), first frame of animations, EXIF orientation; a 20 MP JPEG in about
@@ -149,8 +154,13 @@ the renderer can draw.
   and scrolls at 0.3-0.5 ms per frame
 - Info pane in every view, at the right of the grid and the details too; Ctrl+I shows and
   hides it in all three
+- The info pane as a preview: the photo's thumbnail (or a text file's first
+  lines), then size, pixels and dates, the shot (camera, lens, exposure, focal length, date,
+  darktable rating), and "More details" for permissions, owner and the rest; Ctrl+I in the grid
+  and the details only
 
-**Next:** file operations (phase 6).
+**Next:** phase 6, file operations: open with the default app, new folder and rename, copy and
+move with progress, trash, clipboard.
 The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks

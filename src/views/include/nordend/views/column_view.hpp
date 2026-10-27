@@ -19,6 +19,7 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/column.hpp"
+#include "nordend/views/info_pane.hpp"
 
 namespace nordend::views {
 
@@ -53,11 +54,11 @@ public:
     static constexpr float kDefaultColumnWidth = 260.0F;
     static constexpr float kMinColumnWidth = 140.0F;
     static constexpr float kMaxColumnWidth = 800.0F;
-    static constexpr float kInfoWidth = 300.0F;
+    static constexpr float kInfoWidth = InfoPane::kWidth;
 
     ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-               std::function<void(ui::CursorShape)> set_cursor);
+               std::function<void(ui::CursorShape)> set_cursor, InfoPane* info_pane = nullptr);
 
     ~ColumnView();
 
@@ -75,11 +76,6 @@ public:
 
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
-
-    // Shows or hides the info pane (Ctrl+I in the browser).
-    void set_info_visible(bool visible);
-
-    [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
 
     // Another view shows the folders for now: changes to their selections wait for show().
     void suspend() noexcept { suspended_ = true; }
@@ -141,7 +137,8 @@ private:
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
     std::function<void(ui::CursorShape)> set_cursor_;
-    bool info_visible_{true};
+    InfoPane* info_pane_;
+    ui::Rect info_area_{};  // where the info pane was last drawn; empty when not shown
 
     std::vector<Slot> columns_;
     std::size_t focus_{0};

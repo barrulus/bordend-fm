@@ -18,6 +18,7 @@
 #include "nordend/views/column_view.hpp"
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/grid_view.hpp"
+#include "nordend/views/info_pane.hpp"
 #include "nordend/views/quick_look.hpp"
 #include "nordend/views/thumbnails.hpp"
 
@@ -26,9 +27,11 @@ namespace nordend::views {
 // The window's content: the column view, the grid or the details table, one at a time, and Quick
 // Look over them (Space opens it on the entry under the cursor; Space, Escape or a click close it;
 // the other keys move the view underneath). Ctrl+1 shows the columns, Ctrl+2 the grid, Ctrl+3
-// the details; Ctrl+I shows or hides the info pane, in all three. The grid and the details show the
-// folder of the focused column, and the columns come back with that folder focused: the same folder
-// object passes between them, so the cursor, the selection and the types sniffed so far stay.
+// the details. The info pane shows what is selected in all three: after the last column, at the
+// right of the grid and the details, where Ctrl+I shows or hides it. The grid and the details show
+// the folder of the focused column, and the columns come back with that folder focused: the same
+// folder object passes between them, so the cursor, the selection and the types sniffed so far
+// stay.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -53,7 +56,8 @@ public:
 
     [[nodiscard]] Mode mode() const noexcept { return mode_; }
 
-    // The info pane, one setting for every view (shown at start).
+    // The info pane in the grid and the details, one setting for both (shown at start); the
+    // columns always show it.
     void set_info_visible(bool visible);
 
     [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
@@ -77,6 +81,8 @@ public:
 
     [[nodiscard]] QuickLook& quick_look() noexcept { return quick_look_; }
 
+    [[nodiscard]] InfoPane& info_pane() noexcept { return info_pane_; }
+
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
@@ -85,6 +91,7 @@ private:
 
     std::function<void()> redraw_;
     std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
+    InfoPane info_pane_;                      // the same: every view draws it
     ColumnView columns_;                      // before grid_: grid folders may report to it
     GridView grid_;
     DetailsView details_;

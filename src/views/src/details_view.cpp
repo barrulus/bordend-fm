@@ -12,7 +12,6 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
-#include "info_pane.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
@@ -64,13 +63,14 @@ bool same_order(const fs::SortOrder& a, const fs::SortOrder& b) {
 DetailsView::DetailsView(core::EventLoop& loop, core::WorkerPool& pool,
                          fs::DirectoryWatcher& watcher,
                          std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-                         std::function<void(ui::CursorShape)> set_cursor)
+                         std::function<void(ui::CursorShape)> set_cursor, InfoPane* info_pane)
     : loop_{loop},
       pool_{pool},
       watcher_{watcher},
       mime_{std::move(mime)},
       redraw_{std::move(redraw)},
-      set_cursor_{std::move(set_cursor)} {
+      set_cursor_{std::move(set_cursor)},
+      info_pane_{info_pane} {
     order_.mime = mime_.get();
 }
 
@@ -184,8 +184,11 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     }
     draw_title_bar(renderer, bounds, palette, *folder_);
     const float top = bounds.y + kTitleHeight;
-    const bool pane = info_visible_ && info_pane_fits(bounds.width);
-    const float view_width = bounds.width - (pane ? kInfoPaneWidth : 0.0F);
+    const float pane_width =
+        info_visible_ && info_pane_ != nullptr ? info_pane_->width_in(bounds.width) : 0.0F;
+    const bool pane = pane_width > 0.0F;
+    const float view_width = bounds.width - pane_width;
+    pane_edge_ = pane ? bounds.x + view_width : -1.0F;
     header_ = {bounds.x, top, view_width, kHeaderHeight};
     rows_ = {bounds.x, header_.bottom(), view_width,
              std::max(0.0F, bounds.bottom() - header_.bottom())};
@@ -309,10 +312,12 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     if (pane) {
         const float pane_top = header_.y;
         const float pane_height = bounds.bottom() - pane_top;
-        renderer.fill_rect({header_.right(), pane_top, 1.0F / renderer.scale(), pane_height},
-                           palette.outline_variant);
-        draw_info_pane(renderer, {header_.right(), pane_top, kInfoPaneWidth, pane_height}, palette,
-                       icons, *folder_);
+        info_pane_->draw(renderer, {header_.right(), pane_top, pane_width, pane_height}, palette,
+                         icons, *folder_, now);
+        const bool grabbed = pane_drag_ || (over_divider_ && on_pane_edge(pointer_x_, pointer_y_));
+        const float line = grabbed ? 2.0F : 1.0F / renderer.scale();
+        renderer.fill_rect({header_.right() - (grabbed ? 1.0F : 0.0F), pane_top, line, pane_height},
+                           grabbed ? palette.primary : palette.outline_variant);
     }
 
     folder_->sniff(range.first, range.last);
@@ -355,17 +360,25 @@ std::optional<Field> DetailsView::title_at(float x, float y) const {
     return std::nullopt;
 }
 
+bool DetailsView::on_pane_edge(float x, float y) const {
+    return pane_edge_ >= 0.0F && std::abs(x - pane_edge_) <= InfoPane::kEdgeGrab &&
+           y >= header_.y && y < rows_.bottom();
+}
+
 void DetailsView::update_hover() {
+    const bool dragging = drag_ || pane_drag_;
     const std::optional<std::size_t> row =
-        pointer_inside_ && !drag_ ? row_at(pointer_x_, pointer_y_) : std::nullopt;
+        pointer_inside_ && !dragging ? row_at(pointer_x_, pointer_y_) : std::nullopt;
     if (row != hovered_) {
         hovered_ = row;
         redraw_();
     }
-    const bool over = drag_ || (pointer_inside_ && divider_at(pointer_x_, pointer_y_));
+    const bool over = dragging || (pointer_inside_ && (divider_at(pointer_x_, pointer_y_) ||
+                                                       on_pane_edge(pointer_x_, pointer_y_)));
     if (over != over_divider_) {
         over_divider_ = over;
         set_cursor_(over ? ui::CursorShape::ew_resize : ui::CursorShape::standard);
+        redraw_();
     }
 }
 
@@ -380,6 +393,9 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             pointer_inside_ = true;
             pointer_x_ = event.x;
             pointer_y_ = event.y;
+            if (pane_drag_ && info_pane_ != nullptr) {
+                info_pane_->set_width(pane_drag_->start_width + (pane_drag_->start_x - event.x));
+            }
             if (drag_) {
                 // The divider follows the pointer: the column on its right grows to the left.
                 const std::size_t i = index(drag_->field);
@@ -399,6 +415,10 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             update_hover();
             break;
         case Kind::scroll:
+            if (event.x >= header_.right() && info_pane_ != nullptr &&
+                info_pane_->scroll(event, now)) {
+                break;
+            }
             if (event.wheel_y != 0.0F) {
                 scroller_.wheel(event.wheel_y, now);
             } else if (event.scroll_y != 0.0F) {
@@ -416,6 +436,21 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             }
             if (event.button != ui::PointerButton::left) {
                 break;
+            }
+            if (info_pane_ != nullptr && on_pane_edge(event.x, event.y)) {
+                if (event.click_count == 2) {
+                    info_pane_->set_width(InfoPane::kWidth);  // double click: the default
+                } else {
+                    pane_drag_ = PaneDrag{.start_x = event.x, .start_width = info_pane_->width()};
+                }
+                update_hover();
+                break;
+            }
+            if (event.x >= header_.right()) {
+                if (info_pane_ != nullptr) {
+                    static_cast<void>(info_pane_->click(event.x, event.y));
+                }
+                break;  // the pane, not a row
             }
             if (const std::optional<Field> divider = divider_at(event.x, event.y)) {
                 drag_ = Drag{.field = *divider,
@@ -444,8 +479,9 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             break;
         }
         case Kind::release:
-            if (drag_ && event.button == ui::PointerButton::left) {
+            if ((drag_ || pane_drag_) && event.button == ui::PointerButton::left) {
                 drag_.reset();
+                pane_drag_.reset();
                 update_hover();
                 redraw_();
             }

@@ -2,7 +2,9 @@
 // it as a binary PPM.
 //
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
-//                    [--sort FIELDS] [--bench FRAMES]] <out.ppm>
+//                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
+//                    [--walk FRAMES]]
+//                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
@@ -209,8 +211,19 @@ int main(int argc, char** argv) {
     std::filesystem::path thumbnails;
     std::string sort;
     int bench_frames = 0;
-    while (args.size() >= 3) {
+    int walk_frames = 0;  // --walk N: Down once per frame, N frames, workers' results between
+    bool info_expanded = false;
+    float info_width = 0.0F;  // the info pane as if dragged to this width
+    while (args.size() >= 2) {
         const std::string_view option{args[1]};
+        if (option == "--info-expanded") {  // the info pane with "More details" open
+            info_expanded = true;
+            args = args.subspan(1);
+            continue;
+        }
+        if (args.size() < 3) {
+            break;
+        }
         if (option == "--columns") {
             columns_dir = args[2];
         } else if (option == "--reveal") {
@@ -221,6 +234,10 @@ int main(int argc, char** argv) {
             thumbnails = args[2];
         } else if (option == "--sort") {
             sort = args[2];
+        } else if (option == "--info-width") {
+            info_width = std::stof(args[2]);
+        } else if (option == "--walk") {
+            walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
             bench_frames = std::stoi(args[2]);
         } else {
@@ -231,7 +248,8 @@ int main(int argc, char** argv) {
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
-            "CACHE] [--sort FIELDS] [--bench FRAMES]] "
+            "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
+            "FRAMES]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -288,6 +306,10 @@ int main(int argc, char** argv) {
                     columns->reveal(columns_dir, reveal);
                 }
                 run_until(loop, [&] { return !columns->loading(); });
+                columns->info_pane().set_expanded(info_expanded);
+                if (info_width > 0.0F) {
+                    columns->info_pane().set_width(info_width);
+                }
                 frame();  // lays out: keys need the viewport
                 for (const ui::KeyEvent& event : parse_keys(keys)) {
                     columns->key(event, views::Browser::Clock::now());
@@ -389,6 +411,34 @@ int main(int argc, char** argv) {
                     bench_entries, bench_frames, buffer_width, buffer_height, at(0.5), at(0.95),
                     times.back());
                 bench_scroller->jump_to(0.0F);
+            }
+            if (columns && walk_frames > 0) {
+                // The cursor walks down a frame at a time, as a held key would but faster; the
+                // loop runs about 1 ms between frames so that workers' results arrive. Only the
+                // frames are timed.
+                std::vector<double> times;
+                times.reserve(static_cast<std::size_t>(walk_frames));
+                ui::KeyEvent down;
+                down.keysym = XKB_KEY_Down;
+                for (int i = 0; i < walk_frames; ++i) {
+                    columns->key(down, views::Browser::Clock::now());
+                    run_until(loop, [] { return true; });
+                    const auto start = std::chrono::steady_clock::now();
+                    frame();
+                    glFinish();
+                    times.push_back(std::chrono::duration<double, std::milli>(
+                                        std::chrono::steady_clock::now() - start)
+                                        .count());
+                }
+                std::ranges::sort(times);
+                const auto at = [&](double q) {
+                    return times[static_cast<std::size_t>(q *
+                                                          static_cast<double>(times.size() - 1))];
+                };
+                std::printf(
+                    "walked %d entries at %dx%d: median %.2f ms, p95 %.2f ms, max %.2f ms "
+                    "per frame\n",
+                    walk_frames, buffer_width, buffer_height, at(0.5), at(0.95), times.back());
             }
             frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,

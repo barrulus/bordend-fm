@@ -18,6 +18,7 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/folder.hpp"
+#include "nordend/views/info_pane.hpp"
 #include "nordend/views/thumbnails.hpp"
 
 namespace nordend::views {
@@ -43,7 +44,8 @@ public:
     // thumbnails may be nullptr: icons only.
     GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
              std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-             Thumbnails* thumbnails = nullptr);
+             std::function<void(ui::CursorShape)> set_cursor, Thumbnails* thumbnails = nullptr,
+             InfoPane* info_pane = nullptr);
 
     // Shows folder as it is (cursor and selection), the cursor in sight.
     void show(std::shared_ptr<Folder> folder);
@@ -93,6 +95,7 @@ private:
     [[nodiscard]] float row_top(std::size_t row) const;  // content coordinates
     [[nodiscard]] std::optional<std::size_t> cell_at(float x, float y) const;
     void update_hover();
+    [[nodiscard]] bool on_pane_edge(float x, float y) const;
 
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
@@ -101,6 +104,18 @@ private:
     std::function<void()> redraw_;
     Thumbnails* thumbnails_;
     bool info_visible_{true};
+    InfoPane* info_pane_;
+    std::function<void(ui::CursorShape)> set_cursor_;
+
+    // Dragging the info pane's edge: where the pointer and the width started.
+    struct PaneDrag {
+        float start_x;
+        float start_width;
+    };
+
+    std::optional<PaneDrag> pane_drag_;
+    bool over_pane_edge_{false};
+    float pane_edge_{-1.0F};  // x of the info pane's edge as last drawn; < 0 without a pane
 
     std::shared_ptr<Folder> folder_;
     ui::Scroller scroller_;

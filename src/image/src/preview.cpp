@@ -8,6 +8,7 @@
 #include <optional>
 #include <utility>
 
+#include "exiv2_init.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/image/decode.hpp"
 #include "tiff.hpp"
@@ -34,14 +35,6 @@ struct Candidate {
 
     [[nodiscard]] std::uint32_t long_side() const { return std::max(width, height); }
 };
-
-void init_exiv2() {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        Exiv2::XmpParser::initialize();  // makes exiv2 safe to use from several threads
-        Exiv2::LogMsg::setLevel(Exiv2::LogMsg::mute);
-    });
-}
 
 std::optional<std::int64_t> number(const Exiv2::ExifData& exif, const char* key) {
     const auto it = exif.findKey(Exiv2::ExifKey{key});
@@ -200,8 +193,16 @@ std::optional<std::size_t> choose(const std::vector<Candidate>& candidates,
 
 }  // namespace
 
+void detail::init_exiv2() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        Exiv2::XmpParser::initialize();  // makes exiv2 safe to use from several threads
+        Exiv2::LogMsg::setLevel(Exiv2::LogMsg::mute);
+    });
+}
+
 EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_t min_long_side) {
-    init_exiv2();
+    detail::init_exiv2();
     EmbeddedPreview result;
     try {
         const Exiv2::Image::UniquePtr image = Exiv2::ImageFactory::open(path.string());

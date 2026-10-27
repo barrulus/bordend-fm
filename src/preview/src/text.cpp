@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <fstream>
 #include <string_view>
+#include <utility>
 
 #include "nordend/preview/preview.hpp"
 
@@ -99,6 +100,27 @@ std::optional<Text> read_text(const std::filesystem::path& path, const TextLimit
         rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1);
     }
     return text;
+}
+
+Summary summarize(const std::filesystem::path& path, Kind kind, const core::CancelToken& cancel) {
+    Summary summary;
+    summary.info = read_info(path, cancel);
+    if (kind == Kind::image) {
+        summary.photo = image::read_photo_info(path);
+    } else if (kind == Kind::text) {
+        std::string error;
+        // A few kilobytes are enough for the lines the pane has room for.
+        std::optional<Text> text =
+            read_text(path, {.max_bytes = std::size_t{8} * 1024, .max_line_bytes = 256}, error);
+        if (text && error.empty()) {
+            if (text->lines.size() > kSummaryLines) {
+                text->lines.resize(kSummaryLines);
+                text->truncated = true;
+            }
+            summary.text = std::move(*text);
+        }
+    }
+    return summary;
 }
 
 }  // namespace nordend::preview

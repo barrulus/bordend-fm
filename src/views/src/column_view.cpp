@@ -10,7 +10,6 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
-#include "info_pane.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
@@ -20,19 +19,19 @@ namespace {
 
 constexpr float kDividerGrab = 4.0F;  // either side of a column edge
 constexpr float kScrollbarHeight = 4.0F;
-static_assert(ColumnView::kInfoWidth == kInfoPaneWidth);
 
 }  // namespace
 
 ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                        std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-                       std::function<void(ui::CursorShape)> set_cursor)
+                       std::function<void(ui::CursorShape)> set_cursor, InfoPane* info_pane)
     : loop_{loop},
       pool_{pool},
       watcher_{watcher},
       mime_{std::move(mime)},
       redraw_{std::move(redraw)},
-      set_cursor_{std::move(set_cursor)} {}
+      set_cursor_{std::move(set_cursor)},
+      info_pane_{info_pane} {}
 
 ColumnView::~ColumnView() = default;
 
@@ -266,13 +265,8 @@ void ColumnView::layout() {
     }
 }
 
-void ColumnView::set_info_visible(bool visible) {
-    info_visible_ = visible;
-    redraw_();
-}
-
 bool ColumnView::shows_info() const {
-    if (columns_.empty() || !info_visible_) {
+    if (columns_.empty()) {
         return false;
     }
     const Folder& last = columns_.back().column->folder();
@@ -384,11 +378,12 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
         renderer.fill_rect({left + slot.width - line, area_.y, line, area_.height},
                            grabbed ? palette.primary : palette.outline_variant);
     }
-    if (shows_info()) {
+    info_area_ = {};
+    if (shows_info() && info_pane_ != nullptr) {
         const float left = area_.x + content_width() - kInfoWidth - offset;
-        draw_info_pane(renderer,
-                       {left, area_.y, std::max(kInfoWidth, area_.right() - left), area_.height},
-                       palette, icons, columns_.back().column->folder());
+        info_area_ = {left, area_.y, std::max(kInfoWidth, area_.right() - left), area_.height};
+        info_pane_->draw(renderer, info_area_, palette, icons, columns_.back().column->folder(),
+                         now);
     }
     // Horizontal scrollbar, only when the columns do not fit.
     if (scroller_.max_offset() > 0.0F) {
@@ -440,7 +435,10 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             update_hover();
             break;
         case Kind::scroll:
-            scroll(event, now);
+            if (info_pane_ == nullptr || info_area_.width <= 0.0F ||
+                !info_pane_->scroll(event, now)) {
+                scroll(event, now);
+            }
             break;
         case Kind::press:
             if (event.button == ui::PointerButton::back) {
@@ -464,6 +462,9 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 break;
             }
             if (event.y < area_.y || event.y >= area_.bottom()) {
+                break;
+            }
+            if (info_pane_ != nullptr && info_pane_->click(event.x, event.y)) {
                 break;
             }
             if (const std::optional<std::size_t> index = column_at(event.x)) {

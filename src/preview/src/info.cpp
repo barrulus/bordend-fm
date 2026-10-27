@@ -1,6 +1,7 @@
 #include <array>
 #include <cerrno>
 #include <cstring>
+#include <fcntl.h>
 #include <grp.h>
 #include <pwd.h>
 #include <string_view>
@@ -98,6 +99,13 @@ Info read_info(const std::filesystem::path& path, const core::CancelToken& cance
         if (::stat(path.c_str(), &target) != 0) {
             target = link;  // dangling: the link's own
         }
+    }
+    struct statx birth{};
+    // NOLINTNEXTLINE(hicpp-signed-bitwise): flags as the kernel defines them
+    if (::statx(AT_FDCWD, path.c_str(), 0, STATX_BTIME, &birth) == 0 &&
+        (birth.stx_mask & STATX_BTIME) != 0) {
+        info.created_ns = (static_cast<std::int64_t>(birth.stx_btime.tv_sec) * 1'000'000'000) +
+                          birth.stx_btime.tv_nsec;
     }
     info.permissions = permissions(target.st_mode);
     info.owner = user_name(target.st_uid);

@@ -4,6 +4,90 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — The info pane's width (5.8, follow-up)
+
+Asked by the author after testing 5.8.
+
+**Done**
+- In the grid and the details, the line between the view and the info pane can be dragged:
+  the pointer turns into ew-resize over it (4 px either side), the line turns primary while
+  grabbed, a double click brings the pane back to 300 px (as for the columns). The width is
+  `InfoPane`'s, so both views share it; it stays within 240-720 px, and the view keeps at least
+  320 px (`InfoPane::width_in`: the pane narrows, then is left out). In the grid the cells per
+  row change while dragging and the cursor's row stays where it is (`keep_place`).
+- The preview follows the pane: as wide as the pane (at most half its height), so a wider pane
+  shows a larger photo; the rows keep to their centered 360 px column.
+- `nordend-snapshot --info-width W`. Test (118 with the raw samples): the width's limits and
+  `width_in`. Release (5 runs), ASan, TSan pass; snapshots with a 600 px pane walking an ORF
+  folder in the grid and the details under ASan and TSan; tidy and format clean.
+
+**Tested by the author**
+- On screen, in the grid and the details: dragging, limits, double click, narrow windows:
+  "perfetto, funziona tutto". With this, phase 5 is complete.
+
+**Open**
+- The columns' pane is not draggable: it is their last column and takes what is left.
+- The width is not remembered across runs.
+
+---
+
+## 2026-10-27 — A preview in the info pane (ROADMAP 5.8)
+
+Asked by the author: Ctrl+I only where the pane is optional, a preview in it, the content
+centered and structured, more information behind a "more details" control.
+
+**Done**
+- `views::InfoPane` (public now, owned by the `Browser`, shared by the three views): the
+  content is one centered column (at most 360 px) with, from the top: the preview (a photo's
+  or raw file's thumbnail in a square reserved at once, so nothing moves when it arrives; a
+  text file's first 14 lines on a small page; else the icon), name and type, then sections:
+  INFORMATION (size or items, pixel dimensions, created, modified), PHOTO (camera, lens,
+  exposure "1/2000 s · F5.6 · ISO 200", focal length, date taken, the darktable rating), and
+  "More details" (a click) for MORE: permissions, owner, location, link target, and the
+  exposure program, compensation, metering, white balance, flash, software. Nothing selected:
+  the folder itself; several: how many and how big. It scrolls (wheel, touchpad) when taller
+  than the window. What the entry says shows at once; the rest is read on a worker
+  (`preview::summarize`), the thumbnail comes from the grid's `Thumbnails` store at the size
+  the square needs (xx-large at scale 2).
+- `image::read_photo_info`: EXIF as exiv2 prints it, size upright, the maker left out when
+  the model names it or the maker is a long name ("OM-1", "Canon EOS 5DS", "SONY ILCE-7M2"),
+  and `Xmp.xmp.Rating` from `FILE.xmp` (darktable; -1 is "Rejected"). Checked on the 22 raw
+  samples and the author's OM-1 ORF, JPEG and WebP: 0.1-7.6 ms each.
+- `preview::Info` has the birth time (statx); `exiv2` is set up once for both its users.
+- Ctrl+I acts on the grid and the details only; the columns always show the pane, their last
+  column.
+- `nordend-snapshot --info-expanded` and `--walk N` (the cursor walks down a frame at a time,
+  workers' results delivered between frames; only frames are timed).
+- Tests (117 with the raw samples): the shot read from a new fixture `shot.jpg` (written by
+  `make.sh` with exiftool, with a sidecar rated 3), a plain PNG, a missing file; the summary of
+  a photo, a long text file (40 lines kept) and a folder; Ctrl+I leaves the columns alone.
+  Release (5 runs), ASan, TSan pass; `nordend-snapshot` walking an ORF folder with the pane
+  expanded in all three views under ASan and TSan; tidy and format clean.
+
+**Measured** (docs/benchmarks.md), the "Fatto quando": walking a folder of 163 ORF one entry
+per frame at 2880x1620 with the pane: 0.41-0.61 ms median, 0.62-1.39 ms p95, 3.7 ms at most
+(thumbnail uploads) per frame, cold and warm cache. Once the cursor stops, the shot appears in
+about 4 ms and the thumbnail in about 107 ms the first time (xx-large made from the 3200x2400
+preview), 10 ms when cached.
+
+**Decisions**
+- One pane, the same everywhere: only its place changes with the view.
+- Types are still MIME names; dimensions of Panasonic raw files are the sensor's (GX8:
+  5264x3904), as exiv2 reports them.
+
+**Tested by the author**
+- On screen, walking ORF folders in the three views, "More details", Ctrl+I: "molto molto
+  bene, perfetto, funziona tutto". Step 5.8 closed. Asked next: a draggable divider to widen
+  the pane in the grid and the details.
+
+**Open**
+- The first thumbnail at pane size takes about 0.1 s per ORF: the grid's smaller one could stand
+  in meanwhile, as in Quick Look.
+- Fuji RAF dimensions are not reported; some exposure times print as decimals ("0.769231 s").
+- Human-readable type names, a hand cursor over "More details", remembering it across runs.
+
+---
+
 ## 2026-10-27 — Info pane in every view (ROADMAP 5.7)
 
 Asked by the author after testing 5.6; shortcut and behaviour agreed before starting.

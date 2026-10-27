@@ -278,6 +278,37 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Info pane preview (ROADMAP 5.8)
+
+### 2026-10-27: walking a folder of ORF files
+
+**Target** (ROADMAP 5.8): walking a folder of ORF files with the arrows, the thumbnail appears
+without slowing the walk.
+
+`/run/media/pankaspe/DATA/fotografia/vero` (163 OM-1 ORF, with sidecars and JPEGs), at
+2880x1620 (`nordend-snapshot --columns DIR --reveal FIRST.ORF [--keys Ctrl+2|Ctrl+3]
+--thumbnails CACHE --walk 120 out.ppm 1440 810 2`): Down once per frame, the event loop run
+for about 1 ms between frames so that the pane's summaries and thumbnails arrive, frames
+timed alone. "Cold": a new thumbnail cache.
+
+| View | Cache | Median | p95 | Max |
+|------|-------|-------:|----:|----:|
+| Columns | cold | 0.41 ms | 0.62 ms | 1.6 ms |
+| Grid | cold | 0.46 ms | 1.30 ms | 3.3 ms |
+| Details | cold | 0.58 ms | 1.33 ms | 2.3 ms |
+| Columns | warm | 0.47 ms | 1.19 ms | 3.2 ms |
+| Grid | warm | 0.55 ms | 1.39 ms | 3.7 ms |
+| Details | warm | 0.61 ms | 1.10 ms | 3.3 ms |
+
+The highest frames upload a 1024 px thumbnail texture. Behind the frames, once the cursor
+stops on an entry (five ORFs, best of 5 / one run each, warm file cache):
+
+| Step | Time |
+|------|-----:|
+| `preview::summarize` (stat, owner, EXIF, sidecar) | 3.7-4.6 ms |
+| xx-large thumbnail made (`nordend-thumb --size xx-large --make`) | 107 ms |
+| xx-large thumbnail read from the cache | 9.5-10 ms |
+
 ## Info pane (ROADMAP 5.7)
 
 ### 2026-10-27: scrolling with the pane open

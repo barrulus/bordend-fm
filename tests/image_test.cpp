@@ -2,12 +2,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <doctest/doctest.h>
 
 #include "nordend/image/decode.hpp"
+#include "nordend/image/photo.hpp"
 #include "nordend/image/png.hpp"
 #include "nordend/image/preview.hpp"
 #include "nordend/image/scale.hpp"
@@ -299,6 +301,27 @@ TEST_CASE("image: an uncompressed TIFF preview is read, strip by strip") {
     CHECK(pixel(part.image, 16, 16).r == 0);
     cropped.crop = image::PreviewCrop{.x = 64, .y = 0, .width = 64, .height = 32};
     CHECK(image::decode_preview(cropped).image.width == 96);
+}
+
+TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rating") {
+    const image::PhotoInfo shot = image::read_photo_info(kData / "shot.jpg");
+    CHECK(shot.width == 32);  // 48x32 stored, orientation 6
+    CHECK(shot.height == 48);
+    CHECK(shot.camera == "OM-1");  // the maker's long name left out
+    CHECK(shot.lens == "OLYMPUS M.12-100mm F4.0");
+    CHECK(shot.exposure_time == "1/2000 s");
+    CHECK(shot.aperture == "F5.6");
+    CHECK(shot.iso == "200");
+    CHECK(shot.focal_length == "25.0 mm");
+    CHECK(shot.taken == "2026-08-31 16:34");
+    CHECK(shot.rating == std::optional<int>{3});  // from shot.jpg.xmp
+
+    const image::PhotoInfo plain = image::read_photo_info(kData / "blocks.png");
+    CHECK(plain.width == 48);
+    CHECK(plain.camera.empty());
+    CHECK_FALSE(plain.rating);
+    const image::PhotoInfo missing = image::read_photo_info(kData / "nothing.jpg");
+    CHECK(missing.width == 0);
 }
 
 // Raw files of other cameras, from rawsamples.ch (not in the repository): the folder named by

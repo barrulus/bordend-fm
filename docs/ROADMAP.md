@@ -102,6 +102,13 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   apre e lo chiude in tutte e tre le viste (uno stato solo, aperto all'avvio).
   Fatto quando: aprirlo e chiuderlo non fa perdere cursore, selezione né posizione, e lo
   scorrimento resta fluido con il pannello aperto (misurato).
+- [x] **5.8 Anteprima nel pannello info**
+  Il pannello diventa un'anteprima, uguale nelle tre viste: miniatura per foto e RAW, prime righe
+  per il testo; contenuto centrato e diviso in sezioni (informazioni, dati di scatto EXIF, voto
+  del sidecar darktable), con "più dettagli" a richiesta. Ctrl+I agisce solo su griglia e
+  dettagli: nelle colonne il pannello è l'ultima colonna e resta sempre.
+  Fatto quando: scorrendo una cartella di ORF con le frecce la miniatura compare senza rallentare
+  lo scorrimento (misurato).
 
 ## Fase 6 — Operazioni sui file
 

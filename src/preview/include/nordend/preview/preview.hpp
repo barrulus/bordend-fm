@@ -11,6 +11,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/image/fit.hpp"
+#include "nordend/image/photo.hpp"
 
 // What Quick Look shows for a file, made on a worker. One provider per kind of file (DESIGN,
 // "Preview provider"): adding a kind does not touch the others, and the view draws what the
@@ -28,9 +29,10 @@ struct Info {
     std::string permissions;  // as ls shows them: "-rw-r--r--", "drwxr-xr-x"
     std::string owner;        // user and group names (numbers when unknown)
     std::string group;
-    std::string link_target;             // for a symbolic link, where it points; else empty
-    std::optional<std::uint64_t> items;  // a directory's entries, hidden ones included
-    std::string error;                   // the file could not be examined
+    std::string link_target;                 // for a symbolic link, where it points; else empty
+    std::optional<std::uint64_t> items;      // a directory's entries, hidden ones included
+    std::optional<std::int64_t> created_ns;  // birth time, where the file system keeps it
+    std::string error;                       // the file could not be examined
 };
 
 using Content = std::variant<image::Fitted, Text, Info>;
@@ -81,8 +83,21 @@ struct TextLimits {
 [[nodiscard]] std::optional<Text> read_text(const std::filesystem::path& path,
                                             const TextLimits& limits, std::string& error);
 
-// Permissions, owner, link target, and a directory's number of entries (stops counting when
-// cancelled).
+// Permissions, owner, link target, birth time, and a directory's number of entries (stops
+// counting when cancelled).
 [[nodiscard]] Info read_info(const std::filesystem::path& path, const core::CancelToken& cancel);
+
+// What the info pane shows about an entry, beyond the directory entry itself.
+struct Summary {
+    Info info;
+    std::optional<image::PhotoInfo> photo;  // images and camera raw files
+    std::optional<Text> text;               // the first lines of a text file
+};
+
+inline constexpr std::size_t kSummaryLines = 40;
+
+// Reads it for an entry whose provider makes kind. Blocking: call it on a worker.
+[[nodiscard]] Summary summarize(const std::filesystem::path& path, Kind kind,
+                                const core::CancelToken& cancel);
 
 }  // namespace nordend::preview

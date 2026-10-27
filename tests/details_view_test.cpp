@@ -186,7 +186,7 @@ TEST_CASE("details: Right and Enter open a folder, Left and Backspace the parent
     CHECK(f.details.width(Field::size) > 0.0F);
 }
 
-TEST_CASE("info pane: Ctrl+I hides and shows it in every view; nothing else moves") {
+TEST_CASE("info pane: Ctrl+I hides and shows it in the grid and the details; nothing moves") {
     Fixture f;
     REQUIRE(f.settle());
     f.press(XKB_KEY_Down);                   // alpha
@@ -196,9 +196,9 @@ TEST_CASE("info pane: Ctrl+I hides and shows it in every view; nothing else move
 
     f.press(XKB_KEY_i, {.ctrl = true});
     CHECK_FALSE(f.browser.info_visible());
-    CHECK_FALSE(f.browser.columns().info_visible());
     CHECK_FALSE(f.browser.grid().info_visible());
     CHECK_FALSE(f.details.info_visible());
+    // The columns keep theirs: it is their last column.
     CHECK(cursor_name(*folder) == "gamma");
     CHECK(folder->selected_names() == std::vector<std::string>{"alpha", "gamma"});
 
@@ -209,4 +209,20 @@ TEST_CASE("info pane: Ctrl+I hides and shows it in every view; nothing else move
     CHECK(f.details.info_visible());
     CHECK(f.details.folder() == folder);
     CHECK(folder->selected_names() == std::vector<std::string>{"alpha", "gamma"});
+}
+
+TEST_CASE("info pane: its width stays within limits and leaves the view room") {
+    Fixture f;
+    nordend::views::InfoPane& pane = f.browser.info_pane();
+    using nordend::views::InfoPane;
+    CHECK(pane.width() == InfoPane::kWidth);
+    pane.set_width(5000.0F);
+    CHECK(pane.width() == InfoPane::kMaxWidth);
+    pane.set_width(10.0F);
+    CHECK(pane.width() == InfoPane::kMinWidth);
+
+    pane.set_width(500.0F);
+    CHECK(pane.width_in(2000.0F) == 500.0F);
+    CHECK(pane.width_in(700.0F) == 700.0F - InfoPane::kMinContent);  // narrowed for the view
+    CHECK(pane.width_in(500.0F) == 0.0F);  // not even the narrowest fits: left out
 }
