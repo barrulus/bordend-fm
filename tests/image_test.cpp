@@ -301,13 +301,17 @@ TEST_CASE("image: an uncompressed TIFF preview is read, strip by strip") {
     CHECK(image::decode_preview(cropped).image.width == 96);
 }
 
-// The raw samples of other cameras (rawsamples.ch, CLAUDE.md), when this machine has them.
+// Raw files of other cameras, from rawsamples.ch (not in the repository): the folder named by
+// NORDEND_RAW_SAMPLES, when it is set. The test needs the files these checks name.
 namespace {
-const std::filesystem::path kRawSamples{"/run/media/pankaspe/DATA/fotografia/raw_text_examples"};
+const std::filesystem::path kRawSamples = [] {
+    const char* folder = std::getenv("NORDEND_RAW_SAMPLES");
+    return std::filesystem::path{folder != nullptr ? folder : ""};
+}();
 }  // namespace
 
 TEST_CASE("image: raw samples of other cameras" *
-          doctest::skip(!std::filesystem::is_directory(kRawSamples))) {
+          doctest::skip(kRawSamples.empty() || !std::filesystem::is_directory(kRawSamples))) {
     for (const auto& entry : std::filesystem::directory_iterator{kRawSamples}) {
         INFO(entry.path().filename().string());
         for (const std::uint32_t side : {128U, 256U, 1024U, 2880U}) {

@@ -282,8 +282,8 @@ an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-1
 
 ### 2026-10-27: other cameras (rawsamples.ch, 22 files)
 
-Files in `/run/media/pankaspe/DATA/fotografia/raw_text_examples` (not in the repository), warm
-cache, Release.
+22 files from rawsamples.ch (not in the repository; the test over them runs when
+`NORDEND_RAW_SAMPLES` names their folder), warm cache, Release.
 
 **What the files carry** (`exiv2 -pp`, then the TIFFs extracted with `exiv2 -ep` and looked at):
 every one has a 160x120 EXIF thumbnail, and a JPEG of 1536-8688 px except the Hasselblad 3FR
