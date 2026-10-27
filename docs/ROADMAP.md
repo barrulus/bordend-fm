@@ -89,7 +89,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [x] **5.4 RAW**
   JPEG incorporato negli ORF via exiv2, orientamento corretto.
   Fatto quando: Quick Look di un ORF < 100 ms (misurato).
-- [ ] **5.5 Preview testo e fallback info**
+- [x] **5.5 Preview testo e fallback info**
 - [ ] **5.6 Vista dettagli** (Ctrl+3)
   Righe con colonne nome, dimensione, data di modifica, tipo; ordinamento con un clic
   sull'intestazione (di nuovo: verso opposto), colonne ridimensionabili; stesso `Folder` delle
@@ -129,3 +129,4 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 - [ ] **12** Scripting Luau
 - [ ] **13** Backend portal FileChooser
 - [ ] **14** Editor esterno (helix), vedi appendice del DESIGN
+- [ ] **15** Quick Look del testo più ricco: evidenziazione della sintassi, selezione e copia del testo nella preview

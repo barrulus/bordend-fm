@@ -5,6 +5,8 @@
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
 family = "sans-serif"
+# The same for text previews (Quick Look of text files).
+monospace = "monospace"
 
 [pointer]
 # Two presses of the same button closer than this (milliseconds, 100-2000)...

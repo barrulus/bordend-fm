@@ -67,8 +67,9 @@ What already works, the way it is meant to stay:
   System: Canon, Nikon, Sony, Fujifilm, Panasonic and Hasselblad raw files too, each in the
   shape it was shot, without black bars.
 - **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
-  walk the folder without closing it, and the next photo is already there. Space or Escape
-  closes it, and you are where you stopped.
+  walk the folder without closing it, and the next photo is already there. Text files open on
+  a page you can scroll, darktable sidecars included; everything else shows what it is, how big,
+  whose and who may touch it. Space or Escape closes it, and you are where you stopped.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -134,8 +135,12 @@ the renderer can draw.
   uncompressed TIFF previews (3FR, Nikon TIFF), Panasonic GX8 previews cropped to the aspect
   ratio shot, no black bars from 4:3 EXIF thumbnails; Quick Look of a raw file with a small
   preview in a few ms
+- Quick Look of text files (code, configuration, logs, darktable sidecars) on a page with line
+  numbers, in a monospace font (`font.monospace`), scrolling with the wheel or the touchpad; an
+  information card for everything else, with permissions, owner, link target and a folder's
+  number of items
 
-**Next:** text previews and the information card (5.5), then the details view (5.6, Ctrl+3).
+**Next:** the details view (5.6, Ctrl+3).
 The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks

@@ -14,6 +14,9 @@ enum class Ellipsis : std::uint8_t {
     middle,  // "a very lo…me.jpg": keeps the extension of a file name visible
 };
 
+// Which fallback chain text is set in: the interface font, or a monospace one (text previews).
+enum class Typeface : std::uint8_t { proportional, monospace };
+
 // One positioned glyph. Positions are physical pixels relative to the start of the baseline.
 struct ShapedGlyph {
     std::uint32_t font;     // FontSystem font id
@@ -53,10 +56,14 @@ struct GlyphBitmap {
 // name. Invalid UTF-8 (possible in Linux file names) becomes U+FFFD. Bidirectional text is not
 // reordered yet: right-to-left scripts render in logical order.
 //
+// Two fallback chains: family for the interface, monospace (looked up on first use) for text
+// previews. A font in both is loaded once.
+//
 // Not thread-safe; owned by the UI thread. Throws std::runtime_error if no font can be loaded.
 class FontSystem {
 public:
-    explicit FontSystem(const std::string& family = "sans-serif");
+    explicit FontSystem(const std::string& family = "sans-serif",
+                        std::string monospace = "monospace");
     ~FontSystem();
 
     FontSystem(const FontSystem&) = delete;
@@ -68,7 +75,8 @@ public:
     // wider text is truncated at whole characters with an ellipsis. Results are cached; the
     // reference stays valid until the next layout() call.
     const TextLayout& layout(std::string_view utf8, float size, float scale, float max_width = 0.0F,
-                             Ellipsis ellipsis = Ellipsis::end);
+                             Ellipsis ellipsis = Ellipsis::end,
+                             Typeface typeface = Typeface::proportional);
 
     // Loads a font file outside the fontconfig fallback chain (an icon font): text never falls
     // back to it. Returns its font id, or nullopt when the file cannot be loaded.

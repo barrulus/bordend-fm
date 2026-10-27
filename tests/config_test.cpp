@@ -25,6 +25,7 @@ ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml
 void check_defaults(const Config& config) {
     const Config defaults;
     CHECK(config.font.family == defaults.font.family);
+    CHECK(config.font.monospace == defaults.font.monospace);
     CHECK(config.pointer.double_click_ms == defaults.pointer.double_click_ms);
     CHECK(config.pointer.double_click_distance == defaults.pointer.double_click_distance);
 }
@@ -78,6 +79,7 @@ TEST_CASE("every key is read") {
     const ConfigResult result = parse(R"(
 [font]
 family = "Inter:weight=medium"
+monospace = "JetBrains Mono"
 
 [pointer]
 double_click_ms = 250
@@ -85,6 +87,7 @@ double_click_distance = 0
 )");
     CHECK(result.problems.empty());
     CHECK(result.config.font.family == "Inter:weight=medium");
+    CHECK(result.config.font.monospace == "JetBrains Mono");
     CHECK(result.config.pointer.double_click_ms == 250);
     CHECK(result.config.pointer.double_click_distance == 0);
 }

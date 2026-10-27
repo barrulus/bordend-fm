@@ -4,6 +4,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <format>
@@ -155,19 +156,45 @@ struct FontSystem::Impl {
     };
 
     FT_Library library{nullptr};
-    std::vector<Font> fonts;  // fontconfig fallback chain, primary first
+    std::vector<Font> fonts;  // every font: the chains below and add_font_file's
+    // The fontconfig fallback chain of each typeface, primary first, as indexes into fonts.
+    std::array<std::vector<std::uint32_t>, 2> chains;
+    std::string monospace_family;
+    bool monospace_found{false};
     hb_buffer_t* buffer{hb_buffer_create()};
     std::unordered_map<std::string, TextLayout> cache;
 
-    explicit Impl(const std::string& family) {
+    Impl(const std::string& family, std::string monospace)
+        : monospace_family{std::move(monospace)} {
         if (FT_Init_FreeType(&library) != 0) {
             throw std::runtime_error{"FreeType initialization failed"};
         }
-        discover(family);
-        if (fonts.empty() || !load(0)) {
+        std::vector<std::uint32_t>& primary = chains[0];
+        primary = discover(family);
+        if (primary.empty() || !load(primary.front())) {
             throw std::runtime_error{std::format("no usable font for '{}'", family)};
         }
-        log::info("font: {} ({} fallbacks)", fonts.front().path, fonts.size() - 1);
+        log::info("font: {} ({} fallbacks)", fonts[primary.front()].path, primary.size() - 1);
+    }
+
+    // The chain of a typeface; the monospace one is looked up the first time, and is the
+    // proportional one when no monospace font loads.
+    const std::vector<std::uint32_t>& chain(Typeface typeface) {
+        if (typeface == Typeface::proportional) {
+            return chains[0];
+        }
+        if (!monospace_found) {
+            monospace_found = true;
+            chains[1] = discover(monospace_family);
+            if (chains[1].empty() || !load(chains[1].front())) {
+                log::warn("no usable monospace font for '{}'", monospace_family);
+                chains[1] = chains[0];
+            } else {
+                log::info("monospace font: {} ({} fallbacks)", fonts[chains[1].front()].path,
+                          chains[1].size() - 1);
+            }
+        }
+        return chains[1];
     }
 
     ~Impl() {
@@ -189,7 +216,8 @@ struct FontSystem::Impl {
     Impl(Impl&&) = delete;
     Impl& operator=(Impl&&) = delete;
 
-    void discover(const std::string& family) {
+    std::vector<std::uint32_t> discover(const std::string& family) {
+        std::vector<std::uint32_t> chain;
         FcPattern* pattern =
             FcNameParse(reinterpret_cast<const FcChar8*>(family.c_str()));  // NOLINT
         FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
@@ -199,7 +227,7 @@ struct FontSystem::Impl {
         FcFontSet* set = FcFontSort(nullptr, pattern, FcTrue, nullptr, &result);
         FcPatternDestroy(pattern);
         if (set == nullptr) {
-            return;
+            return chain;
         }
         for (const FcPattern* candidate :
              std::span{set->fonts, static_cast<std::size_t>(set->nfont)}) {
@@ -211,14 +239,24 @@ struct FontSystem::Impl {
                 continue;
             }
             FcPatternGetInteger(candidate, FC_INDEX, 0, &index);
+            const std::string path = reinterpret_cast<const char*>(file);  // NOLINT
+            // Already known from the other chain: the same font, loaded once.
+            const auto known = std::ranges::find_if(
+                fonts, [&](const Font& font) { return font.path == path && font.index == index; });
+            if (known != fonts.end()) {
+                chain.push_back(static_cast<std::uint32_t>(known - fonts.begin()));
+                continue;
+            }
             FcBool color = FcFalse;
             FcPatternGetBool(candidate, FC_COLOR, 0, &color);
-            fonts.push_back({.path = reinterpret_cast<const char*>(file),  // NOLINT
+            fonts.push_back({.path = path,
                              .index = index,
                              .charset = FcCharSetCopy(charset),
                              .color = color == FcTrue});
+            chain.push_back(static_cast<std::uint32_t>(fonts.size() - 1));
         }
         FcFontSetDestroy(set);
+        return chain;
     }
 
     bool load(std::size_t id) {
@@ -244,31 +282,35 @@ struct FontSystem::Impl {
 
     // First font of the chain that has cp. Emoji prefer a color font: fontconfig often ranks
     // monochrome symbol fonts that also cover them higher.
-    std::uint32_t font_for(char32_t cp, bool prefer_color) {
+    std::uint32_t font_for(char32_t cp, bool prefer_color,
+                           const std::vector<std::uint32_t>& fallbacks) {
         if (prefer_color) {
-            for (std::size_t id = 0; id < fonts.size(); ++id) {
+            for (const std::uint32_t id : fallbacks) {
                 if (fonts[id].color && FcCharSetHasChar(fonts[id].charset, cp) == FcTrue &&
                     load(id)) {
-                    return static_cast<std::uint32_t>(id);
+                    return id;
                 }
             }
         }
-        for (std::size_t id = 0; id < fonts.size(); ++id) {
+        for (const std::uint32_t id : fallbacks) {
             if (FcCharSetHasChar(fonts[id].charset, cp) == FcTrue && load(id)) {
-                return static_cast<std::uint32_t>(id);
+                return id;
             }
         }
-        return 0;  // primary font: the missing glyph (.notdef box) is the honest result
+        // The primary font: the missing glyph (.notdef box) is the honest result.
+        return fallbacks.front();
     }
 
-    TextLayout shape(std::string_view text, float pixel_size) {
+    TextLayout shape(std::string_view text, float pixel_size, Typeface typeface) {
         TextLayout layout;
         layout.pixel_size = pixel_size;
         const auto scale = static_cast<int>(std::lround(pixel_size * kFixedPoint));
+        const std::vector<std::uint32_t>& fallbacks = chain(typeface);
+        hb_font_t* const primary = fonts[fallbacks.front()].hb;
 
-        hb_font_set_scale(fonts.front().hb, scale, scale);
+        hb_font_set_scale(primary, scale, scale);
         hb_font_extents_t extents{};
-        hb_font_get_h_extents(fonts.front().hb, &extents);
+        hb_font_get_h_extents(primary, &extents);
         layout.ascent = static_cast<float>(extents.ascender) / kFixedPoint;
         layout.descent = static_cast<float>(-extents.descender) / kFixedPoint;
 
@@ -281,7 +323,7 @@ struct FontSystem::Impl {
             if (i < codepoints.size() && (i == 0 || !attaches_to_previous(codepoints[i].value))) {
                 const char32_t cp = codepoints[i].value;
                 const bool vs16 = i + 1 < codepoints.size() && codepoints[i + 1].value == 0xFE0FU;
-                font = font_for(cp, vs16 || emoji_presentation(cp));
+                font = font_for(cp, vs16 || emoji_presentation(cp), fallbacks);
             }
             if (i == 0) {
                 run_font = font;
@@ -333,7 +375,7 @@ struct FontSystem::Impl {
     }
 
     TextLayout truncate(std::string_view text, const TextLayout& full, float max_px,
-                        Ellipsis ellipsis) {
+                        Ellipsis ellipsis, Typeface typeface) {
         // Width of each cluster, in byte order (left-to-right text).
         std::vector<std::pair<std::uint32_t, float>> clusters;
         for (const ShapedGlyph& glyph : full.glyphs) {
@@ -349,7 +391,7 @@ struct FontSystem::Impl {
                                        : static_cast<std::uint32_t>(text.size());
         };
 
-        const float ellipsis_width = shape(kEllipsis, full.pixel_size).width;
+        const float ellipsis_width = shape(kEllipsis, full.pixel_size, typeface).width;
         const float budget = std::max(0.0F, max_px - ellipsis_width);
 
         std::string result;
@@ -373,22 +415,24 @@ struct FontSystem::Impl {
             result = std::string{text.substr(0, start_of(head))} + std::string{kEllipsis} +
                      std::string{text.substr(start_of(tail))};
         }
-        TextLayout layout = shape(result, full.pixel_size);
+        TextLayout layout = shape(result, full.pixel_size, typeface);
         layout.truncated = true;
         return layout;
     }
 };
 
-FontSystem::FontSystem(const std::string& family) : impl_{std::make_unique<Impl>(family)} {}
+FontSystem::FontSystem(const std::string& family, std::string monospace)
+    : impl_{std::make_unique<Impl>(family, std::move(monospace))} {}
 
 FontSystem::~FontSystem() = default;
 
 const TextLayout& FontSystem::layout(std::string_view utf8, float size, float scale,
-                                     float max_width, Ellipsis ellipsis) {
+                                     float max_width, Ellipsis ellipsis, Typeface typeface) {
     const float pixel_size = size * scale;
     const float max_px = max_width * scale;
     std::string key{utf8};
-    key += std::format("\x1f{}\x1f{}\x1f{}", pixel_size, max_px, static_cast<int>(ellipsis));
+    key += std::format("\x1f{}\x1f{}\x1f{}\x1f{}", pixel_size, max_px, static_cast<int>(ellipsis),
+                       static_cast<int>(typeface));
 
     auto& cache = impl_->cache;
     if (auto it = cache.find(key); it != cache.end()) {
@@ -397,9 +441,9 @@ const TextLayout& FontSystem::layout(std::string_view utf8, float size, float sc
     if (cache.size() >= kMaxCachedLayouts) {
         cache.clear();
     }
-    TextLayout layout = impl_->shape(utf8, pixel_size);
+    TextLayout layout = impl_->shape(utf8, pixel_size, typeface);
     if (max_px > 0.0F && layout.width > max_px) {
-        layout = impl_->truncate(utf8, layout, max_px, ellipsis);
+        layout = impl_->truncate(utf8, layout, max_px, ellipsis, typeface);
     }
     return cache.emplace(std::move(key), std::move(layout)).first->second;
 }

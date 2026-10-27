@@ -140,10 +140,15 @@ private:
 void read_document(const toml::table& root, Reader& reader, Config& config) {
     for (const auto& [key, node] : root) {
         if (key.str() == "font") {
-            reader.read_section(node, "font",
-                                {{"family", [&](const toml::node& value, const std::string& path) {
-                                      reader.read_string(value, path, config.font.family);
-                                  }}});
+            reader.read_section(
+                node, "font",
+                {{"family",
+                  [&](const toml::node& value, const std::string& path) {
+                      reader.read_string(value, path, config.font.family);
+                  }},
+                 {"monospace", [&](const toml::node& value, const std::string& path) {
+                      reader.read_string(value, path, config.font.monospace);
+                  }}});
         } else if (key.str() == "pointer") {
             reader.read_section(
                 node, "pointer",

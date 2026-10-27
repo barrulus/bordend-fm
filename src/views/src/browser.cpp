@@ -94,9 +94,12 @@ bool Browser::loading() const {
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (quick_look_.is_open()) {
-        // Over the overlay: a click closes it, the rest waits until it is gone.
+        // Over the overlay: a click closes it, scrolling moves a text page, the rest waits
+        // until it is gone.
         if (event.kind == ui::PointerEvent::Kind::press) {
             quick_look_.close();
+        } else {
+            quick_look_.pointer(event, now);
         }
         if (event.kind != ui::PointerEvent::Kind::leave) {
             pointer_x_ = event.x;

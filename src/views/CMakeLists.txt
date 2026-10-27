@@ -12,5 +12,5 @@ add_library(nordend::views ALIAS nordend_views)
 
 target_include_directories(nordend_views PUBLIC include)
 target_link_libraries(nordend_views
-    PUBLIC nordend::core nordend::ui nordend::fs nordend::theme nordend::thumbs
+    PUBLIC nordend::core nordend::ui nordend::fs nordend::theme nordend::thumbs nordend::preview
     PRIVATE nordend::warnings)

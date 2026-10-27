@@ -12,7 +12,8 @@ namespace nordend::core {
 
 struct Config {
     struct Font {
-        std::string family{"sans-serif"};  // fontconfig pattern, e.g. "Inter" or "Inter:size=11"
+        std::string family{"sans-serif"};    // fontconfig pattern, e.g. "Inter" or "Inter:size=11"
+        std::string monospace{"monospace"};  // text previews, e.g. "JetBrains Mono"
     };
 
     struct Pointer {

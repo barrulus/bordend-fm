@@ -70,6 +70,7 @@ add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
 add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl), previews, PNG
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
+add_subdirectory(src/preview)   # Quick Look providers: images, text, information
 add_subdirectory(src/views)     # column view and grid
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.

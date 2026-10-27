@@ -278,6 +278,33 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Text previews (ROADMAP 5.5)
+
+### 2026-10-27: reading and scrolling text
+
+`preview::read_text` and `preview::read_info`, best of 7, warm cache (a scratch program linking
+`libnordend_preview.a`):
+
+| File | Read | Result |
+|------|-----:|--------|
+| Log file, 1.6 MB (first 256 KB) | 0.67 ms | 3 196 lines |
+| C++ source, 22 kB | 0.06 ms | 495 lines |
+| `/usr/bin/ls` (as text) | 0.02 ms | binary: card |
+| Folder of 10 000 files (`read_info`) | 4.3 ms | 10 000 entries |
+
+Scrolling Quick Look's text page from top to bottom over 600 frames
+(`nordend-snapshot --columns DIR --reveal FILE --keys space --bench 600 out.ppm 1440 810 SCALE`),
+each frame waiting for the GPU:
+
+| Text | Screen | Median | p95 | Max |
+|------|--------|-------:|----:|----:|
+| Log, 3 196 lines | 1440x810 | 0.45 ms | 0.64 ms | 3.2 ms |
+| Log, 3 196 lines | 2880x1620 | 0.82 ms | 1.03 ms | 4.0 ms |
+| darktable XMP, 486 lines | 2880x1620 | 0.69 ms | 0.95 ms | 2.6 ms |
+
+The maximum is the first frame, when the monospace glyphs are rasterized. Each benchmark frame
+moves about 5 lines, so most frames shape new lines: scrolling by hand costs less.
+
 ## Raw previews (ROADMAP 5.4)
 
 ### 2026-10-27: other cameras (rawsamples.ch, 22 files)

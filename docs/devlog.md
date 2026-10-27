@@ -4,6 +4,63 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Text previews and the information card (ROADMAP 5.5)
+
+**Done**
+- New module `src/preview` (already in DESIGN): the `Provider` interface (`can_handle`, `kind`,
+  `load(request, cancel)`) and three providers, chosen by `provider_for(mime)` in this order:
+  images and camera raw files (`image::load_to_fit`, as before), text (the whole text/plain
+  family: source code, JSON, XML, shell scripts, darktable `.xmp` sidecars), and the
+  information card, which takes everything else. Quick Look keeps one `preview::Content`
+  (image, text or information) per entry instead of an image; the provider is part of the slot
+  key, so an entry whose type is sniffed later gets the right one.
+- Text: the first 256 KB, split into lines (`\n` and `\r\n`), tabs expanded to 4 columns,
+  lines cut at 1 KB on a character boundary, a UTF-8 BOM dropped; a NUL byte means binary (or
+  UTF-16), and the card is shown instead. Drawn on a page up to 120 characters wide, with line
+  numbers, long lines ending in an ellipsis; only the visible lines are shaped. The page
+  scrolls with the wheel and the touchpad (the same `Scroller` as the views, with inertia);
+  arrows still walk the folder. The caption says how many lines ("first N lines" when cut).
+- Monospace text: `FontSystem` has a second fallback chain, looked up on first use, sharing the
+  fonts both chains have; `Typeface::monospace` on `layout` and `draw_text`. New config key
+  `font.monospace` (default "monospace": DejaVu Sans Mono here).
+- The information card reads, on a worker: permissions as `ls -l` shows them (in monospace),
+  owner and group names, a link's target, and a folder's number of entries.
+- `nordend-snapshot --bench` scrolls Quick Look's text page when one is open.
+- Tests (110 with the raw samples): lines, CRLF, tabs, BOM, binary and UTF-16, cuts by bytes and
+  by line length (UTF-8 kept whole), permissions with the sticky bit, folder entries, links
+  (dangling too), the provider per type; Quick Look shows text and a folder's card, and a wheel
+  turn over text does not close it. Release (5 runs), ASan, TSan pass; `nordend-snapshot` over
+  text, XMP, binary, folder and link, and the text benchmark, under ASan and TSan; tidy and
+  format clean.
+
+**Measured** (docs/benchmarks.md): a 1.6 MB log read (its first 256 KB, 3 196 lines) in
+0.67 ms, a 10 000-entry folder counted in 4.3 ms; scrolling that log's page at 2880x1620:
+0.82 ms median per frame, 1.03 ms p95.
+
+**Found**: Quick Look over a card (also on the previous commit) makes TSan report a race
+inside `libdrm_amdgpu`, between Mesa's gl0 thread and a glyph upload: both sides are driver
+code. With the author's OK the suppression now covers `libdrm_amdgpu` too; it relies on GL
+being called from the main thread only, as the renderer already requires.
+
+**Decisions**
+- The provider interface follows DESIGN, plus `kind()`: the view must know what to draw before
+  the content arrives (the thumbnail for an image, nothing for text, which takes a few ms, the
+  card at once for the rest).
+- Text is not wrapped: code reads better with whole lines, and the ellipsis shows a line goes
+  on. Tabs are 4 columns.
+
+**Tested by the author**
+- On screen, over source code, long files, folders, binaries and darktable sidecars, scrolling
+  with touchpad and wheel: "tutto perfetto". Step 5.5 closed. Asked for later: syntax
+  highlighting and text selection in the preview (ROADMAP 15, DESIGN "Dopo l'MVP").
+
+**Open**
+- Text in other encodings (Latin-1) shows replacement characters; UTF-16 gets the card.
+- No syntax highlighting, no horizontal scrolling, no selection or copy in the text page
+  (highlighting and selection: ROADMAP 15).
+
+---
+
 ## 2026-10-27 — Raw previews (ROADMAP 5.4)
 
 The "Fatto quando" (Quick Look of an ORF < 100 ms) was already met in 5.3 (51-55 ms); this step

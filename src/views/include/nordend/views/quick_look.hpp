@@ -13,13 +13,14 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/image/decode.hpp"
-#include "nordend/image/fit.hpp"
+#include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/scroller.hpp"
+#include "nordend/ui/seat.hpp"
 #include "nordend/ui/texture.hpp"
 #include "nordend/views/folder.hpp"
 
@@ -27,14 +28,17 @@ namespace nordend::views {
 
 // Quick Look: an overlay showing the entry under a folder's cursor, large. It follows the
 // cursor: the view underneath keeps the keys, so arrows walk the folder and Quick Look shows
-// where they land. Images and camera raw files are shown fitted to the window, first from their
-// thumbnail (at once) then sharp; the entries before and after are prepared in advance. Other
-// entries show an information card.
+// where they land. What it shows comes from preview::provider_for: images and camera raw files
+// fitted to the window, first from their thumbnail (at once) then sharp; text files on a page
+// that scrolls with the wheel or the touchpad; an information card for the rest. The entries
+// before and after are prepared in advance.
 //
 // Loop thread only. Textures are created while drawing.
 class QuickLook {
 public:
     using Clock = ui::Scroller::Clock;
+
+    static constexpr float kTextLineHeight = 20.0F;  // a text page's line, logical pixels
 
     // thumbnails may be nullptr (no first, blurry stage).
     QuickLook(core::WorkerPool& pool, std::shared_ptr<const fs::MimeDatabase> mime,
@@ -56,17 +60,26 @@ public:
     // folder); closes when it is on nothing.
     void follow(std::shared_ptr<Folder> folder);
 
+    // Wheel and touchpad scroll a text page; other pointer events are the owner's.
+    void pointer(const ui::PointerEvent& event, Clock::time_point now);
+
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);
 
-    // The fade-in is running.
+    // The fade-in or a text page's scrolling is running.
     [[nodiscard]] bool animating(Clock::time_point now) const;
 
-    // The shown entry's image is still being made (snapshots, tests).
+    // The shown entry's content is still being made (snapshots, tests).
     [[nodiscard]] bool loading() const;
+
+    // The shown entry's content once made; nullptr before (tests).
+    [[nodiscard]] const preview::Content* content() const;
 
     // The name of the entry shown; empty when closed.
     [[nodiscard]] const std::string& shown() const noexcept { return shown_name_; }
+
+    // The shown text page's scrolling (the snapshot tool's benchmark).
+    [[nodiscard]] ui::Scroller& text_scroller() noexcept { return text_scroller_; }
 
     // Size of the sharp image of the shown entry once made (tests).
     [[nodiscard]] std::optional<std::pair<std::uint32_t, std::uint32_t>> image_size() const;
@@ -74,22 +87,28 @@ public:
 private:
     struct Slot {
         std::filesystem::path path;
+        preview::Kind kind{preview::Kind::info};
         std::optional<core::CancelToken> thumbnail_job;
-        std::optional<core::CancelToken> image_job;
+        std::optional<core::CancelToken> content_job;
         std::shared_ptr<image::Image> thumbnail_pixels;
-        std::shared_ptr<image::Fitted> image;  // the sharp stage, once made
+        std::shared_ptr<preview::Content> content;  // once made (for images, the sharp stage)
         std::unique_ptr<ui::Texture> thumbnail_texture;
         std::unique_ptr<ui::Texture> image_texture;
     };
 
-    [[nodiscard]] bool previewable(const fs::Entry& entry) const;
+    [[nodiscard]] const preview::Provider& provider_of(const fs::Entry& entry) const;
     [[nodiscard]] std::string key_of(const fs::Entry& entry) const;
+    [[nodiscard]] const preview::Text* shown_text() const;
     Slot& ensure(const fs::Entry& entry, bool current);
     void drop(Slot& slot);
     void draw_image(ui::Renderer& renderer, const ui::Rect& area, const theme::Palette& palette,
-                    ui::IconSet& icons, const fs::Entry& entry, float fade);
+                    ui::IconSet& icons, const fs::Entry& entry, Slot& slot, float fade);
+    void draw_text(ui::Renderer& renderer, const ui::Rect& area, const theme::Palette& palette,
+                   const fs::Entry& entry, const preview::Text& text, float fade,
+                   Clock::time_point now);
     void draw_card(ui::Renderer& renderer, const ui::Rect& area, const theme::Palette& palette,
-                   ui::IconSet& icons, const fs::Entry& entry, float fade);
+                   ui::IconSet& icons, const fs::Entry& entry, const preview::Info* info,
+                   float fade);
 
     core::WorkerPool& pool_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
@@ -101,6 +120,7 @@ private:
     std::string shown_key_;
     Clock::time_point opened_;
     std::unordered_map<std::string, Slot> slots_;  // the shown entry and its neighbours
+    ui::Scroller text_scroller_;                   // the shown text page
     // Textures of slots dropped outside a draw: deleted at the next draw, with GL current.
     std::vector<std::unique_ptr<ui::Texture>> retired_;
     // The size images are made for: the last drawn image area, in physical pixels.

@@ -62,7 +62,8 @@ public:
     // logical pixels. With max_width > 0 the text is truncated with an ellipsis. Returns the
     // drawn width in logical pixels.
     float draw_text(std::string_view utf8, float x, float y, float size, Color color,
-                    float max_width = 0.0F, Ellipsis ellipsis = Ellipsis::end);
+                    float max_width = 0.0F, Ellipsis ellipsis = Ellipsis::end,
+                    Typeface typeface = Typeface::proportional);
 
     // Draws text shaped by FontSystem::layout at the current scale; (x, y) as in draw_text.
     void draw_layout(const TextLayout& layout, float x, float y, Color color);

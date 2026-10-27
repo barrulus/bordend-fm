@@ -569,8 +569,8 @@ void Renderer::draw_image(const Texture& texture, const Rect& rect, const Corner
 }
 
 float Renderer::draw_text(std::string_view utf8, float x, float y, float size, Color color,
-                          float max_width, Ellipsis ellipsis) {
-    const TextLayout& layout = fonts_.layout(utf8, size, scale_, max_width, ellipsis);
+                          float max_width, Ellipsis ellipsis, Typeface typeface) {
+    const TextLayout& layout = fonts_.layout(utf8, size, scale_, max_width, ellipsis, typeface);
     draw_layout(layout, x, y, color);
     return layout.width / scale_;
 }

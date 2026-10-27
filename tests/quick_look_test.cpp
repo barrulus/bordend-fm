@@ -1,11 +1,15 @@
 #include "nordend/views/quick_look.hpp"
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <optional>
 #include <string>
 #include <utility>
+#include <variant>
+#include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <doctest/doctest.h>
@@ -112,10 +116,14 @@ TEST_CASE("quick look: Space opens it on the cursor, arrows walk, Space and Esca
     REQUIRE(f.settle());
     CHECK(f.image_size() == Fixture::Size{{32, 48}});  // upright
 
-    f.press(XKB_KEY_Down);  // not an image: an information card, nothing to make
+    f.press(XKB_KEY_Down);  // text: a page of lines
     CHECK(look.shown() == "notes.txt");
-    CHECK_FALSE(look.loading());
+    REQUIRE(f.settle());
     CHECK_FALSE(f.image_size());
+    REQUIRE(look.content() != nullptr);
+    const auto* text = std::get_if<nordend::preview::Text>(look.content());
+    REQUIRE(text != nullptr);
+    CHECK(text->lines == std::vector<std::string>{"notes"});
 
     f.press(XKB_KEY_Up);
     f.press(XKB_KEY_Escape);
@@ -173,9 +181,32 @@ TEST_CASE("quick look: an image whose type is still unknown is shown once it is 
     REQUIRE(folder.mime_of(*folder.cursor_entry()) == nordend::fs::kUnknownMime);
     f.press(XKB_KEY_space);
     REQUIRE(f.browser.quick_look().is_open());
-    CHECK_FALSE(f.browser.quick_look().loading());  // not known to be an image yet
-    REQUIRE(f.settle());                            // Quick Look asked for its type
+    REQUIRE(f.settle());  // Quick Look asked for its type; meanwhile, the information card
+    CHECK_FALSE(f.image_size());
     f.browser.quick_look().follow(f.browser.columns().focused_folder());  // as every frame does
     REQUIRE(f.settle());
     CHECK(f.image_size() == Fixture::Size{{48, 32}});
+}
+
+TEST_CASE("quick look: a folder's card counts its entries; a wheel turn over text is taken") {
+    Fixture f;
+    REQUIRE(f.settle());
+    auto& look = f.browser.quick_look();
+    f.press(XKB_KEY_Down);  // sub
+    f.press(XKB_KEY_space);
+    REQUIRE(f.settle());
+    REQUIRE(look.content() != nullptr);
+    const auto* info = std::get_if<nordend::preview::Info>(look.content());
+    REQUIRE(info != nullptr);
+    CHECK(info->items == std::optional<std::uint64_t>{0});
+    CHECK(info->permissions.front() == 'd');
+
+    f.press(XKB_KEY_End);  // notes.txt
+    REQUIRE(f.settle());
+    nordend::ui::PointerEvent wheel;
+    wheel.kind = nordend::ui::PointerEvent::Kind::scroll;
+    wheel.wheel_y = 3.0F;
+    f.browser.pointer(wheel, Browser::Clock::now());
+    CHECK(look.is_open());  // scrolling does not close it
+    CHECK(look.shown() == "notes.txt");
 }

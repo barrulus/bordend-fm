@@ -7,7 +7,8 @@
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
 // optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down"; "Ctrl+2" switches to
-// the grid (then --bench scrolls the grid). --thumbnails gives the grid a thumbnail cache
+// the grid (then --bench scrolls the grid); with "space" last, Quick Look opens (and --bench
+// scrolls its text page, when it shows one). --thumbnails gives the grid a thumbnail cache
 // directory (none by default: icons only, nothing written to ~/.cache).
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
@@ -34,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 #include <xkbcommon/xkbcommon.h>
 
@@ -42,6 +44,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/color.hpp"
@@ -56,6 +59,7 @@ namespace {
 
 namespace log = nordend::log;
 namespace core = nordend::core;
+namespace preview = nordend::preview;
 namespace ui = nordend::ui;
 namespace views = nordend::views;
 
@@ -305,11 +309,19 @@ int main(int argc, char** argv) {
                     frame();
                 }
             }
-            // What --bench scrolls: the last column, or the grid.
+            // What --bench scrolls: Quick Look's text page, the last column, or the grid.
             ui::Scroller* bench_scroller = nullptr;
             std::size_t bench_entries = 0;
             float bench_extent = 0.0F;
-            if (columns && columns->mode() == views::Browser::Mode::grid) {
+            const preview::Content* const shown =
+                columns ? columns->quick_look().content() : nullptr;
+            const auto* const text = shown ? std::get_if<preview::Text>(shown) : nullptr;
+            if (text != nullptr) {
+                bench_scroller = &columns->quick_look().text_scroller();
+                bench_entries = text->lines.size();
+                bench_extent =
+                    static_cast<float>(bench_entries) * views::QuickLook::kTextLineHeight;
+            } else if (columns && columns->mode() == views::Browser::Mode::grid) {
                 views::GridView& grid = columns->grid();
                 bench_scroller = &grid.scroller();
                 bench_entries = grid.folder()->entries().size();

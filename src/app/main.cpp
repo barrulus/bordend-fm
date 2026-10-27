@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
 
         ui::Display display;
         ui::EglContext egl{display};
-        ui::FontSystem fonts{config.font.family};
+        ui::FontSystem fonts{config.font.family, config.font.monospace};
         theme::Theme theme{theme::default_colors_path()};
         theme.watch(loop);
         ui::Window window{

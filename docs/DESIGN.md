@@ -128,6 +128,8 @@ evidenziazione della sintassi, DnD verso altre app, editor esterno.
 5. Scripting Luau (comandi, preview provider, azioni sui file)
 6. Backend `xdg-desktop-portal` FileChooser: Nordend come selettore file di sistema
 7. Editor esterno (helix), vedi sotto
+8. Quick Look del testo più ricco: evidenziazione della sintassi, selezione e copia del testo nella
+   preview (chiesto dall'autore il 2026-10-27)
 
 ## Obiettivi di performance (da misurare, non promesse)
 
