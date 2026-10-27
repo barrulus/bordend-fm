@@ -24,18 +24,21 @@ constexpr float kCellExtraWidth = 56.0F;   // a cell is the icon plus this, at l
 constexpr float kCellMinWidth = 132.0F;    // and room for a short name (P1234567.ORF)
 constexpr float kCellExtraHeight = 52.0F;  // icon plus the gaps and one line of name
 constexpr float kTextSize = 13.0F;
+constexpr float kThumbnailRadius = 4.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
 
 }  // namespace
 
 GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
-                   std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw)
+                   std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
+                   Thumbnails* thumbnails)
     : loop_{loop},
       pool_{pool},
       watcher_{watcher},
       mime_{std::move(mime)},
-      redraw_{std::move(redraw)} {}
+      redraw_{std::move(redraw)},
+      thumbnails_{thumbnails} {}
 
 void GridView::show(std::shared_ptr<Folder> folder) {
     folder_ = std::move(folder);
@@ -170,6 +173,9 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const std::optional<std::size_t> cursor = folder_->cursor();
     const bool cursor_ring = folder_->single_selection() == nullptr;
     ui::FontSystem& fonts = renderer.fonts();
+    // The cache size that covers the icon in physical pixels.
+    const thumbs::Size thumbnail_size =
+        thumbs::size_for(static_cast<std::uint32_t>(std::lround(icon * renderer.scale())));
     for (std::size_t row = range.first; row < range.last; ++row) {
         const float y = area_.y + row_top(row) - offset;
         for (std::size_t column = 0; column < columns_; ++column) {
@@ -195,8 +201,27 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             }
             fs::Entry typed = entry;
             typed.mime = folder_->mime_of(entry);
-            icons.draw(renderer, fs::icon_name(*mime_, typed), x + ((cell_width_ - icon) / 2.0F),
-                       y + kIconTop, icon, style.icon);
+            const ui::Texture* thumbnail = nullptr;
+            if (thumbnails_ != nullptr && !entry.is_directory() &&
+                thumbs::can_make(mime_->name(typed.mime))) {
+                thumbnail = thumbnails_->get(folder_->path() / entry.name, entry.modified_ns,
+                                             thumbnail_size);
+            }
+            if (thumbnail != nullptr) {
+                // Fitted in the icon's square, proportions kept, centered.
+                const float fit =
+                    icon / static_cast<float>(std::max(thumbnail->width(), thumbnail->height()));
+                const float shown_width = static_cast<float>(thumbnail->width()) * fit;
+                const float shown_height = static_cast<float>(thumbnail->height()) * fit;
+                renderer.draw_image(
+                    *thumbnail,
+                    {x + ((cell_width_ - shown_width) / 2.0F),
+                     y + kIconTop + ((icon - shown_height) / 2.0F), shown_width, shown_height},
+                    ui::Corners::all(kThumbnailRadius));
+            } else {
+                icons.draw(renderer, fs::icon_name(*mime_, typed),
+                           x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
+            }
             const ui::TextLayout& name = fonts.layout(
                 entry.name, kTextSize, renderer.scale(),
                 std::max(1.0F, cell_width_ - (2.0F * kNameMargin)), ui::Ellipsis::middle);

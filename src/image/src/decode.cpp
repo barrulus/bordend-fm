@@ -4,10 +4,12 @@
 #include <array>
 #include <cstring>
 #include <fstream>
+#include <optional>
 #include <system_error>
 #include <utility>
 
 #include "decoders.hpp"
+#include "jpeg_segments.hpp"
 
 namespace nordend::image {
 namespace {
@@ -28,8 +30,6 @@ constexpr std::array<std::uint8_t, 4> kWebp{'W', 'E', 'B', 'P'};
 constexpr std::array<std::uint8_t, 6> kExif{'E', 'x', 'i', 'f', 0, 0};
 constexpr std::array<std::uint8_t, 4> kTiffLittle{'I', 'I', 42, 0};
 constexpr std::array<std::uint8_t, 4> kTiffBig{'M', 'M', 0, 42};
-constexpr std::uint8_t kApp1 = 0xE1;         // JPEG marker of the EXIF segment
-constexpr std::uint8_t kStartOfScan = 0xDA;  // JPEG marker of the image data
 constexpr std::uint16_t kOrientationTag = 0x0112;
 constexpr std::uint16_t kTiffShort = 3;
 constexpr std::ptrdiff_t kTile = 32;  // apply_orientation works in kTile x kTile blocks
@@ -60,33 +60,11 @@ private:
     bool little_;
 };
 
-// The EXIF orientation of a JPEG: wuffs does not report JPEG metadata, so the segments before
-// the image data are walked here, looking for the APP1 "Exif" one.
+// The EXIF orientation of a JPEG: wuffs does not report JPEG metadata, so it is read from the
+// APP1 "Exif" segment here.
 std::uint8_t jpeg_orientation(std::span<const std::uint8_t> data) {
-    std::size_t at = 2;  // after SOI
-    while (at + 4 <= data.size()) {
-        if (data[at] != 0xFF) {
-            return 1;  // not a marker: give up
-        }
-        const std::uint8_t marker = data[at + 1];
-        if (marker == 0xFF) {
-            ++at;  // fill byte
-            continue;
-        }
-        if (marker == kStartOfScan) {
-            return 1;  // image data: no EXIF before it
-        }
-        const std::size_t length = (std::size_t{data[at + 2]} << 8) | data[at + 3];
-        if (length < 2 || at + 2 + length > data.size()) {
-            return 1;
-        }
-        const std::span<const std::uint8_t> payload = data.subspan(at + 4, length - 2);
-        if (marker == kApp1 && starts_with(payload, kExif)) {
-            return exif_orientation(payload);
-        }
-        at += 2 + length;
-    }
-    return 1;
+    const std::optional<detail::JpegExif> exif = detail::jpeg_exif(data);
+    return exif ? exif_orientation(exif->tiff) : 1;
 }
 
 }  // namespace

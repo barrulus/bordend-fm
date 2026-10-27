@@ -17,6 +17,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/column_view.hpp"
 #include "nordend/views/grid_view.hpp"
+#include "nordend/views/thumbnails.hpp"
 
 namespace nordend::views {
 
@@ -32,9 +33,11 @@ public:
 
     enum class Mode : std::uint8_t { columns, grid };
 
+    // thumbnails: the cache the grid takes its thumbnails from; nullptr shows icons only.
     Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
             std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-            std::function<void(ui::CursorShape)> set_cursor);
+            std::function<void(ui::CursorShape)> set_cursor,
+            std::shared_ptr<const thumbs::Cache> thumbnails = nullptr);
 
     // directory, no cursor, in the current mode.
     void open(const std::filesystem::path& directory);
@@ -54,7 +57,7 @@ public:
     void pointer(const ui::PointerEvent& event, Clock::time_point now);
     void key(const ui::KeyEvent& event, Clock::time_point now);
 
-    // The view shown has loaded (snapshots, tests).
+    // The view shown is still loading, or its thumbnails are being made (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
     [[nodiscard]] ColumnView& columns() noexcept { return columns_; }
@@ -63,7 +66,8 @@ public:
 
 private:
     std::function<void()> redraw_;
-    ColumnView columns_;  // before grid_: grid folders may report to it
+    std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
+    ColumnView columns_;                      // before grid_: grid folders may report to it
     GridView grid_;
     Mode mode_{Mode::columns};
 

@@ -57,6 +57,9 @@ pkg_check_modules(FONTCONFIG REQUIRED IMPORTED_TARGET fontconfig)
 pkg_check_modules(TOMLPLUSPLUS REQUIRED IMPORTED_TARGET tomlplusplus)
 pkg_check_modules(WEBP REQUIRED IMPORTED_TARGET libwebp libwebpdemux)
 pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
+pkg_check_modules(EXIV2 REQUIRED IMPORTED_TARGET exiv2)
+pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
+pkg_check_modules(TURBOJPEG IMPORTED_TARGET libturbojpeg)  # optional for now: the benchmark
 
 # ---------------------------------------------------------------------------
 # Modules
@@ -65,7 +68,8 @@ add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
-add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl)
+add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl), previews, PNG
+add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/views)     # column view and grid
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
@@ -102,6 +106,18 @@ target_link_libraries(nordend-watch PRIVATE nordend::core nordend::fs nordend::w
 add_executable(nordend-decode src/tools/decode.cpp)
 target_link_libraries(nordend-decode PRIVATE nordend::core nordend::image nordend::warnings)
 
+# Development tool: thumbnails through the freedesktop cache (ROADMAP 5.2). Not installed.
+add_executable(nordend-thumb src/tools/thumb.cpp)
+target_link_libraries(nordend-thumb PRIVATE nordend::thumbs nordend::warnings)
+
+# Development tool: JPEG decoding, wuffs against TurboJPEG scaling (ROADMAP 5.2). Not installed;
+# built only when libjpeg-turbo-devel is there.
+if(TURBOJPEG_FOUND)
+    add_executable(nordend-bench-jpeg src/tools/bench_jpeg.cpp)
+    target_link_libraries(nordend-bench-jpeg
+        PRIVATE nordend::image PkgConfig::TURBOJPEG nordend::warnings)
+endif()
+
 # ---------------------------------------------------------------------------
 # Tests (doctest, system package). Skipped with a notice when doctest is missing.
 # ---------------------------------------------------------------------------
@@ -119,7 +135,7 @@ endif()
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
     foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch
-            nordend-decode)
+            nordend-decode nordend-thumb)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()

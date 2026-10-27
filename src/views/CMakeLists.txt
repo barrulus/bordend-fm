@@ -5,10 +5,11 @@ add_library(nordend_views
     src/draw_helpers.cpp
     src/folder.cpp
     src/format.cpp
-    src/grid_view.cpp)
+    src/grid_view.cpp
+    src/thumbnails.cpp)
 add_library(nordend::views ALIAS nordend_views)
 
 target_include_directories(nordend_views PUBLIC include)
 target_link_libraries(nordend_views
-    PUBLIC nordend::core nordend::ui nordend::fs nordend::theme
+    PUBLIC nordend::core nordend::ui nordend::fs nordend::theme nordend::thumbs
     PRIVATE nordend::warnings)

@@ -8,6 +8,9 @@
 #include <doctest/doctest.h>
 
 #include "nordend/image/decode.hpp"
+#include "nordend/image/png.hpp"
+#include "nordend/image/preview.hpp"
+#include "nordend/image/scale.hpp"
 
 namespace image = nordend::image;
 using image::Format;
@@ -186,4 +189,73 @@ TEST_CASE("image: bad input fails with a reason, never a crash") {
         CHECK_FALSE(too_large.error.empty());
         CHECK(too_large.image.empty());
     }
+}
+
+TEST_CASE("image: scale_to_fit keeps proportions, averages, and never enlarges") {
+    Image gray{.width = 300, .height = 200, .rgba = {}};
+    gray.rgba.resize(std::size_t{300} * 200 * 4);
+    for (std::size_t i = 0; i < gray.rgba.size(); i += 4) {
+        const bool white = (i / 4) % 2 == 0;  // alternate black and white columns
+        gray.rgba[i] = gray.rgba[i + 1] = gray.rgba[i + 2] = white ? 255 : 0;
+        gray.rgba[i + 3] = 255;
+    }
+    const Image small = image::scale_to_fit(gray, 128, 128);
+    CHECK(small.width == 128);
+    CHECK(small.height == 85);
+    // Stripes average to mid gray, through the halving and the area filter alike.
+    CHECK(std::abs(pixel(small, 64, 40).r - 128) <= 2);
+    CHECK(pixel(small, 64, 40).a == 255);
+    const Image tiny = image::scale_to_fit(gray, 7, 1000);  // ratio 1:42.9, through halvings
+    CHECK(tiny.width == 7);
+    CHECK(tiny.height == 5);
+    CHECK(std::abs(pixel(tiny, 3, 2).r - 128) <= 2);
+
+    const Image same = image::scale_to_fit(gray, 1000, 1000);
+    CHECK(same.width == 300);
+    CHECK(same.height == 200);
+}
+
+TEST_CASE("image: transparent pixels do not darken what they are averaged with") {
+    // Red, and transparent black: the average is half-transparent red, not dark red.
+    Image half{.width = 2, .height = 1, .rgba = {255, 0, 0, 255, 0, 0, 0, 0}};
+    const Image one = image::scale_to_fit(half, 1, 1);
+    REQUIRE(one.width == 1);
+    CHECK(pixel(one, 0, 0).r == 255);
+    CHECK(std::abs(pixel(one, 0, 0).a - 128) <= 1);
+}
+
+TEST_CASE("image: PNG written with text chunks reads back the same") {
+    const image::Decoded blocks = image::decode_file(kData / "blocks.png");
+    REQUIRE(blocks.error.empty());
+    const image::PngText text{{"Thumb::URI", "file:///a%20b.jpg"}, {"Thumb::MTime", "1700000000"}};
+    const std::vector<std::uint8_t> png = image::encode_png(blocks.image, text);
+    REQUIRE_FALSE(png.empty());
+    CHECK(image::png_text(png) == text);
+    const image::Decoded back = image::decode(png);
+    REQUIRE(back.error.empty());
+    CHECK(back.image.rgba == blocks.image.rgba);  // lossless, alpha included
+    CHECK(image::png_text(std::vector<std::uint8_t>{1, 2, 3}).empty());
+}
+
+TEST_CASE("image: an embedded EXIF thumbnail is found, with the main image's orientation") {
+    const image::EmbeddedPreview preview =
+        image::embedded_preview(kData / "with-thumbnail.jpg", 16);
+    CHECK(preview.error.empty());
+    REQUIRE_FALSE(preview.jpeg.empty());
+    CHECK(preview.width == 192);
+    CHECK(preview.height == 128);
+    CHECK(preview.orientation == 6);
+    const image::Decoded decoded = image::decode(preview.jpeg, {.apply_orientation = false});
+    REQUIRE(decoded.error.empty());
+    REQUIRE(decoded.image.width == 192);
+    CHECK(pixel(decoded.image, 32, 32).r > 240);  // red block, top left
+    CHECK(pixel(decoded.image, 32, 32).g < 16);
+
+    // None in a plain file, and an error only when the file cannot be read.
+    const image::EmbeddedPreview none = image::embedded_preview(kData / "blocks.png", 16);
+    CHECK(none.jpeg.empty());
+    CHECK(none.error.empty());
+    const image::EmbeddedPreview missing = image::embedded_preview(kData / "nothing.jpg", 16);
+    CHECK(missing.jpeg.empty());
+    CHECK_FALSE(missing.error.empty());
 }

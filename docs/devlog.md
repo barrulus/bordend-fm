@@ -4,6 +4,83 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Thumbnails (ROADMAP 5.2)
+
+**Done**
+- Measured first (docs/benchmarks.md): TurboJPEG's DCT scaling only halves the cost of an OM-1
+  JPEG (145 ms with wuffs, 75 ms at 1/8), while the files carry a 1600x1200 preview (JPEG) or a
+  3200x2400 one (ORF) that decodes in 8 / 30 ms. With the author's OK: no libjpeg-turbo, exiv2
+  now (planned for 5.4) to find the embedded previews. `nordend-bench-jpeg` stays as a dev tool,
+  built only when libjpeg-turbo-devel is installed.
+- `image::embedded_preview(path, min_side)`: exiv2's previews (EXIF thumbnail, raw previews),
+  plus the Olympus / OM System maker-note preview that exiv2's PreviewManager does not list for
+  JPEGs: at TIFF start + `Exif.MakerNote.Offset` + `Exif.OlympusCs.PreviewImageStart` (checked
+  against exiftool on a JPEG and an ORF). Picks the smallest one big enough; reports the main
+  image's orientation, which the previews share (they are stored as the sensor sees, checked on
+  screen).
+- `image::scale_to_fit` (area average, alpha weighted, 2x2 halving first), `image::encode_png`
+  (our writer on zlib, level 1, per-row filter by minimum sum; tEXt chunks) and
+  `image::png_text`. A shared JPEG segment walker gives EXIF and frame size.
+- New module `src/thumbs` (already in DESIGN): the freedesktop cache. MD5 of the file URI (our
+  RFC 1321 code), URI escaped exactly as GLib's `g_filename_to_uri` (checked with `gio`), sizes
+  normal/large/x-large/xx-large, valid while Thumb::URI and Thumb::MTime match, written through
+  a 0600 temporary file and a rename, directories 0700, failures remembered in
+  `fail/nordend-<version>/` until the file changes, the cache never thumbnails itself. Source
+  order: valid cached thumbnail, embedded preview big enough, whole image, else the largest
+  preview (raw files). Scaled first, turned upright after. `thumbs::can_make(mime)`: the five
+  decoded formats and the camera raw types.
+- UI: `ui::Texture` (RGBA, premultiplied on upload, mipmapped) and `Renderer::draw_image`
+  (textured quad cut to rounded corners by the box distance function, clipped like the rest).
+- `views::Thumbnails`: thumbnails as textures for the views. Asked for per frame by what is
+  drawn, made on workers (visible priority) through the cache, cancelled when no longer drawn,
+  textures kept within 256 MB (least recently drawn dropped first); textures are created while
+  drawing. The grid shows them in the icon's square at the cache size that covers the icon in
+  physical pixels; the icon shows until the thumbnail is ready. The app uses
+  `~/.cache/thumbnails`; `nordend-snapshot --thumbnails DIR` takes another cache (none by default).
+- `nordend-thumb [--size ...] [--cache DIR] [--make] [--ppm OUT] FILE...`.
+- Fixture `with-thumbnail.jpg` (480x320 with a 192x128 EXIF thumbnail, orientation 6); `make.sh`
+  now writes PNGs without date chunks (reproducible). 10 new test cases (97 in total): scaling
+  and alpha, PNG round trip with text, embedded preview and orientation, MD5 (RFC suite and the
+  spec's example), GLib URI escaping, sizes, cache hit / miss on mtime change / preview or
+  decode by size / permissions, failures remembered and retried, the cache not thumbnailing
+  itself. Release, ASan and TSan pass, also `nordend-snapshot` making thumbnails on all workers
+  under ASan and TSan; tidy clean apart from reference members.
+
+**Measured** (docs/benchmarks.md): a thumbnail from an OM-1 JPEG in about 12 ms (large), from
+an ORF in about 36 ms; a screenful of the grid in 0.15-0.4 s with an empty cache, 12-22 ms warm;
+scrolling with thumbnails 0.62 ms per frame.
+
+**Decisions**
+- zlib level 1 for the thumbnail PNGs: 5 times faster than level 6 for files 13 % larger.
+- Thumbnails are made only for the types listed in `thumbs::can_make`; other images (SVG, TIFF,
+  ...) keep their icon rather than filling the failure cache.
+- The thumbnail cache is the shared one (`~/.cache/thumbnails`), as the ROADMAP asks; no
+  private cache.
+
+**Tested by the author**
+- On screen: thumbnails in the grid, scrolling, every cell size, switching views, the cache
+  reused on the next start, `nordend-thumb` reading from the cache: "funziona tutto". Step 5.2
+  closed.
+
+**Open**
+- `views::Thumbnails` has no unit test: it needs a GL context for its textures; it is covered by
+  the snapshots (also under ASan/TSan).
+- The Olympus maker-note path is covered by real files only (no small fixture carries one).
+- `nordend-bench-dir` makes empty files: a folder of 10 000 real-looking images would stress the
+  request/cancel path; not done yet.
+- Thumbnails are not removed when their file is deleted (the spec leaves that to cleaners).
+- Raw samples from rawsamples.ch (22 files, Canon, Fuji, Hasselblad, Nikon, Panasonic, Sony;
+  kept by the author in `DATA/fotografia/raw_text_examples`, not in the repo): 20 of 22 get a
+  thumbnail from their JPEG preview (5-25 ms at large). Found, for ROADMAP 5.4: (1) Hasselblad
+  3FR carries only an uncompressed TIFF preview (320x240), which we skip; Canon 5DS has a TIFF
+  preview of 556x370 next to its 50 MP JPEG, so "large" decodes the 50 MP one (366 ms): reading
+  simple uncompressed TIFF previews would fix both. (2) Panasonic GX8 stores the 4:3 sensor
+  preview for every aspect ratio and records the crop in tags (`Crop*`); the GX7 stores it
+  already cropped. (3) `image/tiff` is not in `can_make` (the D800 TIFF has a 570x375 JPEG
+  preview); 3FR is detected as `image/tiff` too.
+
+---
+
 ## 2026-10-27 — Image decoding (ROADMAP 5.1)
 
 **Done**

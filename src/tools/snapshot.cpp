@@ -1,12 +1,14 @@
 // nordend-snapshot: renders the test scene (or the column view, or the grid) offscreen and writes
 // it as a binary PPM.
 //
-//   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--bench FRAMES]] <out.ppm>
+//   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
+//                    [--bench FRAMES]] <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
 // optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down"; "Ctrl+2" switches to
-// the grid (then --bench scrolls the grid).
+// the grid (then --bench scrolls the grid). --thumbnails gives the grid a thumbnail cache
+// directory (none by default: icons only, nothing written to ~/.cache).
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -41,6 +43,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/theme/palette.hpp"
+#include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
@@ -198,6 +201,7 @@ int main(int argc, char** argv) {
     std::filesystem::path columns_dir;
     std::filesystem::path reveal;
     std::string keys;
+    std::filesystem::path thumbnails;
     int bench_frames = 0;
     while (args.size() >= 3) {
         const std::string_view option{args[1]};
@@ -207,6 +211,8 @@ int main(int argc, char** argv) {
             reveal = args[2];
         } else if (option == "--keys") {
             keys = args[2];
+        } else if (option == "--thumbnails") {
+            thumbnails = args[2];
         } else if (option == "--bench") {
             bench_frames = std::stoi(args[2]);
         } else {
@@ -216,8 +222,8 @@ int main(int argc, char** argv) {
     }
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
-            "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--bench "
-            "FRAMES]] "
+            "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
+            "CACHE] [--bench FRAMES]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -264,7 +270,10 @@ int main(int argc, char** argv) {
             if (!columns_dir.empty()) {
                 columns = std::make_unique<views::Browser>(
                     loop, pool, watcher, nordend::fs::MimeDatabase::load(), [] {},
-                    [](ui::CursorShape /*shape*/) {});
+                    [](ui::CursorShape /*shape*/) {},
+                    thumbnails.empty()
+                        ? nullptr
+                        : std::make_shared<nordend::thumbs::Cache>(thumbnails, "nordend-dev"));
                 if (reveal.empty()) {
                     columns->open(columns_dir);
                 } else {
@@ -276,8 +285,21 @@ int main(int argc, char** argv) {
                     columns->key(event, views::Browser::Clock::now());
                 }
                 run_until(loop, [&] { return !columns->loading(); });
-                frame();                                // asks for the visible entries' types
-                run_until(loop, [] { return false; });  // let them arrive (2 s at most)
+                // The first frame asks for the visible entries' types and, in the grid, their
+                // thumbnails, made on workers; each frame uploads the ones that arrived.
+                const auto start = std::chrono::steady_clock::now();
+                frame();
+                if (columns->loading()) {
+                    for (int i = 0; i < 1000 && columns->loading(); ++i) {
+                        run_until(loop, [&] { return !columns->loading(); });
+                        frame();
+                    }
+                    log::info("thumbnails ready in {:.0f} ms",
+                              std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now() - start)
+                                  .count());
+                }
+                run_until(loop, [] { return false; });  // let sniffed types arrive (2 s)
                 // Let the horizontal glide end, so the snapshot shows where it settles.
                 for (int i = 0; i < 200 && columns->animating(); ++i) {
                     frame();

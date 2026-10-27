@@ -42,6 +42,9 @@ What already works, the way it is meant to stay:
   brings the columns back: where you were and what you selected come along. Ctrl+plus/minus
   (or Ctrl+wheel) make the cells bigger or smaller, from 48 to 256 px; the arrows, Enter and
   Backspace walk the folders as in the columns.
+- **Your photos at a glance.** In the grid, photos and camera raw files show their thumbnails,
+  upright, in a fraction of a second: Nordend uses the previews your camera already stored in
+  the file, and keeps the thumbnails in the shared cache other apps read too.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -96,9 +99,11 @@ What already works, the way it is meant to stay:
 - Image decoding: PNG, JPEG and GIF (wuffs, memory-safe by construction), WebP and JPEG XL
   (libwebp, libjxl), first frame of animations, EXIF orientation; a 20 MP JPEG in about
   150 ms
+- Thumbnails in the grid through the freedesktop cache (`~/.cache/thumbnails`, shared with
+  other apps), made from the previews camera files carry (OM System JPEG and ORF) or from the
+  whole image; a screenful in 0.15-0.4 s the first time, about 20 ms after
 
-**Next:** the freedesktop thumbnail cache. The full plan is in the
-[roadmap](docs/ROADMAP.md).
+**Next:** Quick Look. The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 
@@ -119,7 +124,7 @@ Void Linux package names:
 sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
-    libwebp-devel libjxl-devel
+    libwebp-devel libjxl-devel exiv2-devel zlib-devel
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one

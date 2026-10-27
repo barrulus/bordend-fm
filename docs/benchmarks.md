@@ -191,6 +191,67 @@ Reading a 13 MB JPEG from the SATA SSD with a warm cache: 10-37 ms.
   (`-define jpeg:size=648x486`). Its 16-bit float pipeline inflates both numbers; what
   libjpeg-turbo scaling gains on its own is *to be verified* with a real benchmark.
 
+### 2026-10-27: JPEG for thumbnails, wuffs against TurboJPEG scaling and embedded previews
+
+**Tool:** `nordend-bench-jpeg [--runs N] FILE...` (built when `libjpeg-turbo-devel` is
+installed): the same file from memory with wuffs at full size and with TurboJPEG at 1/1, 1/2,
+1/4, 1/8 (DCT scaling), to RGBA, no EXIF turn.
+
+20 OM-1 JPEGs (5184x3888, 4:2:2, 3-14 MB), median of the per-file medians:
+
+| Decoder | Output | Decode |
+|---------|--------|-------:|
+| wuffs | 5184x3888 | 145 ms |
+| TurboJPEG 1/1 | 5184x3888 | 108 ms |
+| TurboJPEG 1/2 | 2592x1944 | 96 ms |
+| TurboJPEG 1/4 | 1296x972 | 90 ms |
+| TurboJPEG 1/8 | 648x486 | 75 ms |
+
+Scaling saves little: in these high-quality files the entropy (Huffman) decoding of every
+coefficient dominates, and it is the same at every scale.
+
+What the files already carry (extracted with exiftool, decoded with wuffs):
+
+| Embedded image | Size | Bytes | Decode |
+|----------------|------|------:|-------:|
+| OM-1 JPEG, Olympus maker-note preview | 1600x1200 | 375 kB | 7.8 ms |
+| OM-1 JPEG, EXIF thumbnail (IFD1) | 160x120 | 9 kB | 0.1 ms |
+| OM-1 ORF, Olympus maker-note preview | 3200x2400 | 1.0 MB | 30 ms |
+
+## Thumbnails (ROADMAP 5.2)
+
+### 2026-10-27: making one thumbnail
+
+Inside `thumbs::Cache::make`, one file, warm cache, median of 3 (a scratch timing program
+around the same calls):
+
+| Source | Size | Find preview | Decode | Scale | Turn | PNG | Total |
+|--------|------|-------------:|-------:|------:|-----:|----:|------:|
+| OM-1 JPEG, 1600x1200 preview | large (256) | 1.1 ms | 4.6 ms | 3.5 ms | 0 | 2.6 ms | ~12 ms |
+| OM-1 JPEG, 1600x1200 preview | xx-large (1024) | 1.2 ms | 5.0 ms | 11.1 ms | 1.6 ms | 36 ms | ~55 ms |
+| OM-1 ORF, 3200x2400 preview | large (256) | 1.8 ms | 19.4 ms | 12.8 ms | 0 | 2.0 ms | ~36 ms |
+| OM-1 ORF, 3200x2400 preview | xx-large (1024) | 1.9 ms | 19.2 ms | 25.8 ms | 1.7 ms | 29 ms | ~78 ms |
+
+Two changes came from these numbers: zlib level 1 instead of 6 (PNG of an xx-large thumbnail
+171 ms → 36 ms, files about 13 % larger) and halving 2x2 before the area filter (3200 → 1024:
+42 ms → 26 ms). Finding the preview with exiv2 (open, metadata, preview list) costs 1-2.5 ms.
+
+### 2026-10-27: a screenful of thumbnails in the grid
+
+**Tool:** `nordend-snapshot --columns DIR --keys "Ctrl+2[,Ctrl+plus...]" --thumbnails CACHE`:
+logs "thumbnails ready in N ms", from the first grid frame to the last thumbnail drawn (made on
+the worker pool, 8 threads on the Ryzen 7 5700G). 1600x1000 at scale 1.5.
+
+| Folder | Cells (thumbnails) | Empty cache | Warm cache |
+|--------|--------------------|------------:|-----------:|
+| OM-1 JPEGs | 96 px, large (69) | 253 ms | 21 ms |
+| OM-1 JPEGs | 192 px, x-large (23) | 142 ms | 22 ms |
+| OM-1 ORF + sidecars + WebP | 96 px, large (35) | 405 ms | 12 ms |
+| OM-1 ORF + sidecars + WebP | 192 px, x-large (12) | 189 ms | 13 ms |
+
+Scrolling the grid with thumbnails (`--bench 600`, 90 JPEGs, warm, 2880x1620): 0.62 ms median,
+0.76 ms p95, against 0.32 ms with icons only; one draw call per thumbnail.
+
 ## MIME detection (ROADMAP 3.2)
 
 **Tools:** `nordend-bench-dir` ("mime" column: types from names, as the loader does) and

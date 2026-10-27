@@ -18,13 +18,14 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/folder.hpp"
+#include "nordend/views/thumbnails.hpp"
 
 namespace nordend::views {
 
 // One folder as a grid of cells (a large icon, the name under it), filled row by row and scrolled
 // vertically. Only the rows inside the viewport are drawn. The cells stretch to fill the width;
 // their size follows the icon size, which Ctrl+plus/minus (or Ctrl+wheel) change and Ctrl+0
-// resets. The thumbnails of phase 5 take the icons' place.
+// resets. Images and raw files show their thumbnail in the icon's place once it is ready.
 //
 // Keys: arrows move the cursor (Up/Down by a row), Page Up/Down by a screenful, Home/End to the
 // ends; Shift, Ctrl, Ctrl+Space, Ctrl+A and Escape select as in the column view. Enter (or
@@ -39,8 +40,10 @@ public:
     static constexpr std::array<float, 6> kIconSizes{48.0F, 64.0F, 96.0F, 128.0F, 192.0F, 256.0F};
     static constexpr std::size_t kDefaultSize = 2;  // 96 px
 
+    // thumbnails may be nullptr: icons only.
     GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
-             std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw);
+             std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
+             Thumbnails* thumbnails = nullptr);
 
     // Shows folder as it is (cursor and selection), the cursor in sight.
     void show(std::shared_ptr<Folder> folder);
@@ -90,6 +93,7 @@ private:
     fs::DirectoryWatcher& watcher_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
+    Thumbnails* thumbnails_;
 
     std::shared_ptr<Folder> folder_;
     ui::Scroller scroller_;

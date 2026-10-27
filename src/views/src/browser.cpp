@@ -7,10 +7,13 @@ namespace nordend::views {
 
 Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                  std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
-                 std::function<void(ui::CursorShape)> set_cursor)
+                 std::function<void(ui::CursorShape)> set_cursor,
+                 std::shared_ptr<const thumbs::Cache> thumbnails)
     : redraw_{redraw},
+      thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, std::move(thumbnails), redraw)
+                             : nullptr},
       columns_{loop, pool, watcher, mime, redraw, std::move(set_cursor)},
-      grid_{loop, pool, watcher, std::move(mime), std::move(redraw)} {}
+      grid_{loop, pool, watcher, std::move(mime), std::move(redraw), thumbnails_.get()} {}
 
 void Browser::open(const std::filesystem::path& directory) {
     columns_.open(directory);
@@ -65,13 +68,21 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     } else {
         columns_.draw(renderer, bounds, palette, icons, now);
     }
+    if (thumbnails_) {
+        thumbnails_->end_frame();
+    }
 }
 
 bool Browser::animating() const {
     return mode_ == Mode::grid ? grid_.animating() : columns_.animating();
 }
 
-bool Browser::loading() const { return mode_ == Mode::grid ? grid_.loading() : columns_.loading(); }
+bool Browser::loading() const {
+    if (mode_ == Mode::grid) {
+        return grid_.loading() || (thumbnails_ && thumbnails_->loading());
+    }
+    return columns_.loading();
+}
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (event.kind == ui::PointerEvent::Kind::leave) {

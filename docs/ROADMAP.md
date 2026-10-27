@@ -82,7 +82,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 - [x] **5.1 Decodifica immagini**
   png, jpeg, gif (wuffs), webp, jxl.
-- [ ] **5.2 Cache miniature freedesktop**
+- [x] **5.2 Cache miniature freedesktop**
   Lettura e scrittura in `~/.cache/thumbnails`, compatibile con le altre app.
 - [ ] **5.3 Quick Look immagini**
   Overlay con barra spazio, frecce per scorrere, Esc per chiudere.

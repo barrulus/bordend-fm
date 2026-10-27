@@ -24,6 +24,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/theme/theme.hpp"
+#include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/icons.hpp"
@@ -39,6 +40,7 @@ namespace core = nordend::core;
 namespace fs = nordend::fs;
 namespace log = nordend::log;
 namespace theme = nordend::theme;
+namespace thumbs = nordend::thumbs;
 namespace ui = nordend::ui;
 namespace views = nordend::views;
 
@@ -242,7 +244,9 @@ int main(int argc, char** argv) {
         if (!test_scene) {
             columns = std::make_unique<views::Browser>(
                 loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); },
-                [&](ui::CursorShape shape) { seat.set_cursor(shape); });
+                [&](ui::CursorShape shape) { seat.set_cursor(shape); },
+                std::make_shared<thumbs::Cache>(thumbs::default_root(),
+                                                "nordend-" NORDEND_VERSION));
             columns->open(start_folder(start_dir));
         }
 

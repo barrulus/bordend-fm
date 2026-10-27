@@ -143,6 +143,61 @@ void main() {
 }
 )glsl";
 
+// Images: one textured quad, cut to a rounded box with the same distance function as the boxes.
+constexpr const char* kImageVertexShader = R"glsl(#version 300 es
+layout(location = 0) in vec2 a_corner;
+layout(location = 1) in vec4 a_rect;   // physical x, y, width, height
+layout(location = 2) in vec4 a_radii;  // top-left, top-right, bottom-right, bottom-left
+layout(location = 3) in float a_opacity;
+
+uniform vec2 u_viewport;
+
+out vec2 v_pos;
+out vec2 v_uv;
+flat out vec4 v_rect;
+flat out vec4 v_radii;
+flat out float v_opacity;
+
+void main() {
+    vec2 pos = a_rect.xy + a_corner * a_rect.zw;
+    v_pos = pos;
+    v_uv = a_corner;
+    v_rect = a_rect;
+    v_radii = a_radii;
+    v_opacity = a_opacity;
+    vec2 ndc = pos / u_viewport * 2.0 - 1.0;
+    gl_Position = vec4(ndc.x, -ndc.y, 0.0, 1.0);
+}
+)glsl";
+
+constexpr const char* kImageFragmentShader = R"glsl(#version 300 es
+precision highp float;
+
+in vec2 v_pos;
+in vec2 v_uv;
+flat in vec4 v_rect;
+flat in vec4 v_radii;
+flat in float v_opacity;
+
+uniform sampler2D u_image;  // premultiplied
+
+out vec4 o_color;
+
+float rounded_box_distance(vec2 p, vec2 half_size, vec4 radii) {
+    float r = p.x < 0.0 ? (p.y < 0.0 ? radii.x : radii.w) : (p.y < 0.0 ? radii.y : radii.z);
+    r = min(r, min(half_size.x, half_size.y));
+    vec2 q = abs(p) - half_size + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+}
+
+void main() {
+    vec2 half_size = v_rect.zw * 0.5;
+    float d = rounded_box_distance(v_pos - (v_rect.xy + half_size), half_size, v_radii);
+    float coverage = clamp(0.5 - d, 0.0, 1.0);
+    o_color = texture(u_image, v_uv) * (coverage * v_opacity);
+}
+)glsl";
+
 constexpr std::size_t kMaxInstancesPerDraw = 4096;
 constexpr std::int32_t kAtlasSize = 2048;
 constexpr std::int32_t kAtlasPadding = 1;  // keeps linear filtering from bleeding neighbours
@@ -362,6 +417,13 @@ struct Renderer::BoxInstance {
     std::array<float, 2> params;
 };
 
+// Mirrors the per-instance attributes of the image shader.
+struct ImageInstance {
+    std::array<float, 4> rect;
+    std::array<float, 4> radii;
+    float opacity;
+};
+
 // Mirrors the per-instance attributes of the glyph shader.
 struct Renderer::GlyphInstance {
     std::array<float, 4> rect;
@@ -385,7 +447,15 @@ struct Renderer::Gl {
         {4, 1, offsetof(GlyphInstance, kind)},
     }};
 
+    static constexpr std::array<Attribute, 3> kImageAttributes{{
+        {1, 4, offsetof(ImageInstance, rect)},
+        {2, 4, offsetof(ImageInstance, radii)},
+        {3, 1, offsetof(ImageInstance, opacity)},
+    }};
+
     Pipeline boxes{kBoxVertexShader, kBoxFragmentShader, kBoxAttributes, sizeof(BoxInstance)};
+    Pipeline images{kImageVertexShader, kImageFragmentShader, kImageAttributes,
+                    sizeof(ImageInstance)};
     Pipeline glyphs{kGlyphVertexShader, kGlyphFragmentShader, kGlyphAttributes,
                     sizeof(GlyphInstance)};
     Atlas coverage_atlas{GL_R8, GL_RED};
@@ -396,6 +466,8 @@ struct Renderer::Gl {
         glUseProgram(glyphs.program());
         glUniform1i(glGetUniformLocation(glyphs.program(), "u_coverage"), 0);
         glUniform1i(glGetUniformLocation(glyphs.program(), "u_color"), 1);
+        glUseProgram(images.program());
+        glUniform1i(glGetUniformLocation(images.program(), "u_image"), 0);
     }
 };
 
@@ -469,6 +541,31 @@ void Renderer::draw_shadow(const Rect& rect, const Corners& radius, float blur, 
         .border_color = {0.0F, 0.0F, 0.0F, 0.0F},
         .params = {0.0F, blur * scale_},
     });
+}
+
+void Renderer::draw_image(const Texture& texture, const Rect& rect, const Corners& radius,
+                          float opacity) {
+    if (rect.empty() || opacity <= 0.0F) {
+        return;
+    }
+    // Snapped like boxes, so that an image and the box behind it share their edges.
+    const float x0 = snap(rect.x, scale_);
+    const float y0 = snap(rect.y, scale_);
+    const float x1 = snap(rect.right(), scale_);
+    const float y1 = snap(rect.bottom(), scale_);
+    if (x1 <= x0 || y1 <= y0) {
+        return;
+    }
+    flush();  // paint order: what is pending goes first
+    const ImageInstance instance{
+        .rect = {x0, y0, x1 - x0, y1 - y0},
+        .radii = {radius.top_left * scale_, radius.top_right * scale_, radius.bottom_right * scale_,
+                  radius.bottom_left * scale_},
+        .opacity = opacity,
+    };
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture.id());
+    gl_->images.draw(&instance, 1, sizeof(ImageInstance), buffer_width_, buffer_height_);
 }
 
 float Renderer::draw_text(std::string_view utf8, float x, float y, float size, Color color,

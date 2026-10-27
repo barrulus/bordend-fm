@@ -8,6 +8,7 @@
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/text.hpp"
+#include "nordend/ui/texture.hpp"
 
 namespace nordend::ui {
 
@@ -52,6 +53,10 @@ public:
     // Soft shadow of a rounded box; blur is the Gaussian sigma in logical pixels. Offset the
     // rect to move the shadow.
     void draw_shadow(const Rect& rect, const Corners& radius, float blur, Color color);
+
+    // texture stretched over rect, cut to its rounded corners, at opacity (0-1).
+    void draw_image(const Texture& texture, const Rect& rect, const Corners& radius = {},
+                    float opacity = 1.0F);
 
     // One line of text; (x, y) is the top-left of the line box, size the font size, both in
     // logical pixels. With max_width > 0 the text is truncated with an ellipsis. Returns the

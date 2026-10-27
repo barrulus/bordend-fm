@@ -40,7 +40,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | Testo | harfbuzz + freetype + fontconfig | shaping, fallback e atlas dei glifi nostri; niente pango/cairo |
 | Config | `toml++`, `~/.config/nordend/config.toml` | |
 | Immagini | wuffs, libwebp, libjxl | come Noctalia |
-| RAW + EXIF | exiv2 | estrae il JPEG incorporato negli ORF; più avanti scrive gli XMP |
+| RAW + EXIF | exiv2 | estrae le anteprime JPEG incorporate (ORF e JPEG delle fotocamere, per miniature e Quick Look); più avanti scrive gli XMP |
 | Ricerca fuzzy | fzy | come Noctalia |
 | Icone UI | Tabler | come Noctalia |
 | Tipi MIME | database `shared-mime-info` (glob + magic) | parser nostro di globs2 e magic, ordine di riconoscimento di GLib (deciso 2026-10-26) |
