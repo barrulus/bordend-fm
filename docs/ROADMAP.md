@@ -86,10 +86,17 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   Lettura e scrittura in `~/.cache/thumbnails`, compatibile con le altre app.
 - [x] **5.3 Quick Look immagini**
   Overlay con barra spazio, frecce per scorrere, Esc per chiudere.
-- [ ] **5.4 RAW**
+- [x] **5.4 RAW**
   JPEG incorporato negli ORF via exiv2, orientamento corretto.
   Fatto quando: Quick Look di un ORF < 100 ms (misurato).
 - [ ] **5.5 Preview testo e fallback info**
+- [ ] **5.6 Vista dettagli** (Ctrl+3)
+  Righe con colonne nome, dimensione, data di modifica, tipo; ordinamento con un clic
+  sull'intestazione (di nuovo: verso opposto), colonne ridimensionabili; stesso `Folder` delle
+  altre viste (cursore e selezione), passaggio Ctrl+1/2/3 senza perdere il posto.
+  Prima della fase 6, perché le operazioni sui file nascano e si provino su tutte e tre le viste.
+  Fatto quando: cartella da 10k file ordinata per dimensione o data senza scatti nello
+  scorrimento (misurato).
 
 ## Fase 6 — Operazioni sui file
 

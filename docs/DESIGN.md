@@ -77,7 +77,7 @@ Senza il file, Nordend usa una palette di default incorporata.
 app/        main loop, comandi, keybinding, palette comandi
 ui/         toolkit minimo: surface, renderer GLES, testo, layout, widget, animazioni
 fs/         modello directory, loader asincrono, watcher inotify, operazioni file, MIME
-views/      vista a colonne (Miller), vista a griglia
+views/      vista a colonne (Miller), vista a griglia, vista dettagli
 image/      decodifica immagini (wuffs, libwebp, libjxl) e orientamento EXIF, per preview/ e thumbs/
 preview/    quick look: un provider per tipo (immagine, raw, testo, fallback info)
 thumbs/     generazione e cache miniature (spec freedesktop, ~/.cache/thumbnails)
@@ -97,6 +97,8 @@ un tipo non tocca il resto. È anche il punto d'aggancio futuro per gli script L
 - **Colonne (Miller, stile Finder).** Ogni selezione di cartella apre la colonna a destra; l'ultima colonna
   mostra la preview del file selezionato. Scorrimento orizzontale fluido, larghezze ridimensionabili.
 - **Griglia.** Miniature con dimensione regolabile (Ctrl +/−), caricamento solo delle celle visibili.
+- **Dettagli (Ctrl+3).** Una riga per file con colonne nome, dimensione, data, tipo; ordinamento dal clic
+  sull'intestazione, colonne ridimensionabili. Aggiunta il 2026-10-27 con l'OK dell'autore.
 - **Quick Look (barra spazio).** Overlay sopra la finestra; frecce per passare al file successivo
   senza chiuderlo; Esc o spazio per chiudere.
 
@@ -105,7 +107,7 @@ un tipo non tocca il resto. È anche il punto d'aggancio futuro per gli script L
 Dentro:
 - finestra Wayland con rendering GLES e testo, decorazioni server-side
 - palette Noctalia con ricarica a caldo
-- vista a colonne e vista a griglia, navigazione completa da tastiera e mouse
+- vista a colonne, a griglia e dettagli, navigazione completa da tastiera e mouse
 - loader asincrono + watcher inotify
 - miniature con cache freedesktop
 - Quick Look: immagini (png, jpeg, webp, jxl, gif), RAW tramite JPEG incorporato con orientamento

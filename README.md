@@ -1,9 +1,10 @@
 # Nordend
 
-**A native, Wayland-only file manager for the [Noctalia](https://github.com/noctalia-dev) ecosystem.**
+**A native file manager for Wayland, made for the [Noctalia](https://github.com/noctalia-dev)
+desktop.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%204-complete-3DA639)
+![phase](https://img.shields.io/badge/phase%205-in%20progress-FCC624)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -12,15 +13,33 @@
 ![code license](https://img.shields.io/badge/code-MIT-3DA639)
 ![platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)
 
-## Goals
+Nordend is a file manager written from scratch in C++20 that talks to the compositor directly:
+Wayland and OpenGL ES, **no GTK, no Qt**, no toolkit at all. Text, icons, scrolling and
+animations come from its own renderer, so it does exactly what it is designed to do and nothing
+gets in the way. It belongs to the Noctalia family (Noctalia Shell, the Umbriel compositor) and
+wears your Noctalia theme, live.
 
-- **Native and fast:** C++20, Wayland + EGL/OpenGL ES, no Qt or GTK. Directory loading and
-  thumbnailing never block the UI.
-- **Finder-style column view** (Miller columns) and a thumbnail grid.
-- **Quick Look:** press <kbd>Space</kbd> to preview a file, including the embedded JPEG of camera
-  RAW files.
-- **Noctalia integration:** follows the Noctalia color palette and reloads it live.
-- **Keyboard first**, mouse always.
+It is made for people who browse a lot of files, photos above all:
+
+- **Two views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to walk
+  a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder of
+  photos; switching keeps your place and your selection. A details view
+  (<kbd>Ctrl</kbd>+<kbd>3</kbd>: name, size, date and type in sortable columns) comes next.
+- **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
+  when they lift; wheel and keyboard glide too. Nothing jumps.
+- **Fast, and measured.** A 10 000-file folder shows its first entries in 0.8 ms and is fully
+  loaded and sorted in 20 ms; a scrolling frame costs 0.2 ms; a 20 MP raw photo opens in Quick
+  Look in about 50 ms. Loading, decoding and thumbnails run on a worker pool and never block the
+  window, and when nothing moves Nordend uses no CPU at all. Every number is in
+  [docs/benchmarks.md](docs/benchmarks.md), with the method to measure it again.
+- **Photos first.** Thumbnails and Quick Look (<kbd>Space</kbd>) read the previews cameras store
+  in their raw files (OM System, Canon, Nikon, Sony, Fujifilm, Panasonic, Hasselblad), upright
+  and in the shape they were shot; thumbnails go to the freedesktop cache other apps share.
+- **Keyboard first, mouse always.**
+
+**Status:** pre-alpha. Browsing, selection, thumbnails and Quick Look work; file operations
+(open with, rename, copy and move, trash, clipboard) are the next phase. There are no packages
+yet: see [Building](#building).
 
 ## Features
 
@@ -44,7 +63,9 @@ What already works, the way it is meant to stay:
   Backspace walk the folders as in the columns.
 - **Your photos at a glance.** In the grid, photos and camera raw files show their thumbnails,
   upright, in a fraction of a second: Nordend uses the previews your camera already stored in
-  the file, and keeps the thumbnails in the shared cache other apps read too.
+  the file, and keeps the thumbnails in the shared cache other apps read too. Not only OM
+  System: Canon, Nikon, Sony, Fujifilm, Panasonic and Hasselblad raw files too, each in the
+  shape it was shot, without black bars.
 - **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
   walk the folder without closing it, and the next photo is already there. Space or Escape
   closes it, and you are where you stopped.
@@ -109,9 +130,13 @@ the renderer can draw.
 - Quick Look: Space shows the entry under the cursor over the window, arrows walk the folder
   underneath; images and raw files fitted to the screen (an ORF in about 55 ms), the thumbnail
   first, neighbours prepared ahead; an information card for the rest
+- Raw files of other cameras (Canon, Nikon, Sony, Fujifilm, Panasonic, Hasselblad):
+  uncompressed TIFF previews (3FR, Nikon TIFF), Panasonic GX8 previews cropped to the aspect
+  ratio shot, no black bars from 4:3 EXIF thumbnails; Quick Look of a raw file with a small
+  preview in a few ms
 
-**Next:** raw files in depth (TIFF previews, crops). The full plan is in the
-[roadmap](docs/ROADMAP.md).
+**Next:** text previews and the information card (5.5), then the details view (5.6, Ctrl+3).
+The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
 
