@@ -57,6 +57,10 @@ What already works, the way it is meant to stay:
 - **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
   Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
   A selection of many files shows how many and how big.
+- **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
+  dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
+  make it wider. Cursor and selection go along between all three views, and so does the info
+  pane at the right, which Ctrl+I shows and hides.
 - **A grid when you want to see more.** Ctrl+2 lays the folder out as large icons, Ctrl+1
   brings the columns back: where you were and what you selected come along. Ctrl+plus/minus
   (or Ctrl+wheel) make the cells bigger or smaller, from 48 to 256 px; the arrows, Enter and
@@ -79,7 +83,8 @@ What already works, the way it is meant to stay:
 ## Progress
 
 `nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
-the thumbnail grid, Ctrl+1 back, Space opens Quick Look. `nordend --test-scene` shows everything
+the thumbnail grid, Ctrl+3 to the details table, Ctrl+1 back, Ctrl+I shows or hides the info
+pane, Space opens Quick Look. `nordend --test-scene` shows everything
 the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
@@ -139,8 +144,13 @@ the renderer can draw.
   numbers, in a monospace font (`font.monospace`), scrolling with the wheel or the touchpad; an
   information card for everything else, with permissions, owner, link target and a folder's
   number of items
+- Details view (Ctrl+3): name, size, date and type in columns; a click on a title sorts by it,
+  a second one reverses; the column edges can be dragged; a 10 000-file folder sorts in 1-3 ms
+  and scrolls at 0.3-0.5 ms per frame
+- Info pane in every view, at the right of the grid and the details too; Ctrl+I shows and
+  hides it in all three
 
-**Next:** the details view (5.6, Ctrl+3).
+**Next:** file operations (phase 6).
 The full plan is in the [roadmap](docs/ROADMAP.md).
 
 ## Benchmarks
@@ -209,6 +219,10 @@ ctest --test-dir build
 # The grid and Quick Look offscreen, keys pressed first, thumbnails in a scratch cache
 ./build/nordend-snapshot --columns ~/Pictures --keys "Ctrl+2,Right,space" \
     --thumbnails /tmp/thumbs quick-look.ppm 1600 1000 1.5
+
+# The details sorted newest first, and the scrolling benchmark over them
+./build/nordend-snapshot --columns /tmp/bench-10k --keys "Ctrl+3" --sort "modified,modified" \
+    --bench 600 details.ppm 1440 810 2
 
 # Image decoding and thumbnails: sizes, timings, and a PPM to look at
 ./build/nordend-decode --runs 5 --ppm photo.ppm photo.jpg

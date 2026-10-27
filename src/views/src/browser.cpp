@@ -11,8 +11,9 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  std::shared_ptr<const thumbs::Cache> thumbnails)
     : redraw_{redraw},
       thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, thumbnails, redraw) : nullptr},
-      columns_{loop, pool, watcher, mime, redraw, std::move(set_cursor)},
+      columns_{loop, pool, watcher, mime, redraw, set_cursor},
       grid_{loop, pool, watcher, mime, redraw, thumbnails_.get()},
+      details_{loop, pool, watcher, mime, redraw, std::move(set_cursor)},
       quick_look_{pool, std::move(mime), std::move(thumbnails), std::move(redraw)} {}
 
 void Browser::open(const std::filesystem::path& directory) {
@@ -20,6 +21,9 @@ void Browser::open(const std::filesystem::path& directory) {
     if (mode_ == Mode::grid) {
         columns_.suspend();
         grid_.show(columns_.focused_folder());
+    } else if (mode_ == Mode::details) {
+        columns_.suspend();
+        details_.show(columns_.focused_folder());
     }
 }
 
@@ -28,8 +32,19 @@ void Browser::reveal(const std::filesystem::path& root, const std::filesystem::p
     columns_.reveal(root, target);
 }
 
+void Browser::set_info_visible(bool visible) {
+    info_visible_ = visible;
+    columns_.set_info_visible(visible);
+    grid_.set_info_visible(visible);
+    details_.set_info_visible(visible);
+}
+
 void Browser::set_mode(Mode mode) {
     if (mode == mode_) {
+        return;
+    }
+    std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
         return;
     }
     // The view that leaves forgets the pointer; the one that comes finds it where it is.
@@ -37,36 +52,48 @@ void Browser::set_mode(Mode mode) {
     const ui::PointerEvent leave{.kind = ui::PointerEvent::Kind::leave};
     const ui::PointerEvent motion{
         .kind = ui::PointerEvent::Kind::motion, .x = pointer_x_, .y = pointer_y_};
-    if (mode == Mode::grid) {
-        std::shared_ptr<Folder> folder = columns_.focused_folder();
-        if (!folder) {
-            return;
-        }
-        columns_.pointer(leave, now);
-        columns_.suspend();
-        grid_.show(std::move(folder));
-        if (pointer_inside_) {
-            grid_.pointer(motion, now);
-        }
-    } else {
-        grid_.pointer(leave, now);
-        if (grid_.folder()) {
-            columns_.show(grid_.folder());
-        }
-        if (pointer_inside_) {
-            columns_.pointer(motion, now);
-        }
+    switch (mode_) {
+        case Mode::columns:
+            columns_.pointer(leave, now);
+            columns_.suspend();
+            break;
+        case Mode::grid:
+            grid_.pointer(leave, now);
+            break;
+        case Mode::details:
+            details_.pointer(leave, now);
+            break;
     }
     mode_ = mode;
+    switch (mode_) {
+        case Mode::columns:
+            columns_.show(std::move(folder));
+            break;
+        case Mode::grid:
+            grid_.show(std::move(folder));
+            break;
+        case Mode::details:
+            details_.show(std::move(folder));
+            break;
+    }
+    if (pointer_inside_) {
+        dispatch_pointer(motion, now);
+    }
     redraw_();
 }
 
 void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now) {
-    if (mode_ == Mode::grid) {
-        grid_.draw(renderer, bounds, palette, icons, now);
-    } else {
-        columns_.draw(renderer, bounds, palette, icons, now);
+    switch (mode_) {
+        case Mode::columns:
+            columns_.draw(renderer, bounds, palette, icons, now);
+            break;
+        case Mode::grid:
+            grid_.draw(renderer, bounds, palette, icons, now);
+            break;
+        case Mode::details:
+            details_.draw(renderer, bounds, palette, icons, now);
+            break;
     }
     if (quick_look_.is_open()) {
         quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
@@ -78,16 +105,32 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
 }
 
 bool Browser::animating() const {
-    return (mode_ == Mode::grid ? grid_.animating() : columns_.animating()) ||
-           quick_look_.animating(Clock::now());
+    bool view = false;
+    switch (mode_) {
+        case Mode::columns:
+            view = columns_.animating();
+            break;
+        case Mode::grid:
+            view = grid_.animating();
+            break;
+        case Mode::details:
+            view = details_.animating();
+            break;
+    }
+    return view || quick_look_.animating(Clock::now());
 }
 
 bool Browser::loading() const {
     if (quick_look_.loading()) {
         return true;
     }
-    if (mode_ == Mode::grid) {
-        return grid_.loading() || (thumbnails_ && thumbnails_->loading());
+    switch (mode_) {
+        case Mode::grid:
+            return grid_.loading() || (thumbnails_ && thumbnails_->loading());
+        case Mode::details:
+            return details_.loading();
+        case Mode::columns:
+            break;
     }
     return columns_.loading();
 }
@@ -114,15 +157,33 @@ void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
         pointer_x_ = event.x;
         pointer_y_ = event.y;
     }
-    if (mode_ == Mode::grid) {
-        grid_.pointer(event, now);
-    } else {
-        columns_.pointer(event, now);
+    dispatch_pointer(event, now);
+}
+
+void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    switch (mode_) {
+        case Mode::columns:
+            columns_.pointer(event, now);
+            break;
+        case Mode::grid:
+            grid_.pointer(event, now);
+            break;
+        case Mode::details:
+            details_.pointer(event, now);
+            break;
     }
 }
 
 std::shared_ptr<Folder> Browser::current_folder() const {
-    return mode_ == Mode::grid ? grid_.folder() : columns_.focused_folder();
+    switch (mode_) {
+        case Mode::grid:
+            return grid_.folder();
+        case Mode::details:
+            return details_.folder();
+        case Mode::columns:
+            break;
+    }
+    return columns_.focused_folder();
 }
 
 void Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
@@ -154,11 +215,25 @@ void Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
             set_mode(Mode::grid);
             return;
         }
+        if (event.keysym == XKB_KEY_3 || event.keysym == XKB_KEY_KP_3) {
+            set_mode(Mode::details);
+            return;
+        }
+        if (event.keysym == XKB_KEY_i || event.keysym == XKB_KEY_I) {
+            set_info_visible(!info_visible_);
+            return;
+        }
     }
-    if (mode_ == Mode::grid) {
-        grid_.key(event, now);
-    } else {
-        columns_.key(event, now);
+    switch (mode_) {
+        case Mode::columns:
+            columns_.key(event, now);
+            break;
+        case Mode::grid:
+            grid_.key(event, now);
+            break;
+        case Mode::details:
+            details_.key(event, now);
+            break;
     }
 }
 

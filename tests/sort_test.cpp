@@ -8,6 +8,8 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/fs/mime.hpp"
+
 using nordend::fs::Entry;
 using nordend::fs::EntryKind;
 using nordend::fs::Listing;
@@ -75,6 +77,7 @@ TEST_CASE("sort orders") {
           std::vector<std::string>{"Photos", "archive", "b.txt", "a10.txt", "a9.txt"});
 
     order = {.key = SortKey::size};
+    entries[0].size = 4096;  // a directory's own size does not order directories
     std::ranges::sort(entries, order);
     CHECK(names(entries) ==
           std::vector<std::string>{"archive", "Photos", "a10.txt", "a9.txt", "b.txt"});
@@ -83,6 +86,21 @@ TEST_CASE("sort orders") {
     std::ranges::sort(entries, order);
     CHECK(names(entries) ==
           std::vector<std::string>{"archive", "Photos", "a9.txt", "a10.txt", "b.txt"});
+}
+
+TEST_CASE("sort by type: type names in order, unknown types last, then names") {
+    const auto mime = nordend::fs::MimeDatabase::load();
+    const auto typed = [&](const char* name, const char* type) {
+        Entry entry = file(name, 1, 1);
+        entry.mime = type == nullptr ? nordend::fs::kUnknownMime : mime->find(type);
+        return entry;
+    };
+    std::vector<Entry> entries{typed("z.txt", "text/plain"),          typed("noext", nullptr),
+                               typed("b.jpg", "image/jpeg"),          typed("a.txt", "text/plain"),
+                               typed("c.orf", "image/x-olympus-orf"), dir("folder")};
+    std::ranges::sort(entries, SortOrder{.key = SortKey::type, .mime = mime.get()});
+    CHECK(names(entries) ==
+          std::vector<std::string>{"folder", "b.jpg", "c.orf", "a.txt", "z.txt", "noext"});
 }
 
 TEST_CASE("Listing: chunks in any order give the fully sorted list") {

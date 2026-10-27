@@ -2,14 +2,15 @@
 // it as a binary PPM.
 //
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
-//                    [--bench FRAMES]] <out.ppm>
+//                    [--sort FIELDS] [--bench FRAMES]] <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
 // optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down"; "Ctrl+2" switches to
-// the grid (then --bench scrolls the grid); with "space" last, Quick Look opens (and --bench
-// scrolls its text page, when it shows one). --thumbnails gives the grid a thumbnail cache
-// directory (none by default: icons only, nothing written to ~/.cache).
+// the grid (then --bench scrolls the grid), "Ctrl+3" the details (--bench scrolls them; --sort
+// clicks column titles after the keys: "size", "modified,modified" for newest first); with "space"
+// last, Quick Look opens (and --bench scrolls its text page, when it shows one). --thumbnails gives
+// the grid a thumbnail cache directory (none by default: icons only, nothing written to ~/.cache).
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -206,6 +207,7 @@ int main(int argc, char** argv) {
     std::filesystem::path reveal;
     std::string keys;
     std::filesystem::path thumbnails;
+    std::string sort;
     int bench_frames = 0;
     while (args.size() >= 3) {
         const std::string_view option{args[1]};
@@ -217,6 +219,8 @@ int main(int argc, char** argv) {
             keys = args[2];
         } else if (option == "--thumbnails") {
             thumbnails = args[2];
+        } else if (option == "--sort") {
+            sort = args[2];
         } else if (option == "--bench") {
             bench_frames = std::stoi(args[2]);
         } else {
@@ -227,7 +231,7 @@ int main(int argc, char** argv) {
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
-            "CACHE] [--bench FRAMES]] "
+            "CACHE] [--sort FIELDS] [--bench FRAMES]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -288,6 +292,27 @@ int main(int argc, char** argv) {
                 for (const ui::KeyEvent& event : parse_keys(keys)) {
                     columns->key(event, views::Browser::Clock::now());
                 }
+                std::string_view fields{sort};
+                while (!fields.empty()) {
+                    const std::size_t comma = std::min(fields.find(','), fields.size());
+                    const std::string_view field = fields.substr(0, comma);
+                    fields.remove_prefix(std::min(comma + 1, fields.size()));
+                    using Field = views::DetailsView::Field;
+                    Field chosen = Field::name;
+                    if (field == "size") {
+                        chosen = Field::size;
+                    } else if (field == "modified") {
+                        chosen = Field::modified;
+                    } else if (field == "type") {
+                        chosen = Field::type;
+                    }
+                    const auto start = std::chrono::steady_clock::now();
+                    columns->details().sort_by(chosen);
+                    log::info("sorted by {} in {:.2f} ms", field,
+                              std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now() - start)
+                                  .count());
+                }
                 run_until(loop, [&] { return !columns->loading(); });
                 // The first frame asks for the visible entries' types and, in the grid, their
                 // thumbnails, made on workers; each frame uploads the ones that arrived.
@@ -321,6 +346,11 @@ int main(int argc, char** argv) {
                 bench_entries = text->lines.size();
                 bench_extent =
                     static_cast<float>(bench_entries) * views::QuickLook::kTextLineHeight;
+            } else if (columns && columns->mode() == views::Browser::Mode::details) {
+                views::DetailsView& details = columns->details();
+                bench_scroller = &details.scroller();
+                bench_entries = details.folder()->entries().size();
+                bench_extent = static_cast<float>(bench_entries) * views::DetailsView::kRowHeight;
             } else if (columns && columns->mode() == views::Browser::Mode::grid) {
                 views::GridView& grid = columns->grid();
                 bench_scroller = &grid.scroller();

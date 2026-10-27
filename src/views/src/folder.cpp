@@ -81,6 +81,12 @@ void Folder::selection_changed() {
     }
 }
 
+void Folder::set_order(const fs::SortOrder& order) {
+    model_.set_order(order);
+    reveal_ = Reveal::jump;
+    redraw_();
+}
+
 void Folder::on_change(const fs::ModelChange& change) {
     for (const std::string& name : change.removed) {
         sniffed_.erase(name);

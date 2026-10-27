@@ -16,25 +16,26 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/column_view.hpp"
+#include "nordend/views/details_view.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/quick_look.hpp"
 #include "nordend/views/thumbnails.hpp"
 
 namespace nordend::views {
 
-// The window's content: the column view or the grid, one at a time, and Quick Look over them
-// (Space opens it on the entry under the cursor; Space, Escape or a click close it; the other
-// keys move the view underneath). Ctrl+1 shows the columns, Ctrl+2 the grid. The grid shows the
-// folder of the focused column, and the columns come back with the grid's folder focused: the same
-// folder object passes between them, so the cursor, the selection and the types sniffed so far
-// stay.
+// The window's content: the column view, the grid or the details table, one at a time, and Quick
+// Look over them (Space opens it on the entry under the cursor; Space, Escape or a click close it;
+// the other keys move the view underneath). Ctrl+1 shows the columns, Ctrl+2 the grid, Ctrl+3
+// the details; Ctrl+I shows or hides the info pane, in all three. The grid and the details show the
+// folder of the focused column, and the columns come back with that folder focused: the same folder
+// object passes between them, so the cursor, the selection and the types sniffed so far stay.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
 public:
     using Clock = ui::Scroller::Clock;
 
-    enum class Mode : std::uint8_t { columns, grid };
+    enum class Mode : std::uint8_t { columns, grid, details };
 
     // thumbnails: the cache the grid takes its thumbnails from; nullptr shows icons only.
     Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
@@ -52,6 +53,11 @@ public:
 
     [[nodiscard]] Mode mode() const noexcept { return mode_; }
 
+    // The info pane, one setting for every view (shown at start).
+    void set_info_visible(bool visible);
+
+    [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
+
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);
 
@@ -67,19 +73,24 @@ public:
 
     [[nodiscard]] GridView& grid() noexcept { return grid_; }
 
+    [[nodiscard]] DetailsView& details() noexcept { return details_; }
+
     [[nodiscard]] QuickLook& quick_look() noexcept { return quick_look_; }
 
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
     void view_key(const ui::KeyEvent& event, Clock::time_point now);
+    void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     std::function<void()> redraw_;
     std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
     ColumnView columns_;                      // before grid_: grid folders may report to it
     GridView grid_;
+    DetailsView details_;
     QuickLook quick_look_;
     Mode mode_{Mode::columns};
+    bool info_visible_{true};
 
     // The last pointer position, handed to the view that comes on screen.
     float pointer_x_{0.0F};

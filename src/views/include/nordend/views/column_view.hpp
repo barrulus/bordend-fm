@@ -76,6 +76,11 @@ public:
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
 
+    // Shows or hides the info pane (Ctrl+I in the browser).
+    void set_info_visible(bool visible);
+
+    [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
+
     // Another view shows the folders for now: changes to their selections wait for show().
     void suspend() noexcept { suspended_ = true; }
 
@@ -129,8 +134,6 @@ private:
     [[nodiscard]] std::optional<std::size_t> divider_at(float x, float y) const;
     void scroll(const ui::PointerEvent& event, Clock::time_point now);
     void update_hover();
-    void draw_info(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
-                   ui::IconSet& icons);
 
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
@@ -138,6 +141,7 @@ private:
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
     std::function<void(ui::CursorShape)> set_cursor_;
+    bool info_visible_{true};
 
     std::vector<Slot> columns_;
     std::size_t focus_{0};

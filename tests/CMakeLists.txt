@@ -2,6 +2,7 @@ add_executable(nordend-tests
     main.cpp
     column_view_test.cpp
     config_test.cpp
+    details_view_test.cpp
     directory_model_test.cpp
     directory_test.cpp
     event_loop_test.cpp

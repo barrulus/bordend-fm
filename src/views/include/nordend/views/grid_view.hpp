@@ -77,10 +77,16 @@ public:
     // Height of a cell at the current icon size.
     [[nodiscard]] float cell_height() const;
 
+    // Shows or hides the info pane (Ctrl+I in the browser).
+    void set_info_visible(bool visible);
+
+    [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
+
 private:
     void enter();
     void go_up();
     void zoom(std::size_t size);
+    void keep_place();
     void layout(float width);
     void reveal_cursor(Folder::Reveal reveal, Clock::time_point now);
     [[nodiscard]] std::size_t rows() const;
@@ -94,6 +100,7 @@ private:
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
     Thumbnails* thumbnails_;
+    bool info_visible_{true};
 
     std::shared_ptr<Folder> folder_;
     ui::Scroller scroller_;

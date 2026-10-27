@@ -16,14 +16,18 @@ namespace nordend::fs {
 // the order is total and stable across runs.
 [[nodiscard]] int natural_compare(std::string_view a, std::string_view b) noexcept;
 
-enum class SortKey : std::uint8_t { name, size, modified };
+enum class SortKey : std::uint8_t { name, size, modified, type };
 
 struct SortOrder {
     SortKey key{SortKey::name};
     bool descending{false};
     bool directories_first{true};  // directories (and links to them) before everything else
+    // For SortKey::type: the type names, alphabetically ("image/jpeg" < "text/plain"); entries
+    // whose name does not tell their type come last. Without it, types group in no set order.
+    const MimeDatabase* mime{nullptr};
 
-    // Strict weak order on entries; ties on size or date fall back to the name.
+    // Strict weak order on entries; ties on size, date or type fall back to the name. By size,
+    // directories compare by name among themselves.
     [[nodiscard]] bool operator()(const Entry& a, const Entry& b) const noexcept;
 };
 

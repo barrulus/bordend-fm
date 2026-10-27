@@ -82,10 +82,23 @@ bool SortOrder::operator()(const Entry& a, const Entry& b) const noexcept {
     int result = 0;
     switch (key) {
         case SortKey::size:
-            result = three_way(a.size, b.size);
+            // A directory's size is its listing's, not its content's: directories keep their
+            // name order among themselves.
+            if (!a.is_directory() || !b.is_directory()) {
+                result = three_way(a.size, b.size);
+            }
             break;
         case SortKey::modified:
             result = three_way(a.modified_ns, b.modified_ns);
+            break;
+        case SortKey::type:
+            if ((a.mime == kUnknownMime) != (b.mime == kUnknownMime)) {
+                result = a.mime == kUnknownMime ? 1 : -1;
+            } else if (mime != nullptr) {
+                result = sign(mime->name(a.mime).compare(mime->name(b.mime)));
+            } else {
+                result = three_way(a.mime, b.mime);
+            }
             break;
         case SortKey::name:
             break;

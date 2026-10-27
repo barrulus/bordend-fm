@@ -278,6 +278,47 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Info pane (ROADMAP 5.7)
+
+### 2026-10-27: scrolling with the pane open
+
+The same 10 030-entry folder as for the details view, 600 frames at 2880x1620
+(`nordend-snapshot --columns DIR --keys "Ctrl+3[,Ctrl+I]" --bench 600 out.ppm 1440 810 2`),
+three runs each:
+
+| View | Pane | Median | p95 |
+|------|------|-------:|----:|
+| Details | open | 0.44-0.46 ms | 0.52-0.54 ms |
+| Details | closed | 0.33-0.45 ms | 0.50-0.53 ms |
+| Grid | open | 0.28 ms | 0.46 ms |
+| Grid | closed | 0.30 ms | 0.48 ms |
+
+The median moves between about 0.33 and 0.46 ms from run to run with or without the pane (GPU
+clock states, *to be verified*); the p95 stays at about 0.5 ms. The pane is drawn once per frame
+and costs nothing measurable.
+
+## Details view (ROADMAP 5.6)
+
+### 2026-10-27: sorting and scrolling 10 000 entries
+
+**Target** (ROADMAP 5.6): a 10k-file folder sorted by size or date scrolls without stutter.
+
+A folder of 10 000 sparse files of random sizes (0-30 MB) and dates, five camera-like
+extensions, plus 30 folders, made by a scratch Python script (`truncate` and `utime`).
+`nordend-snapshot --columns DIR --keys "Ctrl+3" --sort FIELDS --bench 600 out.ppm 1440 810 SCALE`:
+the sort is timed around `DetailsView::sort_by`, then the table is scrolled from top to bottom
+over 600 frames, each waiting for the GPU.
+
+| Order | Sort | 1440x810 median / p95 / max | 2880x1620 median / p95 / max |
+|-------|-----:|----------------------------:|-----------------------------:|
+| Name (as loaded) | — | 0.31 / 0.50 / 1.7 ms | 0.33 / 0.49 / 1.8 ms |
+| Size | 1.1 ms | 0.31 / 0.50 / 3.3 ms | 0.33 / 0.51 / 1.6 ms |
+| Date, newest first (two clicks) | 1.1 + 2.0 ms | 0.44 / 0.51 / 1.9 ms | 0.45 / 0.53 / 1.6 ms |
+| Type | 3.2 ms | 0.31 / 0.52 / 3.6 ms | 0.33 / 0.53 / 1.5 ms |
+
+The maximum is the first frame (glyphs rasterized). Sorting by type compares type names
+(string comparisons); by size or date, numbers.
+
 ## Text previews (ROADMAP 5.5)
 
 ### 2026-10-27: reading and scrolling text

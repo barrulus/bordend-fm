@@ -10,6 +10,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
+#include "info_pane.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
@@ -17,16 +18,9 @@
 namespace nordend::views {
 namespace {
 
-constexpr float kPadding = 16.0F;
-constexpr float kSmallTextSize = 12.0F;
 constexpr float kDividerGrab = 4.0F;  // either side of a column edge
-constexpr float kInfoIconSize = 64.0F;
 constexpr float kScrollbarHeight = 4.0F;
-
-// "1 file", "3 files".
-std::string count_of(std::size_t count, std::string_view noun) {
-    return std::format("{} {}{}", count, noun, count == 1 ? "" : "s");
-}
+static_assert(ColumnView::kInfoWidth == kInfoPaneWidth);
 
 }  // namespace
 
@@ -272,8 +266,13 @@ void ColumnView::layout() {
     }
 }
 
+void ColumnView::set_info_visible(bool visible) {
+    info_visible_ = visible;
+    redraw_();
+}
+
 bool ColumnView::shows_info() const {
-    if (columns_.empty()) {
+    if (columns_.empty() || !info_visible_) {
         return false;
     }
     const Folder& last = columns_.back().column->folder();
@@ -387,9 +386,9 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     }
     if (shows_info()) {
         const float left = area_.x + content_width() - kInfoWidth - offset;
-        draw_info(renderer,
-                  {left, area_.y, std::max(kInfoWidth, area_.right() - left), area_.height},
-                  palette, icons);
+        draw_info_pane(renderer,
+                       {left, area_.y, std::max(kInfoWidth, area_.right() - left), area_.height},
+                       palette, icons, columns_.back().column->folder());
     }
     // Horizontal scrollbar, only when the columns do not fit.
     if (scroller_.max_offset() > 0.0F) {
@@ -404,73 +403,6 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     renderer.pop_clip();
 
     update_hover();  // content may have moved under a still pointer
-}
-
-void ColumnView::draw_info(ui::Renderer& renderer, const ui::Rect& bounds,
-                           const theme::Palette& palette, ui::IconSet& icons) {
-    const Folder& column = columns_.back().column->folder();
-    const fs::Entry* const single = column.single_selection();
-    const float width = std::min(bounds.width, kInfoWidth);  // content stays at the left
-    float y = bounds.y + 32.0F;
-    const auto centered = [&](std::string_view text, float size, ui::Color color) {
-        const float max = width - (2.0F * kPadding);
-        const float w = std::min(text_width(renderer, text, size), max);
-        renderer.draw_text(text, bounds.x + ((width - w) / 2.0F), y, size, color, max,
-                           ui::Ellipsis::middle);
-    };
-    const auto separator = [&] {
-        renderer.fill_rect(
-            {bounds.x + kPadding, y, width - (2.0F * kPadding), 1.0F / renderer.scale()},
-            palette.outline_variant);
-        y += 12.0F;
-    };
-    const auto row = [&](std::string_view label, const std::string& value) {
-        renderer.draw_text(label, bounds.x + kPadding, y, 13.0F, palette.on_surface_variant);
-        draw_right_aligned(renderer, value, bounds.x + width - kPadding, y, 13.0F,
-                           palette.on_surface);
-        y += 24.0F;
-    };
-
-    if (single == nullptr) {
-        // Several entries: how many, of which kind, and how big.
-        const SelectionSummary& summary = column.summary();
-        icons.draw(renderer, "files", bounds.x + ((width - kInfoIconSize) / 2.0F), y, kInfoIconSize,
-                   palette.on_surface_variant);
-        y += kInfoIconSize + 20.0F;
-        centered(count_of(summary.folders + summary.files, "item"), 15.0F, palette.on_surface);
-        y += 24.0F;
-        std::string kinds;
-        if (summary.folders > 0) {
-            kinds = count_of(summary.folders, "folder");
-        }
-        if (summary.files > 0) {
-            kinds += (kinds.empty() ? "" : ", ") + count_of(summary.files, "file");
-        }
-        centered(kinds, kSmallTextSize, palette.on_surface_variant);
-        y += 32.0F;
-        if (summary.files > 0) {
-            separator();
-            row(summary.folders > 0 ? "Size of the files" : "Size", format_size(summary.bytes));
-        }
-        return;
-    }
-
-    const fs::Entry& entry = *single;
-    fs::Entry typed = entry;
-    typed.mime = column.mime_of(entry);
-    icons.draw(renderer, fs::icon_name(*mime_, typed), bounds.x + ((width - kInfoIconSize) / 2.0F),
-               y, kInfoIconSize, palette.on_surface_variant);
-    y += kInfoIconSize + 20.0F;
-
-    centered(entry.name, 15.0F, palette.on_surface);
-    y += 24.0F;
-    const std::string_view type =
-        typed.mime == fs::kUnknownMime ? std::string_view{"…"} : mime_->name(typed.mime);
-    centered(type, kSmallTextSize, palette.on_surface_variant);
-    y += 32.0F;
-    separator();
-    row("Size", format_size(entry.size));
-    row("Modified", format_time(entry.modified_ns));
 }
 
 void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {

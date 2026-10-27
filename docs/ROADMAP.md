@@ -90,13 +90,18 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   JPEG incorporato negli ORF via exiv2, orientamento corretto.
   Fatto quando: Quick Look di un ORF < 100 ms (misurato).
 - [x] **5.5 Preview testo e fallback info**
-- [ ] **5.6 Vista dettagli** (Ctrl+3)
+- [x] **5.6 Vista dettagli** (Ctrl+3)
   Righe con colonne nome, dimensione, data di modifica, tipo; ordinamento con un clic
   sull'intestazione (di nuovo: verso opposto), colonne ridimensionabili; stesso `Folder` delle
   altre viste (cursore e selezione), passaggio Ctrl+1/2/3 senza perdere il posto.
   Prima della fase 6, perché le operazioni sui file nascano e si provino su tutte e tre le viste.
   Fatto quando: cartella da 10k file ordinata per dimensione o data senza scatti nello
   scorrimento (misurato).
+- [x] **5.7 Pannello info in ogni vista** (Ctrl+I)
+  Il pannello informazioni delle colonne anche nella griglia e nei dettagli, a destra; Ctrl+I lo
+  apre e lo chiude in tutte e tre le viste (uno stato solo, aperto all'avvio).
+  Fatto quando: aprirlo e chiuderlo non fa perdere cursore, selezione né posizione, e lo
+  scorrimento resta fluido con il pannello aperto (misurato).
 
 ## Fase 6 — Operazioni sui file
 

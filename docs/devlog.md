@@ -4,6 +4,85 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — Info pane in every view (ROADMAP 5.7)
+
+Asked by the author after testing 5.6; shortcut and behaviour agreed before starting.
+
+**Done**
+- The columns' info pane is now `draw_info_pane` (`src/views/src/info_pane.*`), shared: the
+  columns draw it after their last column as before, the grid and the details at their right,
+  300 px wide, the view narrower by as much. Besides a file and a multiple selection, it shows a
+  folder under the cursor (icon, type, date) and, with nothing selected, the folder itself
+  ("Items"). It is left out when the view would keep less than 320 px.
+- Ctrl+I shows and hides it, one setting for the three views (`Browser::set_info_visible`),
+  shown at start. In the grid the cells per row change: the zoom's anchor (now `keep_place`)
+  keeps the cursor's row where it was on screen.
+- Tests (115 with the raw samples): Ctrl+I toggles it in every view and through view switches,
+  cursor and selection untouched, Caps Lock's keysym included. Release (5 runs), ASan, TSan
+  pass; `nordend-snapshot` toggling the pane in grid, details and columns under ASan and TSan;
+  tidy and format clean.
+
+**Measured** (docs/benchmarks.md): scrolling the 10 030-entry folder at 2880x1620 with the pane
+open or closed: details 0.33-0.46 ms median (it varies between runs either way), 0.50-0.54 ms
+p95; grid 0.28-0.30 ms median, 0.46-0.48 ms p95. Checked on screen offscreen: hiding the pane in
+a grid scrolled to entry 5 000 keeps the cursor's row in place (5 → 7 cells per row).
+
+**Tested by the author**
+- On screen, in the three views, over photo folders: "funziona tutto". Step 5.7 closed.
+
+**Open**
+- The pane could show the thumbnail of an image; the setting is not remembered across runs.
+
+---
+
+## 2026-10-27 — Details view (ROADMAP 5.6)
+
+**Done**
+- `views::DetailsView` (Ctrl+3): a row per entry with name (icon, name cut in the middle), size
+  (right-aligned, "—" for folders), date and type, under a header. A click on a title sorts by
+  it (a chevron shows the direction), a second click reverses; dragging a column's left edge
+  resizes it (the pointer becomes ew-resize, the name takes what is left, every column keeps a
+  minimum). Keys and mouse as in the grid, with Right/Left opening the folder / the parent as
+  in the columns. Selection, hover, scrolling with inertia, Quick Look over it: as elsewhere.
+- `Browser` has three modes and switches between any two (Ctrl+1/2/3) handing over the same
+  `Folder`: cursor, selection and sniffed types stay.
+- Sorting: `fs::SortKey::type` (by type name, types the name does not tell last, then the
+  name) and `Folder::set_order` (cursor and selection follow their entries by name, the view
+  jumps to the cursor). By size, directories keep their name order: their own size is their
+  listing's (found by a test: on tmpfs it depends on the content).
+- `nordend-snapshot --sort FIELDS` clicks titles offscreen ("modified,modified": newest first);
+  `--bench` scrolls the details.
+- Tests (114 with the raw samples): switching through all three views keeps the folder, cursor
+  and selection; sorting by size, reversed, by type; the cursor stays on its entry; a folder
+  opened in the details is sorted the same way, and the columns show it so; Right/Enter and
+  Left/Backspace; type order with unknown types last; directories by size. Release (5 runs),
+  ASan, TSan pass; `nordend-snapshot` over the details (sorted, benchmark, Quick Look, switching
+  views) under ASan and TSan; tidy and format clean.
+
+**Measured** (docs/benchmarks.md), the "Fatto quando": a 10 030-entry folder (sparse files of
+random sizes and dates) sorts by size in 1.1 ms, by date in 1.1-2.0 ms, by type in 3.2 ms; it
+scrolls at 0.31-0.45 ms per frame (median), 0.53 ms p95, at 1440x810 and 2880x1620.
+
+**Decisions**
+- The order belongs to the details view and is applied to each folder it shows; a folder keeps
+  it in the other views (the columns show the same folder sorted the same way). The columns and
+  the grid have no sort control yet.
+- Types are shown as MIME names ("image/x-olympus-orf"): readable descriptions need
+  shared-mime-info's comments, which the database does not load yet.
+- By type, the type the name tells is used (sniffed types arrive later and would make rows
+  jump).
+
+**Tested by the author**
+- On screen, over photo folders: sorting by every column and reversed, resizing columns,
+  keys, scrolling, switching views: "funziona tutto". Step 5.6 closed. Asked next: the info
+  pane of the columns in the grid and the details too, shown and hidden with a shortcut.
+
+**Open**
+- Human-readable type names; remembering the column widths and the order across runs (config
+  or state file).
+
+---
+
 ## 2026-10-27 — Text previews and the information card (ROADMAP 5.5)
 
 **Done**

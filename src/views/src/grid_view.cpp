@@ -8,6 +8,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
+#include "info_pane.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
@@ -100,8 +101,23 @@ void GridView::zoom(std::size_t size) {
     if (size == size_) {
         return;
     }
-    // Keep an entry where it is on screen: the cursor when it is in sight, else the first
-    // visible one.
+    keep_place();
+    size_ = size;
+    redraw_();
+}
+
+void GridView::set_info_visible(bool visible) {
+    if (visible == info_visible_) {
+        return;
+    }
+    keep_place();  // the cells per row change
+    info_visible_ = visible;
+    redraw_();
+}
+
+void GridView::keep_place() {
+    // Keep an entry where it is on screen through the next layout: the cursor when it is in
+    // sight, else the first visible one.
     if (folder_ && !folder_->entries().empty() && area_.height > 0.0F) {
         const float offset = scroller_.offset();
         const auto first_row =
@@ -117,8 +133,6 @@ void GridView::zoom(std::size_t size) {
         anchor.screen_y = row_top(anchor.index / columns_) - offset;
         anchor_ = anchor;
     }
-    size_ = size;
-    redraw_();
 }
 
 void GridView::reveal_cursor(Folder::Reveal reveal, Clock::time_point now) {
@@ -152,7 +166,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         return;
     }
     draw_title_bar(renderer, bounds, palette, *folder_);
-    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width,
+    const bool pane = info_visible_ && info_pane_fits(bounds.width);
+    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width - (pane ? kInfoPaneWidth : 0.0F),
              std::max(0.0F, bounds.height - kTitleHeight)};
     layout(area_.width);
     const std::vector<fs::Entry>& entries = folder_->entries();
@@ -250,6 +265,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                            .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
     }
     renderer.pop_clip();
+    if (pane) {
+        renderer.fill_rect({area_.right(), area_.y, 1.0F / renderer.scale(), area_.height},
+                           palette.outline_variant);
+        draw_info_pane(renderer, {area_.right(), area_.y, kInfoPaneWidth, area_.height}, palette,
+                       icons, *folder_);
+    }
 
     folder_->sniff(range.first * columns_, range.last * columns_);
     update_hover();  // content may have moved under a still pointer

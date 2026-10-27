@@ -81,6 +81,13 @@ public:
         return model_.listing().entries();
     }
 
+    // The order of the entries, the same in every view that shows this folder.
+    [[nodiscard]] const fs::SortOrder& order() const noexcept { return model_.listing().order(); }
+
+    // Sorts the entries again; the cursor and the selection stay on theirs, and the view jumps
+    // to the cursor.
+    void set_order(const fs::SortOrder& order);
+
     // The entry under the cursor; nullptr when there is none or it is still pending.
     [[nodiscard]] const fs::Entry* cursor_entry() const;
 
