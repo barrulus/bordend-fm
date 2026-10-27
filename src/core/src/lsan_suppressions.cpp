@@ -8,8 +8,12 @@
 //
 // ThreadSanitizer: Mesa's gallium driver runs a GL worker thread (gl0) and synchronises with it
 // through code TSan does not instrument, so every GL program reports races inside libgallium
-// (seen with Mesa 26.2.5 on radeonsi, also before any Nordend thread exists). Only reports with
-// a libgallium frame are suppressed: races in our threads still show.
+// (seen with Mesa 26.2.5 on radeonsi, also before any Nordend thread exists). The same holds
+// for libdrm_amdgpu, which that thread and our GL calls on the main thread both go through
+// (seen uploading glyphs while Quick Look draws a card). Only reports with a frame in one of
+// these libraries are suppressed: races between our own threads still show. It relies on GL
+// being called from the main thread only (textures are made while drawing): a worker calling
+// GL could race inside the driver unseen.
 
 extern "C" const char*
 __lsan_default_suppressions();  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
@@ -23,5 +27,6 @@ __lsan_default_suppressions() {  // NOLINT(bugprone-reserved-identifier,readabil
 
 extern "C" const char*
 __tsan_default_suppressions() {  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
-    return "race:libgallium\n";
+    return "race:libgallium\n"
+           "race:libdrm_amdgpu\n";
 }
