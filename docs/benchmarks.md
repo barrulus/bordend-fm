@@ -15,6 +15,36 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 | OS | Void Linux (glibc), kernel 6.18 |
 | Build | GCC 14.2, CMake Release (`-O3`) |
 
+## Binary
+
+### 2026-10-28
+
+`build/nordend`, CMake Release (`-O3`), GCC 14.2, x86-64, after ROADMAP 5.11: 1 979 504 bytes;
+1 677 048 bytes after `strip`. `readelf -d` lists 18 direct libraries (libwebp, libwebpdemux,
+libjxl, libexiv2, libz, libwayland-egl, libwayland-client, libEGL, libGLESv2, libxkbcommon,
+libharfbuzz, libfontconfig, libfreetype, libtomlplusplus, libstdc++, libm, libgcc_s, libc);
+`ldd` resolves 37 in all.
+
+## Memory
+
+### 2026-10-28
+
+The app running on screen (Umbriel, RX 6650 XT, radeonsi), started on a source folder in the
+columns, 69 s after start (`/proc/PID/status` read by the author, `smaps_rollup` and `smaps`
+summed per file):
+
+| | |
+|---|---:|
+| Resident (VmRSS) | 117 068 kB |
+| Private, anonymous (heap, glyph atlases, listings) | 32 796 kB |
+| File-backed (libraries, fonts) | 84 264 kB |
+| Proportional (PSS: shared pages divided among their users) | 52 438 kB |
+
+The largest file-backed pieces: libLLVM 51.4 MB and libgallium 15.3 MB (Mesa's driver, the same
+pages for every OpenGL process), libexiv2 3.5 MB, libstdc++ 2.5 MB, the `nordend` binary 1.5 MB.
+A folder of photos in the grid holds more (thumbnail textures live on the GPU, *to be
+measured*).
+
 ## Directory loading (ROADMAP 3.1)
 
 **Target:** a 10k-file folder draws its first frame in < 50 ms; the full list loads in the

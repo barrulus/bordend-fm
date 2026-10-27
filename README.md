@@ -4,7 +4,7 @@
 desktop.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/phase%205-complete-3DA639)
+![phase](https://img.shields.io/badge/next-file%20operations-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -21,187 +21,151 @@ wears your Noctalia theme, live.
 
 It is made for people who browse a lot of files, photos above all:
 
-- **Two views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to walk
-  a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder of
-  photos; switching keeps your place and your selection. A details view
-  (<kbd>Ctrl</kbd>+<kbd>3</kbd>: name, size, date and type in sortable columns) comes next.
+- **Three views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to
+  walk a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder
+  of photos, a details table (<kbd>Ctrl</kbd>+<kbd>3</kbd>) to compare sizes and dates;
+  switching keeps your place and your selection.
 - **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
   when they lift; wheel and keyboard glide too. Nothing jumps.
-- **Fast, and measured.** A 10 000-file folder shows its first entries in 0.8 ms and is fully
-  loaded and sorted in 20 ms; a scrolling frame costs 0.2 ms; a 20 MP raw photo opens in Quick
-  Look in about 50 ms. Loading, decoding and thumbnails run on a worker pool and never block the
-  window, and when nothing moves Nordend uses no CPU at all. Every number is in
-  [docs/benchmarks.md](docs/benchmarks.md), with the method to measure it again.
-- **Photos first.** Thumbnails and Quick Look (<kbd>Space</kbd>) read the previews cameras store
-  in their raw files (OM System, Canon, Nikon, Sony, Fujifilm, Panasonic, Hasselblad), upright
-  and in the shape they were shot; thumbnails go to the freedesktop cache other apps share.
-- **Keyboard first, mouse always.**
+- **Small and fast, and measured.** A 2 MB binary; a 10 000-file folder shows its first entries
+  in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens in
+  Quick Look in about 50 ms; and when nothing moves Nordend uses no CPU at all.
+  See [Benchmarks](#benchmarks).
+- **Photos first.** Thumbnails, the preview pane and Quick Look (<kbd>Space</kbd>) read the
+  previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm,
+  Panasonic, Hasselblad), upright and in the shape they were shot, with the shot's EXIF and your
+  darktable rating.
+- **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and a
+  click.
 
-**Status:** pre-alpha. Browsing, selection, thumbnails and Quick Look work; file operations
-(open with, rename, copy and move, trash, clipboard) are the next phase. There are no packages
-yet: see [Building](#building).
+**Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work; file
+operations (open with, rename, copy and move, trash, clipboard) are the next phase. There are no
+packages yet: see [Building](#building). What happens step by step is in the
+[devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
-## Features
+## At a glance
 
-What already works, the way it is meant to stay:
-
-- **Natural touch.** Scrolling that feels physical: on a touchpad the list follows your fingers
-  1:1 and, when they lift, keeps gliding and slows down smoothly, stopping softly at the ends;
-  a mouse wheel glides instead of jumping, and quick turns add up. The keyboard moves the same
-  way: arrows and Page Up/Down glide, Home/End jump. Only the visible rows are drawn (0.2 ms
-  per frame in a 10 000-file folder), and nothing is drawn when nothing moves.
-- **Columns, as in Finder.** Every folder you pick opens in the next column; arrows walk the
-  tree, Left from the first column climbs to the parent. Columns resize by dragging their edge
-  and slide sideways by themselves to keep where you are in view. A file shows its details at
-  the end.
-- **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
-  Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
-  A selection of many files shows how many and how big.
-- **A preview beside every view.** The pane at the right shows the photo under the cursor
-  with what it is: size, pixels, dates, and the shot itself (camera, lens, exposure, focal
-  length, when, your darktable rating); text files show their first lines. "More details"
-  opens the rest. In the grid and the details Ctrl+I hides it, and its edge can be dragged to
-  make it (and the photo) larger.
-- **Your places, one click away.** A sidebar at the left lists your home and its folders
-  (Downloads, Pictures...), the file system, your GTK bookmarks and the mounted disks; a disk
-  appears as soon as it is mounted and goes when it is unmounted. Ctrl+B hides it, F6 takes the
-  keyboard there and back, its edge drags.
-- **The path, one step at a time.** Above every view the folder's path is a row of steps,
-  starting from your home; click one to go back up there, with the cursor on the folder you
-  came from. A long path keeps its first and last steps.
-- **Everything at hand.** The bar at the bottom tells how many items there are, what is
-  selected and how much space is left on the disk, and switches between the three views with a
-  click; "?" (or F1) shows every keyboard shortcut.
-- **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
-  dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
-  make it wider. Cursor and selection go along between all three views, and so does the info
-  pane at the right, which Ctrl+I shows and hides.
-- **A grid when you want to see more.** Ctrl+2 lays the folder out as large icons, Ctrl+1
-  brings the columns back: where you were and what you selected come along. Ctrl+plus/minus
-  (or Ctrl+wheel) make the cells bigger or smaller, from 48 to 256 px; the arrows, Enter and
-  Backspace walk the folders as in the columns.
-- **Your photos at a glance.** In the grid, photos and camera raw files show their thumbnails,
-  upright, in a fraction of a second: Nordend uses the previews your camera already stored in
-  the file, and keeps the thumbnails in the shared cache other apps read too. Not only OM
-  System: Canon, Nikon, Sony, Fujifilm, Panasonic and Hasselblad raw files too, each in the
-  shape it was shot, without black bars.
-- **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
-  walk the folder without closing it, and the next photo is already there. Text files open on
-  a page you can scroll, darktable sidecars included; everything else shows what it is, how big,
-  whose and who may touch it. Space or Escape closes it, and you are where you stopped.
-- **Live folders.** Files created, removed or renamed by any program appear at once; a
-  thousand-file copy arrives in a few smooth updates, not a thousand.
-- **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
-  camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
-- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly.
-
-## Progress
-
-`nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
-the thumbnail grid, Ctrl+3 to the details table, Ctrl+1 back, Ctrl+I shows or hides the info
-pane of the grid and the details, Ctrl+B the sidebar, Space opens Quick Look, F1 lists every
-shortcut.
-`nordend --test-scene` shows everything the renderer can draw.
-
-**Phase 1 — window and rendering: complete.**
-
-- Wayland window (xdg-shell) with server-side decorations
-- EGL + OpenGL ES 3.0 rendering, paced by frame callbacks: idle CPU at zero, smooth resizing
-- Fractional scaling (fractional-scale-v1 + viewporter): sharp at 1, 1.25, 1.5, 2
-- Drawing primitives in one SDF shader: rounded boxes with per-corner radii, borders, soft
-  shadows, nested clipping, physical-pixel hairlines
-- Text: fontconfig fallback, harfbuzz shaping, glyph atlases; accents, color emoji, CJK, invalid
-  UTF-8, end and Finder-style middle truncation
-
-**Phase 2 — input, loop and theme: complete.**
-
-- Keyboard (xkbcommon, the compositor's layout, compose, key repeat) and pointer (click
-  counting, smooth touchpad scrolling, cursor-shape-v1)
-- One `poll()` event loop and a worker pool with priorities and cancellation (TSan clean)
-- `~/.config/nordend/config.toml` with readable errors; `nordend --check-config`
-- Live Noctalia theme: a Noctalia template writes `colors.toml`, Nordend reloads it on change
-
-**Phase 3 — file system: complete.**
-
-- Asynchronous directory loading in chunks with natural sort (10k files: first entries in
-  0.8 ms, see [benchmarks](docs/benchmarks.md))
-- MIME types from shared-mime-info, identical to GLib's on about 4 750 files compared
-- Live updates through one shared inotify instance, renames recognised, bursts batched
-- File-type icons from Noctalia's Tabler set, tinted by the theme; camera RAW files and
-  darktable sidecars have their own
-
-**Phase 4 — views: complete.**
-
-- Virtualized scrolling list with touchpad inertia and wheel glide (0.2 ms per frame in a
-  10 000-file folder)
-- Miller columns: arrow-key navigation, resizable columns, animated horizontal scrolling, an
-  info pane for the selected file
-- Selection: click, Ctrl+click, Shift+click, and the same from the keyboard (Shift+arrows,
-  Ctrl+arrows and Ctrl+Space, Ctrl+A); a summary of what is selected
-- Grid view: virtualized cells, size from 48 to 256 px (Ctrl+plus/minus, Ctrl+wheel, Ctrl+0),
-  Ctrl+1 / Ctrl+2 switch columns and grid keeping cursor and selection
-
-**Phase 5 — thumbnails, Quick Look and the details view: complete.**
-
-- Image decoding: PNG, JPEG and GIF (wuffs, memory-safe by construction), WebP and JPEG XL
-  (libwebp, libjxl), first frame of animations, EXIF orientation; a 20 MP JPEG in about
-  150 ms
-- Thumbnails in the grid through the freedesktop cache (`~/.cache/thumbnails`, shared with
-  other apps), made from the previews camera files carry (OM System JPEG and ORF) or from the
-  whole image; a screenful in 0.15-0.4 s the first time, about 20 ms after
-- Quick Look: Space shows the entry under the cursor over the window, arrows walk the folder
-  underneath; images and raw files fitted to the screen (an ORF in about 55 ms), the thumbnail
-  first, neighbours prepared ahead; an information card for the rest
-- Raw files of other cameras (Canon, Nikon, Sony, Fujifilm, Panasonic, Hasselblad):
-  uncompressed TIFF previews (3FR, Nikon TIFF), Panasonic GX8 previews cropped to the aspect
-  ratio shot, no black bars from 4:3 EXIF thumbnails; Quick Look of a raw file with a small
-  preview in a few ms
-- Quick Look of text files (code, configuration, logs, darktable sidecars) on a page with line
-  numbers, in a monospace font (`font.monospace`), scrolling with the wheel or the touchpad; an
-  information card for everything else, with permissions, owner, link target and a folder's
-  number of items
-- Details view (Ctrl+3): name, size, date and type in columns; a click on a title sorts by it,
-  a second one reverses; the column edges can be dragged; a 10 000-file folder sorts in 1-3 ms
-  and scrolls at 0.3-0.5 ms per frame
-- Info pane in every view, at the right of the grid and the details too; Ctrl+I shows and
-  hides it in all three
-- The info pane as a preview: the photo's thumbnail (or a text file's first
-  lines), then size, pixels and dates, the shot (camera, lens, exposure, focal length, date,
-  darktable rating), and "More details" for permissions, owner and the rest; Ctrl+I in the grid
-  and the details only
-- A sidebar with your places: home, Downloads, Pictures and the other user
-  folders, the file system, GTK bookmarks and mounted disks, updated as disks come and go;
-  Ctrl+B shows or hides it, F6 moves the keyboard into it
-
-- A breadcrumb above every view: the folder's path, each step a click away,
-  the cursor on the folder you came from
-
-- A status bar with the folder's items, the selection and the free space, a
-  button for each view, and "?" (or F1) for every keyboard shortcut
-
-**Next:** phase 6, file operations: open with the default app, new folder and rename, copy and
-move with progress, trash, clipboard.
-The full plan is in the [roadmap](docs/ROADMAP.md).
+| | |
+|---|---|
+| Binary | **1.98 MB** (1.68 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
+| Code | about 18 500 lines of C++20, plus 4 100 lines of tests (136 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Memory | **33 MB** of its own (private, anonymous); 117 MB resident counting shared libraries, 67 MB of which are Mesa's GPU driver (LLVM + gallium), shared with every OpenGL app |
+| Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
+| Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
 
 ## Benchmarks
 
-Measured, not assumed. Opening a folder of **10 000 files** on a SATA SSD:
+Measured, not assumed: every number comes from a tool in this repository, on a Ryzen 7 5700G with
+an RX 6650 XT and a SATA SSD. Method and more cases in [docs/benchmarks.md](docs/benchmarks.md).
+
+**Opening a folder of 10 000 files**
 
 | Cache | First entries ready | Whole folder loaded and sorted | Target for the first frame |
 |-------|--------------------:|-------------------------------:|---------------------------:|
 | warm (median of 20) | **0.8 ms** | **19.5 ms** | < 50 ms |
 | cold (after `drop_caches`) | **1.7 ms** | **81 ms** | < 50 ms |
 
-Photos (OM System OM-1: 20 MP JPEGs and ORF raw files), Ryzen 7 5700G, warm cache:
+**Scrolling a 10 000-file folder**, per frame at 2880x1620, GPU work included (a 60 Hz frame is
+16.7 ms):
+
+| View | Median | p95 |
+|------|-------:|----:|
+| Columns | **0.26 ms** | 0.33-0.47 ms |
+| Grid (icons) | **0.30 ms** | 0.51 ms |
+| Grid (90 photo thumbnails) | **0.62 ms** | 0.76 ms |
+| Details | **0.36-0.50 ms** | 0.58 ms |
+
+Only what is on screen is drawn, so the folder's size does not matter; sidebar, breadcrumb and
+status bar cost nothing measurable.
+
+**Photos** (OM System OM-1: 20 MP JPEGs and ORF raw files), warm cache:
 
 | What | Time |
 |------|-----:|
 | A grid screenful of thumbnails, made the first time / read from the cache | **0.15-0.4 s** / **12-22 ms** |
 | One thumbnail from an OM-1 JPEG / ORF (embedded preview, scaled, PNG written) | **12 ms** / **36 ms** |
 | Quick Look of an ORF, fitted to a 2880x1620 screen | **51-55 ms** |
-| Scrolling the grid with thumbnails, per frame at 2880x1620 | **0.62 ms** |
+| Quick Look of a Sony ARW (small embedded preview) | **17 ms** |
+| A 20 MP JPEG decoded whole (wuffs) | **149 ms** |
+| Sorting 10 000 entries by size, date or type | **1-3 ms** |
 
-Method, machine, cold-cache numbers and more folders: [docs/benchmarks.md](docs/benchmarks.md).
+<details>
+<summary><b>Features</b>: what works today</summary>
+
+- **Natural touch.** Scrolling that feels physical: on a touchpad the list follows your fingers
+  1:1 and, when they lift, keeps gliding and slows down smoothly, stopping softly at the ends;
+  a mouse wheel glides instead of jumping, and quick turns add up. The keyboard moves the same
+  way: arrows and Page Up/Down glide, Home/End jump.
+- **Columns, as in Finder.** Every folder you pick opens in the next column; arrows walk the
+  tree, Left from the first column climbs to the parent. Columns resize by dragging their edge
+  and slide sideways by themselves to keep where you are in view.
+- **A grid when you want to see more.** Ctrl+2 lays the folder out as large icons and
+  thumbnails; Ctrl+plus/minus (or Ctrl+wheel) make the cells bigger or smaller, from 48 to
+  256 px.
+- **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
+  dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
+  make it wider. Cursor and selection go along between all three views.
+- **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
+  Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
+- **A preview beside every view.** The pane at the right shows the photo under the cursor
+  with what it is: size, pixels, dates, and the shot itself (camera, lens, exposure, focal
+  length, when, your darktable rating); text files show their first lines. "More details"
+  opens permissions, owner and the rest. In the grid and the details Ctrl+I hides it, and its
+  edge can be dragged to make it (and the photo) larger.
+- **Your places, one click away.** A sidebar lists your home and its folders (Downloads,
+  Pictures...), the file system, your GTK bookmarks and the mounted disks; a disk appears as
+  soon as it is mounted and goes when it is unmounted. Ctrl+B hides it, F6 takes the keyboard
+  there and back.
+- **The path, one step at a time.** Above every view the folder's path is a row of steps,
+  starting from your home; click one to go back up there, with the cursor on the folder you
+  came from.
+- **Everything at hand.** The bar at the bottom tells how many items there are, what is
+  selected and how much space is left on the disk, and switches between the three views with a
+  click; "?" (or F1) shows every keyboard shortcut.
+- **Your photos at a glance.** Photos and camera raw files show their thumbnails, upright, in a
+  fraction of a second: Nordend uses the previews your camera already stored in the file, and
+  keeps the thumbnails in the freedesktop cache other apps read too. Not only OM System: Canon,
+  Nikon, Sony, Fujifilm, Panasonic and Hasselblad raw files too, each in the shape it was shot,
+  without black bars.
+- **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
+  walk the folder without closing it, and the next photo is already there. Text files open on
+  a page you can scroll, darktable sidecars included; everything else shows what it is, how
+  big, whose and who may touch it.
+- **Live folders.** Files created, removed or renamed by any program appear at once; a
+  thousand-file copy arrives in a few smooth updates, not a thousand.
+- **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
+  camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
+- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly.
+- **Sharp at any scale.** Fractional scaling (1, 1.25, 1.5, 2...), text shaped by HarfBuzz
+  with font fallback for accents, emoji and CJK.
+
+</details>
+
+<details>
+<summary><b>Keyboard shortcuts</b> (F1 in Nordend shows the same list)</summary>
+
+| Keys | Action |
+|------|--------|
+| <kbd>Ctrl</kbd>+<kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> | Columns / grid / details |
+| <kbd>Space</kbd> | Quick Look (Space or Escape closes it) |
+| <kbd>Ctrl</kbd>+<kbd>I</kbd> | Info pane (grid, details) |
+| <kbd>Ctrl</kbd>+<kbd>B</kbd> | Sidebar |
+| <kbd>F6</kbd> | Keyboard into the sidebar and out |
+| <kbd>F1</kbd>, <kbd>?</kbd> | Every shortcut |
+| <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Quit |
+| <kbd>↑</kbd> <kbd>↓</kbd> (<kbd>←</kbd> <kbd>→</kbd> in the grid) | Previous, next |
+| <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Home</kbd> <kbd>End</kbd> | A screenful, first, last |
+| <kbd>Enter</kbd>, <kbd>→</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↓</kbd> (grid, details) | Open the folder |
+| <kbd>Backspace</kbd>, <kbd>←</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↑</kbd> | Parent folder |
+| <kbd>Shift</kbd>+moves | Select a range |
+| <kbd>Ctrl</kbd>+moves | Move without selecting |
+| <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Select or unselect |
+| <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
+| <kbd>Escape</kbd> | Back to one entry |
+| <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> | Grid: larger, smaller, usual size |
+
+</details>
 
 ## Building
 
@@ -218,9 +182,12 @@ cmake --build build
 ```
 
 Needs a Wayland compositor with xdg-shell (developed on
-[Umbriel](https://github.com/noctalia-dev)). `NORDEND_LOG=debug` (or `trace`) shows more detail.
+[Umbriel](https://github.com/noctalia-dev)). `NORDEND_LOG=debug` (or `trace`) shows more detail;
+`nordend --check-config` checks `~/.config/nordend/config.toml`
+([example](docs/config.example.toml)).
 
-Development builds:
+<details>
+<summary><b>Development builds and tools</b></summary>
 
 ```sh
 # AddressSanitizer + UBSan (needs libsanitizer-devel)
@@ -238,11 +205,10 @@ ctest --test-dir build
 ./build/nordend-snapshot scene.ppm 960 820 1.5
 
 # Folders in columns offscreen, opened down to a path, and the scrolling benchmark
-# (see docs/benchmarks.md)
 ./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm
 ./build/nordend-snapshot --columns /tmp --reveal /tmp/bench-10k --bench 600 columns.ppm
 
-# Directory loading benchmark (see docs/benchmarks.md)
+# Directory loading benchmark
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k
 ./build/nordend-bench-dir --runs 20 /tmp/bench-10k
 
@@ -259,13 +225,15 @@ ctest --test-dir build
 ./build/nordend-thumb --size large --cache /tmp/thumbs photo.ORF
 ```
 
+</details>
+
 ## Documentation
 
-- [Design](docs/DESIGN.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Devlog](docs/devlog.md)
-- [Benchmarks](docs/benchmarks.md)
-- [Upstream bug log](docs/buglog.md)
+- [Design](docs/DESIGN.md) (Italian): what Nordend is and why
+- [Roadmap](docs/ROADMAP.md) (Italian): the steps, each with when it counts as done
+- [Devlog](docs/devlog.md): what was done, measured and decided, step by step
+- [Benchmarks](docs/benchmarks.md): every measurement, with its method
+- [Upstream bug log](docs/buglog.md): bugs found in Noctalia and Umbriel
 
 ## Development
 
