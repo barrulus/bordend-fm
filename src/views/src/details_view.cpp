@@ -122,10 +122,30 @@ void DetailsView::set_info_visible(bool visible) {
 }
 
 void DetailsView::lay_out() {
+    // What fits: the fixed columns are left out, last first, while the name would be narrower
+    // than its minimum.
+    float fixed = 0.0F;
+    for (const Field field : {Field::size, Field::modified, Field::type}) {
+        layout_.shown.at(index(field)) = true;
+        fixed += widths_.at(index(field));
+    }
+    const float table = rows_.width - (2.0F * kPadding);
+    for (const Field field : {Field::type, Field::modified, Field::size}) {
+        if (table - fixed >= kMinWidths.at(index(Field::name))) {
+            break;
+        }
+        layout_.shown.at(index(field)) = false;
+        fixed -= widths_.at(index(field));
+    }
     // The fixed columns from the right edge; the name takes what is left.
     float right = rows_.right() - kPadding;
     for (const Field field : {Field::type, Field::modified, Field::size}) {
         const std::size_t i = index(field);
+        if (!layout_.shown.at(i)) {
+            layout_.width.at(i) = 0.0F;
+            layout_.left.at(i) = right;
+            continue;
+        }
         layout_.width.at(i) = widths_.at(i);
         layout_.left.at(i) = right - widths_.at(i);
         right = layout_.left.at(i);
@@ -182,8 +202,7 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     if (!folder_) {
         return;
     }
-    draw_title_bar(renderer, bounds, palette, *folder_);
-    const float top = bounds.y + kTitleHeight;
+    const float top = bounds.y;
     const float pane_width =
         info_visible_ && info_pane_ != nullptr ? info_pane_->width_in(bounds.width) : 0.0F;
     const bool pane = pane_width > 0.0F;
@@ -200,6 +219,9 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const fs::SortOrder& order = folder_->order();
     for (const Field field : {Field::name, Field::size, Field::modified, Field::type}) {
         const std::size_t i = index(field);
+        if (!layout_.shown.at(i)) {
+            continue;
+        }
         const float left = layout_.left.at(i);
         const float width = layout_.width.at(i);
         const bool sorted = sort_key(field) == order.key;
@@ -272,6 +294,9 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
 
         const float detail_y = y + ((kRowHeight - kDetailSize) / 2.0F) - 2.0F;
         const auto cell = [&](Field field, const std::string& text, bool right) {
+            if (!layout_.shown.at(index(field))) {
+                return;
+            }
             const float left = layout_.left.at(index(field)) + kCellPadding;
             const float room =
                 std::max(1.0F, layout_.width.at(index(field)) - (2.0F * kCellPadding));
@@ -340,7 +365,8 @@ std::optional<Field> DetailsView::divider_at(float x, float y) const {
         return std::nullopt;
     }
     for (const Field field : {Field::size, Field::modified, Field::type}) {
-        if (std::abs(x - layout_.left.at(index(field))) <= kDividerGrab) {
+        if (layout_.shown.at(index(field)) &&
+            std::abs(x - layout_.left.at(index(field))) <= kDividerGrab) {
             return field;
         }
     }
@@ -353,7 +379,8 @@ std::optional<Field> DetailsView::title_at(float x, float y) const {
     }
     for (const Field field : {Field::name, Field::size, Field::modified, Field::type}) {
         const float left = layout_.left.at(index(field));
-        if (x >= left && x < left + layout_.width.at(index(field))) {
+        if (layout_.shown.at(index(field)) && x >= left &&
+            x < left + layout_.width.at(index(field))) {
             return field;
         }
     }

@@ -4,6 +4,105 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-27 — A breadcrumb (ROADMAP 5.10)
+
+Asked by the author with the status bar, the shortcuts overlay and a settings panel; agreed
+order: breadcrumb (5.10), status bar and shortcuts (5.11), phase 6, then settings with the
+remembered state (7.0b). System information (distro, Noctalia, Umbriel) goes to the settings'
+"About", not the status bar.
+
+**Done**
+- `views::Breadcrumb`, drawn by the `Browser` above every view (the views no longer draw a
+  title bar: they get the bounds under it). The folder's path as steps: the home as its icon
+  when the folder is in it, else the root as the file system's icon, then the folders' names
+  separated by chevrons; the last step (the folder shown) brighter. Too long: the first step,
+  "…", and as many of the last steps as fit; the last one is cut in the middle when even it
+  does not fit. Hover box on the steps; the status ("12 items"...) stays at the right until
+  5.11 moves it.
+- A click on a step: `Browser::go_to(folder, child)`. In the grid and the details the folder
+  opens with the cursor on the step after it. In the columns, the column showing that folder
+  is focused (its cursor is already on the way down; the columns after it stay); above the
+  first column, the columns are revealed from it down to the step after it.
+- The pointer goes to the sidebar, the breadcrumb or the view, and stays with the one that got
+  a press until the release: a drag of the info pane's edge that crosses the sidebar no longer
+  loses its release.
+- The details table leaves out the type, then the date, then the size when the name would be
+  narrower than its 160 px minimum. It overlapped before (with the info pane, under about
+  700 px of view); the sidebar made that common at ordinary window widths.
+- Tests (130 with the raw samples): the steps from home or root, going up in the grid, the
+  details and the columns (focused column, revealed from above). Release, ASan, TSan pass;
+  snapshots under ASan and TSan; tidy and format clean.
+
+**Measured**: no measurable cost per frame (see benchmarks).
+
+**Tested by the author**
+- On screen: the columns (focusing an open column, revealing from above the first), the grid
+  and the details, the home icon, a narrow window: "funziona tutto quello che dici".
+
+**Open**
+- The "…" is not clickable (the steps it hides are reachable from the first one).
+
+---
+
+## 2026-10-27 — The places sidebar (ROADMAP 5.9)
+
+Asked by the author before phase 6: the classic sidebar was in neither the DESIGN nor the
+ROADMAP (only udisks2, after the MVP). Added to both with their OK.
+
+**Done**
+- `fs::load_places` (`places.*`): Home; the XDG user dirs that exist, from `user-dirs.dirs`
+  (Desktop, Documents, Downloads, Music, Pictures, Videos; templates and public share left
+  out; without the file, the folders with those English names in the home, as on the author's
+  machine, which has no `user-dirs.dirs`); the file system; GTK bookmarks
+  (`~/.config/gtk-3.0/bookmarks`, local `file://` ones, percent-decoded); mounts under
+  `/run/media`, `/media`, `/mnt` from `/proc/self/mountinfo` (octal escapes decoded). Labels are
+  the folders' names, so localized user dirs show as they are on disk.
+- `fs::PlacesWatcher`: reloads when the mount table signals POLLPRI (in the one `poll()`) and
+  when `user-dirs.dirs` or the bookmarks change (`core::FileWatcher`, only for folders that
+  exist, since it creates missing ones); tells the browser only when the list differs.
+  `/proc` files report size 0, so the mount table is read in chunks, not by
+  `core::read_text_file`.
+- `views::Sidebar`: sections PLACES / BOOKMARKS / DEVICES, the place holding the current folder
+  marked (longest matching path, whole names: Pictures before Home before the file system),
+  hover, a click opens the place in the view shown (`Browser::open`), scrolls when taller than
+  the window, right edge draggable (140-400 px, default 200, double click restores), left out
+  when the view would keep less than 480 px.
+- `Browser`: draws it at the left, the view in the rest; routes the pointer (leave sent to
+  whichever loses it; a drag stays with the sidebar). Ctrl+B shows/hides it. F6 moves the
+  keyboard in (the cursor starts on the current place) and out; inside, Up/Down/Home/End move,
+  Enter opens and goes back to the view, Escape goes back; a click in the view also takes the
+  keyboard back. Ctrl+1/2/3, Ctrl+I, Ctrl+B work from the sidebar too.
+- Keyboard: the proposal said "Ctrl+B and arrows"; Ctrl+B both showing and entering was
+  ambiguous, so entering is F6 (as in GTK file managers).
+- `nordend-snapshot` lists the places of `$HOME`/`$XDG_CONFIG_HOME`; "Ctrl+B" and "F6" in
+  `--keys`.
+- Tests (127 with the raw samples): parsing user dirs, bookmarks and mounts; loading with and
+  without `user-dirs.dirs`; the watcher following a bookmarks change; every place icon in the
+  font; `place_holding`; F6/Down/Enter/Escape/Ctrl+B through the browser. Release (8 runs of
+  the places tests), ASan, TSan pass; snapshots under ASan and TSan; tidy and format clean.
+
+**Measured** (see benchmarks): the sidebar costs 0.03-0.06 ms per frame; the mount table's
+POLLPRI fires once per mount or unmount and never while idle.
+
+**Tested by the author**
+- On screen: the three views, Ctrl+B, F6, dragging the edge. A loop-mounted ext4 image under
+  `/mnt` appeared under DEVICES and went away on `umount` without a restart; so did an NTFS
+  disk mounted by hand (ntfs3, read-only) under `/run/media`.
+- Idle CPU with the window open: 0 ticks in 30 s (`/proc/PID/stat` utime+stime).
+- Found while testing: a folder with a localized name ("Scaricati") does not show without
+  `user-dirs.dirs` (only the English names are guessed): the file has to name it.
+
+**Open**
+- Mounting, unmounting and ejecting: udisks2 (ROADMAP 11). Mounts show the "database" icon,
+  removable or not (telling them apart needs sysfs or udisks).
+- Adding and removing bookmarks from Nordend (Ctrl+D): a possible follow-up.
+- While the keyboard is in the sidebar, the view's selection still looks focused.
+- The width and the shown/hidden state are not remembered across runs.
+- The home is not watched: a standard-named folder created while Nordend runs shows after a
+  restart (or a change to `user-dirs.dirs`).
+
+---
+
 ## 2026-10-27 — The info pane's width (5.8, follow-up)
 
 Asked by the author after testing 5.8.

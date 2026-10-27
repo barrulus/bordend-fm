@@ -23,6 +23,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/fs/places.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/display.hpp"
@@ -248,6 +249,14 @@ int main(int argc, char** argv) {
                 std::make_shared<thumbs::Cache>(thumbs::default_root(),
                                                 "nordend-" NORDEND_VERSION));
             columns->open(start_folder(start_dir));
+        }
+        // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9).
+        std::unique_ptr<fs::PlacesWatcher> places;
+        if (columns) {
+            places =
+                std::make_unique<fs::PlacesWatcher>(loop, fs::PlaceSources::from_environment(),
+                                                    [&] { columns->set_places(places->places()); });
+            columns->set_places(places->places());
         }
 
         std::string last_key = "Press a key (Ctrl+Q quits)";

@@ -278,6 +278,45 @@ horizontal pass filled an intermediate buffer of input rows x output width (83 M
 streams (each input row scaled across once, accumulated into the output row it belongs to), with
 an opaque fast path and one reciprocal per pixel: 27 ms. The ORF went from 107-110 ms to 51-55 ms.
 
+## Breadcrumb (ROADMAP 5.10)
+
+### 2026-10-27: scrolling with the breadcrumb
+
+The same 10 000-entry folder and command as for the sidebar (sidebar shown), three runs each.
+The breadcrumb measures its steps' text every frame (cached layouts).
+
+| View | Median | p95 |
+|------|-------:|----:|
+| Details | 0.36-0.37 ms | 0.55-0.58 ms |
+| Grid | 0.31-0.33 ms | 0.50-0.51 ms |
+| Columns | 0.25-0.26 ms | 0.34-0.36 ms |
+
+The same as without it (sidebar section below): nothing measurable.
+
+## Sidebar (ROADMAP 5.9)
+
+### 2026-10-27: scrolling with the sidebar
+
+A 10 000-entry folder (`nordend-bench-dir --make 10000`), 600 frames at 2880x1620
+(`nordend-snapshot --columns DIR --keys "Ctrl+3|Ctrl+2|Right[,Ctrl+B]" --bench 600 out.ppm
+1440 810 2`), three runs each; the sidebar lists 9 places.
+
+| View | Sidebar | Median | p95 |
+|------|---------|-------:|----:|
+| Details | shown | 0.35-0.50 ms | 0.54-0.58 ms |
+| Details | hidden | 0.29-0.30 ms | 0.51-0.52 ms |
+| Grid | shown | 0.30-0.32 ms | 0.50-0.51 ms |
+| Grid | hidden | 0.27 ms | 0.47-0.50 ms |
+| Columns | shown | 0.24-0.25 ms | 0.33-0.34 ms |
+| Columns | hidden | 0.18-0.19 ms | 0.26-0.27 ms |
+
+The sidebar costs about 0.03-0.06 ms per frame: its background, a dozen rows of text and icons.
+
+The mount table, polled for POLLPRI (scratch C program and a `PlacesWatcher` in a user and
+mount namespace, `unshare -rm`): idle, poll() times out with no events; a mount wakes it once
+(POLLPRI|POLLERR, then quiet again), and the watcher reports the new mount point and, after
+`umount`, its removal.
+
 ## Info pane preview (ROADMAP 5.8)
 
 ### 2026-10-27: walking a folder of ORF files

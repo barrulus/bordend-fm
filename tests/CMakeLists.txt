@@ -1,5 +1,6 @@
 add_executable(nordend-tests
     main.cpp
+    breadcrumb_test.cpp
     column_view_test.cpp
     config_test.cpp
     details_view_test.cpp
@@ -12,6 +13,7 @@ add_executable(nordend-tests
     image_test.cpp
     mime_test.cpp
     palette_test.cpp
+    places_test.cpp
     preview_test.cpp
     quick_look_test.cpp
     scroller_test.cpp

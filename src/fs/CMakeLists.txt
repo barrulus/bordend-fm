@@ -4,6 +4,7 @@ add_library(nordend_fs
     src/directory_watcher.cpp
     src/icon.cpp
     src/mime.cpp
+    src/places.cpp
     src/sort.cpp)
 add_library(nordend::fs ALIAS nordend_fs)
 

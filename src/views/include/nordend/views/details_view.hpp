@@ -88,10 +88,12 @@ public:
     [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
 
 private:
-    // Where each column starts, from the last layout.
+    // Where each column starts, from the last layout; a narrow table leaves out the type, then
+    // the date, then the size, so that the name keeps its minimum width.
     struct Layout {
         std::array<float, 4> left{};
         std::array<float, 4> width{};
+        std::array<bool, 4> shown{true, true, true, true};
     };
 
     void enter();

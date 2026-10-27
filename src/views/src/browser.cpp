@@ -1,9 +1,22 @@
 #include "nordend/views/browser.hpp"
 
+#include <algorithm>
+#include <cstdlib>
+#include <string>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "draw_helpers.hpp"
+
 namespace nordend::views {
+namespace {
+
+std::filesystem::path home_directory() {
+    const char* const home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe): at start
+    return home != nullptr && *home == '/' ? std::filesystem::path{home} : std::filesystem::path{};
+}
+
+}  // namespace
 
 Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                  std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
@@ -14,8 +27,15 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       info_pane_{pool, thumbnails_.get(), redraw},
       columns_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
       grid_{loop, pool, watcher, mime, redraw, set_cursor, thumbnails_.get(), &info_pane_},
-      details_{loop, pool, watcher, mime, redraw, std::move(set_cursor), &info_pane_},
-      quick_look_{pool, std::move(mime), std::move(thumbnails), std::move(redraw)} {}
+      details_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
+      quick_look_{pool, std::move(mime), std::move(thumbnails), redraw},
+      sidebar_{redraw, std::move(set_cursor),
+               [this](const std::filesystem::path& place) { open(place); }},
+      breadcrumb_{std::move(redraw),
+                  [this](const std::filesystem::path& folder, const std::string& child) {
+                      go_to(folder, child);
+                  },
+                  home_directory()} {}
 
 void Browser::open(const std::filesystem::path& directory) {
     columns_.open(directory);
@@ -39,6 +59,24 @@ void Browser::set_info_visible(bool visible) {
     details_.set_info_visible(visible);
 }
 
+void Browser::set_sidebar_visible(bool visible) {
+    if (visible == sidebar_visible_) {
+        return;
+    }
+    sidebar_visible_ = visible;
+    if (!visible) {
+        sidebar_.set_focused(false);
+        if (pointer_target_ == Target::sidebar) {
+            send_pointer(Target::sidebar, {.kind = ui::PointerEvent::Kind::leave}, Clock::now());
+            pointer_target_ = Target::view;
+            button_held_ = false;
+        }
+    }
+    redraw_();
+}
+
+void Browser::set_places(std::vector<fs::Place> places) { sidebar_.set_places(std::move(places)); }
+
 void Browser::set_mode(Mode mode) {
     if (mode == mode_) {
         return;
@@ -52,17 +90,11 @@ void Browser::set_mode(Mode mode) {
     const ui::PointerEvent leave{.kind = ui::PointerEvent::Kind::leave};
     const ui::PointerEvent motion{
         .kind = ui::PointerEvent::Kind::motion, .x = pointer_x_, .y = pointer_y_};
-    switch (mode_) {
-        case Mode::columns:
-            columns_.pointer(leave, now);
-            columns_.suspend();
-            break;
-        case Mode::grid:
-            grid_.pointer(leave, now);
-            break;
-        case Mode::details:
-            details_.pointer(leave, now);
-            break;
+    if (pointer_target_ == Target::view) {
+        view_pointer(leave, now);
+    }
+    if (mode_ == Mode::columns) {
+        columns_.suspend();
     }
     mode_ = mode;
     switch (mode_) {
@@ -84,6 +116,39 @@ void Browser::set_mode(Mode mode) {
 
 void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now) {
+    const float sidebar_width = sidebar_visible_ ? sidebar_.width_in(bounds.width) : 0.0F;
+    sidebar_drawn_ = sidebar_width > 0.0F;
+    if (!sidebar_drawn_ && sidebar_.focused()) {
+        sidebar_.set_focused(false);  // no room for it: the keyboard goes back to the view
+    }
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (sidebar_drawn_) {
+        sidebar_.draw(renderer, {bounds.x, bounds.y, sidebar_width, bounds.height}, palette, icons,
+                      folder ? folder->path() : std::filesystem::path{}, now);
+    } else {
+        sidebar_.not_drawn();
+    }
+    const ui::Rect view{bounds.x + sidebar_width, bounds.y, bounds.width - sidebar_width,
+                        bounds.height};
+    if (folder) {
+        breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
+                         *folder);
+    }
+    draw_view(
+        renderer,
+        {view.x, view.y + kTitleHeight, view.width, std::max(0.0F, view.height - kTitleHeight)},
+        palette, icons, now);
+    if (quick_look_.is_open()) {
+        quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
+    }
+    quick_look_.draw(renderer, bounds, palette, icons, now);
+    if (thumbnails_) {
+        thumbnails_->end_frame();
+    }
+}
+
+void Browser::draw_view(ui::Renderer& renderer, const ui::Rect& bounds,
+                        const theme::Palette& palette, ui::IconSet& icons, Clock::time_point now) {
     switch (mode_) {
         case Mode::columns:
             columns_.draw(renderer, bounds, palette, icons, now);
@@ -94,13 +159,6 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         case Mode::details:
             details_.draw(renderer, bounds, palette, icons, now);
             break;
-    }
-    if (quick_look_.is_open()) {
-        quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
-    }
-    quick_look_.draw(renderer, bounds, palette, icons, now);
-    if (thumbnails_) {
-        thumbnails_->end_frame();
     }
 }
 
@@ -117,7 +175,8 @@ bool Browser::animating() const {
             view = details_.animating();
             break;
     }
-    return view || info_pane_.animating() || quick_look_.animating(Clock::now());
+    return view || info_pane_.animating() || sidebar_.animating() ||
+           quick_look_.animating(Clock::now());
 }
 
 bool Browser::loading() const {
@@ -161,6 +220,67 @@ void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
 }
 
 void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    using Kind = ui::PointerEvent::Kind;
+    if (event.kind == Kind::leave) {
+        send_pointer(pointer_target_, event, now);
+        pointer_target_ = Target::view;
+        button_held_ = false;
+        return;
+    }
+    // While a button is held (a drag) the pointer stays with whoever took the press.
+    if (!button_held_) {
+        Target target = Target::view;
+        if (sidebar_drawn_ && sidebar_.claims(event.x, event.y)) {
+            target = Target::sidebar;
+        } else if (breadcrumb_.claims(event.x, event.y)) {
+            target = Target::breadcrumb;
+        }
+        if (target != pointer_target_) {
+            send_pointer(pointer_target_, {.kind = Kind::leave}, now);
+            pointer_target_ = target;
+        }
+    }
+    if (event.kind == Kind::press) {
+        button_held_ = true;
+        if (pointer_target_ != Target::sidebar && sidebar_.focused()) {
+            sidebar_.set_focused(false);  // a click elsewhere takes the keyboard back
+        }
+    } else if (event.kind == Kind::release) {
+        button_held_ = false;
+    }
+    send_pointer(pointer_target_, event, now);
+}
+
+void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now) {
+    switch (target) {
+        case Target::view:
+            view_pointer(event, now);
+            break;
+        case Target::sidebar:
+            sidebar_.pointer(event, now);
+            break;
+        case Target::breadcrumb:
+            breadcrumb_.pointer(event);
+            break;
+    }
+}
+
+void Browser::go_to(const std::filesystem::path& folder, const std::string& child) {
+    if (mode_ == Mode::columns) {
+        // The column that shows folder already has its cursor on child.
+        if (!columns_.focus_folder(folder)) {
+            columns_.reveal(folder, child.empty() ? folder : folder / child);
+        }
+        redraw_();
+        return;
+    }
+    open(folder);
+    if (const std::shared_ptr<Folder> shown = current_folder(); shown && !child.empty()) {
+        shown->select_name(child);
+    }
+}
+
+void Browser::view_pointer(const ui::PointerEvent& event, Clock::time_point now) {
     switch (mode_) {
         case Mode::columns:
             columns_.pointer(event, now);
@@ -198,6 +318,13 @@ void Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
         quick_look_.follow(current_folder());
         return;
     }
+    if (browser_key(event)) {
+        return;
+    }
+    if (sidebar_.focused()) {
+        static_cast<void>(sidebar_.key(event));  // the view does not see keys meanwhile
+        return;
+    }
     if (plain && event.keysym == XKB_KEY_space) {
         quick_look_.open(current_folder(), now);
         return;
@@ -205,24 +332,46 @@ void Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
     view_key(event, now);
 }
 
-void Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
-    if (event.modifiers.ctrl && !event.modifiers.shift && !event.modifiers.alt) {
-        if (event.keysym == XKB_KEY_1 || event.keysym == XKB_KEY_KP_1) {
+bool Browser::browser_key(const ui::KeyEvent& event) {
+    if (event.keysym == XKB_KEY_F6 && event.modifiers == ui::Modifiers{}) {
+        if (!sidebar_.focused()) {
+            set_sidebar_visible(true);
+        }
+        sidebar_.set_focused(!sidebar_.focused());
+        return true;
+    }
+    if (!event.modifiers.ctrl || event.modifiers.shift || event.modifiers.alt) {
+        return false;
+    }
+    switch (event.keysym) {
+        case XKB_KEY_1:
+        case XKB_KEY_KP_1:
             set_mode(Mode::columns);
-            return;
-        }
-        if (event.keysym == XKB_KEY_2 || event.keysym == XKB_KEY_KP_2) {
+            return true;
+        case XKB_KEY_2:
+        case XKB_KEY_KP_2:
             set_mode(Mode::grid);
-            return;
-        }
-        if (event.keysym == XKB_KEY_3 || event.keysym == XKB_KEY_KP_3) {
+            return true;
+        case XKB_KEY_3:
+        case XKB_KEY_KP_3:
             set_mode(Mode::details);
-            return;
-        }
-        if (event.keysym == XKB_KEY_i || event.keysym == XKB_KEY_I) {
+            return true;
+        case XKB_KEY_i:
+        case XKB_KEY_I:
             set_info_visible(!info_visible_);
-            return;
-        }
+            return true;
+        case XKB_KEY_b:
+        case XKB_KEY_B:
+            set_sidebar_visible(!sidebar_visible_);
+            return true;
+        default:
+            return false;
+    }
+}
+
+void Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
+    if (browser_key(event)) {
+        return;  // with Quick Look open too
     }
     switch (mode_) {
         case Mode::columns:

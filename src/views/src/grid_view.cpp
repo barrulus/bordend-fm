@@ -167,12 +167,10 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     if (!folder_) {
         return;
     }
-    draw_title_bar(renderer, bounds, palette, *folder_);
     const float pane_width =
         info_visible_ && info_pane_ != nullptr ? info_pane_->width_in(bounds.width) : 0.0F;
     const bool pane = pane_width > 0.0F;
-    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width - pane_width,
-             std::max(0.0F, bounds.height - kTitleHeight)};
+    area_ = {bounds.x, bounds.y, bounds.width - pane_width, bounds.height};
     pane_edge_ = pane ? area_.right() : -1.0F;
     layout(area_.width);
     const std::vector<fs::Entry>& entries = folder_->entries();

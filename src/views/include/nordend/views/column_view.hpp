@@ -74,6 +74,9 @@ public:
     // as each folder loads). target must be inside root.
     void reveal(const std::filesystem::path& root, const std::filesystem::path& target);
 
+    // Focuses the column showing directory, if one does: true then.
+    bool focus_folder(const std::filesystem::path& directory);
+
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
 

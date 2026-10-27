@@ -99,6 +99,15 @@ un tipo non tocca il resto. È anche il punto d'aggancio futuro per gli script L
 - **Griglia.** Miniature con dimensione regolabile (Ctrl +/−), caricamento solo delle celle visibili.
 - **Dettagli (Ctrl+3).** Una riga per file con colonne nome, dimensione, data, tipo; ordinamento dal clic
   sull'intestazione, colonne ridimensionabili. Aggiunta il 2026-10-27 con l'OK dell'autore.
+- **Barra laterale dei luoghi (Ctrl+B).** A sinistra in tutte e tre le viste: Home, le cartelle
+  XDG (`user-dirs.dirs`; senza il file, quelle con il nome standard che esistono), il file system,
+  i segnalibri GTK (`~/.config/gtk-3.0/bookmarks`, condivisi con gli altri file manager) e le unità
+  montate (`/proc/self/mountinfo`, aggiornate quando si monta o si smonta). Montare e smontare
+  restano a udisks2, dopo l'MVP. Aggiunta il 2026-10-27 con l'OK dell'autore.
+- **Breadcrumb e barra di stato.** In alto il percorso della cartella come segmenti cliccabili; in
+  basso elementi, selezione e spazio libero a sinistra, i pulsanti delle tre viste e "?" (overlay
+  delle scorciatoie, anche F1) a destra. Le informazioni di sistema (distro, Noctalia, Umbriel)
+  vanno nelle impostazioni, non nella barra. Aggiunti il 2026-10-27 con l'OK dell'autore.
 - **Quick Look (barra spazio).** Overlay sopra la finestra; frecce per passare al file successivo
   senza chiuderlo; Esc o spazio per chiudere.
 
@@ -108,6 +117,7 @@ Dentro:
 - finestra Wayland con rendering GLES e testo, decorazioni server-side
 - palette Noctalia con ricarica a caldo
 - vista a colonne, a griglia e dettagli, navigazione completa da tastiera e mouse
+- barra laterale dei luoghi (cartelle XDG, segnalibri GTK, unità montate)
 - loader asincrono + watcher inotify
 - miniature con cache freedesktop
 - Quick Look: immagini (png, jpeg, webp, jxl, gif), RAW tramite JPEG incorporato con orientamento

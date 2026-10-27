@@ -1,0 +1,324 @@
+#include "nordend/fs/places.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <poll.h>
+#include <string_view>
+#include <system_error>
+#include <unistd.h>
+#include <utility>
+
+#include "nordend/core/file.hpp"
+#include "nordend/core/log.hpp"
+
+namespace nordend::fs {
+namespace {
+
+struct UserDirKind {
+    std::string_view key;
+    std::string_view name;  // its usual name in the home, without user-dirs.dirs
+    std::string_view icon;
+};
+
+// The user dirs the sidebar shows, in its order (templates and public share are left out).
+constexpr std::array<UserDirKind, 6> kUserDirs{{
+    {.key = "DESKTOP", .name = "Desktop", .icon = "device-desktop"},
+    {.key = "DOCUMENTS", .name = "Documents", .icon = "file-text"},
+    {.key = "DOWNLOAD", .name = "Downloads", .icon = "download"},
+    {.key = "MUSIC", .name = "Music", .icon = "music"},
+    {.key = "PICTURES", .name = "Pictures", .icon = "photo"},
+    {.key = "VIDEOS", .name = "Videos", .icon = "movie"},
+}};
+
+constexpr std::array<std::string_view, 3> kMountRoots{"/run/media/", "/media/", "/mnt/"};
+
+std::string_view trim(std::string_view text) {
+    const std::size_t first = text.find_first_not_of(" \t\r");
+    if (first == std::string_view::npos) {
+        return {};
+    }
+    return text.substr(first, text.find_last_not_of(" \t\r") - first + 1);
+}
+
+// Calls line(text) for every line of text.
+template <typename Fn>
+void for_each_line(std::string_view text, const Fn& line) {
+    while (!text.empty()) {
+        const std::size_t end = std::min(text.find('\n'), text.size());
+        line(text.substr(0, end));
+        text.remove_prefix(std::min(end + 1, text.size()));
+    }
+}
+
+int hex_digit(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+    return -1;
+}
+
+// "%20" -> " "; a malformed escape is kept as it is.
+std::string percent_decode(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '%' && i + 2 < text.size()) {
+            const int high = hex_digit(text[i + 1]);
+            const int low = hex_digit(text[i + 2]);
+            if (high >= 0 && low >= 0) {
+                out += static_cast<char>((high * 16) + low);
+                i += 2;
+                continue;
+            }
+        }
+        out += text[i];
+    }
+    return out;
+}
+
+// "\040" -> " ", as the kernel escapes spaces, tabs, newlines and backslashes in mountinfo.
+std::string octal_decode(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\\' && i + 3 < text.size()) {
+            const std::string_view digits = text.substr(i + 1, 3);
+            if (std::ranges::all_of(digits, [](char c) { return c >= '0' && c <= '7'; })) {
+                out += static_cast<char>(((digits[0] - '0') * 64) + ((digits[1] - '0') * 8) +
+                                         (digits[2] - '0'));
+                i += 3;
+                continue;
+            }
+        }
+        out += text[i];
+    }
+    return out;
+}
+
+std::string label_of(const std::filesystem::path& path) {
+    const std::filesystem::path name = path.filename();
+    return name.empty() ? path.string() : name.string();
+}
+
+// A /proc file whole: they report a size of 0, so read until the end.
+std::string read_proc_file(const std::filesystem::path& path) {
+    std::string text;
+    const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return text;
+    }
+    std::array<char, 4096> buffer{};
+    for (;;) {
+        const ssize_t length = read(fd, buffer.data(), buffer.size());
+        if (length < 0 && errno == EINTR) {
+            continue;
+        }
+        if (length <= 0) {
+            break;
+        }
+        text.append(buffer.data(), static_cast<std::size_t>(length));
+    }
+    close(fd);
+    return text;
+}
+
+bool is_folder(const std::filesystem::path& path) {
+    std::error_code ignored;
+    return std::filesystem::is_directory(path, ignored);
+}
+
+}  // namespace
+
+PlaceSources PlaceSources::from_environment() {
+    PlaceSources sources;
+    const char* const home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe): at start
+    sources.home = home != nullptr && *home != '\0' ? home : "/";
+    const char* const config = std::getenv("XDG_CONFIG_HOME");  // NOLINT(concurrency-mt-unsafe)
+    sources.config_home = config != nullptr && *config == '/' ? std::filesystem::path{config}
+                                                              : sources.home / ".config";
+    return sources;
+}
+
+std::vector<UserDir> parse_user_dirs(std::string_view text, const std::filesystem::path& home) {
+    std::vector<UserDir> dirs;
+    for_each_line(text, [&](std::string_view line) {
+        line = trim(line);
+        if (line.empty() || line.front() == '#' || !line.starts_with("XDG_")) {
+            return;
+        }
+        const std::size_t equals = line.find('=');
+        if (equals == std::string_view::npos) {
+            return;
+        }
+        std::string_view key = trim(line.substr(4, equals - 4));
+        if (!key.ends_with("_DIR")) {
+            return;
+        }
+        key.remove_suffix(4);
+        std::string_view value = trim(line.substr(equals + 1));
+        if (value.size() < 2 || value.front() != '"' || value.back() != '"') {
+            return;
+        }
+        value = value.substr(1, value.size() - 2);
+        std::filesystem::path path;
+        if (value == "$HOME" || value == "$HOME/") {
+            return;  // the home itself: disabled
+        }
+        if (value.starts_with("$HOME/")) {
+            path = home / std::string{value.substr(6)};
+        } else if (value.starts_with('/')) {
+            path = std::string{value};
+        } else {
+            return;  // the spec allows only these two forms
+        }
+        if (path.lexically_normal() == home.lexically_normal()) {
+            return;
+        }
+        dirs.push_back({.key = std::string{key}, .path = std::move(path)});
+    });
+    return dirs;
+}
+
+std::vector<Place> parse_bookmarks(std::string_view text) {
+    std::vector<Place> places;
+    for_each_line(text, [&](std::string_view line) {
+        line = trim(line);
+        if (!line.starts_with("file://")) {
+            return;
+        }
+        const std::size_t space = line.find(' ');
+        const std::string_view uri = line.substr(0, space);
+        const std::string path = percent_decode(uri.substr(7));
+        if (path.empty() || path.front() != '/') {
+            return;  // file://host/path: not ours
+        }
+        const std::string_view label =
+            space == std::string_view::npos ? std::string_view{} : trim(line.substr(space + 1));
+        places.push_back({.section = Place::Section::bookmarks,
+                          .label = label.empty() ? label_of(path) : std::string{label},
+                          .path = path,
+                          .icon = "bookmark"});
+    });
+    return places;
+}
+
+std::vector<Place> parse_mounts(std::string_view text) {
+    std::vector<Place> places;
+    for_each_line(text, [&](std::string_view line) {
+        // "36 25 8:1 / /run/media/me/DATA rw,noatime - ext4 /dev/sda1 rw": the fifth field.
+        std::size_t start = 0;
+        for (int field = 0; field < 4; ++field) {
+            start = line.find(' ', start);
+            if (start == std::string_view::npos) {
+                return;
+            }
+            ++start;
+        }
+        const std::size_t end = std::min(line.find(' ', start), line.size());
+        const std::string point = octal_decode(line.substr(start, end - start));
+        const bool under = std::ranges::any_of(kMountRoots, [&](std::string_view root) {
+            return point.size() > root.size() && point.starts_with(root);
+        });
+        if (!under) {
+            return;
+        }
+        Place place{.section = Place::Section::devices,
+                    .label = label_of(point),
+                    .path = point,
+                    .icon = "database"};
+        if (std::ranges::find(places, place) == places.end()) {  // mounted twice: listed once
+            places.push_back(std::move(place));
+        }
+    });
+    return places;
+}
+
+std::vector<Place> load_places(const PlaceSources& sources) {
+    std::vector<Place> places;
+    places.push_back(
+        {.section = Place::Section::places, .label = "Home", .path = sources.home, .icon = "home"});
+
+    const core::TextFile user_dirs = core::read_text_file(sources.config_home / "user-dirs.dirs");
+    const std::vector<UserDir> dirs = parse_user_dirs(user_dirs.text, sources.home);
+    for (const UserDirKind& kind : kUserDirs) {
+        std::filesystem::path path;
+        if (user_dirs.exists) {
+            const auto it = std::ranges::find(dirs, kind.key, &UserDir::key);
+            if (it == dirs.end()) {
+                continue;
+            }
+            path = it->path;
+        } else {
+            path = sources.home / kind.name;
+        }
+        if (is_folder(path)) {
+            places.push_back({.section = Place::Section::places,
+                              .label = label_of(path),
+                              .path = path,
+                              .icon = kind.icon});
+        }
+    }
+    places.push_back(
+        {.section = Place::Section::places, .label = "File system", .path = "/", .icon = "server"});
+
+    std::ranges::move(
+        parse_bookmarks(core::read_text_file(sources.config_home / "gtk-3.0" / "bookmarks").text),
+        std::back_inserter(places));
+    std::ranges::move(parse_mounts(read_proc_file(sources.mountinfo)), std::back_inserter(places));
+    return places;
+}
+
+PlacesWatcher::PlacesWatcher(core::EventLoop& loop, PlaceSources sources,
+                             std::function<void()> changed)
+    : loop_{loop},
+      sources_{std::move(sources)},
+      changed_{std::move(changed)},
+      places_{load_places(sources_)},
+      // The mount table signals a mount or an unmount as a priority event (proc(5)).
+      mountinfo_fd_{open(sources_.mountinfo.c_str(), O_RDONLY | O_CLOEXEC)} {
+    if (mountinfo_fd_ >= 0) {
+        mountinfo_source_ =
+            loop_.add_fd(mountinfo_fd_, POLLPRI, [this](short /*revents*/) { reload(); });
+    } else {
+        log::warn("places: cannot open {}: {}", sources_.mountinfo.string(),
+                  std::strerror(errno));  // NOLINT(concurrency-mt-unsafe)
+    }
+    // Only folders that exist: the file watcher would create them.
+    for (const std::filesystem::path& file : {sources_.config_home / "user-dirs.dirs",
+                                              sources_.config_home / "gtk-3.0" / "bookmarks"}) {
+        if (is_folder(file.parent_path())) {
+            files_.push_back(
+                std::make_unique<core::FileWatcher>(loop_, file, [this] { reload(); }));
+        }
+    }
+}
+
+PlacesWatcher::~PlacesWatcher() {
+    loop_.remove(mountinfo_source_);
+    if (mountinfo_fd_ >= 0) {
+        close(mountinfo_fd_);
+    }
+}
+
+void PlacesWatcher::reload() {
+    std::vector<Place> places = load_places(sources_);
+    if (places == places_) {
+        return;  // a mount elsewhere (a container, a bind mount)
+    }
+    places_ = std::move(places);
+    if (changed_) {
+        changed_();
+    }
+}
+
+}  // namespace nordend::fs

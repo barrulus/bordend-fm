@@ -13,6 +13,7 @@
 // clicks column titles after the keys: "size", "modified,modified" for newest first); with "space"
 // last, Quick Look opens (and --bench scrolls its text page, when it shows one). --thumbnails gives
 // the grid a thumbnail cache directory (none by default: icons only, nothing written to ~/.cache).
+// The sidebar lists the places of $HOME and $XDG_CONFIG_HOME; "Ctrl+B" hides it, "F6" focuses it.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -47,6 +48,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/fs/places.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
@@ -300,6 +302,8 @@ int main(int argc, char** argv) {
                     thumbnails.empty()
                         ? nullptr
                         : std::make_shared<nordend::thumbs::Cache>(thumbnails, "nordend-dev"));
+                columns->set_places(
+                    nordend::fs::load_places(nordend::fs::PlaceSources::from_environment()));
                 if (reveal.empty()) {
                     columns->open(columns_dir);
                 } else {

@@ -69,6 +69,16 @@ void ColumnView::reveal(const std::filesystem::path& root, const std::filesystem
     columns_.front().column->folder().select_name(relative.begin()->string());
 }
 
+bool ColumnView::focus_folder(const std::filesystem::path& directory) {
+    for (std::size_t i = 0; i < columns_.size(); ++i) {
+        if (columns_[i].column->folder().path() == directory) {
+            focus_on(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 std::shared_ptr<Folder> ColumnView::focused_folder() const {
     return columns_.empty() ? nullptr : columns_[focus_].column->shared_folder();
 }
@@ -330,11 +340,7 @@ void ColumnView::update_hover() {
 
 void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                       ui::IconSet& icons, Clock::time_point now) {
-    if (!columns_.empty()) {
-        draw_title_bar(renderer, bounds, palette, columns_[focus_].column->folder());
-    }
-    area_ = {bounds.x, bounds.y + kTitleHeight, bounds.width,
-             std::max(0.0F, bounds.height - kTitleHeight)};
+    area_ = bounds;
 
     layout();
     scroller_.set_extent(content_width(), area_.width);

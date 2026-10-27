@@ -62,6 +62,13 @@ What already works, the way it is meant to stay:
   length, when, your darktable rating); text files show their first lines. "More details"
   opens the rest. In the grid and the details Ctrl+I hides it, and its edge can be dragged to
   make it (and the photo) larger.
+- **Your places, one click away.** A sidebar at the left lists your home and its folders
+  (Downloads, Pictures...), the file system, your GTK bookmarks and the mounted disks; a disk
+  appears as soon as it is mounted and goes when it is unmounted. Ctrl+B hides it, F6 takes the
+  keyboard there and back, its edge drags.
+- **The path, one step at a time.** Above every view the folder's path is a row of steps,
+  starting from your home; click one to go back up there, with the cursor on the folder you
+  came from. A long path keeps its first and last steps.
 - **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
   dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
   make it wider. Cursor and selection go along between all three views, and so does the info
@@ -89,8 +96,8 @@ What already works, the way it is meant to stay:
 
 `nordend [DIR]` opens a folder (default: your home) in Finder-style columns; Ctrl+2 switches to
 the thumbnail grid, Ctrl+3 to the details table, Ctrl+1 back, Ctrl+I shows or hides the info
-pane of the grid and the details, Space opens Quick Look. `nordend --test-scene` shows everything
-the renderer can draw.
+pane of the grid and the details, Ctrl+B the sidebar, Space opens Quick Look.
+`nordend --test-scene` shows everything the renderer can draw.
 
 **Phase 1 — window and rendering: complete.**
 
@@ -158,6 +165,12 @@ the renderer can draw.
   lines), then size, pixels and dates, the shot (camera, lens, exposure, focal length, date,
   darktable rating), and "More details" for permissions, owner and the rest; Ctrl+I in the grid
   and the details only
+- A sidebar with your places: home, Downloads, Pictures and the other user
+  folders, the file system, GTK bookmarks and mounted disks, updated as disks come and go;
+  Ctrl+B shows or hides it, F6 moves the keyboard into it
+
+- A breadcrumb above every view: the folder's path, each step a click away,
+  the cursor on the folder you came from
 
 **Next:** phase 6, file operations: open with the default app, new folder and rename, copy and
 move with progress, trash, clipboard.

@@ -109,6 +109,26 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   dettagli: nelle colonne il pannello è l'ultima colonna e resta sempre.
   Fatto quando: scorrendo una cartella di ORF con le frecce la miniatura compare senza rallentare
   lo scorrimento (misurato).
+- [x] **5.9 Barra laterale dei luoghi** (Ctrl+B)
+  A sinistra in tutte e tre le viste: Home, cartelle XDG, file system, segnalibri GTK, unità
+  montate (aggiornate quando si monta o si smonta). Un clic, o Invio, apre il luogo nella vista
+  corrente; è evidenziato il luogo che contiene la cartella corrente. Ctrl+B la mostra e la
+  nasconde, F6 porta la tastiera dentro e fuori; larghezza trascinabile come il pannello info.
+  Fatto quando: montando un'unità la voce compare senza riavviare, aprirla funziona in tutte e
+  tre le viste e da ferma la finestra non consuma CPU (misurato).
+- [x] **5.10 Breadcrumb navigabile**
+  Il percorso nella barra in alto diventa una fila di segmenti cliccabili (la home come icona;
+  un percorso troppo lungo si accorcia da sinistra con "…"). Un clic apre quella cartella nella
+  vista corrente; nelle colonne mette a fuoco la colonna che la mostra, se c'è già.
+  Fatto quando: un clic su qualsiasi segmento porta lì in tutte e tre le viste, con il cursore
+  sulla cartella da cui si è risaliti.
+- [ ] **5.11 Barra di stato e scorciatoie**
+  In basso: a sinistra elementi e selezione (tolti dalla barra in alto) e lo spazio libero
+  dell'unità (`statvfs` su un worker); a destra i pulsanti delle tre viste (quella attiva
+  evidenziata) e "?", che come F1 apre un overlay con tutte le scorciatoie, generate dalla stessa
+  tabella che usa il codice.
+  Fatto quando: i pulsanti cambiano vista come Ctrl+1/2/3, lo spazio libero si aggiorna dopo una
+  copia e l'overlay elenca ogni scorciatoia effettiva (verificato da un test).
 
 ## Fase 6 — Operazioni sui file
 
@@ -125,6 +145,12 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   decorazioni client-side nostre (barra, pulsanti, trascinamento, ridimensionamento) dove
   xdg-decoration manca (GNOME/Mutter); checklist su Umbriel, niri (VM), KDE, GNOME (Ubuntu).
   Fatto quando: Nordend è usabile, con finestra spostabile/chiudibile e cursore visibile, su tutti e quattro.
+
+- [ ] **7.0b Impostazioni e stato ricordato** (Ctrl+,)
+  Un pannello che mostra le impostazioni, poi modificabile (scrivendo `config.toml` senza perdere
+  i commenti); lo stato ricordato tra un avvio e l'altro (larghezze, barra laterale, ordinamento,
+  vista); una sezione "Informazioni" (Nordend, distro, Noctalia, Umbriel, GPU). "Fatto quando"
+  da definire quando ci si arriva.
 
 - [ ] **7.1 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.2 Uso quotidiano per una settimana**, bug annotati e chiusi
