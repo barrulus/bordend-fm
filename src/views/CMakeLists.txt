@@ -9,6 +9,7 @@ add_library(nordend_views
     src/format.cpp
     src/grid_view.cpp
     src/info_pane.cpp
+    src/name_editor.cpp
     src/shortcuts.cpp
     src/shortcuts_overlay.cpp
     src/sidebar.cpp

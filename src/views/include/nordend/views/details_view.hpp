@@ -19,6 +19,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
+#include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
 #include "nordend/views/info_pane.hpp"
 
@@ -78,6 +79,9 @@ public:
     // Called on a double click on a file (not a folder): the browser opens the selection.
     void set_open_handler(std::function<void()> open) { open_ = std::move(open); }
 
+    // The name being edited, which the view leaves for the editor to draw (the browser's).
+    void set_edit_slot(EditSlot* edit) { edit_ = edit; }
+
     // The folder has loaded and its cursor landed (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
@@ -118,6 +122,7 @@ private:
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
     std::function<void()> open_;
+    EditSlot* edit_{nullptr};
     std::function<void(ui::CursorShape)> set_cursor_;
     bool info_visible_{true};
     InfoPane* info_pane_;

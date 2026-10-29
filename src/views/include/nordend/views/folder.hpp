@@ -108,6 +108,11 @@ public:
     // Puts the cursor on the entry called name and selects it, now or when it arrives.
     void select_name(std::string name);
 
+    // The same for an entry Nordend has just made: it is not listed yet, and the cursor waits for
+    // the watcher to report it (instead of giving up at the next change), until it lands or the
+    // cursor is moved.
+    void expect_name(std::string name);
+
     void select_all();
 
     // Back to the cursor's entry alone (Escape).
@@ -154,6 +159,7 @@ private:
 
     std::string cursor_name_;                  // empty: no cursor
     std::optional<std::size_t> cursor_index_;  // nullopt while pending
+    bool cursor_expected_{false};              // pending on an entry Nordend made
     Reveal reveal_{Reveal::none};
     std::unordered_set<std::string> selected_;
     std::string anchor_;                               // where a Shift range starts

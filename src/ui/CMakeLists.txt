@@ -55,6 +55,7 @@ add_library(nordend_ui
     src/icons.cpp
     src/scroller.cpp
     src/text.cpp
+    src/text_field.cpp
     src/texture.cpp
     src/window.cpp
     src/wl_ptr.cpp)

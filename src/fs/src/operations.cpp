@@ -1,0 +1,176 @@
+#include "nordend/fs/operations.hpp"
+
+#include <algorithm>
+#include <cerrno>
+#include <climits>
+#include <cstdio>
+#include <fcntl.h>
+#include <format>
+#include <sys/stat.h>
+
+namespace nordend::fs {
+namespace {
+
+std::error_code last_error() { return {errno, std::generic_category()}; }
+
+bool taken(const std::filesystem::path& path) {
+    struct stat info{};
+    return lstat(path.c_str(), &info) == 0;
+}
+
+// rename(2) that fails with EEXIST instead of replacing to.
+std::error_code rename_noreplace(const std::filesystem::path& from,
+                                 const std::filesystem::path& to) {
+    if (renameat2(AT_FDCWD, from.c_str(), AT_FDCWD, to.c_str(), RENAME_NOREPLACE) == 0) {
+        return {};
+    }
+    if (errno != EINVAL && errno != ENOSYS) {
+        return last_error();
+    }
+    // A file system without RENAME_NOREPLACE (some network and FUSE ones): check, then rename.
+    // Another program could still slip a file in between; there is no better way there.
+    if (taken(to)) {
+        return std::make_error_code(std::errc::file_exists);
+    }
+    return std::rename(from.c_str(), to.c_str()) == 0 ? std::error_code{} : last_error();
+}
+
+// "photo.ORF" -> {"photo", ".ORF"}; no dot (or only a leading one) -> {name, ""}.
+std::pair<std::string_view, std::string_view> split_extension(std::string_view name) {
+    const std::size_t dot = name.rfind('.');
+    if (dot == std::string_view::npos || dot == 0) {
+        return {name, {}};
+    }
+    return {name.substr(0, dot), name.substr(dot)};
+}
+
+}  // namespace
+
+std::optional<std::string> name_problem(std::string_view name) {
+    if (name.empty()) {
+        return "A name cannot be empty";
+    }
+    if (name == "." || name == "..") {
+        return "A name cannot be . or ..";
+    }
+    if (name.find('/') != std::string_view::npos) {
+        return "A name cannot contain /";
+    }
+    if (name.find('\0') != std::string_view::npos) {
+        return "A name cannot contain a NUL character";
+    }
+    if (name.size() > NAME_MAX) {
+        return std::format("The name is too long ({} bytes at most)", NAME_MAX);
+    }
+    return std::nullopt;
+}
+
+MadeFolder make_folder(const std::filesystem::path& directory, std::string_view base) {
+    constexpr int tries = 10'000;
+    for (int i = 1; i <= tries; ++i) {
+        std::string name = i == 1 ? std::string{base} : std::format("{} {}", base, i);
+        if (mkdir((directory / name).c_str(), 0777) == 0) {
+            return {.name = std::move(name), .error = {}};
+        }
+        if (errno != EEXIST) {
+            return {.name = {}, .error = last_error()};
+        }
+    }
+    return {.name = {}, .error = std::make_error_code(std::errc::file_exists)};
+}
+
+std::vector<std::pair<std::string, std::string>> sidecar_renames(std::span<const std::string> names,
+                                                                 std::string_view from,
+                                                                 std::string_view to) {
+    constexpr std::string_view xmp = ".xmp";
+    std::vector<std::pair<std::string, std::string>> renames;
+    if (from == to || from.ends_with(xmp)) {
+        return renames;
+    }
+    const auto [stem, extension] = split_extension(from);
+    const auto [new_stem, new_extension] = split_extension(to);
+    for (const std::string& name : names) {
+        const std::string_view view{name};
+        if (!view.ends_with(xmp)) {
+            continue;
+        }
+        const std::string_view base = view.substr(0, view.size() - xmp.size());
+        if (base == from) {
+            renames.emplace_back(name, std::string{to} + std::string{xmp});
+            continue;
+        }
+        // A duplicate: stem, "_", two digits or more, the extension; unless a file has that name
+        // ("IMG_1234.CR2" next to "IMG.CR2"): then the sidecar is that file's.
+        if (extension.empty() || std::ranges::find(names, base) != names.end() ||
+            !base.starts_with(stem) || !base.ends_with(extension) ||
+            base.size() < stem.size() + extension.size() + 3 || base[stem.size()] != '_') {
+            continue;
+        }
+        const std::string_view number =
+            base.substr(stem.size() + 1, base.size() - stem.size() - 1 - extension.size());
+        if (number.size() < 2 ||
+            !std::ranges::all_of(number, [](char c) { return c >= '0' && c <= '9'; })) {
+            continue;
+        }
+        renames.emplace_back(name, std::string{new_stem} + "_" + std::string{number} +
+                                       std::string{new_extension} + std::string{xmp});
+    }
+    std::ranges::sort(renames);
+    return renames;
+}
+
+Renamed rename_entry(const std::filesystem::path& directory, const std::string& from,
+                     const std::string& to) {
+    Renamed result;
+    if (from == to) {
+        return result;
+    }
+    struct stat info{};
+    if (lstat((directory / from).c_str(), &info) != 0) {
+        result.error = last_error();
+        result.problem = std::format("Cannot rename {}: {}", from, result.error.message());
+        return result;
+    }
+
+    std::vector<std::pair<std::string, std::string>> sidecars;
+    if (S_ISREG(info.st_mode)) {
+        std::vector<std::string> names;
+        std::error_code ignored;
+        for (const std::filesystem::directory_entry& entry :
+             std::filesystem::directory_iterator{directory, ignored}) {
+            names.push_back(entry.path().filename().string());
+        }
+        sidecars = sidecar_renames(names, from, to);
+        for (const auto& [old_name, new_name] : sidecars) {
+            if (taken(directory / new_name)) {
+                result.error = std::make_error_code(std::errc::file_exists);
+                result.problem = std::format("{} already exists", new_name);
+                return result;
+            }
+        }
+    }
+
+    result.error = rename_noreplace(directory / from, directory / to);
+    if (result.error == std::errc::file_exists) {
+        result.problem = std::format("{} already exists", to);
+        return result;
+    }
+    if (result.error) {
+        result.problem = std::format("Cannot rename {}: {}", from, result.error.message());
+        return result;
+    }
+    for (const auto& [old_name, new_name] : sidecars) {
+        if (const std::error_code error =
+                rename_noreplace(directory / old_name, directory / new_name)) {
+            if (result.problem.empty()) {
+                result.problem =
+                    std::format("Renamed, but {} could not follow: {}", old_name, error.message());
+            }
+            continue;
+        }
+        ++result.sidecars;
+    }
+    return result;
+}
+
+}  // namespace nordend::fs

@@ -122,8 +122,11 @@ void Folder::on_change(const fs::ModelChange& change) {
             if (!before) {
                 reveal_ = Reveal::jump;  // it just landed
             }
-        } else if (final_listing) {
+        } else if (final_listing && !cursor_expected_) {
             cursor_name_.clear();  // gone, or it never came
+        }
+        if (cursor_index_) {
+            cursor_expected_ = false;
         }
     }
     if (had_selection && final_listing && (change.loaded || model_.error())) {
@@ -144,6 +147,7 @@ void Folder::on_change(const fs::ModelChange& change) {
 }
 
 void Folder::set_cursor(std::optional<std::size_t> index, SelectMode mode) {
+    cursor_expected_ = false;
     const std::vector<fs::Entry>& list = entries();
     if (!index || list.empty()) {
         reveal_ = Reveal::none;
@@ -206,7 +210,20 @@ void Folder::move_cursor(std::ptrdiff_t delta, SelectMode mode) {
     set_cursor(static_cast<std::size_t>(target), mode);
 }
 
+void Folder::expect_name(std::string name) {
+    select_name(name);
+    if (cursor_index_) {
+        return;  // already listed
+    }
+    cursor_name_ = std::move(name);
+    cursor_expected_ = true;
+    selected_ = {cursor_name_};
+    anchor_ = cursor_name_;
+    selection_changed();
+}
+
 void Folder::select_name(std::string name) {
+    cursor_expected_ = false;
     cursor_name_ = std::move(name);
     cursor_index_.reset();
     const std::vector<fs::Entry>& list = entries();

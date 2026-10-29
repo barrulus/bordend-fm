@@ -1,6 +1,8 @@
 #pragma once
 
 #include <functional>
+#include <string_view>
+#include <vector>
 
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
@@ -12,6 +14,9 @@ namespace nordend::views {
 // status bar's "?" open it; those, Escape or a click close it.
 //
 // Loop thread only.
+// The groups the overlay shows, column by column: a shortcut in another group would not be shown.
+[[nodiscard]] std::vector<std::string_view> overlay_groups();
+
 class ShortcutsOverlay {
 public:
     explicit ShortcutsOverlay(std::function<void()> redraw);

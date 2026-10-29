@@ -17,6 +17,10 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-29: after 6.2
+
+2 344 128 bytes; 1 988 632 after `strip`; 18 direct libraries.
+
 ### 2026-10-29
 
 After ROADMAP 6.1 (default applications): 2 254 728 bytes; 1 918 968 bytes after `strip`
@@ -345,6 +349,21 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 | Columns | 0.25-0.26 ms | 0.34-0.36 ms |
 
 The same as without it (sidebar section below): nothing measurable.
+
+## Renaming in place (ROADMAP 6.2)
+
+### 2026-10-29: scrolling with the name check in every row
+
+The same 10 000-entry folder and command as below (sidebar shown), three runs each:
+
+| View | Median | p95 |
+|------|-------:|----:|
+| Details | 0.37-0.50 ms | 0.56-0.58 ms |
+| Details, a name being edited | 0.50 ms | 0.57 ms |
+| Grid | 0.30-0.32 ms | 0.50-0.53 ms |
+| Columns | 0.25-0.27 ms | 0.34-0.47 ms |
+
+The same as before: nothing measurable.
 
 ## Sidebar (ROADMAP 5.9)
 

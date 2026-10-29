@@ -14,6 +14,7 @@
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
+#include "nordend/ui/text_field.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
@@ -289,8 +290,16 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         const float name_x = name_left + kIconSize + kIconGap;
         const float name_room = layout_.left.at(index(Field::name)) +
                                 layout_.width.at(index(Field::name)) - kCellPadding - name_x;
-        renderer.draw_text(entry.name, name_x, y + ((kRowHeight - kNameSize) / 2.0F) - 2.0F,
-                           kNameSize, style.text, std::max(1.0F, name_room), ui::Ellipsis::middle);
+        if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
+            edit_->place(
+                {name_x - ui::TextField::kPadding, y + 3.0F,
+                 std::max(1.0F, name_room) + (2.0F * ui::TextField::kPadding), kRowHeight - 6.0F},
+                kNameSize);
+        } else {
+            renderer.draw_text(entry.name, name_x, y + ((kRowHeight - kNameSize) / 2.0F) - 2.0F,
+                               kNameSize, style.text, std::max(1.0F, name_room),
+                               ui::Ellipsis::middle);
+        }
 
         const float detail_y = y + ((kRowHeight - kDetailSize) / 2.0F) - 2.0F;
         const auto cell = [&](Field field, const std::string& text, bool right) {

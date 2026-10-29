@@ -10,6 +10,7 @@
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
+#include "nordend/ui/text_field.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
@@ -239,6 +240,15 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             } else {
                 icons.draw(renderer, fs::icon_name(*mime_, typed),
                            x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
+            }
+            if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
+                // One line across the cell, where the name starts.
+                const float pad = ui::TextField::kPadding;
+                edit_->place({x + kNameMargin - pad, y + kIconTop + icon + kNameGap - pad - 1.0F,
+                              std::max(1.0F, cell_width_ - (2.0F * kNameMargin)) + (2.0F * pad),
+                              kTextSize + (2.0F * pad) + 6.0F},
+                             kTextSize);
+                continue;
             }
             const ui::TextLayout& name = fonts.layout(
                 entry.name, kTextSize, renderer.scale(),

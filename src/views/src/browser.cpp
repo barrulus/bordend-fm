@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <format>
 #include <string>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
+#include "nordend/fs/operations.hpp"
 
 namespace nordend::views {
 namespace {
@@ -22,7 +24,8 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
                  std::function<void(ui::CursorShape)> set_cursor,
                  std::shared_ptr<const thumbs::Cache> thumbnails)
-    : redraw_{redraw},
+    : pool_{pool},
+      redraw_{redraw},
       thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, thumbnails, redraw) : nullptr},
       info_pane_{pool, thumbnails_.get(), redraw},
       columns_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
@@ -39,10 +42,91 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       status_bar_{loop, pool, redraw,
                   [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
                   [this] { shortcuts_.open(); }},
-      shortcuts_{std::move(redraw)} {
+      shortcuts_{redraw},
+      editor_{std::move(redraw),
+              [this](const std::shared_ptr<Folder>& folder, const std::string& from,
+                     const std::string& to) { rename(folder, from, to); },
+              [this](std::string problem) { show_message(std::move(problem), true); }} {
     columns_.set_open_handler([this] { open_selection(); });
     grid_.set_open_handler([this] { open_selection(); });
     details_.set_open_handler([this] { open_selection(); });
+    columns_.set_edit_slot(&editor_.slot());
+    grid_.set_edit_slot(&editor_.slot());
+    details_.set_edit_slot(&editor_.slot());
+}
+
+Browser::~Browser() { *alive_ = false; }
+
+void Browser::start_rename() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    const fs::Entry* const entry = folder ? folder->cursor_entry() : nullptr;
+    if (entry == nullptr) {
+        return;
+    }
+    editor_.start(folder, entry->name, entry->is_directory());
+}
+
+void Browser::new_folder() {
+    std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    ++operations_;
+    pool_.submit(
+        core::Priority::visible,
+        [directory = folder->path()](const core::CancelToken& /*token*/) {
+            return fs::make_folder(directory, "New Folder");
+        },
+        [this, alive = alive_, folder](const fs::MadeFolder& made) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (made.error) {
+                show_message(std::format("Cannot make a folder in {}: {}",
+                                         folder->path().filename().string(), made.error.message()),
+                             true);
+                return;
+            }
+            folder->expect_name(made.name);  // lands when the watcher reports it
+            if (current_folder() == folder && !editor_.active()) {
+                editor_.start(folder, made.name, true);
+            }
+        });
+}
+
+void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& from,
+                     const std::string& to) {
+    ++operations_;
+    pool_.submit(
+        core::Priority::visible,
+        [directory = folder->path(), from, to](const core::CancelToken& /*token*/) {
+            return fs::rename_entry(directory, from, to);
+        },
+        [this, alive = alive_, folder, to](const fs::Renamed& renamed) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (renamed.error) {
+                show_message(renamed.problem, true);
+                editor_.finished(false);
+                return;
+            }
+            // The cursor follows the new name by itself (the watcher reports a rename), unless it
+            // still waits for the old one: a new folder renamed before the watcher saw it.
+            if (folder->cursor_pending()) {
+                folder->expect_name(to);
+            }
+            if (!renamed.problem.empty()) {
+                show_message(renamed.problem, true);
+            } else if (renamed.sidecars > 0) {
+                show_message(std::format("Renamed {} with {} darktable sidecar{}", to,
+                                         renamed.sidecars, renamed.sidecars == 1 ? "" : "s"),
+                             false);
+            }
+            editor_.finished(true);
+        });
 }
 
 void Browser::open(const std::filesystem::path& directory) {
@@ -145,10 +229,22 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         status_bar_.draw(renderer, {view.x, view.bottom() - bar, view.width, bar}, palette, icons,
                          *folder, static_cast<std::size_t>(mode_));
     }
+    if (editor_.active() && !editor_.busy()) {
+        // The entry went away meanwhile (another program): nothing left to rename. A new folder
+        // not listed yet is still on its way: the cursor waits for it.
+        const Folder& edited = *editor_.folder();
+        if (!edited.cursor_pending() &&
+            std::ranges::find(edited.entries(), editor_.slot().name, &fs::Entry::name) ==
+                edited.entries().end()) {
+            editor_.cancel();
+        }
+    }
+    editor_.slot().rect.reset();  // the view places it again if it shows the name
     draw_view(renderer,
               {view.x, view.y + kTitleHeight, view.width,
                std::max(0.0F, view.height - kTitleHeight - bar)},
               palette, icons, now);
+    editor_.draw(renderer, palette);
     if (quick_look_.is_open()) {
         quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
     }
@@ -192,7 +288,7 @@ bool Browser::animating() const {
 }
 
 bool Browser::loading() const {
-    if (quick_look_.loading() || info_pane_.loading() || status_bar_.loading()) {
+    if (operations_ > 0 || quick_look_.loading() || info_pane_.loading() || status_bar_.loading()) {
         return true;
     }
     switch (mode_) {
@@ -207,6 +303,11 @@ bool Browser::loading() const {
 }
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    // While a name is edited, a press in its field is the field's; elsewhere it keeps the name,
+    // then does what it does.
+    if (editor_.pointer(event)) {
+        return;
+    }
     if (shortcuts_.is_open()) {
         // A click anywhere closes the shortcuts; nothing under them reacts meanwhile.
         if (event.kind == ui::PointerEvent::Kind::press) {
@@ -335,6 +436,9 @@ std::shared_ptr<Folder> Browser::current_folder() const {
 }
 
 bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
+    if (editor_.active()) {
+        return editor_.key(event);  // every key is the name's meanwhile
+    }
     const Command command = command_for(event);
     if (shortcuts_.is_open()) {
         if (command == Command::show_shortcuts ||
@@ -358,8 +462,9 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
         quick_look_.follow(current_folder());
         return handled;
     }
-    // Space in the sidebar is nothing: Quick Look shows the view's entries.
-    const bool ignored = command == Command::quick_look && sidebar_.focused();
+    // What is not listed for the sidebar is nothing there (Space: Quick Look shows the view's
+    // entries; F2: the sidebar's places are not renamed).
+    const bool ignored = sidebar_.focused() && !listed(event, scope::kSidebar);
     if (command != Command::none && !ignored) {
         run(command, now);
         return true;
@@ -405,6 +510,14 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::show_shortcuts:
             shortcuts_.open();
+            break;
+        case Command::rename:
+            quick_look_.close();
+            start_rename();
+            break;
+        case Command::new_folder:
+            quick_look_.close();
+            new_folder();
             break;
     }
 }

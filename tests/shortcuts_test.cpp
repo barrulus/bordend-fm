@@ -20,6 +20,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/shortcuts_overlay.hpp"
 #include "nordend/views/status_bar.hpp"
 #include "temp_dir.hpp"
 
@@ -109,6 +110,9 @@ struct Fixture {
 
     // The root in mode, loaded, the cursor on cursor_on, nothing over the view.
     void reset(Browser::Mode mode, const std::string& cursor_on = "sub") {
+        REQUIRE(run_until(loop, [&] { return !browser.loading(); }));  // a new folder, say
+        browser.name_editor().cancel();
+        REQUIRE_FALSE(browser.name_editor().active());
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
         browser.sidebar().set_focused(false);
@@ -149,8 +153,8 @@ std::vector<KeyEvent> chords_of(const Shortcut& shortcut) {
 }  // namespace
 
 TEST_CASE("shortcuts: the groups are the overlay's") {
-    const std::set<std::string_view> expected{"General", "Moving",  "Selecting",
-                                              "Grid",    "Sidebar", "Quick Look"};
+    const std::vector<std::string_view> groups = nordend::views::overlay_groups();
+    const std::set<std::string_view> expected{groups.begin(), groups.end()};
     for (const Shortcut& shortcut : shortcuts()) {
         CHECK_MESSAGE(expected.contains(shortcut.group), shortcut.group);
         CHECK(shortcut.scope != 0);
@@ -195,6 +199,21 @@ TEST_CASE("shortcuts: every one listed for the sidebar and Quick Look works ther
     }
 }
 
+TEST_CASE("shortcuts: every one listed for renaming works in the name's field") {
+    Fixture f;
+    for (const Shortcut& shortcut : shortcuts()) {
+        if ((shortcut.scope & scope::kEditor) == 0) {
+            continue;
+        }
+        for (const KeyEvent& event : chords_of(shortcut)) {
+            f.reset(Browser::Mode::details, "a.txt");
+            f.browser.key(chord(XKB_KEY_F2, {}), Browser::Clock::now());
+            REQUIRE(f.browser.name_editor().active());
+            CHECK_MESSAGE(f.browser.key(event, Browser::Clock::now()), describe(event));
+        }
+    }
+}
+
 TEST_CASE("shortcuts: nothing else does anything") {
     // The keys a file manager could plausibly react to, with each modifier.
     std::vector<xkb_keysym_t> keys{
@@ -212,8 +231,9 @@ TEST_CASE("shortcuts: nothing else does anything") {
     for (xkb_keysym_t key = XKB_KEY_F1; key <= XKB_KEY_F12; ++key) {
         keys.push_back(key);
     }
-    const std::array<Modifiers, 4> modifiers{Modifiers{}, Modifiers{.ctrl = true},
-                                             Modifiers{.shift = true}, Modifiers{.alt = true}};
+    const std::array<Modifiers, 5> modifiers{Modifiers{}, Modifiers{.ctrl = true},
+                                             Modifiers{.shift = true}, Modifiers{.alt = true},
+                                             Modifiers{.ctrl = true, .shift = true}};
     Fixture f;
     for (const Browser::Mode mode : kModes) {
         f.reset(mode);

@@ -4,6 +4,72 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — New folder and rename (ROADMAP 6.2)
+
+**Done**
+- `fs/operations`: `name_problem` (empty, `.`/`..`, `/`, NUL, more than 255 bytes),
+  `make_folder` ("New Folder", else "New Folder 2"...: `mkdir` itself decides, the next name on
+  EEXIST, so two makers never collide), `rename_entry` (`renameat2(RENAME_NOREPLACE)`, with a
+  check-then-rename fallback only on file systems that answer EINVAL/ENOSYS) and
+  `sidecar_renames`: a regular file takes its darktable sidecars along, `X.ORF.xmp` and the
+  duplicates `X_NN.ORF.xmp` (two digits or more), unless a file has the duplicate's name
+  (`X_1234.ORF` next to `X.ORF`: that sidecar is its own). If a sidecar's new name is taken,
+  nothing is renamed; if one fails after the photo moved, the message says which.
+- `ui::TextField`: one line of UTF-8 text with a caret and a selection; typing (dead keys and
+  compose arrive as `KeyEvent::text`), Backspace, Delete, arrows, Home/End (Up/Down too), Shift
+  to select, Ctrl to go by words (spaces, dots, dashes, underscores end them), Ctrl+A; a click
+  places the caret, Shift+click extends, a double click selects all. Scrolls sideways to keep
+  the caret in sight. The caret does not blink, so an open field costs no frames.
+- `views::NameEditor` + `EditSlot`: the browser names the entry; the view showing it (column
+  rows, grid cells, details rows) leaves the name out and notes where it would be, and the
+  editor draws the field there after the view. The name is selected without its extension (a
+  folder's whole name). Enter confirms, Escape cancels, a press outside confirms and then does
+  what it does. A bad name is refused at once; a good one goes to a worker and the field waits
+  (border dimmed, keys swallowed): on success it closes, on failure ("P1.ORF already exists",
+  "Permission denied") it stays for another try. While it is open every key is the field's.
+- `Browser`: F2 (`start_rename`) and Ctrl+Shift+N (`new_folder`), both closing Quick Look and
+  doing nothing in the sidebar (generalised: in the sidebar a command not listed for it is
+  nothing, as Space already was). `loading()` also counts new folders and renames on their way.
+  A field whose entry disappears (another program) closes.
+- `Folder::expect_name`: the cursor waits for an entry Nordend just made (a plain `select_name`
+  gives up at the next change). After a rename the cursor follows by itself (the watcher reports
+  renames), and a new folder renamed before the watcher saw it moves the wait to the new name:
+  found by a test in the columns, where typing is faster than inotify's settle.
+- Shortcuts: a "Files" group (F2, Ctrl+Shift+N, and the field's Enter/Escape and Ctrl+arrows under
+  a new `kEditor` scope). The overlay listed its groups by hand and left "Files" out (seen in a
+  snapshot): `overlay_groups()` now feeds the test, which fails on a group the overlay does not
+  show. The "nothing else does anything" sweep now includes Ctrl+Shift.
+- `nordend-snapshot --keys`: a single letter types itself ("F2,L,a,k,e").
+- Tests (158 with the raw samples, 11 new): names, new folder names, sidecar matching (decoys
+  included), renames that must not replace (the photo or a sidecar), folders without sidecars,
+  a read-only folder, the text field's keys and UTF-8, F2 in all three views with sidecars,
+  refused and failed names, Escape, Ctrl+Shift+N in all three views, F2 without a cursor and in
+  the sidebar, the editor's shortcuts. Release, ASan, TSan pass (the browser ones 6 times in
+  Release and TSan); snapshots under ASan and TSan; tidy and format clean.
+
+**Measured**: scrolling 10 000 entries (600 frames at 2880x1620, three runs) is unchanged:
+details 0.37-0.50 ms, grid 0.30-0.32 ms, columns 0.25-0.27 ms median; details with a field open
+0.50 ms.
+
+**Tested by the author**
+- On screen: F2 with the extension left out, accents typed, an ORF renamed with its two
+  sidecars, a taken name and a `/` refused with the field kept, Escape, Ctrl+Shift+N in the three
+  views, a click outside, clicks in the field, a read-only folder's messages, F1's "Files", and
+  `top` at 0.0 % CPU with the field open: "funziona tutto perfetto".
+- `top` showed 290 MB resident in a folder with an ORF (117 MB measured on 2026-10-28 in a source
+  folder): previews and thumbnails held as textures, likely; memory with photos is still *to be
+  measured* (an open point since 5.8).
+
+**Open**
+- Renaming only the case of a name on a case-insensitive file system (an exFAT SD card) is
+  refused as "already exists": `RENAME_NOREPLACE` sees the same entry. A two-step rename would do
+  it; not done yet.
+- Paste into the field comes with the clipboard (6.5); no undo (after the MVP's operation queue).
+- The pointer does not turn into a text cursor over the field.
+- Caret moves by code points, not grapheme clusters (an emoji with a modifier takes two steps).
+
+---
+
 ## 2026-10-29 — Open with the default application (ROADMAP 6.1)
 
 **Decision** (with the author, DESIGN "Apertura dei file"): no `xdg-open`, no `gio open`; Nordend

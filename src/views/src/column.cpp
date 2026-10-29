@@ -7,6 +7,7 @@
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
+#include "nordend/ui/text_field.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
@@ -57,7 +58,7 @@ void Column::reveal_cursor(Folder::Reveal reveal, Clock::time_point now) {
 }
 
 void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
-                  ui::IconSet& icons, bool focused, Clock::time_point now) {
+                  ui::IconSet& icons, bool focused, Clock::time_point now, EditSlot* edit) {
     const std::vector<fs::Entry>& entries = folder_->entries();
     rows_area_ = bounds;
     const float content = static_cast<float>(entries.size()) * kRowHeight;
@@ -97,6 +98,13 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
             name_right -= kChevronSize + 6.0F;
             icons.draw(renderer, "chevron-right", bounds.right() - kRightPadding - kChevronSize,
                        y + ((kRowHeight - kChevronSize) / 2.0F), kChevronSize, style.chevron);
+        }
+        if (edit != nullptr && edit->holds(*folder_, entry)) {
+            edit->place({name_x - ui::TextField::kPadding, y + 3.0F,
+                         std::max(1.0F, name_right - name_x) + (2.0F * ui::TextField::kPadding),
+                         kRowHeight - 6.0F},
+                        kTextSize);
+            continue;
         }
         renderer.draw_text(entry.name, name_x, y + ((kRowHeight - kTextSize) / 2.0F) - 2.0F,
                            kTextSize, style.text, std::max(1.0F, name_right - name_x),

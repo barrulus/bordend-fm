@@ -17,6 +17,7 @@ add_executable(nordend-tests
     platform_test.cpp
     preview_test.cpp
     quick_look_test.cpp
+    rename_test.cpp
     scroller_test.cpp
     shortcuts_test.cpp
     sort_test.cpp

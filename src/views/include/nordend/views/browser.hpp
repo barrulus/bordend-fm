@@ -23,6 +23,7 @@
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
+#include "nordend/views/name_editor.hpp"
 #include "nordend/views/quick_look.hpp"
 #include "nordend/views/shortcuts.hpp"
 #include "nordend/views/shortcuts_overlay.hpp"
@@ -43,7 +44,8 @@ namespace nordend::views {
 // the left lists the places (set_places); Ctrl+B shows or hides it, F6 moves the keyboard into it
 // and back, and a place chosen there opens in the view shown. Enter or a double click on a file
 // hands the selected files to the open handler (their default applications); on a folder, the
-// view goes into it.
+// view goes into it. F2 renames the entry under the cursor in place, Ctrl+Shift+N makes a new
+// folder and edits its name; both on a worker, never replacing anything.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -57,6 +59,12 @@ public:
             std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
             std::function<void(ui::CursorShape)> set_cursor,
             std::shared_ptr<const thumbs::Cache> thumbnails = nullptr);
+    ~Browser();
+
+    Browser(const Browser&) = delete;
+    Browser& operator=(const Browser&) = delete;
+    Browser(Browser&&) = delete;
+    Browser& operator=(Browser&&) = delete;
 
     // directory, no cursor, in the current mode.
     void open(const std::filesystem::path& directory);
@@ -107,7 +115,8 @@ public:
     // false when event did nothing: no shortcut (shortcuts()) where the keyboard is.
     bool key(const ui::KeyEvent& event, Clock::time_point now);
 
-    // The view shown is still loading, or its thumbnails are being made (snapshots, tests).
+    // The view shown is still loading, its thumbnails are being made, or a new folder or a rename
+    // is on its way (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
     [[nodiscard]] ColumnView& columns() noexcept { return columns_; }
@@ -128,6 +137,15 @@ public:
 
     [[nodiscard]] ShortcutsOverlay& shortcuts_overlay() noexcept { return shortcuts_; }
 
+    [[nodiscard]] NameEditor& name_editor() noexcept { return editor_; }
+
+    // F2: edits the name of the entry under the cursor (nothing without one).
+    void start_rename();
+
+    // Ctrl+Shift+N: makes "New Folder" (or "New Folder 2"...) in the folder shown, puts the cursor
+    // on it and edits its name.
+    void new_folder();
+
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
@@ -135,6 +153,8 @@ private:
     // Opens the selected files when the cursor is on a file (only the cursor's when it is not
     // selected); false when the cursor is on a folder or nowhere.
     bool open_selection();
+    void rename(const std::shared_ptr<Folder>& folder, const std::string& from,
+                const std::string& to);
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
@@ -146,6 +166,7 @@ private:
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now);
 
+    core::WorkerPool& pool_;
     std::function<void()> redraw_;
     OpenHandler open_;
     std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
@@ -158,6 +179,7 @@ private:
     Breadcrumb breadcrumb_;
     StatusBar status_bar_;
     ShortcutsOverlay shortcuts_;
+    NameEditor editor_;
     Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};
@@ -169,6 +191,9 @@ private:
     float pointer_x_{0.0F};
     float pointer_y_{0.0F};
     bool pointer_inside_{false};
+    // False once destroyed: renames and new folders still on their way find out here.
+    std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
+    std::size_t operations_{0};  // new folders and renames on workers
 };
 
 }  // namespace nordend::views

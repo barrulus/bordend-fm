@@ -8,7 +8,8 @@
 //                    [logical-width logical-height scale [colors.toml]]
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
-// optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down"; "Ctrl+2" switches to
+// optional Ctrl+, Shift+, Alt+ prefixes, e.g. "Down,Shift+Down,Ctrl+Down" (a single letter also
+// types itself: "F2,L,a,k,e" renames to "Lake"); "Ctrl+2" switches to
 // the grid (then --bench scrolls the grid), "Ctrl+3" the details (--bench scrolls them; --sort
 // clicks column titles after the keys: "size", "modified,modified" for newest first); with "space"
 // last, Quick Look opens (and --bench scrolls its text page, when it shows one). --thumbnails gives
@@ -193,6 +194,9 @@ std::vector<ui::KeyEvent> parse_keys(std::string_view keys) {
             }
         }
         event.keysym = xkb_keysym_from_name(std::string{key}.c_str(), XKB_KEYSYM_NO_FLAGS);
+        if (key.size() == 1 && !event.modifiers.ctrl && !event.modifiers.alt) {
+            event.text = std::string{key};  // a letter types itself (a name being edited)
+        }
         if (event.keysym == XKB_KEY_NoSymbol) {
             throw std::runtime_error{"unknown key: " + std::string{key}};
         }

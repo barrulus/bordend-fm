@@ -27,9 +27,9 @@ constexpr float kTextSize = 13.0F;
 constexpr float kKeysShare = 0.38F;  // of a column, for the keys
 
 // The groups in each column of the card.
-constexpr std::array<std::array<std::string_view, 4>, 2> kColumns{{
-    {"General", "Moving", "", ""},
-    {"Selecting", "Grid", "Sidebar", "Quick Look"},
+constexpr std::array<std::array<std::string_view, 5>, 2> kColumns{{
+    {"General", "Moving", "", "", ""},
+    {"Selecting", "Files", "Grid", "Sidebar", "Quick Look"},
 }};
 
 std::string upper(std::string_view text) {
@@ -40,7 +40,7 @@ std::string upper(std::string_view text) {
 }
 
 // The height of a column of groups.
-float column_height(const std::array<std::string_view, 4>& groups) {
+float column_height(const std::array<std::string_view, 5>& groups) {
     float height = 0.0F;
     bool first = true;
     for (const std::string_view group : groups) {
@@ -59,6 +59,18 @@ float column_height(const std::array<std::string_view, 4>& groups) {
 }
 
 }  // namespace
+
+std::vector<std::string_view> overlay_groups() {
+    std::vector<std::string_view> groups;
+    for (const auto& column : kColumns) {
+        for (const std::string_view group : column) {
+            if (!group.empty()) {
+                groups.push_back(group);
+            }
+        }
+    }
+    return groups;
+}
 
 ShortcutsOverlay::ShortcutsOverlay(std::function<void()> redraw) : redraw_{std::move(redraw)} {}
 

@@ -380,7 +380,7 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
             continue;
         }
         slot.column->draw(renderer, {left, area_.y, slot.width, area_.height}, palette, icons,
-                          i == focus_, now);
+                          i == focus_, now, edit_);
         const bool grabbed =
             resizing_ == i || (over_divider_ && divider_at(pointer_x_, pointer_y_) == i);
         const float line = grabbed ? 2.0F : 1.0F / renderer.scale();

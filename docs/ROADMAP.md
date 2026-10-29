@@ -143,7 +143,18 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   non lascia zombie e chiuderlo non chiude le app; `nordend-open --dry-run` coincide con
   `gio mime` su tutti i tipi della macchina (o ogni differenza è spiegata); test con directory XDG
   finte (precedenza, tipo padre, `%F/%U`, escaping, `Terminal=true`, `TryExec` mancante).
-- [ ] **6.2 Nuova cartella, rinomina**
+- [x] **6.2 Nuova cartella, rinomina**
+  Ctrl+Shift+N crea "New Folder" (o "New Folder 2", ...) con il nome già in modifica; F2 rinomina
+  l'elemento sotto il cursore. Campo nel posto del nome, in tutte e tre le viste: nome selezionato
+  senza l'estensione, Enter conferma, Escape annulla, un clic fuori conferma; cursore fisso (niente
+  lampeggio: idle a zero). `renameat2(RENAME_NOREPLACE)` su un worker: mai sovrascrivere. Rinominare
+  una foto rinomina con lei i sidecar di darktable (`X.ORF.xmp`, `X_01.ORF.xmp`, ...).
+  Fatto quando: Ctrl+Shift+N crea la cartella col nome in modifica in tutte e tre le viste; F2
+  rinomina con l'estensione esclusa dalla selezione, Enter/Escape/clic fuori funzionano; il cursore
+  resta sull'elemento rinominato; un nome esistente o non valido dà un errore, il campo resta aperto
+  e niente viene sovrascritto; rinominare un ORF rinomina i suoi `.xmp`, duplicati compresi; in una
+  cartella senza permesso di scrittura compare un messaggio, senza crash; idle a zero CPU col campo
+  aperto; test su una cartella temporanea e snapshot del campo.
 - [ ] **6.3 Copia e sposta** asincroni, con progresso e gestione dei conflitti
 - [ ] **6.4 Cestino** (spec freedesktop)
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
