@@ -115,6 +115,10 @@ public:
 
     [[nodiscard]] Column& column(std::size_t index) { return *columns_.at(index).column; }
 
+    [[nodiscard]] const Column& column(std::size_t index) const {
+        return *columns_.at(index).column;
+    }
+
     [[nodiscard]] std::size_t focus() const noexcept { return focus_; }
 
     // Every column has loaded (snapshots, tests).

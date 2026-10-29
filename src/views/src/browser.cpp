@@ -73,6 +73,36 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
 }
 
+std::vector<std::string> Browser::memory_lines() const {
+    const auto mb = [](std::size_t bytes) {
+        return std::format("{:.1f} MB", static_cast<double>(bytes) / 1e6);
+    };
+    std::vector<std::string> lines;
+    if (thumbnails_) {
+        const Thumbnails::Usage usage = thumbnails_->usage();
+        lines.push_back(
+            std::format("thumbnails: {} slots, {} textures {} (budget {}), pixels "
+                        "waiting {}",
+                        usage.slots, usage.textures, mb(usage.texture_bytes),
+                        mb(Thumbnails::kBudgetBytes), mb(usage.pixel_bytes)));
+    }
+    const QuickLook::Usage look = quick_look_.usage();
+    lines.push_back(std::format("quick look: {} slots, textures {}, pixels kept {}", look.slots,
+                                mb(look.texture_bytes), mb(look.pixel_bytes)));
+    lines.push_back(std::format("glyph atlases: {}", mb(ui::Renderer::atlas_bytes())));
+    std::size_t folders = 0;
+    std::size_t entries = 0;
+    for (std::size_t i = 0; i < columns_.column_count(); ++i) {
+        ++folders;
+        entries += columns_.column(i).folder().entries().size();
+    }
+    lines.push_back(std::format("columns: {} folders, {} entries", folders, entries));
+    if (const std::shared_ptr<Folder> shown = current_folder(); shown && mode_ != Mode::columns) {
+        lines.push_back(std::format("shown folder: {} entries", shown->entries().size()));
+    }
+    return lines;
+}
+
 void Browser::take_selection(bool cut) {
     const std::shared_ptr<Folder> folder = current_folder();
     if (!folder) {

@@ -173,6 +173,17 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   dentro se stessa, spazio insufficiente e sola lettura danno un messaggio senza crash; i tagliati
   attenuati; idle a zero a operazione finita; test su cartelle temporanee, compreso il percorso tra
   dischi forzato.
+- [x] **6.3b Misura della memoria con le foto**
+  Prima si misura, poi (passo a parte, con l'OK dell'autore) si corregge. Rapporto di sviluppo nel
+  log su `SIGUSR1` e con `nordend-snapshot --memory`: RSS, anonima privata, file (smaps), heap in
+  uso e trattenuto da glibc (`mallinfo2`), VRAM e GTT del processo (fdinfo DRM), e la contabilità
+  di Nordend (texture delle miniature, Quick Look, pannello, atlanti dei glifi, cartelle). heaptrack
+  per chi alloca. Scenari ripetibili: avvio nei sorgenti, `vero` in colonne, griglia scorsa fino in
+  fondo, Quick Look su 20 foto, ritorno ai sorgenti, copia da 3 GB.
+  Fatto quando: in benchmarks una tabella per scenario spiega almeno il 90 % della memoria
+  privata; heaptrack conferma o smentisce le ipotesi con le righe responsabili; si sa se la memoria
+  torna giù lasciando una cartella di foto e perché; ogni correzione sensata ha una stima di
+  guadagno ed è proposta come passo successivo.
 - [ ] **6.4 Cestino** (spec freedesktop)
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 

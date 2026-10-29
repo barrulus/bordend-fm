@@ -4,6 +4,7 @@ add_library(nordend_core
     src/file.cpp
     src/file_watcher.cpp
     src/log.cpp
+    src/memory.cpp
     src/worker_pool.cpp)
 add_library(nordend::core ALIAS nordend_core)
 

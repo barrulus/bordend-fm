@@ -84,6 +84,15 @@ public:
     // Size of the sharp image of the shown entry once made (tests).
     [[nodiscard]] std::optional<std::pair<std::uint32_t, std::uint32_t>> image_size() const;
 
+    // What it holds (the memory report): slots, GPU texture bytes, pixel bytes kept in memory.
+    struct Usage {
+        std::size_t slots{0};
+        std::size_t texture_bytes{0};
+        std::size_t pixel_bytes{0};
+    };
+
+    [[nodiscard]] Usage usage() const;
+
 private:
     struct Slot {
         std::filesystem::path path;

@@ -7,6 +7,7 @@
 #include <exception>
 #include <filesystem>
 #include <format>
+#include <functional>
 #include <memory>
 #include <poll.h>
 #include <stdexcept>
@@ -16,10 +17,12 @@
 #include <system_error>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/core/memory.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
@@ -50,7 +53,7 @@ namespace ui = nordend::ui;
 namespace views = nordend::views;
 
 // SIGINT/SIGTERM delivered as a readable fd, so Ctrl+C ends the loop and runs every
-// destructor instead of killing the process mid-flight.
+// destructor instead of killing the process mid-flight; SIGUSR1 asks for the memory report.
 class SignalFd {
 public:
     SignalFd() : mask_{block_signals()}, fd_{signalfd(-1, &mask_, SFD_CLOEXEC | SFD_NONBLOCK)} {
@@ -78,6 +81,7 @@ private:
         sigemptyset(&mask);
         sigaddset(&mask, SIGINT);
         sigaddset(&mask, SIGTERM);
+        sigaddset(&mask, SIGUSR1);
         sigprocmask(SIG_BLOCK, &mask, nullptr);
         return mask;
     }
@@ -214,7 +218,24 @@ int main(int argc, char** argv) {
         // Before any other thread exists, so every thread inherits the blocked signals.
         const SignalFd signals;
         core::EventLoop loop;
+        // Set once the browser exists: what it holds, for the memory report.
+        std::function<std::vector<std::string>()> memory_lines;
         loop.add_fd(signals.fd(), POLLIN, [&](short /*revents*/) {
+            signalfd_siginfo info{};
+            if (read(signals.fd(), &info, sizeof info) != sizeof info) {
+                return;
+            }
+            if (info.ssi_signo == SIGUSR1) {
+                // A development report (ROADMAP 6.3b): pkill -USR1 nordend.
+                for (const std::string& line : core::describe(core::read_memory_report())) {
+                    log::info("memory: {}", line);
+                }
+                for (const std::string& line :
+                     memory_lines ? memory_lines() : std::vector<std::string>{}) {
+                    log::info("memory: {}", line);
+                }
+                return;
+            }
             log::info("signal received, closing");
             loop.quit(0);
         });
@@ -270,6 +291,7 @@ int main(int argc, char** argv) {
                     opener->open(directory, std::move(files));
                 });
             columns->open(start_folder(start_dir));
+            memory_lines = [&columns] { return columns->memory_lines(); };
         }
         // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9).
         std::unique_ptr<fs::PlacesWatcher> places;

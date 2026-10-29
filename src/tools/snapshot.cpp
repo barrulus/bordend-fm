@@ -3,7 +3,8 @@
 //
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
-//                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]]
+//                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]
+//                    [--memory [--trim]]]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -17,7 +18,8 @@
 // The sidebar lists the places of $HOME and $XDG_CONFIG_HOME; "Ctrl+B" hides it, "F6" focuses it.
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
 // --transfer shows TEXT as a transfer's progress, 40 % done; --conflict asks about NAME as a
-// paste would.
+// paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
+// results are in; with --trim, after malloc_trim(0) and the time it took.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -37,6 +39,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <malloc.h>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -49,6 +52,7 @@
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/core/memory.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
@@ -222,6 +226,8 @@ int main(int argc, char** argv) {
     int bench_frames = 0;
     int walk_frames = 0;  // --walk N: Down once per frame, N frames, workers' results between
     bool info_expanded = false;
+    bool memory = false;
+    bool trim = false;
     float info_width = 0.0F;  // the info pane as if dragged to this width
     std::string message;
     std::string transfer;
@@ -230,6 +236,16 @@ int main(int argc, char** argv) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
             info_expanded = true;
+            args = args.subspan(1);
+            continue;
+        }
+        if (option == "--memory") {
+            memory = true;
+            args = args.subspan(1);
+            continue;
+        }
+        if (option == "--trim") {
+            trim = true;
             args = args.subspan(1);
             continue;
         }
@@ -267,7 +283,7 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
-            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]] "
+            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--memory [--trim]]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -476,6 +492,29 @@ int main(int argc, char** argv) {
             frame();
             glReadPixels(0, 0, buffer_width, buffer_height, GL_RGBA, GL_UNSIGNED_BYTE,
                          pixels.data());
+            if (memory) {
+                if (columns) {
+                    run_until(loop, [&] { return !columns->loading(); });
+                    frame();  // what arrived is uploaded
+                    glFinish();
+                }
+                if (trim) {
+                    const auto start = std::chrono::steady_clock::now();
+                    malloc_trim(0);
+                    std::printf("memory: malloc_trim(0) took %.2f ms\n",
+                                std::chrono::duration<double, std::milli>(
+                                    std::chrono::steady_clock::now() - start)
+                                    .count());
+                }
+                for (const std::string& line :
+                     nordend::core::describe(nordend::core::read_memory_report())) {
+                    std::printf("memory: %s\n", line.c_str());
+                }
+                for (const std::string& line :
+                     columns ? columns->memory_lines() : std::vector<std::string>{}) {
+                    std::printf("memory: %s\n", line.c_str());
+                }
+            }
         }
         write_ppm(out, buffer_width, buffer_height, pixels);
         log::info("wrote {} ({}x{} at scale {})", out, buffer_width, buffer_height, scale);

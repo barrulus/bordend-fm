@@ -4,6 +4,55 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Memory with photos (ROADMAP 6.3b)
+
+Asked for after `top` showed 290 MB (6.2) and 412 MB (6.3) resident. Measure first; fixes are
+their own step, with the author's OK.
+
+**Done**
+- `core::read_memory_report` / `describe` (`core/memory`): `smaps_rollup` (RSS, anonymous,
+  private, shared), `smaps` grouped by mapping (`[heap]`, `[anon]`, libraries, fonts, DRM),
+  `mallinfo2` (in use, freed but kept, arenas, mmapped), the DRM fdinfo (`drm-memory-vram`,
+  `-gtt`, `-cpu`, one count per client id).
+- Nordend's own counts: `Thumbnails::usage()` (slots, textures, bytes, pixels waiting),
+  `QuickLook::usage()` (slots, texture bytes, pixels kept), `Renderer::atlas_bytes()`,
+  `Browser::memory_lines()` (folders, entries).
+- The app logs the report on SIGUSR1 (the signalfd now reads which signal came); the snapshot
+  tool prints it with `--memory`, and `--trim` calls `malloc_trim(0)` first and times it.
+- A test reads the report around a 64 MB block. 172 test cases with the raw samples.
+- A script for the author's run (the first try had no reports: the `pkill` in a second terminal
+  was forgotten): it starts Nordend with a fresh cache, prompts each step and sends the signal
+  itself, checking the report reached the log.
+
+**Measured** (see benchmarks, with all the numbers)
+- On screen, the author's five steps: home 111 MB, `vero` 130 MB, the grid with every thumbnail
+  526 MB, after Quick Look 545 MB, **back home still 545 MB**. Of it, 430 MB is memory malloc has
+  been given back and keeps: only 21 MB are in use.
+- heaptrack: the kept memory is the thumbnails' decode buffers (the ORF's embedded JPEG decoded
+  whole by wuffs: about 30 MB of pixels and 15 MB of work buffer each, eight workers at once).
+  Freed at once; glibc's dynamic mmap threshold grows to their size, so they are served from the
+  workers' arenas, which glibc does not give back.
+- Not the cause: thumbnail textures (14-89 MB, and in VRAM), the 3 GB copy (11.6 MB peak),
+  libraries (89 MB, shared), GPU memory (separate from the RSS).
+- With the mmap threshold fixed at 16 MB (`GLIBC_TUNABLES`): the same steps stay at 111, 120, 139,
+  139, 140 MB, a 405 MB saving; offscreen the grid's first screenful of new thumbnails takes
+  199-201 ms instead of 183-189 ms.
+
+**Tested by the author**: the five steps on screen, both runs, through the script (the numbers
+above); the step ticked on the author's OK.
+
+**Proposed** (a step of its own, after the author's OK)
+1. `mallopt(M_MMAP_THRESHOLD, 16 MB)` at startup (the app and the tools): -405 MB with photos,
+   +12 ms on a screenful of new thumbnails; 1 MB saves a little more (138 MB) for +25 ms.
+2. The transient peak while thumbnails are made is still eight decodes at once (about 370 MB for
+   a moment): fewer concurrent full-size decodes, or decoding the preview scaled down
+   (libjpeg-turbo's DCT scaling, which would also be faster), *to be measured*.
+3. Quick Look keeps the fitted pixels after uploading them (10.5 MB for three slots): drop them.
+4. Thumbnail textures stay on the GPU after leaving a folder, up to the 256 MB budget (89 MB
+   seen): a smaller budget, or dropping a folder's thumbnails when it is left, *to be measured*.
+
+---
+
 ## 2026-10-29 — Copy and move (ROADMAP 6.3)
 
 **Done**

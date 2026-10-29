@@ -492,4 +492,20 @@ void QuickLook::draw_card(ui::Renderer& renderer, const ui::Rect& area,
     }
 }
 
+QuickLook::Usage QuickLook::usage() const {
+    Usage usage{.slots = slots_.size(), .texture_bytes = 0, .pixel_bytes = 0};
+    for (const auto& [key, slot] : slots_) {
+        for (const auto* texture : {slot.thumbnail_texture.get(), slot.image_texture.get()}) {
+            usage.texture_bytes += texture != nullptr ? texture->bytes() : 0;
+        }
+        usage.pixel_bytes += slot.thumbnail_pixels ? slot.thumbnail_pixels->rgba.size() : 0;
+        if (slot.content) {
+            if (const auto* fitted = std::get_if<image::Fitted>(slot.content.get())) {
+                usage.pixel_bytes += fitted->image.rgba.size();
+            }
+        }
+    }
+    return usage;
+}
+
 }  // namespace nordend::views

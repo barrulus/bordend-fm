@@ -46,6 +46,9 @@ public:
 
     [[nodiscard]] FontSystem& fonts() noexcept { return fonts_; }
 
+    // GPU bytes of the two glyph atlases (the memory report).
+    [[nodiscard]] static std::size_t atlas_bytes() noexcept;
+
     void draw_box(const Rect& rect, const BoxStyle& style);
 
     void fill_rect(const Rect& rect, Color color) { draw_box(rect, {.fill = color}); }

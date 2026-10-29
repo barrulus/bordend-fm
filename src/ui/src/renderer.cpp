@@ -702,4 +702,9 @@ void Renderer::flush() {
     }
 }
 
+std::size_t Renderer::atlas_bytes() noexcept {
+    constexpr auto texels = static_cast<std::size_t>(kAtlasSize) * kAtlasSize;
+    return texels * (1 + 4);  // R8 coverage, RGBA8 color
+}
+
 }  // namespace nordend::ui

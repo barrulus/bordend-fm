@@ -48,6 +48,16 @@ public:
 
     [[nodiscard]] std::size_t texture_bytes() const noexcept { return bytes_; }
 
+    // What it holds (the memory report).
+    struct Usage {
+        std::size_t slots{0};
+        std::size_t textures{0};
+        std::size_t texture_bytes{0};
+        std::size_t pixel_bytes{0};  // made, not uploaded yet
+    };
+
+    [[nodiscard]] Usage usage() const;
+
 private:
     struct Slot {
         std::optional<core::CancelToken> job;  // being made

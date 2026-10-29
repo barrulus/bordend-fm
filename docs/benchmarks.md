@@ -354,6 +354,67 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 
 The same as without it (sidebar section below): nothing measurable.
 
+## Memory with photos (ROADMAP 6.3b)
+
+**Tools:** the memory report (`pkill -USR1 nordend` logs it; `nordend-snapshot --memory
+[--trim]` prints it): `smaps_rollup` and `smaps` by mapping, glibc `mallinfo2`, the GPU driver's
+fdinfo (`drm-memory-vram`, `-gtt`), and Nordend's own counts. heaptrack 1.5.0 for who allocates.
+
+### 2026-10-29: on screen, the author's five steps
+
+The app on Umbriel, a fresh thumbnail cache each run (`XDG_CACHE_HOME` in `/tmp`), the steps
+driven by a script that sends SIGUSR1 after each: (1) the home, (2) `vero` in the columns, the
+cursor on an ORF, (3) the grid scrolled to the end, every thumbnail made, (4) Quick Look over
+about 20 photos, closed, (5) back home, 10 s later. Default glibc, then with
+`GLIBC_TUNABLES=glibc.malloc.mmap_threshold=16777216`.
+
+| Step | RSS, default | malloc in use / freed but kept | RSS, threshold 16 MB | malloc in use / kept |
+|------|------:|------:|------:|------:|
+| 1 home | 110.9 MB | 18.2 / 3.6 MB | 110.9 MB | 18.0 / 3.6 MB |
+| 2 `vero`, columns | 130.1 MB | 18.9 / 19.8 MB | 119.8 MB | 18.6 / 9.6 MB |
+| 3 grid, all thumbnails | **526.4 MB** | 20.4 / **412.8 MB** | **138.7 MB** | 20.2 / 25.1 MB |
+| 4 after Quick Look | 544.7 MB | 21.3 / 429.7 MB | 139.4 MB | 21.0 / 25.0 MB |
+| 5 back home | **544.7 MB** | 21.5 / 429.5 MB | **139.5 MB** | 20.7 / 25.4 MB |
+
+Where it goes, step 5 by default: anonymous memory 455.8 MB, of which malloc's arenas hold
+445.9 MB and its own mappings 5.1 MB (99 %); libraries 89 MB (shared with other programs). Of
+malloc's 446 MB, 21.5 MB are in use and 429.5 MB were freed and kept. The GPU is separate: VRAM
+50-94 MB (the second run 159-166 MB: step 4 was done from the grid, with 238 thumbnails, 89 MB
+of textures), GTT 17-34 MB; neither is in the RSS. Thumbnail textures were 1-89 MB (budget
+256 MB), Quick Look 0 once closed, glyph atlases 21 MB of VRAM.
+
+### 2026-10-29: who allocates (heaptrack), offscreen
+
+`nordend-snapshot --columns vero --thumbnails EMPTY_DIR --keys Ctrl+2 --walk 60 --memory`,
+2880x1620: peak consumers are wuffs' pixel buffer (245.8 MB peak over 51 calls) and work buffer
+(122.9 MB over 51 calls), both under `thumbs::Cache::make` → `image::decode_preview` → wuffs
+JPEG, on the workers: the OM-1's embedded preview decoded whole, about 30 MB of pixels and 15 MB
+of work buffer each, eight workers at a time. They are freed at once; glibc keeps them because
+its dynamic mmap threshold has grown to their size (up to 32 MB), so they come from the worker
+threads' arenas, which are not given back. The base, in the sources: Mesa's gallium 6.7 MB,
+LLVM (shader compiles) 6.3 MB, Nordend itself under 2 MB (renderer 0.5 MB, MIME database
+0.4 MB); the snapshot tool's own pixel buffers 18.7 MB (not in the app).
+
+The 3 GB copy (`nordend-transfer vero /tmp/...`): peak RSS of the whole process 11.6 MB: the
+kernel copies (`copy_file_range`), nothing passes through Nordend.
+
+### 2026-10-29: what a fix would give, offscreen
+
+The grid's first screenful with an empty thumbnail cache (`--keys Ctrl+2 --memory`, three runs),
+and Quick Look over 20 photos (`--keys Down,Down,space --walk 20`), with the threshold set by
+`GLIBC_TUNABLES`:
+
+| mmap threshold | Thumbnails ready | RSS after | RSS after Quick Look |
+|----------------|-----------------:|----------:|---------------------:|
+| glibc's default (dynamic) | 183-189 ms | 386 MB | 567 MB |
+| 1 MB | 208-212 ms | 138 MB | 191 MB |
+| 4 MB | 202-209 ms | 152 MB | 164 MB |
+| 16 MB | 199-201 ms | 152 MB | 181 MB |
+
+Also tried: `glibc.malloc.arena_max=2`: 197 MB (one walk with a 21.6 ms frame: contention);
+`malloc_trim(0)` once the work is done: 2-9 ms, 529 → 250 MB in the grid but 558 → 460 MB after
+Quick Look (fragmented arenas give back little).
+
 ## Copy and move (ROADMAP 6.3)
 
 **Tool:** `nordend-transfer SRC DEST` (the engine Ctrl+V uses; prints files, MB, time, rate),

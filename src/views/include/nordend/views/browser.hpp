@@ -170,6 +170,9 @@ public:
 
     [[nodiscard]] std::size_t transfers_pending() const noexcept { return transfers_.pending(); }
 
+    // What the views hold, as lines for the memory report (ROADMAP 6.3b).
+    [[nodiscard]] std::vector<std::string> memory_lines() const;
+
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;

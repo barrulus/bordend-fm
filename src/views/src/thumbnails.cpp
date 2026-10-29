@@ -102,4 +102,13 @@ void Thumbnails::end_frame() {
     ++frame_;
 }
 
+Thumbnails::Usage Thumbnails::usage() const {
+    Usage usage{.slots = slots_.size(), .textures = 0, .texture_bytes = bytes_, .pixel_bytes = 0};
+    for (const auto& [key, slot] : slots_) {
+        usage.textures += slot.texture ? 1U : 0U;
+        usage.pixel_bytes += slot.pixels ? slot.pixels->rgba.size() : 0;
+    }
+    return usage;
+}
+
 }  // namespace nordend::views
