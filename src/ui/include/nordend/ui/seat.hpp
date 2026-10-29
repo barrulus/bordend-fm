@@ -113,6 +113,9 @@ public:
     // Hooks key repeat into the loop.
     void attach(core::EventLoop& loop);
 
+    // The serial of the last key or button press: what xdg-activation tokens are tied to.
+    [[nodiscard]] std::uint32_t input_serial() const noexcept { return input_serial_; }
+
 private:
     static void on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities);
     static void on_name(void* data, wl_seat* seat, const char* name);
@@ -195,6 +198,7 @@ private:
     float pointer_y_{0.0F};
     bool pointer_inside_{false};
     std::uint32_t pointer_enter_serial_{0};
+    std::uint32_t input_serial_{0};
     CursorShape cursor_{CursorShape::standard};
     PendingScroll pending_scroll_;
     LastPress last_press_;

@@ -71,6 +71,7 @@ add_subdirectory(src/fs)        # directory loading and sorting
 add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl), previews, PNG
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/preview)   # Quick Look providers: images, text, information
+add_subdirectory(src/platform)  # default applications (freedesktop), launching processes
 add_subdirectory(src/views)     # column view and grid
 
 # Renderer test scene (ROADMAP 1.4), shared by the app and nordend-snapshot.
@@ -81,7 +82,8 @@ target_link_libraries(nordend_test_scene PUBLIC nordend::ui nordend::theme PRIVA
 add_executable(nordend src/app/main.cpp)
 target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")
 target_link_libraries(nordend
-    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend_test_scene
+    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
+            nordend_test_scene
             nordend::warnings)
 
 # Development tool: offscreen render of the test scene or a folder list to a PPM file, and the
@@ -111,6 +113,11 @@ target_link_libraries(nordend-decode PRIVATE nordend::core nordend::image norden
 add_executable(nordend-thumb src/tools/thumb.cpp)
 target_link_libraries(nordend-thumb PRIVATE nordend::thumbs nordend::warnings)
 
+# Development tool: which application opens a file or a type, and how (ROADMAP 6.1). Not
+# installed.
+add_executable(nordend-open src/tools/open.cpp)
+target_link_libraries(nordend-open PRIVATE nordend::core nordend::fs nordend::platform nordend::warnings)
+
 # Development tool: JPEG decoding, wuffs against TurboJPEG scaling (ROADMAP 5.2). Not installed;
 # built only when libjpeg-turbo-devel is there.
 if(TURBOJPEG_FOUND)
@@ -136,7 +143,7 @@ endif()
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
     foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch
-            nordend-decode nordend-thumb)
+            nordend-decode nordend-thumb nordend-open)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()

@@ -1,0 +1,198 @@
+#include "nordend/platform/opener.hpp"
+
+#include <algorithm>
+#include <format>
+#include <utility>
+
+#include "nordend/core/log.hpp"
+#include "nordend/platform/exec.hpp"
+
+namespace nordend::platform {
+namespace {
+
+// The files that go to one application.
+struct Group {
+    const DesktopEntry* app{nullptr};
+    std::vector<std::filesystem::path> files;
+};
+
+void add_problem(std::vector<std::string>& problems, std::string problem) {
+    if (std::ranges::find(problems, problem) == problems.end()) {
+        problems.push_back(std::move(problem));
+    }
+}
+
+// "Opening photo.orf with darktable…", "Opening 5 files with darktable…".
+std::string opening_message(const OpenPlan& plan) {
+    std::vector<std::string_view> apps;
+    for (const OpenPlan::Launch& launch : plan.launches) {
+        if (std::ranges::find(apps, launch.app_name) == apps.end()) {
+            apps.push_back(launch.app_name);
+        }
+    }
+    if (apps.size() > 1) {
+        return std::format("Opening {} files with {} applications…", plan.files, apps.size());
+    }
+    if (plan.files == 1) {
+        return std::format("Opening {} with {}…", plan.first_name, apps.front());
+    }
+    return std::format("Opening {} files with {}…", plan.files, apps.front());
+}
+
+}  // namespace
+
+OpenPlan plan_open(std::span<const OpenFile> files, const Applications& apps,
+                   const fs::MimeDatabase& database, const Environment& environment) {
+    OpenPlan plan;
+    std::vector<Group> groups;
+    for (const OpenFile& file : files) {
+        const DesktopEntry* const app = apps.default_for(file.mime, database);
+        if (app == nullptr) {
+            add_problem(plan.problems, std::format("No application opens {}", file.mime));
+            continue;
+        }
+        auto group = std::ranges::find(groups, app, &Group::app);
+        if (group == groups.end()) {
+            group = groups.insert(groups.end(), Group{.app = app, .files = {}});
+        }
+        group->files.push_back(file.path);
+    }
+
+    for (const Group& group : groups) {
+        const DesktopEntry& app = *group.app;
+        const std::string name = app.name.empty() ? app.id : app.name;
+        std::vector<std::vector<std::string>> lines = expand_exec(app, group.files);
+        if (lines.empty()) {
+            add_problem(plan.problems,
+                        std::format("{} has an Exec line Nordend cannot read", name));
+            continue;
+        }
+        const std::size_t per_line = lines.size() == 1 ? group.files.size() : 1;
+        bool started = false;
+        for (std::vector<std::string>& line : lines) {
+            if (app.terminal) {
+                std::optional<std::vector<std::string>> wrapped = in_terminal(line, environment);
+                if (!wrapped) {
+                    add_problem(plan.problems,
+                                std::format("No terminal to run {} in: set $TERMINAL", name));
+                    break;
+                }
+                line = std::move(*wrapped);
+            } else if (const std::optional<std::filesystem::path> program =
+                           find_program(line.front(), environment.path)) {
+                line.front() = program->string();  // the one find() checked, from the same PATH
+            }
+            plan.launches.push_back({.app_id = app.id,
+                                     .app_name = name,
+                                     .argv = std::move(line),
+                                     .directory = app.working_directory.empty()
+                                                      ? group.files.front().parent_path()
+                                                      : app.working_directory,
+                                     .files = per_line});
+            started = true;
+        }
+        if (started) {
+            if (plan.files == 0) {
+                plan.first_name = group.files.front().filename().string();
+            }
+            plan.files += group.files.size();
+        }
+    }
+    return plan;
+}
+
+Opener::Opener(core::EventLoop& loop, core::WorkerPool& pool,
+               std::shared_ptr<const fs::MimeDatabase> database, Environment environment,
+               Report report, TokenRequest token)
+    : pool_{pool},
+      database_{std::move(database)},
+      environment_{std::make_shared<const Environment>(std::move(environment))},
+      report_{std::move(report)},
+      token_{std::move(token)},
+      launcher_{loop} {}
+
+Opener::~Opener() { *alive_ = false; }
+
+void Opener::open(const std::filesystem::path& directory, std::vector<fs::Entry> entries) {
+    std::erase_if(entries, [](const fs::Entry& entry) { return entry.is_directory(); });
+    if (entries.empty()) {
+        return;
+    }
+    ++planning_;
+    pool_.submit(
+        core::Priority::visible,
+        [directory, entries = std::move(entries), database = database_,
+         environment = environment_](const core::CancelToken& /*token*/) {
+            std::vector<OpenFile> files;
+            for (const fs::Entry& entry : entries) {
+                const fs::MimeId mime = entry.mime != fs::kUnknownMime
+                                            ? entry.mime
+                                            : database->detect(directory, entry);
+                files.push_back(
+                    {.path = directory / entry.name, .mime = std::string{database->name(mime)}});
+            }
+            const Applications apps = Applications::load(*environment, *database);
+            return plan_open(files, apps, *database, *environment);
+        },
+        [this, alive = alive_](OpenPlan plan) {
+            if (*alive) {
+                --planning_;
+                start(std::move(plan));
+            }
+        });
+}
+
+void Opener::start(OpenPlan plan) {
+    for (const std::string& problem : plan.problems) {
+        log::info("open: {}", problem);
+    }
+    if (plan.launches.empty()) {
+        report_(plan.problems.empty() ? std::string{"Nothing to open"} : plan.problems.front(),
+                true);
+        return;
+    }
+    // A problem matters more than what went well, which shows on screen anyway.
+    if (plan.problems.empty()) {
+        report_(opening_message(plan), false);
+    } else {
+        report_(plan.problems.front(), true);
+    }
+    for (OpenPlan::Launch& launch : plan.launches) {
+        if (!token_) {
+            start_one(launch, {});
+            continue;
+        }
+        token_([this, alive = alive_, launch = std::move(launch)](const std::string& token) {
+            if (*alive) {
+                start_one(launch, token);
+            }
+        });
+    }
+}
+
+void Opener::start_one(const OpenPlan::Launch& launch, const std::string& token) {
+    std::vector<std::string> env;
+    if (!token.empty()) {
+        // XDG_ACTIVATION_TOKEN for Wayland apps; DESKTOP_STARTUP_ID for the ones that only know
+        // startup notification (GLib sets both).
+        env.push_back("XDG_ACTIVATION_TOKEN=" + token);
+        env.push_back("DESKTOP_STARTUP_ID=" + token);
+    }
+    log::info("open: {} with {} ({} file(s))", launch.argv.front(), launch.app_id, launch.files);
+    const std::error_code error = launcher_.spawn(
+        launch.argv, launch.directory, env,
+        [this, alive = alive_, name = launch.app_name](const Launcher::Exit& exit) {
+            if (!*alive || exit.lifetime >= kQuickExit || (exit.status == 0 && exit.signal == 0)) {
+                return;
+            }
+            report_(exit.signal != 0
+                        ? std::format("{} was stopped by signal {}", name, exit.signal)
+                        : std::format("{} quit at once with status {}", name, exit.status),
+                    true);
+        });
+    if (error) {
+        report_(std::format("Could not start {}: {}", launch.app_name, error.message()), true);
+    }
+}
+
+}  // namespace nordend::platform

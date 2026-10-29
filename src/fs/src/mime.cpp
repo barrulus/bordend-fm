@@ -238,7 +238,11 @@ struct MimeDatabase::Impl {
         for (const std::string_view line : split(text.text, '\n')) {
             const std::size_t space = line.find(' ');
             if (space != std::string_view::npos && !line.starts_with('#')) {
-                parents[intern(line.substr(0, space))].push_back(intern(line.substr(space + 1)));
+                std::vector<MimeId>& up = parents[intern(line.substr(0, space))];
+                const MimeId parent = intern(line.substr(space + 1));
+                if (std::ranges::find(up, parent) == up.end()) {  // several dirs list it
+                    up.push_back(parent);
+                }
             }
         }
     }
@@ -671,6 +675,11 @@ bool MimeDatabase::is_a(MimeId mime, MimeId parent, int depth) const {
         }
     }
     return false;
+}
+
+std::span<const MimeId> MimeDatabase::parents(MimeId mime) const {
+    const auto it = impl_->parents.find(mime);
+    return it == impl_->parents.end() ? std::span<const MimeId>{} : std::span{it->second};
 }
 
 std::string MimeDatabase::generic_icon(MimeId mime) const {

@@ -485,6 +485,12 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 if (row || mode == SelectMode::replace) {
                     column.folder().set_cursor(row, mode);  // a plain click on nothing clears
                 }
+                // A double click opens a file with its application; a folder is open already.
+                const fs::Entry* const entry = column.folder().cursor_entry();
+                if (event.click_count == 2 && row && mode == SelectMode::replace &&
+                    entry != nullptr && !entry->is_directory() && open_) {
+                    open_();
+                }
                 redraw_();
             }
             break;

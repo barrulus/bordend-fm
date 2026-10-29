@@ -323,6 +323,55 @@ TEST_CASE("grid: Enter opens a folder, Backspace the parent; the columns follow"
     CHECK(f.view.column(2).path() == f.root / "alpha" / "beta");
 }
 
+TEST_CASE("browser: Enter on a file hands the selected files to the open handler") {
+    Fixture f;
+    std::vector<std::pair<fs::path, std::vector<std::string>>> opened;
+    f.browser.set_open_handler(
+        [&](const fs::path& directory, std::vector<nordend::fs::Entry> files) {
+            std::vector<std::string> names;
+            for (const nordend::fs::Entry& file : files) {
+                CHECK_FALSE(file.is_directory());
+                CHECK(file.mime != nordend::fs::kUnknownMime);  // the type the view knows
+                names.push_back(file.name);
+            }
+            opened.emplace_back(directory, std::move(names));
+        });
+    f.view.open(f.root);
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_Down);  // alpha: a folder goes on to the view
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_Return);
+    CHECK(opened.empty());
+    CHECK(f.view.focus() == 1);
+    REQUIRE(f.settle());
+
+    f.press(XKB_KEY_Down);  // notes.txt
+    f.press(XKB_KEY_Return);
+    REQUIRE(opened.size() == 1);
+    CHECK(opened[0].first == f.root / "alpha");
+    CHECK(opened[0].second == std::vector<std::string>{"notes.txt"});
+
+    // Folders in the selection stay out; the files go together, in listing order.
+    f.press(XKB_KEY_Up, {.shift = true});  // beta, notes.txt; the cursor on beta
+    f.press(XKB_KEY_Return);               // on a folder: not opened
+    CHECK(opened.size() == 1);
+    f.press(XKB_KEY_Left);
+    f.press(XKB_KEY_End);  // readme.md
+    f.press(XKB_KEY_2, {.ctrl = true});
+    f.press(XKB_KEY_a, {.ctrl = true});  // everything; the cursor stays on readme.md
+    f.press(XKB_KEY_KP_Enter);
+    REQUIRE(opened.size() == 2);
+    CHECK(opened[1].first == f.root);
+    CHECK(opened[1].second == std::vector<std::string>{"readme.md"});
+
+    // A cursor outside the selection opens only itself.
+    f.press(XKB_KEY_Home, {.ctrl = true});     // alpha, the cursor moves, the selection stays
+    f.press(XKB_KEY_End, {.ctrl = true});      // back to readme.md, still selected
+    f.press(XKB_KEY_Escape);                   // readme.md alone
+    f.press(XKB_KEY_Return, {.shift = true});  // with a modifier: not Enter
+    CHECK(opened.size() == 2);
+}
+
 TEST_CASE("grid: from a folder above the columns, the columns start over from its parent") {
     Fixture f;
     f.view.open(f.root / "alpha");

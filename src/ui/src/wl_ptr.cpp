@@ -54,6 +54,10 @@ void destroy(wp_fractional_scale_manager_v1* manager) noexcept {
 
 void destroy(wp_fractional_scale_v1* scale) noexcept { wp_fractional_scale_v1_destroy(scale); }
 
+void destroy(xdg_activation_v1* activation) noexcept { xdg_activation_v1_destroy(activation); }
+
+void destroy(xdg_activation_token_v1* token) noexcept { xdg_activation_token_v1_destroy(token); }
+
 void destroy(wl_pointer* pointer) noexcept {
     if (wl_pointer_get_version(pointer) >= WL_POINTER_RELEASE_SINCE_VERSION) {
         wl_pointer_release(pointer);

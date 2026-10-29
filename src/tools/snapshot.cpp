@@ -3,7 +3,7 @@
 //
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
-//                    [--walk FRAMES]]
+//                    [--walk FRAMES] [--message TEXT]]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -14,6 +14,7 @@
 // last, Quick Look opens (and --bench scrolls its text page, when it shows one). --thumbnails gives
 // the grid a thumbnail cache directory (none by default: icons only, nothing written to ~/.cache).
 // The sidebar lists the places of $HOME and $XDG_CONFIG_HOME; "Ctrl+B" hides it, "F6" focuses it.
+// --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -216,6 +217,7 @@ int main(int argc, char** argv) {
     int walk_frames = 0;  // --walk N: Down once per frame, N frames, workers' results between
     bool info_expanded = false;
     float info_width = 0.0F;  // the info pane as if dragged to this width
+    std::string message;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -238,6 +240,8 @@ int main(int argc, char** argv) {
             sort = args[2];
         } else if (option == "--info-width") {
             info_width = std::stof(args[2]);
+        } else if (option == "--message") {
+            message = args[2];
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -251,7 +255,7 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
-            "FRAMES]] "
+            "FRAMES] [--message TEXT]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -313,6 +317,10 @@ int main(int argc, char** argv) {
                 columns->info_pane().set_expanded(info_expanded);
                 if (info_width > 0.0F) {
                     columns->info_pane().set_width(info_width);
+                }
+                if (!message.empty()) {
+                    const bool error = message.starts_with('!');
+                    columns->show_message(error ? message.substr(1) : message, error);
                 }
                 frame();  // lays out: keys need the viewport
                 for (const ui::KeyEvent& event : parse_keys(keys)) {

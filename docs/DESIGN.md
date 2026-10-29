@@ -82,7 +82,7 @@ image/      decodifica immagini (wuffs, libwebp, libjxl) e orientamento EXIF, pe
 preview/    quick look: un provider per tipo (immagine, raw, testo, fallback info)
 thumbs/     generazione e cache miniature (spec freedesktop, ~/.cache/thumbnails)
 theme/      palette Noctalia, ricarica a caldo
-platform/   lancio processi, xdg-open, terminale/editor esterno
+platform/   app predefinite (spec freedesktop), lancio processi, terminale/editor esterno
 ```
 
 **Threading.** Il thread principale fa un unico `poll()` su: fd Wayland, eventfd dei worker, inotify,
@@ -122,7 +122,7 @@ Dentro:
 - miniature con cache freedesktop
 - Quick Look: immagini (png, jpeg, webp, jxl, gif), RAW tramite JPEG incorporato con orientamento
   corretto, testo (monospace, limite di dimensione), fallback con info del file
-- apertura con l'app predefinita (`xdg-open`)
+- apertura con l'app predefinita: risolutore e lancio nostri (vedi "Apertura dei file")
 - operazioni base: copia, sposta, rinomina, nuova cartella, cestino (spec freedesktop)
 
 Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal, udisks2,
@@ -141,6 +141,35 @@ evidenziazione della sintassi, DnD verso altre app, editor esterno.
 8. Quick Look del testo più ricco: evidenziazione della sintassi, selezione e copia del testo nella
    preview (chiesto dall'autore il 2026-10-27)
 
+## Apertura dei file
+
+Deciso il 2026-10-29 con l'autore, al posto di `xdg-open`. Nordend implementa da sé le due
+specifiche freedesktop che usano `xdg-open` e `gio open`:
+
+- **MIME Applications Associations**: l'app predefinita per un tipo dai `mimeapps.list`
+  (config utente, config di sistema, dati utente e di sistema, nell'ordine della specifica;
+  anche le varianti `$desktop-mimeapps.list` di `XDG_CURRENT_DESKTOP`), poi le app che dichiarano
+  il tipo secondo `mimeinfo.cache` (come GLib 2.88, misurato: non le chiavi `MimeType` dei
+  `.desktop`), poi i tipi padre (alias e sottoclassi del nostro database MIME, come GLib:
+  `text/x-c++src` → `text/plain`). Verifica: stessa scelta di `gio mime` su tutti i 1 232 tipi
+  e alias del database (benchmarks).
+- **Desktop Entry**: lancio dal campo `Exec` (`%f %F %u %U`, escaping, `TryExec`, `Path`,
+  `Hidden`), `Terminal=true` nel terminale risolto come nell'appendice dell'editor esterno.
+
+Perché non `xdg-open` (misurato su questa macchina, xdg-utils 1.2.1 in modalità generica): resta in
+attesa finché l'app non si chiude, ignora `Terminal=true` e ricava il tipo con `file`, che non sempre
+coincide con il nostro (`.xmp`: `text/xml` contro `application/xml`). Con il risolutore nostro:
+il tipo è quello che Nordend mostra; più file per la stessa app partono in una sola istanza (`%F`);
+l'assenza di un'app si sa prima di lanciare; la finestra aperta riceve il focus con un token
+`xdg-activation-v1` passato in `XDG_ACTIVATION_TOKEN`; lo stesso codice servirà ad "Apri con…" e
+all'editor esterno. Nessuna dipendenza da xdg-utils, GLib o D-Bus.
+
+Lancio: `posix_spawn` con nuova sessione, stdio su `/dev/null`, nessun fd ereditato; il figlio è
+raccolto con un `pidfd` nel `poll()` principale (niente thread, niente zombie). Cartella di lavoro:
+il `Path` del `.desktop`, altrimenti quella del primo file. Le app
+`DBusActivatable=true` partono dal loro `Exec`, come prevede la specifica senza D-Bus. Un eseguibile
+non viene mai eseguito: si apre con l'app del suo tipo.
+
 ## Obiettivi di performance (da misurare, non promesse)
 
 - avvio a freddo fino al primo frame: < 150 ms
@@ -155,7 +184,7 @@ Non è un must-have: si fa per ultimo, dopo il resto della roadmap.
 Fase 1: `e` su un file di testo apre l'editor in un terminale, con un app-id fisso (`nordend-editor`)
 così Umbriel può farlo comparire flottante e centrato sopra Nordend (window rule).
 
-Risoluzione del **terminale**, primo che funziona:
+Risoluzione del **terminale** (la usa già la 6.1 per le app con `Terminal=true`, senza app-id), primo che funziona:
 1. `editor.terminal` in `config.toml` (comando completo, con segnaposto per app-id e comando)
 2. `$TERMINAL`
 3. `xdg-terminal-exec` (spec freedesktop proposta; non consente di impostare l'app-id,

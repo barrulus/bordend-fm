@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -9,6 +10,7 @@
 #include <optional>
 #include <string>
 
+#include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
@@ -34,17 +36,19 @@ struct FreeSpace {
 [[nodiscard]] std::string status_of(const Folder& folder);
 
 // The bar under the view: at the left the folder's status and the free space of its file system
-// (read on a worker when the folder or its listing changes, so it follows copies into it); at the
-// right a button for each view, the one shown marked, and "?" for the shortcuts.
+// (read on a worker when the folder or its listing changes, so it follows copies into it), or for
+// a few seconds a message ("Opening photo.orf with darktable…"); at the right a button for each
+// view, the one shown marked, and "?" for the shortcuts.
 //
-// Loop thread only. Must not outlive the pool.
+// Loop thread only. Must not outlive the loop or the pool.
 class StatusBar {
 public:
     static constexpr float kHeight = 30.0F;
     static constexpr std::size_t kViews = 3;  // columns, grid, details: the browser's modes
+    static constexpr std::chrono::seconds kMessageTime{4};
 
     // choose_view(i): a view's button was clicked; help: the "?" button was.
-    StatusBar(core::WorkerPool& pool, std::function<void()> redraw,
+    StatusBar(core::EventLoop& loop, core::WorkerPool& pool, std::function<void()> redraw,
               std::function<void(std::size_t view)> choose_view, std::function<void()> help);
     ~StatusBar();
 
@@ -63,6 +67,13 @@ public:
 
     [[nodiscard]] bool claims(float x, float y) const;
 
+    // Shows text in place of the status for kMessageTime; a new message replaces it. error
+    // draws it in the error color.
+    void show_message(std::string text, bool error);
+
+    // The message shown; empty when there is none.
+    [[nodiscard]] const std::string& message() const noexcept { return message_; }
+
     void pointer(const ui::PointerEvent& event);
 
     // The free space as last read; nullopt before it arrives or when it cannot be read.
@@ -75,6 +86,7 @@ private:
     // A button: a view's (0 to kViews - 1) or help (kViews).
     [[nodiscard]] std::optional<std::size_t> button_at(float x, float y) const;
 
+    core::EventLoop& loop_;
     core::WorkerPool& pool_;
     std::function<void()> redraw_;
     std::function<void(std::size_t)> choose_view_;
@@ -86,6 +98,10 @@ private:
     bool known_{false};
     std::optional<FreeSpace> free_;
     std::optional<core::CancelToken> job_;
+
+    std::string message_;
+    bool message_error_{false};
+    core::EventLoop::SourceId message_timer_{0};
 
     ui::Rect bounds_{};
     std::array<ui::Rect, kViews + 1> buttons_{};  // as last drawn

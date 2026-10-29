@@ -17,6 +17,12 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-29
+
+After ROADMAP 6.1 (default applications): 2 254 728 bytes; 1 918 968 bytes after `strip`
+(+275 KB, mostly `std::format` and `std::filesystem` code at `-O3`); 18 direct libraries, the
+same as before.
+
 ### 2026-10-28
 
 `build/nordend`, CMake Release (`-O3`), GCC 14.2, x86-64, after ROADMAP 5.11: 1 979 504 bytes;
@@ -532,6 +538,31 @@ Names decide most files for free; reading heads costs about 35-45 µs per file e
 views will ask for content-based types only for visible entries, on workers.
 
 Correctness, against `gio info -a standard::content-type`: 0 differences on about 4 750 files.
+
+## Default applications (ROADMAP 6.1)
+
+**Tool:** `nordend-open` (`--default TYPE...` prints the chosen desktop ID; the time to read the
+applications goes to stderr).
+
+### 2026-10-29
+
+| What | Time |
+|------|-----:|
+| Read every desktop entry, mimeapps.list and mimeinfo.cache (21 entries, 5 runs) | 0.42-0.48 ms |
+
+Correctness, against `gio mime TYPE` (GLib 2.88.3): every type in `/usr/share/mime/types` and
+every alias in `/usr/share/mime/aliases`, 1 232 names, 564 of them with an application:
+0 differences.
+
+```sh
+(cat /usr/share/mime/types; cut -d' ' -f1 /usr/share/mime/aliases) | sort -u > all.txt
+build/nordend-open --default $(cat all.txt) 2>/dev/null > ours.txt
+while read t; do
+  d=$(gio mime "$t" | sed -n 's/^Default application for “[^”]*”: //p')
+  printf '%s\t%s\n' "$t" "${d:--}"
+done < all.txt > gio.txt
+diff ours.txt gio.txt
+```
 
 ---
 

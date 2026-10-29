@@ -102,7 +102,7 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_Home, XKB_KEY_End}},
     Shortcut{.group = "Moving",
              .keys = "Enter",
-             .action = "Open the folder",
+             .action = "Open (files in their app)",
              .scope = scope::kViews,
              .keysyms = {XKB_KEY_Return, XKB_KEY_KP_Enter}},
     Shortcut{.group = "Moving",

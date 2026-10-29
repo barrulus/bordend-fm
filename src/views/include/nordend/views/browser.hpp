@@ -41,7 +41,9 @@ namespace nordend::views {
 // folder object passes between them, so the cursor, the selection and the types sniffed so far
 // stay. Above the view, the breadcrumb shows the folder's path, every step a way up. The sidebar at
 // the left lists the places (set_places); Ctrl+B shows or hides it, F6 moves the keyboard into it
-// and back, and a place chosen there opens in the view shown.
+// and back, and a place chosen there opens in the view shown. Enter or a double click on a file
+// hands the selected files to the open handler (their default applications); on a folder, the
+// view goes into it.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -84,6 +86,18 @@ public:
     // What the sidebar lists.
     void set_places(std::vector<fs::Place> places);
 
+    // Opens files (directory's entries, never folders, types filled in where known). Without
+    // one, Enter on a file does nothing.
+    using OpenHandler =
+        std::function<void(const std::filesystem::path& directory, std::vector<fs::Entry> files)>;
+
+    void set_open_handler(OpenHandler open) { open_ = std::move(open); }
+
+    // A line in the status bar for a few seconds (what opening a file did).
+    void show_message(std::string text, bool error) {
+        status_bar_.show_message(std::move(text), error);
+    }
+
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);
 
@@ -118,6 +132,9 @@ private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
     void run(Command command, Clock::time_point now);
+    // Opens the selected files when the cursor is on a file (only the cursor's when it is not
+    // selected); false when the cursor is on a folder or nowhere.
+    bool open_selection();
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
@@ -130,6 +147,7 @@ private:
                    ui::IconSet& icons, Clock::time_point now);
 
     std::function<void()> redraw_;
+    OpenHandler open_;
     std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
     InfoPane info_pane_;                      // the same: every view draws it
     ColumnView columns_;                      // before grid_: grid folders may report to it

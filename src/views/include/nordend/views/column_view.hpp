@@ -100,6 +100,9 @@ public:
     // false when event is not one of its keys.
     bool key(const ui::KeyEvent& event, Clock::time_point now);
 
+    // Called on a double click on a file (not a folder): the browser opens the selection.
+    void set_open_handler(std::function<void()> open) { open_ = std::move(open); }
+
     [[nodiscard]] std::size_t column_count() const noexcept { return columns_.size(); }
 
     [[nodiscard]] Column& column(std::size_t index) { return *columns_.at(index).column; }
@@ -141,6 +144,7 @@ private:
     fs::DirectoryWatcher& watcher_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
+    std::function<void()> open_;
     std::function<void(ui::CursorShape)> set_cursor_;
     InfoPane* info_pane_;
     ui::Rect info_area_{};  // where the info pane was last drawn; empty when not shown

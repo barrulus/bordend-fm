@@ -4,6 +4,100 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Open with the default application (ROADMAP 6.1)
+
+**Decision** (with the author, DESIGN "Apertura dei file"): no `xdg-open`, no `gio open`; Nordend
+reads the two freedesktop specs itself. Measured first on this machine (xdg-utils 1.2.1, generic
+mode under Umbriel): `xdg-open` waits for the application to quit (it runs it as a child of its
+shell), ignores `Terminal=true` (Helix, the default for text/plain, would start without a
+terminal and fail silently) and takes the type from `file`, which differs from ours (`.xmp`:
+`text/xml` against `application/xml`).
+
+**Done**
+- New module `platform/`:
+  - `desktop_entry`: the [Desktop Entry] keys Nordend needs, string escapes, lists, the localized
+    `Name` by the spec's locale matching; `Environment` (XDG dirs, desktops, locale, PATH,
+    `$TERMINAL`, read once at startup); `find_program`.
+  - `exec`: `split_exec` (the spec's double quotes, plus single quotes and backslashes as GLib's
+    shell parser reads them), `expand_exec` (`%f %F %u %U %i %c %k %%`, deprecated codes dropped,
+    a list code gives one process, a single one a process per file, no code appends the file as
+    GLib does), `in_terminal` (`$TERMINAL`, `xdg-terminal-exec`, then foot, ghostty, kitty,
+    alacritty, wezterm, konsole, gnome-terminal, xterm: forms of the ones not installed here *to
+    be verified*).
+  - `applications`: GLib's order: per type, then its parents (aliases resolved, subclasses
+    breadth first), the defaults of every dir, then added associations and cached entries minus
+    removed ones; the first installed wins (not Hidden, an Application, `TryExec` and the `Exec`
+    program in the PATH; the highest copy of an ID decides and hides the lower ones).
+  - `launcher`: `pidfd_spawnp` (glibc 2.39) with `POSIX_SPAWN_SETSID`, an empty signal mask and
+    default dispositions (Nordend blocks SIGINT/SIGTERM for its signalfd: without this every
+    application it starts would inherit them blocked), stdio on `/dev/null`,
+    `addclosefrom_np(3)`, `addchdir_np`. The pidfd sits in the event loop; the child is reaped
+    there (`waitid(P_PIDFD)`): no thread, no zombie, children survive Nordend.
+  - `opener`: types (the view's, else detected), applications and command lines on a worker
+    (`plan_open`, pure), processes on the loop thread, each with its own activation token; one
+    line reported.
+- `ui::Activation` (xdg-activation-v1, offered by Umbriel): a token tied to the serial of the last
+  key or button press (`Seat::input_serial()`) and to the window's surface, passed as
+  `XDG_ACTIVATION_TOKEN` and `DESKTOP_STARTUP_ID`; given up after 500 ms.
+- `Browser`: Enter (and keypad Enter) on a file opens the selected files (folders in the
+  selection left out; a cursor outside the selection opens only itself), with the types the view
+  already knows; on a folder the view goes in as before. A double click on a file does the same in
+  the three views. `Browser::set_open_handler` keeps views free of `platform`.
+- `StatusBar::show_message`: a line for 4 s in place of the status ("Opening 5 files with
+  Darktable…" in the text color, problems in the error color): no application for a type, no
+  terminal, a program that cannot start, or one that quits with an error within 2 s.
+- `MimeDatabase::parents()` (the subclasses file, as `g_content_type_get_parents`); duplicate
+  parent lines from several mime dirs are no longer stored twice.
+- `nordend-open` (dev tool): `--dry-run FILE...` prints types, applications, folders and command
+  lines; `--default TYPE...`, `--types`; without options it opens for real (no token).
+- `nordend-snapshot --message TEXT` (`!TEXT`: an error) to look at the status bar's message.
+- Shortcuts table: Enter is now "Open (files in their app)".
+- Tests (147 with the raw samples, 11 new): desktop entry parsing and locales, lists, quoting,
+  field codes, the terminal order, defaults/associations/cache by priority, desktop-specific
+  lists, removed associations, parent types, aliases, hiding by ID, Hidden/TryExec/missing
+  program/wrong Type, IDs from subfolders, the plan (grouping, terminal, problems), the launcher
+  (exit status, signal, missing program, environment, folder, empty signal mask read from
+  `/proc/self/status`), the opener end to end with fake XDG dirs and scripts, and the browser's
+  Enter. Release, ASan, TSan pass (timing-based ones 8 times in Release and TSan); tidy and format
+  clean.
+
+**Measured** (see benchmarks)
+- Reading every desktop entry and list: 0.42-0.48 ms for 21 entries, so it is done again on every
+  open (on a worker): new applications and changed defaults count at once, nothing is watched.
+- Against `gio mime TYPE` (GLib 2.88.3) on every type of the shared-mime-info database and every
+  alias (1 232 names, 564 with an application): 0 differences. The first run had 7; they taught
+  two things about GLib, both now done the same way (and checked with gio on scratch XDG dirs):
+  - the entries declaring a type come from `mimeinfo.cache`, not from the entries' `MimeType`
+    keys: an entry missing from the cache is not offered, a stale cache line still is, and a
+    user copy of an entry in a dir without a cache hides the system copy's associations (only
+    `mimeapps.list` defaults still reach it);
+  - types in the cache and in `mimeapps.list` are filed under their canonical name, merged in
+    file order (`image/x-targa` and `image/x-tga` both reach `image/x-tga`; swayimg comes first
+    because its alias line comes first).
+- Binary: 2 254 728 bytes (1 918 968 stripped), +275 KB; 18 direct libraries, unchanged.
+
+**Tested by the author**
+- On screen: an ORF in darktable, five ORFs in one darktable, a JPEG in swayimg (double click
+  too), a text file in Helix inside foot, the focus on every new window (Umbriel honours the
+  token), the zip's error, Enter on a folder, F1, no zombies, swayimg left open after Ctrl+Q:
+  "funziona tutto, anche il focus".
+- A file swayimg cannot decode (`broken.jpg`) did not give an error: the author's swayimg config
+  has `imagelist.adjacent = true`, so swayimg loads the folder, skips the broken file, shows the
+  next one (an ORF) and exits 0. Right from Nordend's side: the application started and is
+  running; only a quick non-zero exit is reported.
+
+**Open**
+- "Open with…" (every application for a type, choosing one) needs a menu: a later step, on the
+  same `Applications`.
+- The terminal cannot be set in the config yet (`$TERMINAL` can): it comes with the external
+  editor's `editor.terminal` (DESIGN appendix).
+- `DBusActivatable=true` applications start from their `Exec` line (none installed here).
+- `Path` of an entry wins; otherwise the process starts in the first file's folder (handy for
+  terminal applications; GLib keeps the caller's folder).
+- Whether Umbriel gives the focus to the new window with the token: to be seen on screen.
+
+---
+
 ## 2026-10-28 — Status bar and shortcuts (ROADMAP 5.11)
 
 **Done**

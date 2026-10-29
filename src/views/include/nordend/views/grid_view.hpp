@@ -67,6 +67,9 @@ public:
     // false when event is not one of its keys.
     bool key(const ui::KeyEvent& event, Clock::time_point now);
 
+    // Called on a double click on a file (not a folder): the browser opens the selection.
+    void set_open_handler(std::function<void()> open) { open_ = std::move(open); }
+
     // The folder has loaded and its cursor landed (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
@@ -103,6 +106,7 @@ private:
     fs::DirectoryWatcher& watcher_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
+    std::function<void()> open_;
     Thumbnails* thumbnails_;
     bool info_visible_{true};
     InfoPane* info_pane_;

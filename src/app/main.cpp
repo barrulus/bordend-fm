@@ -24,8 +24,11 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
+#include "nordend/platform/desktop_entry.hpp"
+#include "nordend/platform/opener.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
+#include "nordend/ui/activation.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/icons.hpp"
@@ -40,6 +43,7 @@ namespace {
 namespace core = nordend::core;
 namespace fs = nordend::fs;
 namespace log = nordend::log;
+namespace platform = nordend::platform;
 namespace theme = nordend::theme;
 namespace thumbs = nordend::thumbs;
 namespace ui = nordend::ui;
@@ -239,15 +243,32 @@ int main(int argc, char** argv) {
         core::WorkerPool pool{loop};
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
+        ui::Activation activation{display, loop};
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
+        // Files open with their default applications (ROADMAP 6.1).
+        std::unique_ptr<platform::Opener> opener;
         if (!test_scene) {
+            const std::shared_ptr<const fs::MimeDatabase> mime = fs::MimeDatabase::load();
             columns = std::make_unique<views::Browser>(
-                loop, pool, watcher, fs::MimeDatabase::load(), [&] { window.request_redraw(); },
+                loop, pool, watcher, mime, [&] { window.request_redraw(); },
                 [&](ui::CursorShape shape) { seat.set_cursor(shape); },
                 std::make_shared<thumbs::Cache>(thumbs::default_root(),
                                                 "nordend-" NORDEND_VERSION));
+            opener = std::make_unique<platform::Opener>(
+                loop, pool, mime, platform::Environment::from_environment(),
+                [&](std::string message, bool error) {
+                    columns->show_message(std::move(message), error);
+                },
+                [&](std::function<void(std::string)> done) {
+                    activation.request(display.seat(), seat.input_serial(), window.surface(),
+                                       std::move(done));
+                });
+            columns->set_open_handler(
+                [&](const std::filesystem::path& directory, std::vector<fs::Entry> files) {
+                    opener->open(directory, std::move(files));
+                });
             columns->open(start_folder(start_dir));
         }
         // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9).

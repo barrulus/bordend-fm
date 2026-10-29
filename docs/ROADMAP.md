@@ -132,7 +132,17 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
 
 ## Fase 6 — Operazioni sui file
 
-- [ ] **6.1 Apri con l'app predefinita** (`xdg-open`)
+- [x] **6.1 Apri con l'app predefinita** (risolutore freedesktop nostro, DESIGN "Apertura dei file")
+  Enter o doppio clic su un file lo apre con l'app predefinita per il tipo che Nordend mostra; su una
+  cartella entra come prima. Più file selezionati per la stessa app partono in una sola istanza.
+  Le app con `Terminal=true` partono nel terminale. La finestra aperta riceve il focus
+  (`xdg-activation-v1`). Riscontro nella barra di stato. Tool `nordend-open --dry-run`.
+  Fatto quando: un ORF si apre in darktable, un JPEG in swayimg, un `.txt` in Helix dentro un
+  terminale, con il focus sulla nuova finestra; cinque ORF selezionati aprono un solo darktable; un
+  tipo senza app e un lancio fallito danno un messaggio nella barra di stato; Nordend non si blocca,
+  non lascia zombie e chiuderlo non chiude le app; `nordend-open --dry-run` coincide con
+  `gio mime` su tutti i tipi della macchina (o ogni differenza è spiegata); test con directory XDG
+  finte (precedenza, tipo padre, `%F/%U`, escaping, `Terminal=true`, `TryExec` mancante).
 - [ ] **6.2 Nuova cartella, rinomina**
 - [ ] **6.3 Copia e sposta** asincroni, con progresso e gestione dei conflitti
 - [ ] **6.4 Cestino** (spec freedesktop)

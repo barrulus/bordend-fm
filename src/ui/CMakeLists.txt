@@ -35,6 +35,7 @@ nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/viewporter/viewporter.x
 nordend_wayland_protocol(
     ${WAYLAND_PROTOCOLS_DIR}/staging/fractional-scale/fractional-scale-v1.xml)
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/staging/cursor-shape/cursor-shape-v1.xml)
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/staging/xdg-activation/xdg-activation-v1.xml)
 # cursor-shape references zwp_tablet_tool_v2: its glue code must be linked too.
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/tablet/tablet-v2.xml)
 
@@ -46,6 +47,7 @@ target_link_libraries(nordend_wayland_protocols PUBLIC PkgConfig::WAYLAND)
 # ui: Wayland connection, windows and (from ROADMAP 1.2) rendering.
 # ---------------------------------------------------------------------------
 add_library(nordend_ui
+    src/activation.cpp
     src/display.cpp
     src/egl_context.cpp
     src/renderer.cpp

@@ -47,15 +47,17 @@ std::string status_of(const Folder& folder) {
     return std::format("{} {}", count, count == 1 ? "item" : "items");
 }
 
-StatusBar::StatusBar(core::WorkerPool& pool, std::function<void()> redraw,
+StatusBar::StatusBar(core::EventLoop& loop, core::WorkerPool& pool, std::function<void()> redraw,
                      std::function<void(std::size_t view)> choose_view, std::function<void()> help)
-    : pool_{pool},
+    : loop_{loop},
+      pool_{pool},
       redraw_{std::move(redraw)},
       choose_view_{std::move(choose_view)},
       help_{std::move(help)} {}
 
 StatusBar::~StatusBar() {
     *alive_ = false;
+    loop_.remove(message_timer_);
     if (job_) {
         job_->cancel();
     }
@@ -79,6 +81,18 @@ void StatusBar::update(const Folder& folder) {
             free_ = space;
             redraw_();
         });
+}
+
+void StatusBar::show_message(std::string text, bool error) {
+    loop_.remove(message_timer_);
+    message_ = std::move(text);
+    message_error_ = error;
+    message_timer_ = loop_.add_timer(kMessageTime, std::chrono::milliseconds{0}, [this] {
+        message_timer_ = 0;
+        message_.clear();
+        redraw_();
+    });
+    redraw_();
 }
 
 void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -114,17 +128,21 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
                    button.y + ((kButtonHeight - kIconSize) / 2.0F), kIconSize, color);
     }
 
-    // The status and the free space, cut in the middle when the buttons leave too little room.
-    std::string text = status_of(folder);
-    if (free_ && !folder.model().error()) {
-        text +=
-            std::format("  ·  {} free of {}", format_size(free_->free), format_size(free_->total));
+    // The message, else the status and the free space; cut in the middle when the buttons leave
+    // too little room.
+    std::string text = message_;
+    ui::Color color = message_error_ ? palette.error : palette.on_surface;
+    if (message_.empty()) {
+        text = status_of(folder);
+        if (free_ && !folder.model().error()) {
+            text += std::format("  ·  {} free of {}", format_size(free_->free),
+                                format_size(free_->total));
+        }
+        color = folder.model().error() ? palette.error : palette.on_surface_variant;
     }
     const float room = std::max(1.0F, buttons_.front().x - kPadding - (bounds.x + kPadding));
     renderer.draw_text(text, bounds.x + kPadding, bounds.y + ((kHeight - kTextSize) / 2.0F) - 2.0F,
-                       kTextSize,
-                       folder.model().error() ? palette.error : palette.on_surface_variant, room,
-                       ui::Ellipsis::middle);
+                       kTextSize, color, room, ui::Ellipsis::middle);
 }
 
 std::optional<std::size_t> StatusBar::button_at(float x, float y) const {

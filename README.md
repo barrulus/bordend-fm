@@ -47,9 +47,9 @@ packages yet: see [Building](#building). What happens step by step is in the
 
 | | |
 |---|---|
-| Binary | **1.98 MB** (1.68 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.25 MB** (1.92 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 18 500 lines of C++20, plus 4 100 lines of tests (136 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 20 500 lines of C++20, plus 4 600 lines of tests (147 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **33 MB** of its own (private, anonymous); 117 MB resident counting shared libraries, 67 MB of which are Mesa's GPU driver (LLVM + gallium), shared with every OpenGL app |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -132,6 +132,9 @@ status bar cost nothing measurable.
   walk the folder without closing it, and the next photo is already there. Text files open on
   a page you can scroll, darktable sidecars included; everything else shows what it is, how
   big, whose and who may touch it.
+- **Opens in the right app.** Enter or a double click opens a file in its default application,
+  the same one GTK apps choose (checked on all 1 232 file types); five photos go to one darktable,
+  not five; terminal apps such as Helix get a terminal; and the new window comes up in front.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -156,7 +159,8 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Quit |
 | <kbd>↑</kbd> <kbd>↓</kbd> (<kbd>←</kbd> <kbd>→</kbd> in the grid) | Previous, next |
 | <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Home</kbd> <kbd>End</kbd> | A screenful, first, last |
-| <kbd>Enter</kbd>, <kbd>→</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↓</kbd> (grid, details) | Open the folder |
+| <kbd>Enter</kbd>, double click | Open: a folder here, files in their default app |
+| <kbd>→</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↓</kbd> (grid, details) | Open the folder |
 | <kbd>Backspace</kbd>, <kbd>←</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↑</kbd> | Parent folder |
 | <kbd>Shift</kbd>+moves | Select a range |
 | <kbd>Ctrl</kbd>+moves | Move without selecting |

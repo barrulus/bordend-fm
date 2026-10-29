@@ -78,6 +78,8 @@ public:
 
     [[nodiscard]] std::int32_t buffer_height() const noexcept { return buffer_height_; }
 
+    [[nodiscard]] wl_surface* surface() const noexcept { return surface_.get(); }
+
 private:
     static void on_surface_configure(void* data, xdg_surface* surface, std::uint32_t serial);
     static void on_toplevel_configure(void* data, xdg_toplevel* toplevel, std::int32_t width,

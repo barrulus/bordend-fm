@@ -402,7 +402,12 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             const SelectMode mode = select_mode(event.modifiers, SelectMode::toggle);
             if (event.click_count == 2 && cell && mode == SelectMode::replace) {
                 folder_->set_cursor(cell, mode);
-                enter();  // a double click opens a folder
+                const fs::Entry* const entry = folder_->cursor_entry();
+                if (entry != nullptr && !entry->is_directory() && open_) {
+                    open_();  // a double click opens a file with its application
+                } else {
+                    enter();  // ... and a folder in the view
+                }
                 break;
             }
             if (cell || mode == SelectMode::replace) {

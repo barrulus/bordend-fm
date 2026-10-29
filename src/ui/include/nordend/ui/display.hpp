@@ -55,6 +55,9 @@ public:
         return fractional_scale_manager_.get();
     }
 
+    // Optional: without it, applications Nordend starts may open without the focus.
+    [[nodiscard]] xdg_activation_v1* activation() const noexcept { return activation_.get(); }
+
 private:
     static void on_global(void* data, wl_registry* registry, std::uint32_t name,
                           const char* interface, std::uint32_t version);
@@ -70,6 +73,7 @@ private:
     WlPtr<wp_viewporter> viewporter_;
     WlPtr<wp_fractional_scale_manager_v1> fractional_scale_manager_;
     WlPtr<wp_cursor_shape_manager_v1> cursor_shape_manager_;
+    WlPtr<xdg_activation_v1> activation_;
     WlPtr<wl_seat> seat_;
 };
 

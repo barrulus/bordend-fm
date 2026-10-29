@@ -237,9 +237,12 @@ void Seat::on_pointer_motion(void* data, wl_pointer* /*pointer*/, std::uint32_t 
         {.kind = PointerEvent::Kind::motion, .x = self.pointer_x_, .y = self.pointer_y_});
 }
 
-void Seat::on_pointer_button(void* data, wl_pointer* /*pointer*/, std::uint32_t /*serial*/,
+void Seat::on_pointer_button(void* data, wl_pointer* /*pointer*/, std::uint32_t serial,
                              std::uint32_t time, std::uint32_t button, std::uint32_t state) {
     auto& self = *static_cast<Seat*>(data);
+    if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
+        self.input_serial_ = serial;
+    }
     PointerEvent event{.kind = PointerEvent::Kind::release,
                        .x = self.pointer_x_,
                        .y = self.pointer_y_,
@@ -363,7 +366,7 @@ void Seat::on_keyboard_leave(void* data, wl_keyboard* /*keyboard*/, std::uint32_
     }
 }
 
-void Seat::on_key(void* data, wl_keyboard* /*keyboard*/, std::uint32_t /*serial*/,
+void Seat::on_key(void* data, wl_keyboard* /*keyboard*/, std::uint32_t serial,
                   std::uint32_t /*time*/, std::uint32_t key, std::uint32_t state) {
     auto& self = *static_cast<Seat*>(data);
     if (!self.state_) {
@@ -376,6 +379,7 @@ void Seat::on_key(void* data, wl_keyboard* /*keyboard*/, std::uint32_t /*serial*
         }
         return;
     }
+    self.input_serial_ = serial;
     self.press(keycode, false);
     if (xkb_keymap_key_repeats(self.keymap_.get(), keycode) != 0) {
         self.arm_repeat(keycode);

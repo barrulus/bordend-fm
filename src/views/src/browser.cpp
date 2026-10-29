@@ -36,9 +36,14 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                       go_to(folder, child);
                   },
                   home_directory()},
-      status_bar_{pool, redraw, [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
+      status_bar_{loop, pool, redraw,
+                  [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
                   [this] { shortcuts_.open(); }},
-      shortcuts_{std::move(redraw)} {}
+      shortcuts_{std::move(redraw)} {
+    columns_.set_open_handler([this] { open_selection(); });
+    grid_.set_open_handler([this] { open_selection(); });
+    details_.set_open_handler([this] { open_selection(); });
+}
 
 void Browser::open(const std::filesystem::path& directory) {
     columns_.open(directory);
@@ -404,7 +409,35 @@ void Browser::run(Command command, Clock::time_point now) {
     }
 }
 
+bool Browser::open_selection() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    const fs::Entry* const cursor = folder ? folder->cursor_entry() : nullptr;
+    if (cursor == nullptr || cursor->is_directory() || !open_) {
+        return false;
+    }
+    const auto with_type = [&folder](fs::Entry entry) {
+        entry.mime = folder->mime_of(entry);
+        return entry;
+    };
+    std::vector<fs::Entry> files;
+    if (!folder->is_selected(cursor->name)) {
+        files.push_back(with_type(*cursor));
+    } else {
+        for (const fs::Entry& entry : folder->entries()) {
+            if (!entry.is_directory() && folder->is_selected(entry.name)) {
+                files.push_back(with_type(entry));
+            }
+        }
+    }
+    open_(folder->path(), std::move(files));
+    return true;
+}
+
 bool Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
+    if ((event.keysym == XKB_KEY_Return || event.keysym == XKB_KEY_KP_Enter) &&
+        event.modifiers == ui::Modifiers{} && open_selection()) {
+        return true;  // a file: its application; a folder goes on to the view
+    }
     // Only what the shortcuts list reaches the view.
     switch (mode_) {
         case Mode::columns:

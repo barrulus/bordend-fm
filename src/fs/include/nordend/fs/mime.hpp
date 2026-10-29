@@ -73,6 +73,11 @@ public:
     // everything but inode/* -> application/octet-stream).
     [[nodiscard]] bool is_a(MimeId mime, MimeId parent) const;
 
+    // The direct parents of a type from the subclasses file, in the file's order. The implicit
+    // ones (text/* -> text/plain, everything -> application/octet-stream) are not listed, as in
+    // GLib's g_content_type_get_parents().
+    [[nodiscard]] std::span<const MimeId> parents(MimeId mime) const;
+
     // The type's generic icon name (shared-mime-info generic-icons, else "<media>-x-generic"),
     // e.g. "package-x-generic" for archives, "image-x-generic" for images.
     [[nodiscard]] std::string generic_icon(MimeId mime) const;

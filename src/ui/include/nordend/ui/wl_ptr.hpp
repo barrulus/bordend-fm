@@ -7,6 +7,7 @@
 #include "cursor-shape-v1-client-protocol.h"
 #include "fractional-scale-v1-client-protocol.h"
 #include "viewporter-client-protocol.h"
+#include "xdg-activation-v1-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
@@ -35,6 +36,8 @@ void destroy(wp_viewporter* viewporter) noexcept;
 void destroy(wp_viewport* viewport) noexcept;
 void destroy(wp_fractional_scale_manager_v1* manager) noexcept;
 void destroy(wp_fractional_scale_v1* scale) noexcept;
+void destroy(xdg_activation_v1* activation) noexcept;
+void destroy(xdg_activation_token_v1* token) noexcept;
 
 struct WlDeleter {
     template <class T>
