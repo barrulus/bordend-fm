@@ -248,8 +248,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     }
 
     const fs::MimeDatabase& mime = folder.mime();
-    const std::filesystem::path path =
-        single == nullptr ? folder.path() : folder.path() / single->name;
+    const std::filesystem::path path = single == nullptr ? folder.path() : folder.path_of(*single);
     fs::Entry typed;
     preview::Kind kind = preview::Kind::info;
     if (single != nullptr) {
@@ -347,6 +346,13 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     }
     if (single != nullptr) {
         out.row("Modified", format_time(single->modified_ns));
+        // In the trash: where it was, and when it went.
+        if (const fs::TrashedItem* const item = folder.model().trashed(single->name)) {
+            out.row("Original location", item->info.original.parent_path().string());
+            std::string deleted = item->info.deleted;
+            std::ranges::replace(deleted, 'T', ' ');
+            out.row("Deleted", deleted);
+        }
     }
 
     // The shot.

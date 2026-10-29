@@ -77,6 +77,12 @@ public:
 
     [[nodiscard]] const fs::DirectoryModel& model() const noexcept { return model_; }
 
+    // Where entry really is: path() / name, or in the trash folder its place in a trash.
+    [[nodiscard]] std::filesystem::path path_of(const fs::Entry& entry) const;
+
+    // The trash folder (fs::trash_path()): nothing is made, pasted or renamed in it.
+    [[nodiscard]] bool is_trash() const noexcept { return model_.is_trash(); }
+
     [[nodiscard]] const std::vector<fs::Entry>& entries() const noexcept {
         return model_.listing().entries();
     }

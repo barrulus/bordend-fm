@@ -160,7 +160,7 @@ void DetailsView::enter() {
     if (entry == nullptr || !entry->is_directory()) {
         return;
     }
-    open(folder_->path() / entry->name);
+    open(folder_->path_of(*entry));
 }
 
 void DetailsView::go_up() {

@@ -285,16 +285,24 @@ fs::MimeId Folder::mime_of(const fs::Entry& entry) const {
     return it == sniffed_.end() ? fs::kUnknownMime : it->second;
 }
 
+std::filesystem::path Folder::path_of(const fs::Entry& entry) const {
+    if (const fs::TrashedItem* const item = model_.trashed(entry.name)) {
+        return item->path;
+    }
+    return path() / entry.name;
+}
+
 void Folder::sniff(std::size_t first, std::size_t last) {
     const std::vector<fs::Entry>& list = entries();
-    std::vector<fs::Entry> batch;
+    // Each entry with where it really is (the trash folder's are elsewhere).
+    std::vector<std::pair<fs::Entry, std::filesystem::path>> batch;
     for (std::size_t i = first; i < std::min(last, list.size()) && batch.size() < kMaxSniffBatch;
          ++i) {
         const fs::Entry& entry = list[i];
         if (entry.mime == fs::kUnknownMime && !sniffed_.contains(entry.name) &&
             !sniffing_.contains(entry.name)) {
             sniffing_.insert(entry.name);
-            batch.push_back(entry);
+            batch.emplace_back(entry, path_of(entry));
         }
     }
     if (batch.empty()) {
@@ -302,14 +310,16 @@ void Folder::sniff(std::size_t first, std::size_t last) {
     }
     pool_.submit(
         core::Priority::visible,
-        [directory = model_.path(), mime = mime_, batch](const core::CancelToken& token) {
+        [mime = mime_, batch](const core::CancelToken& token) {
             std::vector<std::pair<std::string, fs::MimeId>> types;
             types.reserve(batch.size());
-            for (const fs::Entry& entry : batch) {
+            for (const auto& [entry, path] : batch) {
                 if (token.cancelled()) {
                     break;
                 }
-                types.emplace_back(entry.name, mime->detect(directory, entry));
+                fs::Entry real = entry;
+                real.name = path.filename().string();
+                types.emplace_back(entry.name, mime->detect(path.parent_path(), real));
             }
             return types;
         },

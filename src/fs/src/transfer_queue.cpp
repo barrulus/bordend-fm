@@ -129,9 +129,19 @@ void TransferQueue::work() {
             return resolution;
         };
 
-        TransferResult result = request->kind == TransferKind::trash
-                                    ? run_trash(*request, token, callbacks)
-                                    : run_transfer(*request, token, callbacks);
+        TransferResult result;
+        switch (request->kind) {
+            case TransferKind::trash:
+                result = run_trash(*request, token, callbacks);
+                break;
+            case TransferKind::restore:
+                result = run_restore(*request, token, callbacks);
+                break;
+            case TransferKind::copy:
+            case TransferKind::move:
+                result = run_transfer(*request, token, callbacks);
+                break;
+        }
         loop_.post([this, alive = alive_, request, result = std::move(result)] {
             if (!*alive) {
                 return;

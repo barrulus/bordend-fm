@@ -14,6 +14,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/fs/trash.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/views/browser.hpp"
@@ -138,9 +139,10 @@ TEST_CASE("places: load, without user-dirs.dirs") {
     const std::vector<Place> places = nordend::fs::load_places(home.sources);
     // The usual names that exist, in the sidebar's order.
     CHECK(labels(places) == std::vector<std::string>{"Home", "Downloads", "Pictures", "File system",
-                                                     "Served", "DATA"});
+                                                     "Trash", "Served", "DATA"});
     CHECK(places[0].path == home.sources.home);
     CHECK(places[3].path == "/");
+    CHECK(places[4].path == nordend::fs::trash_path());
 }
 
 TEST_CASE("places: load, with user-dirs.dirs") {
@@ -150,7 +152,7 @@ TEST_CASE("places: load, with user-dirs.dirs") {
         << "XDG_PICTURES_DIR=\"$HOME/Immagini\"\nXDG_MUSIC_DIR=\"$HOME/Musica\"\n";
     // Downloads exists but the file does not name it; Musica is named but missing.
     CHECK(labels(nordend::fs::load_places(home.sources)) ==
-          std::vector<std::string>{"Home", "Immagini", "File system"});
+          std::vector<std::string>{"Home", "Immagini", "File system", "Trash"});
 }
 
 TEST_CASE("places: the watcher follows the bookmarks") {
@@ -159,7 +161,7 @@ TEST_CASE("places: the watcher follows the bookmarks") {
     EventLoop loop;
     int changes = 0;
     nordend::fs::PlacesWatcher watcher{loop, home.sources, [&] { ++changes; }};
-    CHECK(watcher.places().size() == 4);
+    CHECK(watcher.places().size() == 5);
     std::ofstream{home.sources.config_home / "gtk-3.0" / "bookmarks"} << "file:///srv\n";
     CHECK(run_until(loop, [&] { return changes > 0; }));
     CHECK(labels(watcher.places()).back() == "srv");
@@ -184,10 +186,11 @@ TEST_CASE("places: icons exist in the icon font") {
     fs::create_directories(home.sources.config_home / "gtk-3.0");
     std::ofstream{home.sources.config_home / "gtk-3.0" / "bookmarks"} << "file:///srv\n";
     const std::vector<Place> places = nordend::fs::load_places(home.sources);
-    CHECK(places.size() == 10);
+    CHECK(places.size() == 11);
     for (const Place& place : places) {
         CHECK_MESSAGE(icons.has(place.icon), place.icon);
     }
+    CHECK(icons.has("trash-filled"));  // the trash's when it is not empty
 }
 
 TEST_CASE("places: the place holding a folder") {

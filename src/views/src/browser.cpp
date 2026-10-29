@@ -37,7 +37,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       columns_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
       grid_{loop, pool, watcher, mime, redraw, set_cursor, thumbnails_.get(), &info_pane_},
       details_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
-      quick_look_{pool, std::move(mime), std::move(thumbnails), redraw},
+      quick_look_{pool, mime, std::move(thumbnails), redraw},
       sidebar_{redraw, std::move(set_cursor),
                [this](const std::filesystem::path& place) { open(place); }},
       breadcrumb_{redraw,
@@ -55,6 +55,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
               [this](std::string problem) { show_message(std::move(problem), true); }},
       conflict_{redraw},
       menu_{std::move(redraw)},
+      trash_model_{loop, pool, watcher, std::move(mime)},
       transfers_{loop,
                  [this](const fs::TransferRequest& request, const fs::TransferProgress& progress) {
                      transfer_progress(request, progress);
@@ -79,6 +80,14 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     details_.set_cut_marks(&cut_marks_);
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
     home_trash_ = fs::home_trash();
+    trash_model_.set_change_handler([this](const fs::ModelChange& /*change*/) {
+        const bool full = !trash_model_.listing().entries().empty();
+        if (full != trash_full_) {
+            trash_full_ = full;
+            show_places();
+        }
+    });
+    trash_model_.open(fs::trash_path());
 }
 
 std::vector<std::string> Browser::memory_lines() const {
@@ -170,21 +179,14 @@ void Browser::paste() {
     redraw_();
 }
 
-void Browser::trash() {
-    const std::shared_ptr<Folder> folder = current_folder();
-    if (!folder) {
-        return;
-    }
-    std::vector<std::string> names = targets(*folder);
-    if (names.empty()) {
-        return;
-    }
-    // The cursor goes on to the first entry after the last one trashed that stays (else the one
-    // before them): their darktable sidecars go too.
-    const std::vector<fs::Entry>& entries = folder->entries();
+namespace {
+
+// The names going and the darktable sidecars that go with them.
+std::unordered_set<std::string> going_with_sidecars(const Folder& folder,
+                                                    const std::vector<std::string>& names) {
     std::vector<std::string> listing;
-    listing.reserve(entries.size());
-    for (const fs::Entry& entry : entries) {
+    listing.reserve(folder.entries().size());
+    for (const fs::Entry& entry : folder.entries()) {
         listing.push_back(entry.name);
     }
     std::unordered_set<std::string> going{names.begin(), names.end()};
@@ -193,6 +195,13 @@ void Browser::trash() {
             going.insert(std::move(sidecar));
         }
     }
+    return going;
+}
+
+}  // namespace
+
+void Browser::cursor_after(Folder& folder, const std::unordered_set<std::string>& going) {
+    const std::vector<fs::Entry>& entries = folder.entries();
     std::size_t last = 0;
     for (std::size_t i = 0; i < entries.size(); ++i) {
         if (going.contains(entries[i].name)) {
@@ -210,17 +219,72 @@ void Browser::trash() {
             next = entries[i].name;
         }
     }
+    if (next.empty()) {
+        folder.set_cursor(std::nullopt);
+    } else {
+        folder.select_name(std::move(next));
+    }
+}
+
+void Browser::trash() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    std::vector<std::string> names = targets(*folder);
+    if (names.empty()) {
+        return;
+    }
+    // The cursor goes on to the first entry after the last one trashed that stays (else the one
+    // before them): their darktable sidecars go too.
+    const std::unordered_set<std::string> going = going_with_sidecars(*folder, names);
     transfers_.submit({.kind = fs::TransferKind::trash,
                        .source = folder->path(),
                        .names = std::move(names),
                        .destination = home_trash_,
                        .force_copy = false});
-    if (next.empty()) {
-        folder->set_cursor(std::nullopt);
-    } else {
-        folder->select_name(std::move(next));
-    }
+    cursor_after(*folder, going);
     redraw_();
+}
+
+void Browser::restore() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder || !folder->is_trash()) {
+        return;
+    }
+    const std::vector<std::string> names = targets(*folder);
+    if (names.empty()) {
+        return;
+    }
+    // The engine is given where the items are; it finds their sidecars itself.
+    std::vector<std::string> paths;
+    for (const fs::Entry& entry : folder->entries()) {
+        if (std::ranges::find(names, entry.name) != names.end()) {
+            paths.push_back(folder->path_of(entry).string());
+        }
+    }
+    transfers_.submit({.kind = fs::TransferKind::restore,
+                       .source = folder->path(),
+                       .names = std::move(paths),
+                       .destination = {},
+                       .force_copy = false});
+    cursor_after(*folder, going_with_sidecars(*folder, names));
+    redraw_();
+}
+
+void Browser::set_places(std::vector<fs::Place> places) {
+    places_ = std::move(places);
+    show_places();
+}
+
+void Browser::show_places() {
+    std::vector<fs::Place> places = places_;
+    for (fs::Place& place : places) {
+        if (fs::is_trash(place.path)) {
+            place.icon = trash_full_ ? "trash-filled" : "trash";
+        }
+    }
+    sidebar_.set_places(std::move(places));
 }
 
 void Browser::cancel_transfer() {
@@ -230,7 +294,8 @@ void Browser::cancel_transfer() {
 
 void Browser::ask(const fs::Conflict& conflict, std::function<void(fs::Resolution)> answer) {
     if (for_the_rest_ && (*for_the_rest_ != fs::Resolution::replace ||
-                          conflict.directory == conflict.target_directory)) {
+                          (conflict.directory == conflict.target_directory &&
+                           (!conflict.directory || conflict.merge)))) {
         answer(*for_the_rest_);
         return;
     }
@@ -265,7 +330,13 @@ void Browser::transfer_progress(const fs::TransferRequest& request,
     const bool copy = request.kind == fs::TransferKind::copy;
     const std::size_t items = request.names.size();
     TransferStatus status;
-    if (request.kind == fs::TransferKind::trash) {
+    if (request.kind == fs::TransferKind::restore) {
+        status.fraction = progress.files_total > 0 ? static_cast<float>(progress.files_done) /
+                                                         static_cast<float>(progress.files_total)
+                                                   : -1.0F;
+        status.text =
+            std::format("Restoring {} of {} items", progress.files_done, progress.files_total);
+    } else if (request.kind == fs::TransferKind::trash) {
         status.fraction = progress.files_total > 0 ? static_cast<float>(progress.files_done) /
                                                          static_cast<float>(progress.files_total)
                                                    : -1.0F;
@@ -318,6 +389,10 @@ void Browser::transfer_done(const fs::TransferRequest& request, const fs::Transf
         trash_done(result);
         return;
     }
+    if (request.kind == fs::TransferKind::restore) {
+        restore_done(result);
+        return;
+    }
     const bool copy = request.kind == fs::TransferKind::copy;
     const std::string_view done = copy ? "Copied" : "Moved";
     const std::size_t files = result.files_done;
@@ -361,6 +436,28 @@ void Browser::trash_done(const fs::TransferResult& result) {
                      true);
     } else if (items > 0) {
         show_message(std::format("{} moved to the trash", what), false);
+    }
+}
+
+void Browser::restore_done(const fs::TransferResult& result) {
+    const std::size_t items = result.placed.size();
+    std::string what =
+        items == 1 ? std::format("“{}”", result.placed.front()) : std::format("{} items", items);
+    if (const std::size_t sidecars = result.files_done - items; sidecars > 0) {
+        what += std::format(" with {} darktable sidecar{}", sidecars, sidecars == 1 ? "" : "s");
+    }
+    if (!result.refused.empty()) {
+        show_message(result.refused, true);
+    } else if (result.cancelled) {
+        show_message(std::format("Stopped: {} restored so far", what), false);
+    } else if (!result.errors.empty()) {
+        show_message(std::format("Restored {}; {} could not be: {}", what, result.errors.size(),
+                                 result.errors.front()),
+                     true);
+    } else if (items == 0) {
+        show_message("Nothing restored: every name was skipped", false);
+    } else {
+        show_message(std::format("Restored {}", what), false);
     }
 }
 
@@ -437,6 +534,14 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
     const std::vector<std::string> names = targets(*folder);
     const fs::Entry* const cursor = folder->cursor_entry();
     std::vector<MenuItem> items;
+    if (folder->is_trash()) {
+        MenuItem back;
+        back.id = "restore";
+        back.label = "Restore";
+        back.action = [this] { restore(); };
+        items.push_back(std::move(back));
+        return items;
+    }
     const auto add = [&items](std::string id, std::string label, std::string keys,
                               std::function<void()> action, bool separator = false,
                               bool enabled = true) {
@@ -595,7 +700,16 @@ void Browser::open_menu(float x, float y, bool keyboard) {
     }
     ++menu_generation_;
     menu_loaders_.clear();
-    std::vector<MenuItem> items = targets(*folder).empty() ? folder_menu() : entry_menu(folder);
+    std::vector<MenuItem> items;
+    if (!targets(*folder).empty()) {
+        items = entry_menu(folder);
+    } else if (!folder->is_trash()) {
+        items = folder_menu();  // nothing is made in the trash
+    }
+    if (items.empty()) {
+        menu_loaders_.clear();
+        return;
+    }
     menu_.open(x, y, std::move(items), keyboard);
     // Submenus found later, once the menu they fill is open (the answer may come at once).
     for (const std::function<void()>& load : std::exchange(menu_loaders_, {})) {
@@ -693,8 +807,6 @@ void Browser::set_sidebar_visible(bool visible) {
     }
     redraw_();
 }
-
-void Browser::set_places(std::vector<fs::Place> places) { sidebar_.set_places(std::move(places)); }
 
 void Browser::set_mode(Mode mode) {
     if (mode == mode_) {
@@ -1033,6 +1145,22 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
 }
 
 void Browser::run(Command command, Clock::time_point now) {
+    if (const std::shared_ptr<Folder> shown = current_folder(); shown && shown->is_trash()) {
+        switch (command) {
+            case Command::rename:
+            case Command::new_folder:
+            case Command::copy:
+            case Command::cut:
+            case Command::paste:
+                show_message("The trash only gives back: right click, Restore", false);
+                return;
+            case Command::trash:
+                show_message("Already in the trash: right click, Restore puts it back", false);
+                return;
+            default:
+                break;
+        }
+    }
     switch (command) {
         case Command::none:
             break;
@@ -1097,7 +1225,14 @@ void Browser::run(Command command, Clock::time_point now) {
 bool Browser::open_selection() {
     const std::shared_ptr<Folder> folder = current_folder();
     const fs::Entry* const cursor = folder ? folder->cursor_entry() : nullptr;
-    if (cursor == nullptr || cursor->is_directory() || !open_) {
+    if (cursor == nullptr || cursor->is_directory()) {
+        return false;
+    }
+    if (folder->is_trash()) {
+        show_message("Restore it first to open it", false);
+        return true;
+    }
+    if (!open_) {
         return false;
     }
     const auto with_type = [&folder](fs::Entry entry) {

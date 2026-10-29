@@ -35,9 +35,11 @@ public:
 
     [[nodiscard]] const fs::Conflict& conflict() const noexcept { return conflict_; }
 
-    // A file and a folder: Replace is not offered.
+    // A file and a folder, or two folders that are not merged (restoring): Replace is not
+    // offered.
     [[nodiscard]] bool can_replace() const noexcept {
-        return conflict_.directory == conflict_.target_directory;
+        return conflict_.directory == conflict_.target_directory &&
+               (!conflict_.directory || conflict_.merge);
     }
 
     // Every key while open: true.

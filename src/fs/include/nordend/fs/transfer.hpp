@@ -16,7 +16,8 @@ namespace nordend::fs {
 enum class TransferKind : std::uint8_t {
     copy,
     move,
-    trash,  // run_trash (trash.hpp): destination is the home trash
+    trash,    // run_trash (trash.hpp): destination is the home trash
+    restore,  // run_restore (trash.hpp): names are paths in a trash's files/
 };
 
 struct TransferRequest {
@@ -44,6 +45,7 @@ struct Conflict {
     std::filesystem::path destination;
     bool directory{false};         // the item is a folder
     bool target_directory{false};  // the name taken is a folder's
+    bool merge{true};              // folders may be merged (Replace); not when restoring
 };
 
 struct TransferProgress {

@@ -151,7 +151,9 @@ void ConflictDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     y += 30.0F;
     std::string_view note = "Replace keeps the new one; the old one goes once it is complete.";
     if (!can_replace()) {
-        note = "A file and a folder cannot replace each other.";
+        note = conflict_.directory == conflict_.target_directory
+                   ? "A folder is not replaced: keep both or skip."
+                   : "A file and a folder cannot replace each other.";
     } else if (conflict_.directory) {
         note = "Replace merges the folders: files with the same name are replaced.";
     }

@@ -49,9 +49,9 @@ packages yet: see [Building](#building). What happens step by step is in the
 
 | | |
 |---|---|
-| Binary | **2.73 MB** (2.30 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.85 MB** (2.40 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 25 700 lines of C++20, plus 6 400 lines of tests (187 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 26 600 lines of C++20, plus 6 800 lines of tests (194 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -147,6 +147,8 @@ status bar cost nothing measurable.
   asks: replace, skip or keep both, for one or for the rest.
 - **A real trash.** Delete moves files to the freedesktop trash, on their own disk (no copies),
   where any other trash program finds and restores them; darktable sidecars go with their photo.
+  The Trash in the sidebar shows every disk's trash as one folder, by original name, and Restore
+  puts things back where they were, folder and sidecars included.
 - **A context menu.** A right click, a two-finger tap or the Menu key: Open With lists the same
   applications GTK apps would offer (0 differences from `gio` on 1 232 types), New File makes an
   empty file or one from your templates, and every action shows its shortcut.

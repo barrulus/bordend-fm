@@ -4,6 +4,67 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — The trash in the sidebar, and Restore (ROADMAP 6.4c)
+
+Asked for by the author after 6.4b ("manca l'icona del cestino?"); split in two with the author's
+OK: this step only gives back, 6.4d (Empty Trash, Delete Permanently) is the one that deletes.
+
+**Done**
+- A "Trash" place after "File system", with Noctalia's `trash` icon, `trash-filled` while
+  anything is in a trash (the Browser keeps a `DirectoryModel` on the trash for it).
+- The trash folder, `fs::trash_path()` ("trash:///", not a real path): `DirectoryModel` lists it
+  from every trash, the home trash and each mount point's `.Trash/uid` and `.Trash-uid`
+  (`existing_trashes`), each item by its original name; when several share one, the oldest
+  keeps it and the others are numbered as GLib numbers trashed names ("a.2.txt"). Items without
+  a `.trashinfo`, and `.trashinfo` without an item, are left out (as `trash-list` does). The
+  info/ folders are watched; any change reads the whole trash again on a worker and applies the
+  differences. The home trash is made when missing, so it is watched from the start.
+- `.trashinfo` parsing (`parse_trash_info`): `[Trash Info]` first, the first `Path` and
+  `DeletionDate`, escapes undone, relative paths joined to the top directory (to
+  `$XDG_DATA_HOME` for the home trash).
+- `Folder::path_of(entry)`: where an entry really is. The ten places that joined the folder's
+  path and the name (previews, thumbnails, Quick Look, the info pane, the columns, entering a
+  folder, sniffing types) use it, so the trash folder shows previews, thumbnails and Quick Look
+  like any other; a trashed folder can be entered (it is a real folder in files/).
+- Read-only: Delete, F2, Ctrl+Shift+N, Ctrl+C/X/V say so; Enter on a file says "Restore it first
+  to open it"; no menu on empty space. The breadcrumb shows the trash icon and "Trash". The info
+  pane adds "Original location" and "Deleted".
+- Restore (`TransferKind::restore`, `run_restore`), from the menu: each item goes back to its
+  original path, the folder made again (0777 less the umask) if it is gone; a taken name asks on
+  the conflict card (Skip, Keep both, Replace for a file over a file; a folder is never merged,
+  `Conflict::merge` false hides Replace there); the `.trashinfo` is removed after the move; a
+  photo takes along its sidecars trashed from the same folder (the newest of each name), renamed
+  with it when kept both. The cursor goes on to the next entry, as Delete does.
+- Slip, found in the author's first try (the DATA trash was missing from the view): the mount
+  points were read with `core::read_text_file`, which reads as many bytes as a file reports, and
+  `/proc` files report 0. `places` already had the right reader; it is now `fs::read_proc_file`,
+  used by both, and a test reads the real `/proc/self/mountinfo` through `fs::mount_points`.
+- Tests (194 with the raw samples): `.trashinfo` parsing; two trashes merged, names numbered,
+  orphans left out; restore with a missing folder and sidecars; conflicts (skip, keep both with
+  sidecars, replace, a folder not replaced); the model following an external trashing and a
+  restore; the browser: what is refused, the menu's Restore, the icon full then empty. The test
+  binary now sets its own trash (`tests/main.cpp`): no test reads or makes the user's.
+
+**Tested by the author**: on screen with the real trash (items left by the day's tests, from
+folders since deleted) and one on DATA. The view showed what `trash-list` showed (after the
+mountinfo fix); `gio trash` from a terminal appeared at once; Restore brought `P1.ORF` back with
+its sidecar into a folder made again, Keep both gave `uno 2.txt` next to the new `uno.txt`, five
+items restored at once; `trash-list` afterwards: only the author's own item.
+
+**Decisions**
+- Original names, not the names in files/: what the user knows. The numbering only shows when
+  the same name was trashed twice.
+- One model for the trash rather than one folder per trash: the photos trashed on DATA show
+  with the home's, as `trash-list` shows them.
+- The sidebar's icon follows the trashes watched when the browser started: a trash made later
+  on another disk (the first file ever trashed there) shows at the next start.
+
+**Open**
+- No sorting by deletion date, no "Original location" column in the details.
+- A trash on a disk mounted after the trash folder was opened appears when it is opened again.
+
+---
+
 ## 2026-10-29 — Context menu (ROADMAP 6.4b)
 
 Asked for by the author after 6.4 ("manca il menu contestuale?"); added to DESIGN with the

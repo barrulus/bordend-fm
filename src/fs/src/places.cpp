@@ -14,6 +14,7 @@
 
 #include "nordend/core/file.hpp"
 #include "nordend/core/log.hpp"
+#include "nordend/fs/trash.hpp"
 
 namespace nordend::fs {
 namespace {
@@ -108,28 +109,6 @@ std::string octal_decode(std::string_view text) {
 std::string label_of(const std::filesystem::path& path) {
     const std::filesystem::path name = path.filename();
     return name.empty() ? path.string() : name.string();
-}
-
-// A /proc file whole: they report a size of 0, so read until the end.
-std::string read_proc_file(const std::filesystem::path& path) {
-    std::string text;
-    const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
-    if (fd < 0) {
-        return text;
-    }
-    std::array<char, 4096> buffer{};
-    for (;;) {
-        const ssize_t length = read(fd, buffer.data(), buffer.size());
-        if (length < 0 && errno == EINTR) {
-            continue;
-        }
-        if (length <= 0) {
-            break;
-        }
-        text.append(buffer.data(), static_cast<std::size_t>(length));
-    }
-    close(fd);
-    return text;
 }
 
 bool is_folder(const std::filesystem::path& path) {
@@ -243,6 +222,27 @@ std::vector<Place> parse_mounts(std::string_view text) {
     return places;
 }
 
+std::string read_proc_file(const std::filesystem::path& path) {
+    std::string text;
+    const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return text;
+    }
+    std::array<char, 4096> buffer{};
+    for (;;) {
+        const ssize_t length = read(fd, buffer.data(), buffer.size());
+        if (length < 0 && errno == EINTR) {
+            continue;
+        }
+        if (length <= 0) {
+            break;
+        }
+        text.append(buffer.data(), static_cast<std::size_t>(length));
+    }
+    close(fd);
+    return text;
+}
+
 std::filesystem::path templates_dir(const PlaceSources& sources) {
     const core::TextFile user_dirs = core::read_text_file(sources.config_home / "user-dirs.dirs");
     std::filesystem::path path = sources.home / "Templates";
@@ -284,6 +284,10 @@ std::vector<Place> load_places(const PlaceSources& sources) {
     }
     places.push_back(
         {.section = Place::Section::places, .label = "File system", .path = "/", .icon = "server"});
+    places.push_back({.section = Place::Section::places,
+                      .label = "Trash",
+                      .path = trash_path(),
+                      .icon = "trash"});
 
     std::ranges::move(
         parse_bookmarks(core::read_text_file(sources.config_home / "gtk-3.0" / "bookmarks").text),

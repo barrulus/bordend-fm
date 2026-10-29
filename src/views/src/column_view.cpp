@@ -165,7 +165,7 @@ void ColumnView::sync_after(std::size_t index) {
         return;  // keep what is there until the cursor lands
     }
     const fs::Entry* const entry = folder.single_selection();
-    if (!reveal_.empty() && entry != nullptr && folder.path() / entry->name == reveal_) {
+    if (!reveal_.empty() && entry != nullptr && folder.path_of(*entry) == reveal_) {
         reveal_.clear();  // arrived
         focus_ = index;
     }
@@ -175,7 +175,7 @@ void ColumnView::sync_after(std::size_t index) {
         redraw_();
         return;
     }
-    const std::filesystem::path child = folder.path() / entry->name;
+    const std::filesystem::path child = folder.path_of(*entry);
     if (index + 1 < columns_.size() && columns_[index + 1].column->path() == child) {
         return;
     }

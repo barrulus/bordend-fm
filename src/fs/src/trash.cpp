@@ -9,13 +9,18 @@
 #include <fcntl.h>
 #include <format>
 #include <fstream>
+#include <map>
 #include <set>
 #include <sys/stat.h>
+#include <tuple>
 #include <unistd.h>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
+#include "nordend/core/file.hpp"
 #include "nordend/fs/operations.hpp"
+#include "nordend/fs/places.hpp"
 
 namespace nordend::fs {
 namespace {
@@ -426,6 +431,300 @@ TransferResult Trasher::run() {
     return result_;
 }
 
+std::vector<std::filesystem::path> parse_mount_points(std::string_view text) {
+    std::vector<std::filesystem::path> points;
+    while (!text.empty()) {
+        const std::size_t end = std::min(text.find('\n'), text.size());
+        std::string_view line = text.substr(0, end);
+        text.remove_prefix(std::min(end + 1, text.size()));
+        for (int field = 0; field < 4 && !line.empty(); ++field) {
+            line.remove_prefix(std::min(line.find(' '), line.size()));
+            line.remove_prefix(line.empty() ? 0 : 1);
+        }
+        const std::string_view escaped = line.substr(0, line.find(' '));
+        std::string point;
+        for (std::size_t i = 0; i < escaped.size(); ++i) {
+            if (escaped[i] == '\\' && i + 3 < escaped.size()) {
+                const int value = ((escaped[i + 1] - '0') * 64) + ((escaped[i + 2] - '0') * 8) +
+                                  (escaped[i + 3] - '0');
+                point.push_back(static_cast<char>(value));
+                i += 3;
+                continue;
+            }
+            point.push_back(escaped[i]);
+        }
+        if (point.starts_with('/')) {
+            points.emplace_back(std::move(point));
+        }
+    }
+    return points;
+}
+
+bool is_folder(const std::filesystem::path& path) {
+    const std::optional<struct stat> info = status_of(path);
+    return info && S_ISDIR(info->st_mode);
+}
+
+// A trash dir of the user's with its two folders.
+bool usable_trash(const std::filesystem::path& dir, uid_t uid) {
+    const std::optional<struct stat> info = status_of(dir);
+    return info && S_ISDIR(info->st_mode) && info->st_uid == uid && is_folder(dir / "files") &&
+           is_folder(dir / "info");
+}
+
+// What relative paths in a trash's .trashinfo files start from: the top directory, or for the
+// home trash the folder it is in ($XDG_DATA_HOME).
+std::filesystem::path relative_base(const std::filesystem::path& trash) {
+    const std::string name = trash.filename().string();
+    if (name.starts_with(".Trash-")) {
+        return trash.parent_path();
+    }
+    if (trash.parent_path().filename() == ".Trash") {
+        return trash.parent_path().parent_path();
+    }
+    return trash.parent_path();
+}
+
+// mkdir -p with mode for the folders made (a restored item's folder: the usual 0777 less the
+// umask, not the trash's private 0700).
+// NOLINTNEXTLINE(misc-no-recursion): as deep as the path
+std::error_code make_folders(const std::filesystem::path& path) {
+    if (status_of(path)) {
+        return {};
+    }
+    if (path.has_parent_path() && path.parent_path() != path) {
+        if (const std::error_code error = make_folders(path.parent_path())) {
+            return error;
+        }
+    }
+    if (mkdir(path.c_str(), 0777) == 0 || errno == EEXIST) {
+        return {};
+    }
+    return last_error();
+}
+
+// An item found in a trash for restoring.
+struct Found {
+    std::filesystem::path item;       // in files/
+    std::filesystem::path info_file;  // in info/
+    TrashInfo info;
+    bool directory{false};
+    bool regular{false};
+};
+
+// The items of one trash with their info, read once per trash.
+std::vector<Found> read_trash(const std::filesystem::path& trash) {
+    std::vector<Found> found;
+    const std::filesystem::path base = relative_base(trash);
+    std::error_code ignored;
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator{trash / "info", ignored}) {
+        const std::string file = entry.path().filename().string();
+        if (!file.ends_with(kInfoSuffix)) {
+            continue;
+        }
+        const core::TextFile text = core::read_text_file(entry.path());
+        std::optional<TrashInfo> info = parse_trash_info(text.text, base);
+        const std::filesystem::path item =
+            trash / "files" / file.substr(0, file.size() - kInfoSuffix.size());
+        const std::optional<struct stat> status = status_of(item);
+        if (!info || !status) {
+            continue;
+        }
+        found.push_back({.item = item,
+                         .info_file = entry.path(),
+                         .info = std::move(*info),
+                         .directory = S_ISDIR(status->st_mode),
+                         .regular = S_ISREG(status->st_mode)});
+    }
+    return found;
+}
+
+class Restorer {
+public:
+    Restorer(const TransferRequest& request, const core::CancelToken& token,
+             const TransferCallbacks& callbacks)
+        : request_{request}, token_{token}, callbacks_{callbacks} {}
+
+    TransferResult run();
+
+private:
+    void report() {
+        if (callbacks_.progress) {
+            callbacks_.progress(progress_);
+        }
+    }
+
+    void error(const std::string& where, const std::error_code& code) {
+        result_.errors.push_back(std::format("{}: {}", where, code.message()));
+    }
+
+    const std::vector<Found>& trash_of(const std::filesystem::path& trash) {
+        auto it = trashes_.find(trash);
+        if (it == trashes_.end()) {
+            it = trashes_.emplace(trash, read_trash(trash)).first;
+        }
+        return it->second;
+    }
+
+    // Moves one item to directory/name; false when it stays.
+    bool put_back(const Found& item, const std::filesystem::path& directory,
+                  const std::string& name, bool replace);
+
+    const TransferRequest& request_;
+    const core::CancelToken& token_;
+    const TransferCallbacks& callbacks_;
+    std::map<std::filesystem::path, std::vector<Found>> trashes_;
+    TransferResult result_;
+    TransferProgress progress_;
+};
+
+bool Restorer::put_back(const Found& item, const std::filesystem::path& directory,
+                        const std::string& name, bool replace) {
+    const std::string where = item.info.original.filename().string();
+    const std::filesystem::path target = directory / name;
+    std::error_code moved;
+    if (!replace) {
+        moved = rename_new(item.item, target);
+    } else if (std::rename(item.item.c_str(), target.c_str()) != 0) {
+        moved = last_error();
+    }
+    if (moved == std::errc::cross_device_link) {
+        result_.errors.push_back(
+            std::format("{}: its folder is on another disk now: not copied back", where));
+        return false;
+    }
+    if (moved) {
+        error(where, moved);
+        return false;
+    }
+    unlink(item.info_file.c_str());
+    ++progress_.files_done;
+    ++result_.files_done;
+    report();
+    return true;
+}
+
+TransferResult Restorer::run() {
+    struct Group {
+        Found item;
+        std::vector<Found> sidecars;
+    };
+
+    std::vector<Group> groups;
+    for (const std::string& name : request_.names) {
+        const std::filesystem::path item{name};
+        const std::vector<Found>& trash = trash_of(item.parent_path().parent_path());
+        const auto it = std::ranges::find(trash, item, &Found::item);
+        if (it == trash.end()) {
+            result_.errors.push_back(
+                std::format("{}: not in the trash any more", item.filename().string()));
+            continue;
+        }
+        Group group{.item = *it, .sidecars = {}};
+        if (it->regular) {
+            // Its sidecars: trashed from the same folder; the newest of each name.
+            const std::filesystem::path folder = it->info.original.parent_path();
+            std::vector<std::string> names;
+            for (const Found& other : trash) {
+                if (other.info.original.parent_path() == folder) {
+                    names.push_back(other.info.original.filename().string());
+                }
+            }
+            for (const std::string& sidecar :
+                 sidecars_of(names, it->info.original.filename().string())) {
+                const Found* newest = nullptr;
+                for (const Found& other : trash) {
+                    if (other.info.original == folder / sidecar &&
+                        (newest == nullptr || other.info.deleted > newest->info.deleted)) {
+                        newest = &other;
+                    }
+                }
+                if (newest != nullptr) {
+                    group.sidecars.push_back(*newest);
+                }
+            }
+        }
+        groups.push_back(std::move(group));
+    }
+    // A sidecar picked along with its photo goes with it.
+    std::erase_if(groups, [&groups](const Group& group) {
+        return std::ranges::any_of(groups, [&group](const Group& other) {
+            return std::ranges::find(other.sidecars, group.item.item, &Found::item) !=
+                   other.sidecars.end();
+        });
+    });
+    for (const Group& group : groups) {
+        progress_.files_total += 1 + group.sidecars.size();
+    }
+    report();
+
+    for (const Group& group : groups) {
+        if (token_.cancelled()) {
+            result_.cancelled = true;
+            break;
+        }
+        const std::filesystem::path directory = group.item.info.original.parent_path();
+        const std::string original = group.item.info.original.filename().string();
+        progress_.current = original;
+        if (const std::error_code made = make_folders(directory)) {
+            error(original, made);
+            continue;
+        }
+        std::vector<std::string> sidecar_names;
+        sidecar_names.reserve(group.sidecars.size());
+        for (const Found& sidecar : group.sidecars) {
+            sidecar_names.push_back(sidecar.info.original.filename().string());
+        }
+        std::string name = original;
+        bool conflict = status_of(directory / name).has_value();
+        for (const std::string& sidecar : sidecar_names) {
+            conflict = conflict ||
+                       status_of(directory / sidecar_name(sidecar, original, name)).has_value();
+        }
+        bool replace = false;
+        if (conflict) {
+            const std::optional<struct stat> there = status_of(directory / name);
+            const bool target_directory = there && S_ISDIR(there->st_mode);
+            const Resolution resolution =
+                callbacks_.resolve ? callbacks_.resolve({.name = name,
+                                                         .destination = directory,
+                                                         .directory = group.item.directory,
+                                                         .target_directory = target_directory,
+                                                         .merge = false})
+                                   : Resolution::skip;
+            if (resolution == Resolution::cancel) {
+                result_.cancelled = true;
+                break;
+            }
+            if (resolution == Resolution::skip) {
+                continue;
+            }
+            if (resolution == Resolution::keep_both) {
+                name = free_name(directory, original, group.item.directory, sidecar_names);
+            } else if (group.item.directory || target_directory) {
+                result_.errors.push_back(
+                    std::format("{}: a folder is not replaced; keep both or skip", original));
+                continue;
+            } else {
+                replace = true;
+            }
+        }
+        if (!put_back(group.item, directory, name, replace)) {
+            continue;  // the photo stays: its sidecars stay with it
+        }
+        result_.placed.push_back(name);
+        for (const Found& sidecar : group.sidecars) {
+            const std::string to =
+                sidecar_name(sidecar.info.original.filename().string(), original, name);
+            static_cast<void>(put_back(sidecar, directory, to, replace));
+        }
+    }
+    progress_.current.clear();
+    report();
+    return result_;
+}
+
 }  // namespace
 
 std::filesystem::path home_trash() {
@@ -552,6 +851,158 @@ std::string trash_name(std::string_view name, int id) {
 TransferResult run_trash(const TransferRequest& request, const core::CancelToken& token,
                          const TransferCallbacks& callbacks) {
     return Trasher{request, token, callbacks}.run();
+}
+
+const std::filesystem::path& trash_path() {
+    static const std::filesystem::path kPath{"trash:///"};
+    return kPath;
+}
+
+bool is_trash(const std::filesystem::path& path) { return path == trash_path(); }
+
+std::vector<std::filesystem::path> mount_points(std::string_view mountinfo) {
+    return parse_mount_points(mountinfo);
+}
+
+TrashSources TrashSources::from_environment() {
+    return {.home = home_trash(), .tops = std::nullopt, .uid = geteuid()};
+}
+
+namespace {
+
+std::optional<TrashSources>& sources_slot() {
+    static std::optional<TrashSources> sources;
+    return sources;
+}
+
+}  // namespace
+
+void set_trash_sources(TrashSources sources) { sources_slot() = std::move(sources); }
+
+const TrashSources& trash_sources() {
+    std::optional<TrashSources>& sources = sources_slot();
+    if (!sources) {
+        sources = TrashSources::from_environment();
+    }
+    return *sources;
+}
+
+std::vector<TrashDir> existing_trashes(const TrashSources& sources) {
+    std::vector<TrashDir> trashes;
+    std::set<std::pair<dev_t, ino_t>> seen;
+    const auto add = [&](const std::filesystem::path& dir, const std::filesystem::path& top) {
+        const std::optional<struct stat> info = status_of(dir);
+        if (!info || !seen.emplace(info->st_dev, info->st_ino).second) {
+            return;
+        }
+        trashes.push_back({.path = dir, .relative_to = top});
+    };
+    if (!sources.home.empty() && usable_trash(sources.home, sources.uid)) {
+        add(sources.home, {});
+    }
+    const std::vector<std::filesystem::path> tops =
+        sources.tops ? *sources.tops : parse_mount_points(read_proc_file("/proc/self/mountinfo"));
+    for (const std::filesystem::path& top : tops) {
+        const std::filesystem::path shared = top / ".Trash";
+        if (const std::optional<struct stat> info = status_of(shared);
+            info && S_ISDIR(info->st_mode) && (info->st_mode & S_ISVTX) != 0) {
+            const std::filesystem::path mine = shared / std::to_string(sources.uid);
+            if (usable_trash(mine, sources.uid)) {
+                add(mine, top);
+            }
+        }
+        const std::filesystem::path mine = top / std::format(".Trash-{}", sources.uid);
+        if (usable_trash(mine, sources.uid)) {
+            add(mine, top);
+        }
+    }
+    return trashes;
+}
+
+std::optional<TrashInfo> parse_trash_info(std::string_view text,
+                                          const std::filesystem::path& relative_to) {
+    std::optional<std::string> path;
+    std::string deleted;
+    bool in_group = false;
+    bool first = true;
+    while (!text.empty()) {
+        const std::size_t end = std::min(text.find('\n'), text.size());
+        std::string_view line = text.substr(0, end);
+        text.remove_prefix(std::min(end + 1, text.size()));
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) {
+            line.remove_suffix(1);
+        }
+        if (line.empty() || line.starts_with('#')) {
+            continue;
+        }
+        if (line.starts_with('[')) {
+            if (first && line != "[Trash Info]") {
+                return std::nullopt;
+            }
+            in_group = line == "[Trash Info]";
+            first = false;
+            continue;
+        }
+        first = false;
+        if (!in_group) {
+            continue;
+        }
+        if (line.starts_with("Path=") && !path) {
+            path = unescape(line.substr(5));
+        } else if (line.starts_with("DeletionDate=") && deleted.empty()) {
+            deleted = std::string{line.substr(13)};
+        }
+    }
+    if (!path || path->empty()) {
+        return std::nullopt;
+    }
+    std::filesystem::path original{*path};
+    if (original.is_relative()) {
+        original = relative_to / original;
+    }
+    return TrashInfo{.original = original.lexically_normal(), .deleted = std::move(deleted)};
+}
+
+std::vector<TrashedItem> list_trash(const TrashSources& sources) {
+    std::vector<TrashedItem> items;
+    for (const TrashDir& trash : existing_trashes(sources)) {
+        for (Found& found : read_trash(trash.path)) {
+            std::string name = found.info.original.filename().string();
+            if (name.empty()) {
+                continue;
+            }
+            items.push_back(
+                {.name = std::move(name), .path = found.item, .info = std::move(found.info)});
+        }
+    }
+    // The older keeps the name; the others take the first free numbered one.
+    std::ranges::sort(items, [](const TrashedItem& a, const TrashedItem& b) {
+        return std::tie(a.info.deleted, a.path) < std::tie(b.info.deleted, b.path);
+    });
+    std::unordered_set<std::string> taken;
+    for (const TrashedItem& item : items) {
+        taken.insert(item.name);
+    }
+    std::unordered_set<std::string> given;
+    for (TrashedItem& item : items) {
+        if (given.insert(item.name).second) {
+            continue;
+        }
+        for (int id = 2;; ++id) {
+            std::string candidate = trash_name(item.name, id);
+            if (!taken.contains(candidate) && !given.contains(candidate)) {
+                given.insert(candidate);
+                item.name = std::move(candidate);
+                break;
+            }
+        }
+    }
+    return items;
+}
+
+TransferResult run_restore(const TransferRequest& request, const core::CancelToken& token,
+                           const TransferCallbacks& callbacks) {
+    return Restorer{request, token, callbacks}.run();
 }
 
 }  // namespace nordend::fs

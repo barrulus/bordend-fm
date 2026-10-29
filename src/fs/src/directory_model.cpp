@@ -1,6 +1,9 @@
 #include "nordend/fs/directory_model.hpp"
 
 #include <algorithm>
+#include <optional>
+#include <string_view>
+#include <unordered_set>
 #include <utility>
 
 #include "nordend/core/log.hpp"
@@ -39,6 +42,12 @@ void DirectoryModel::open(std::filesystem::path path) {
     error_.clear();
     notify(reset_change());
 
+    if (fs::is_trash(path_)) {
+        trash_ = true;
+        loading_ = true;
+        load_trash();
+        return;
+    }
     std::error_code error;
     watch_ = watcher_.watch(
         path_, [this](const std::vector<DirectoryEvent>& events) { on_events(events); }, error);
@@ -97,6 +106,147 @@ void DirectoryModel::stop() {
     dirty_.clear();
     moved_from_.clear();
     renames_.clear();
+    for (const auto& [dir, id] : trash_watches_) {
+        watcher_.unwatch(id);
+    }
+    trash_watches_.clear();
+    trashed_.clear();
+    trash_ = false;
+    trash_again_ = false;
+}
+
+const TrashedItem* DirectoryModel::trashed(const std::string& name) const {
+    const auto it = trashed_.find(name);
+    return it == trashed_.end() ? nullptr : &it->second;
+}
+
+struct DirectoryModel::TrashListing {
+    std::vector<TrashedItem> items;
+    std::vector<Entry> entries;  // items[i]'s, named as listed
+    std::vector<std::filesystem::path> info_dirs;
+};
+
+void DirectoryModel::load_trash() {
+    refresh_running_ = true;
+    refresh_job_ = pool_.submit(
+        core::Priority::visible,
+        [sources = trash_sources(), options = options_](const core::CancelToken& /*token*/) {
+            // The home trash is made when missing (the specification asks for it), so it can be
+            // watched from the start.
+            if (!sources.home.empty()) {
+                std::error_code ignored;
+                std::filesystem::create_directories(sources.home / "files", ignored);
+                std::filesystem::create_directories(sources.home / "info", ignored);
+            }
+            TrashListing listing;
+            for (const TrashDir& trash : existing_trashes(sources)) {
+                listing.info_dirs.push_back(trash.path / "info");
+            }
+            std::vector<TrashedItem> items = list_trash(sources);
+            for (TrashedItem& item : items) {
+                std::vector<std::optional<Entry>> read =
+                    read_entries(item.path.parent_path(), {item.path.filename().string()}, options);
+                if (read.empty() || !read.front()) {
+                    continue;  // gone meanwhile
+                }
+                Entry entry = std::move(*read.front());
+                entry.name = item.name;
+                listing.entries.push_back(std::move(entry));
+                listing.items.push_back(std::move(item));
+            }
+            return listing;
+        },
+        [this](TrashListing listing) {
+            refresh_running_ = false;
+            apply_trash(std::move(listing));
+            if (std::exchange(trash_again_, false)) {
+                load_trash();
+            }
+        });
+}
+
+void DirectoryModel::apply_trash(TrashListing listing) {
+    // Watch the info/ folders: an item comes or goes with its .trashinfo.
+    std::unordered_map<std::string, DirectoryWatcher::WatchId> watches;
+    for (const std::filesystem::path& dir : listing.info_dirs) {
+        const std::string key = dir.string();
+        if (const auto it = trash_watches_.find(key); it != trash_watches_.end()) {
+            watches.emplace(key, it->second);
+            trash_watches_.erase(it);
+            continue;
+        }
+        std::error_code error;
+        const DirectoryWatcher::WatchId id = watcher_.watch(
+            dir,
+            [this](const std::vector<DirectoryEvent>& /*events*/) {
+                if (refresh_running_) {
+                    trash_again_ = true;
+                    return;
+                }
+                if (settle_timer_ == 0) {
+                    settle_timer_ = loop_.add_timer(settle_, std::chrono::milliseconds{0}, [this] {
+                        settle_timer_ = 0;
+                        load_trash();
+                    });
+                }
+            },
+            error);
+        if (id != 0) {
+            watches.emplace(key, id);
+        }
+    }
+    for (const auto& [dir, id] : trash_watches_) {
+        watcher_.unwatch(id);  // a trash that went away (a disk unmounted)
+    }
+    trash_watches_ = std::move(watches);
+
+    // What changed, by name.
+    std::unordered_map<std::string_view, const Entry*> listed;
+    listed.reserve(listing_.entries().size());
+    for (const Entry& entry : listing_.entries()) {
+        listed.emplace(entry.name, &entry);
+    }
+    std::unordered_map<std::string, TrashedItem> items;
+    ModelChange change;
+    std::vector<Entry> present;
+    for (std::size_t i = 0; i < listing.items.size(); ++i) {
+        Entry& entry = listing.entries[i];
+        const std::string name = entry.name;
+        const auto before = listed.find(name);
+        const TrashedItem* const was = trashed(name);
+        if (before == listed.end()) {
+            change.added.push_back(name);
+            present.push_back(std::move(entry));
+        } else if (was == nullptr || was->path != listing.items[i].path ||
+                   before->second->size != entry.size ||
+                   before->second->modified_ns != entry.modified_ns ||
+                   before->second->kind != entry.kind) {
+            change.updated.push_back(name);
+            present.push_back(std::move(entry));
+        }
+        items.emplace(name, std::move(listing.items[i]));
+    }
+    std::unordered_set<std::string> gone;
+    for (const Entry& entry : listing_.entries()) {
+        if (!items.contains(entry.name)) {
+            gone.insert(entry.name);
+            change.removed.push_back(entry.name);
+        }
+    }
+    listing_.replace(gone, std::move(present));
+    trashed_ = std::move(items);
+    names_.clear();
+    for (const Entry& entry : listing_.entries()) {
+        names_.insert(entry.name);
+    }
+    const bool first = loading_;
+    loading_ = false;
+    if (!change.added.empty() || !change.removed.empty() || !change.updated.empty()) {
+        notify(change);
+    }
+    if (first) {
+        notify(loaded_change());
+    }
 }
 
 void DirectoryModel::on_events(const std::vector<DirectoryEvent>& events) {

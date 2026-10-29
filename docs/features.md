@@ -107,6 +107,15 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
     the rest; pasting into the same folder keeps both by itself;
   - refused before anything moves: a folder into itself, or more than the free space.
+- **The Trash** in the sidebar (its icon full or empty):
+  - every trash as one folder: the home's and each disk's (`.Trash-1000` on a data disk), by
+    original name; the same name trashed twice shows as "a.txt" and "a.2.txt";
+  - the info pane adds where it came from and when it was deleted; previews, thumbnails and
+    Quick Look work as anywhere else; it follows what other programs trash or restore, live;
+  - Restore (right click) puts things back where they were, makes their folder again if it is
+    gone, asks on the card when the name is taken (a folder is never merged), and brings a
+    photo's darktable sidecars back with it;
+  - nothing is made, renamed or pasted there, and files are not opened from the trash.
 - **Context menu**: a right click (or a two-finger tap on the touchpad) in any of the three views
   or on the info pane, the Menu key or Shift+F10:
   - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash;

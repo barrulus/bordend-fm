@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "draw_helpers.hpp"
+#include "nordend/fs/trash.hpp"
 
 namespace nordend::views {
 namespace {
@@ -21,6 +22,10 @@ constexpr std::string_view kEllipsis = "…";
 
 std::vector<Crumb> crumbs_of(const std::filesystem::path& folder,
                              const std::filesystem::path& home) {
+    if (fs::is_trash(folder)) {
+        return {{.path = folder, .label = {}, .icon = "trash"},
+                {.path = folder, .label = "Trash", .icon = {}}};
+    }
     const std::filesystem::path normal = folder.lexically_normal();
     std::filesystem::path base{"/"};
     std::string_view icon = "server";

@@ -220,6 +220,24 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   vuoto e uno da un modello senza mai sovrascrivere; test sulle voci per ogni situazione (un
   elemento, più elementi, spazio vuoto, appunti vuoti) e sulla navigazione da tastiera; snapshot
   del menu e del sottomenu.
+- [x] **6.4c Cestino nella barra laterale e ripristino**
+  Una voce "Trash" fra i luoghi, con l'icona vuota o piena. Aperta, le tre viste mostrano tutti i
+  cestini (home e dischi montati) come una cartella sola, con i nomi originali; il pannello info
+  aggiunge "Original location" e "Deleted"; Quick Look funziona. Di sola lettura (niente incolla,
+  rinomina, nuova cartella). Menu contestuale "Restore": l'elemento torna al suo posto, la cartella
+  rifatta se manca, la card dei conflitti se il nome è preso, i sidecar con la foto. Si aggiorna da
+  sola quando qualcosa entra o esce, anche da altri programmi.
+  Fatto quando: la vista mostra quello che mostra `trash-list` (anche quello cestinato da gio o
+  trash-cli); Restore rimette gli elementi dove li rimetterebbe `trash-restore`, e `trash-list`
+  non li elenca più; test sul modello unito, sul ripristino (nome preso, cartella mancante,
+  sidecar) e sull'icona vuota/piena.
+- [ ] **6.4d Svuota cestino ed elimina definitivamente**
+  Nel cestino "Delete Permanently" (anche Canc) ed "Empty Trash", dal menu dello spazio vuoto e
+  dal clic destro sulla voce "Trash"; sempre con una card di conferma (quanti elementi, quanti
+  MB), sul thread dei trasferimenti con l'avanzamento. Fuori dal cestino Shift+Canc elimina
+  definitivamente con la stessa card.
+  Fatto quando: "Empty Trash" svuota home e DATA e `trash-list` non mostra più nulla; Escape sulla
+  card non cancella niente; test sulla conferma e sullo svuotamento (anche di `directorysizes`).
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 
 ## Fase 7 — MVP

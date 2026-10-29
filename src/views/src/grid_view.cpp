@@ -86,7 +86,7 @@ void GridView::enter() {
     if (entry == nullptr || !entry->is_directory()) {
         return;
     }
-    open(folder_->path() / entry->name);
+    open(folder_->path_of(*entry));
 }
 
 void GridView::go_up() {
@@ -225,8 +225,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             const ui::Texture* thumbnail = nullptr;
             if (thumbnails_ != nullptr && !entry.is_directory() &&
                 thumbs::can_make(mime_->name(typed.mime))) {
-                thumbnail = thumbnails_->get(folder_->path() / entry.name, entry.modified_ns,
-                                             thumbnail_size);
+                thumbnail =
+                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
             }
             if (thumbnail != nullptr) {
                 // Fitted in the icon's square, proportions kept, centered.

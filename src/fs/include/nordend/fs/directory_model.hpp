@@ -18,6 +18,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/sort.hpp"
+#include "nordend/fs/trash.hpp"
 
 namespace nordend::fs {
 
@@ -39,6 +40,10 @@ struct ModelChange {
 // gathered for settle, then the changed names are stat'ed together on a worker and applied in
 // one notification: a burst (copying a thousand files) is a few updates, not a thousand, and the
 // loop thread does no I/O. Renames inside the directory are reported as renames.
+//
+// The trash folder (trash_path()) is listed the same way from every trash (list_trash): entries
+// by original name, each one's real place and .trashinfo in trashed(); the trashes' info/
+// folders are watched and the whole listing is read again when they change.
 //
 // Everything runs on the loop thread. Must not outlive the loop, pool or watcher.
 class DirectoryModel {
@@ -73,12 +78,22 @@ public:
     // Counts the changes notified: a new value means the listing changed (or was replaced).
     [[nodiscard]] std::uint64_t revision() const noexcept { return revision_; }
 
+    // In the trash folder: the item called name (its real path, original place, deletion date);
+    // nullptr elsewhere or for an unknown name.
+    [[nodiscard]] const TrashedItem* trashed(const std::string& name) const;
+
+    [[nodiscard]] bool is_trash() const noexcept { return trash_; }
+
     // Why the directory cannot be shown (cannot be read, was deleted or moved); empty when fine.
     [[nodiscard]] const std::error_code& error() const noexcept { return error_; }
 
 private:
     void start_load();
     void stop();
+    // The trash folder: read every trash on a worker, then apply the differences.
+    struct TrashListing;
+    void load_trash();
+    void apply_trash(TrashListing listing);
     void on_events(const std::vector<DirectoryEvent>& events);
     void schedule_refresh();
     void refresh();
@@ -111,6 +126,11 @@ private:
     std::unordered_set<std::string> dirty_;
     std::unordered_map<std::uint32_t, std::string> moved_from_;  // cookie -> old name
     std::vector<std::pair<std::string, std::string>> renames_;
+
+    bool trash_{false};
+    std::unordered_map<std::string, TrashedItem> trashed_;  // by name, as listed
+    std::unordered_map<std::string, DirectoryWatcher::WatchId> trash_watches_;  // by info/ dir
+    bool trash_again_{false};  // changed while being read: read once more
 };
 
 }  // namespace nordend::fs

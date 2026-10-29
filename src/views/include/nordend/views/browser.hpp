@@ -7,10 +7,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
+#include "nordend/fs/directory_model.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
@@ -207,6 +209,10 @@ public:
     // cursor on it and edits its name.
     void new_file(const std::string& name, const std::filesystem::path& from);
 
+    // In the trash folder: puts the selection (or the entry under the cursor) back where it was,
+    // with its darktable sidecars, and the cursor on the entry after it.
+    void restore();
+
     // Stops the transfer running (the status bar's ×).
     void cancel_transfer();
 
@@ -221,6 +227,11 @@ public:
 
 private:
     void trash_done(const fs::TransferResult& result);
+    void restore_done(const fs::TransferResult& result);
+    // The sidebar's places, the trash's icon full or empty.
+    void show_places();
+    // Puts the cursor on the entry after the last one of going that stays (else the one before).
+    static void cursor_after(Folder& folder, const std::unordered_set<std::string>& going);
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
     void run(Command command, Clock::time_point now);
@@ -299,6 +310,9 @@ private:
 
     Clipboard clipboard_;
     std::filesystem::path home_trash_;
+    std::vector<fs::Place> places_;
+    fs::DirectoryModel trash_model_;  // every trash, for the sidebar's icon
+    bool trash_full_{false};
     CutMarks cut_marks_;
     std::optional<fs::Resolution> for_the_rest_;  // the running transfer's "the same for the rest"
 

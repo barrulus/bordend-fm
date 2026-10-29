@@ -48,6 +48,10 @@ struct UserDir {
 [[nodiscard]] std::vector<UserDir> parse_user_dirs(std::string_view text,
                                                    const std::filesystem::path& home);
 
+// A /proc file whole (/proc/self/mountinfo): they report a size of 0, so core::read_text_file
+// reads nothing; this reads until the end. Empty when it cannot be opened.
+[[nodiscard]] std::string read_proc_file(const std::filesystem::path& path);
+
 // The folder of templates "New File" offers: XDG_TEMPLATES_DIR from user-dirs.dirs, or ~/Templates
 // without that file (as the sidebar's user dirs); empty when there is none.
 [[nodiscard]] std::filesystem::path templates_dir(const PlaceSources& sources);

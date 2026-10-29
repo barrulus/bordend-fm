@@ -77,7 +77,7 @@ const preview::Provider& QuickLook::provider_of(const fs::Entry& entry) const {
 
 // The provider is part of the key: an entry whose type becomes known (sniffed) gets a new slot.
 std::string QuickLook::key_of(const fs::Entry& entry) const {
-    return std::format("{}\n{}\n{}", (folder_->path() / entry.name).string(), entry.modified_ns,
+    return std::format("{}\n{}\n{}", folder_->path_of(entry).string(), entry.modified_ns,
                        static_cast<int>(provider_of(entry).kind()));
 }
 
@@ -115,7 +115,7 @@ QuickLook::Slot& QuickLook::ensure(const fs::Entry& entry, bool current) {
     const preview::Provider& provider = provider_of(entry);
     const std::string key = key_of(entry);
     Slot& slot = slots_[key];
-    slot.path = folder_->path() / entry.name;
+    slot.path = folder_->path_of(entry);
     slot.kind = provider.kind();
     if (!slot.content && !slot.content_job) {
         slot.content_job = pool_.submit(
