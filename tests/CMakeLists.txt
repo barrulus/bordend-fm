@@ -13,6 +13,7 @@ add_executable(nordend-tests
     image_test.cpp
     mime_test.cpp
     palette_test.cpp
+    paste_test.cpp
     places_test.cpp
     platform_test.cpp
     preview_test.cpp
@@ -22,6 +23,7 @@ add_executable(nordend-tests
     shortcuts_test.cpp
     sort_test.cpp
     thumbs_test.cpp
+    transfer_test.cpp
     worker_pool_test.cpp)
 target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image nordend::thumbs nordend::preview nordend::platform doctest::doctest nordend::warnings)
 # The shipped example config must parse clean and match the built-in defaults.

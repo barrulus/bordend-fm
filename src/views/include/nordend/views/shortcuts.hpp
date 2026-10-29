@@ -18,8 +18,9 @@ inline constexpr std::uint8_t kDetails = 1U << 2U;
 inline constexpr std::uint8_t kViews = kColumns | kGrid | kDetails;
 inline constexpr std::uint8_t kSidebar = 1U << 3U;  // the keyboard in the sidebar
 inline constexpr std::uint8_t kQuickLook = 1U << 4U;
-inline constexpr std::uint8_t kWindow = 1U << 5U;  // handled by the app, not the browser
-inline constexpr std::uint8_t kEditor = 1U << 6U;  // while a name is being edited
+inline constexpr std::uint8_t kWindow = 1U << 5U;    // handled by the app, not the browser
+inline constexpr std::uint8_t kEditor = 1U << 6U;    // while a name is being edited
+inline constexpr std::uint8_t kConflict = 1U << 7U;  // while a copy asks about a taken name
 }  // namespace scope
 
 // What the browser itself does for a shortcut; none: the view (or the sidebar) handles it.
@@ -35,6 +36,9 @@ enum class Command : std::uint8_t {
     show_shortcuts,
     rename,
     new_folder,
+    copy,
+    cut,
+    paste,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

@@ -222,6 +222,16 @@ void Folder::expect_name(std::string name) {
     selection_changed();
 }
 
+void Folder::expect_names(const std::vector<std::string>& names) {
+    if (names.empty()) {
+        return;
+    }
+    expect_name(names.front());
+    // Selected by name: the ones not listed yet are selected when they arrive.
+    selected_.insert(names.begin(), names.end());
+    selection_changed();
+}
+
 void Folder::select_name(std::string name) {
     cursor_expected_ = false;
     cursor_name_ = std::move(name);

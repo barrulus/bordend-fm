@@ -58,7 +58,8 @@ void Column::reveal_cursor(Folder::Reveal reveal, Clock::time_point now) {
 }
 
 void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
-                  ui::IconSet& icons, bool focused, Clock::time_point now, EditSlot* edit) {
+                  ui::IconSet& icons, bool focused, Clock::time_point now, EditSlot* edit,
+                  const CutMarks* cut) {
     const std::vector<fs::Entry>& entries = folder_->entries();
     rows_area_ = bounds;
     const float content = static_cast<float>(entries.size()) * kRowHeight;
@@ -80,7 +81,8 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
                                             .cursor = cursor == i,
                                             .ring = cursor_ring,
                                             .focused = focused,
-                                            .hovered = hovered_ == i});
+                                            .hovered = hovered_ == i,
+                                            .cut = cut != nullptr && cut->holds(path(), entry)});
         if (style.fill || style.ring) {
             renderer.draw_box({bounds.x + kRowInset, y + 1.0F, bounds.width - (2.0F * kRowInset),
                                kRowHeight - 2.0F},

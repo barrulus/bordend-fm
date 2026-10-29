@@ -32,6 +32,12 @@ struct FreeSpace {
 // statvfs(path); nullopt when it fails.
 [[nodiscard]] std::optional<FreeSpace> free_space_of(const std::filesystem::path& path);
 
+// A copy or a move in progress, as the bar shows it.
+struct TransferStatus {
+    std::string text;       // "Copying 163 files · 2.1 of 3.4 GB · 180 MB/s · 8 s left"
+    float fraction{-1.0F};  // done, 0 to 1; negative: not known yet
+};
+
 // "12 items", "3 of 12 selected", "12 items, loading…", or the folder's error.
 [[nodiscard]] std::string status_of(const Folder& folder);
 
@@ -74,6 +80,16 @@ public:
     // The message shown; empty when there is none.
     [[nodiscard]] const std::string& message() const noexcept { return message_; }
 
+    // A transfer in progress (nullopt: none): its line in place of the status, a thin bar along
+    // the top edge, and a button to stop it (cancel). A message still comes first.
+    void set_transfer(std::optional<TransferStatus> transfer);
+
+    [[nodiscard]] const std::optional<TransferStatus>& transfer() const noexcept {
+        return transfer_;
+    }
+
+    void set_cancel_handler(std::function<void()> cancel) { cancel_ = std::move(cancel); }
+
     void pointer(const ui::PointerEvent& event);
 
     // The free space as last read; nullopt before it arrives or when it cannot be read.
@@ -99,6 +115,10 @@ private:
     std::optional<FreeSpace> free_;
     std::optional<core::CancelToken> job_;
 
+    std::optional<TransferStatus> transfer_;
+    std::function<void()> cancel_;
+    ui::Rect cancel_button_{};  // as last drawn; empty without a transfer
+    bool cancel_hovered_{false};
     std::string message_;
     bool message_error_{false};
     core::EventLoop::SourceId message_timer_{0};

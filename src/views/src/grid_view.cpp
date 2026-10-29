@@ -204,12 +204,14 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             }
             const fs::Entry& entry = entries[i];
             const float x = area_.x + kPadding + (static_cast<float>(column) * cell_width_);
+            const bool cut = cut_ != nullptr && cut_->holds(folder_->path(), entry);
             const ItemStyle style = item_style(palette, entry,
                                                {.selected = folder_->is_selected(entry.name),
                                                 .cursor = cursor == i,
                                                 .ring = cursor_ring,
                                                 .focused = true,
-                                                .hovered = hovered_ == i});
+                                                .hovered = hovered_ == i,
+                                                .cut = cut});
             if (style.fill || style.ring) {
                 renderer.draw_box({x + kCellInset, y + kCellInset,
                                    cell_width_ - (2.0F * kCellInset), height - (2.0F * kCellInset)},
@@ -236,7 +238,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                     *thumbnail,
                     {x + ((cell_width_ - shown_width) / 2.0F),
                      y + kIconTop + ((icon - shown_height) / 2.0F), shown_width, shown_height},
-                    ui::Corners::all(kThumbnailRadius));
+                    ui::Corners::all(kThumbnailRadius), cut ? kCutOpacity : 1.0F);
             } else {
                 icons.draw(renderer, fs::icon_name(*mime_, typed),
                            x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);

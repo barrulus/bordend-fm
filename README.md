@@ -4,7 +4,7 @@
 desktop.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/next-file%20operations-3DA639)
+![phase](https://img.shields.io/badge/next-trash%20and%20clipboard-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -38,8 +38,9 @@ It is made for people who browse a lot of files, photos above all:
 - **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and a
   click.
 
-**Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work; file
-operations (open with, rename, copy and move, trash, clipboard) are the next phase. There are no
+**Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work, and so do
+opening files in their apps, renaming, new folders, copying and moving; the trash and copy and
+paste with other apps come next. There are no
 packages yet: see [Building](#building). What happens step by step is in the
 [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
@@ -47,9 +48,9 @@ packages yet: see [Building](#building). What happens step by step is in the
 
 | | |
 |---|---|
-| Binary | **2.34 MB** (1.99 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.48 MB** (2.10 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 21 500 lines of C++20, plus 5 000 lines of tests (158 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 23 300 lines of C++20, plus 5 500 lines of tests (171 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **33 MB** of its own (private, anonymous); 117 MB resident counting shared libraries, 67 MB of which are Mesa's GPU driver (LLVM + gallium), shared with every OpenGL app |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -138,6 +139,11 @@ status bar cost nothing measurable.
 - **Rename where the name is.** F2 turns the name into a field, the extension left out of the
   selection; Ctrl+Shift+N makes a new folder ready to be named. Nothing is ever overwritten, and
   renaming a photo takes its darktable sidecars along, duplicates included, so no edit is lost.
+- **Copy and move, safely.** Ctrl+C or Ctrl+X, then Ctrl+V: a move on one disk is instant, a
+  copy runs as fast as `cp` with its progress, speed and time left in the status bar. Nothing
+  half-copied ever carries a real name, an original leaves another disk only once its copy is
+  safely written, dates and permissions stay, and darktable sidecars come along. A taken name
+  asks: replace, skip or keep both, for one or for the rest.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -169,6 +175,7 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+moves | Move without selecting |
 | <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Select or unselect |
 | <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
+| <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> | Copy / cut (<kbd>Escape</kbd> keeps them) / paste |
 | <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up) |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |
 | <kbd>Escape</kbd> | Back to one entry |

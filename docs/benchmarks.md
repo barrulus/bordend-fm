@@ -17,6 +17,10 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-29: after 6.3
+
+2 475 360 bytes; 2 095 192 after `strip`; 18 direct libraries.
+
 ### 2026-10-29: after 6.2
 
 2 344 128 bytes; 1 988 632 after `strip`; 18 direct libraries.
@@ -349,6 +353,26 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 | Columns | 0.25-0.26 ms | 0.34-0.36 ms |
 
 The same as without it (sidebar section below): nothing measurable.
+
+## Copy and move (ROADMAP 6.3)
+
+**Tool:** `nordend-transfer SRC DEST` (the engine Ctrl+V uses; prints files, MB, time, rate),
+against `cp -a SRC/. DEST/` (GNU coreutils 9.4) timed with `date +%s%N`.
+
+### 2026-10-29: a photo folder into tmpfs, warm cache
+
+`/run/media/pankaspe/DATA/fotografia/vero` (the SATA SSD, ext4: 342 files, 3 087.8 MB, ORF
+files, their sidecars and a folder of exports) into an empty folder in `/tmp` (tmpfs), read
+once first so the page cache holds it; the destination emptied between runs.
+
+| Run | Nordend | `cp -a` |
+|-----|--------:|--------:|
+| 1 | 1.390 s | 1.395 s |
+| 2 | 1.393 s | 1.378 s |
+| 3 | 1.382 s | 1.400 s |
+
+About 2.2 GB/s for both: the copy is the kernel's (`copy_file_range`), and the extra steps
+(a temporary per file, its rename, times and permissions) cost nothing measurable.
 
 ## Renaming in place (ROADMAP 6.2)
 

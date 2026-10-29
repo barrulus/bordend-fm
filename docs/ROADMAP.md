@@ -155,7 +155,24 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   e niente viene sovrascritto; rinominare un ORF rinomina i suoi `.xmp`, duplicati compresi; in una
   cartella senza permesso di scrittura compare un messaggio, senza crash; idle a zero CPU col campo
   aperto; test su una cartella temporanea e snapshot del campo.
-- [ ] **6.3 Copia e sposta** asincroni, con progresso e gestione dei conflitti
+- [x] **6.3 Copia e sposta** asincroni, con progresso e gestione dei conflitti
+  Ctrl+C, Ctrl+X, Ctrl+V dentro Nordend (la clipboard di sistema è la 6.5); i file tagliati
+  attenuati, Escape annulla il taglio. Motore su un thread suo, un'operazione alla volta:
+  stesso disco = `renameat2(RENAME_NOREPLACE)`; copia o disco diverso = `copy_file_range` a
+  blocchi su un file temporaneo nascosto, rinominato alla fine; tra dischi l'originale si cancella
+  solo dopo `fsync`. Permessi, date e link simbolici conservati; i sidecar di darktable seguono.
+  Controlli: cartella dentro se stessa, spazio libero, sola lettura. Conflitti in una scheda:
+  Sostituisci (il vecchio sparisce solo a copia completa; cartelle unite), Salta, Tieni entrambi
+  ("P1 2.ORF"), "per tutti"; nella stessa cartella Tieni entrambi da sé. Avanzamento nella barra
+  di stato (file, byte, velocità, tempo rimasto, × per annullare); alla fine i file incollati
+  selezionati, gli errori riassunti.
+  Fatto quando: copiando i 163 ORF di `vero` in `/tmp` si vedono avanzamento e velocità, i sidecar
+  arrivano e le date restano; velocità entro il 10 % di `cp` (benchmarks); uno spostamento sullo
+  stesso disco è istantaneo, tra dischi copia e poi cancella; i conflitti funzionano (Sostituisci,
+  Salta, Tieni entrambi, "per tutti"); annullando a metà non resta nessun file parziale; cartella
+  dentro se stessa, spazio insufficiente e sola lettura danno un messaggio senza crash; i tagliati
+  attenuati; idle a zero a operazione finita; test su cartelle temporanee, compreso il percorso tra
+  dischi forzato.
 - [ ] **6.4 Cestino** (spec freedesktop)
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 

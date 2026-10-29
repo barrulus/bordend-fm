@@ -113,6 +113,9 @@ public:
     // cursor is moved.
     void expect_name(std::string name);
 
+    // The same for several (pasted files): the cursor on the first, all of them selected.
+    void expect_names(const std::vector<std::string>& names);
+
     void select_all();
 
     // Back to the cursor's entry alone (Escape).

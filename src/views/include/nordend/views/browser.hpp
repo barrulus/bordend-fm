@@ -1,9 +1,11 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -12,6 +14,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
+#include "nordend/fs/transfer_queue.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/icons.hpp"
@@ -20,6 +23,8 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/breadcrumb.hpp"
 #include "nordend/views/column_view.hpp"
+#include "nordend/views/conflict_dialog.hpp"
+#include "nordend/views/cut_marks.hpp"
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
@@ -45,7 +50,10 @@ namespace nordend::views {
 // and back, and a place chosen there opens in the view shown. Enter or a double click on a file
 // hands the selected files to the open handler (their default applications); on a folder, the
 // view goes into it. F2 renames the entry under the cursor in place, Ctrl+Shift+N makes a new
-// folder and edits its name; both on a worker, never replacing anything.
+// folder and edits its name; both on a worker, never replacing anything. Ctrl+C and Ctrl+X take
+// the selection (cut entries fade until pasted; Escape keeps them), Ctrl+V copies or moves it
+// into the folder shown, on the transfer thread, with progress in the status bar and a question
+// on a card for every name taken.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -146,6 +154,22 @@ public:
     // on it and edits its name.
     void new_folder();
 
+    // Ctrl+C, Ctrl+X: the selection (or the entry under the cursor) is what Ctrl+V will copy or
+    // move.
+    void take_selection(bool cut);
+
+    // Ctrl+V: copies or moves what was taken into the folder shown.
+    void paste();
+
+    // Stops the transfer running (the status bar's ×).
+    void cancel_transfer();
+
+    [[nodiscard]] ConflictDialog& conflict_dialog() noexcept { return conflict_; }
+
+    [[nodiscard]] const CutMarks& cut_marks() const noexcept { return cut_marks_; }
+
+    [[nodiscard]] std::size_t transfers_pending() const noexcept { return transfers_.pending(); }
+
 private:
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
@@ -155,6 +179,10 @@ private:
     bool open_selection();
     void rename(const std::shared_ptr<Folder>& folder, const std::string& from,
                 const std::string& to);
+    void transfer_progress(const fs::TransferRequest& request,
+                           const fs::TransferProgress& progress);
+    void transfer_done(const fs::TransferRequest& request, const fs::TransferResult& result);
+    void ask(const fs::Conflict& conflict, std::function<void(fs::Resolution)> answer);
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
@@ -180,6 +208,7 @@ private:
     StatusBar status_bar_;
     ShortcutsOverlay shortcuts_;
     NameEditor editor_;
+    ConflictDialog conflict_;
     Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};
@@ -194,6 +223,28 @@ private:
     // False once destroyed: renames and new folders still on their way find out here.
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
     std::size_t operations_{0};  // new folders and renames on workers
+
+    // What Ctrl+C or Ctrl+X took.
+    struct Clipboard {
+        std::filesystem::path directory;
+        std::vector<std::string> names;
+        bool cut{false};
+    };
+
+    Clipboard clipboard_;
+    CutMarks cut_marks_;
+    std::optional<fs::Resolution> for_the_rest_;  // the running transfer's "the same for the rest"
+
+    // Where the rate is measured from: a time and the bytes copied by then (after a question the
+    // rate starts again).
+    struct RateStart {
+        std::chrono::steady_clock::time_point time;
+        std::uint64_t bytes{0};
+    };
+
+    std::optional<RateStart> copy_started_;
+    // Last: its thread stops first, while everything its callbacks touch is still there.
+    fs::TransferQueue transfers_;
 };
 
 }  // namespace nordend::views

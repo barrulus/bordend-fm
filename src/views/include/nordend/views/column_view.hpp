@@ -19,6 +19,7 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/column.hpp"
+#include "nordend/views/cut_marks.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/info_pane.hpp"
 
@@ -107,6 +108,9 @@ public:
     // The name being edited, which the view leaves for the editor to draw (the browser's).
     void set_edit_slot(EditSlot* edit) { edit_ = edit; }
 
+    // The entries cut and not pasted yet, drawn faded (the browser's).
+    void set_cut_marks(const CutMarks* cut) { cut_ = cut; }
+
     [[nodiscard]] std::size_t column_count() const noexcept { return columns_.size(); }
 
     [[nodiscard]] Column& column(std::size_t index) { return *columns_.at(index).column; }
@@ -150,6 +154,7 @@ private:
     std::function<void()> redraw_;
     std::function<void()> open_;
     EditSlot* edit_{nullptr};
+    const CutMarks* cut_{nullptr};
     std::function<void(ui::CursorShape)> set_cursor_;
     InfoPane* info_pane_;
     ui::Rect info_area_{};  // where the info pane was last drawn; empty when not shown

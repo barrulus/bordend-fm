@@ -28,8 +28,8 @@ constexpr float kKeysShare = 0.38F;  // of a column, for the keys
 
 // The groups in each column of the card.
 constexpr std::array<std::array<std::string_view, 5>, 2> kColumns{{
-    {"General", "Moving", "", "", ""},
-    {"Selecting", "Files", "Grid", "Sidebar", "Quick Look"},
+    {"General", "Moving", "Grid", "", ""},
+    {"Selecting", "Files", "Sidebar", "Quick Look", ""},
 }};
 
 std::string upper(std::string_view text) {

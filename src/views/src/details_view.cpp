@@ -265,12 +265,14 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         const fs::Entry& entry = entries[i];
         const float y = rows_.y + (static_cast<float>(i) * kRowHeight) - offset;
         const bool selected = folder_->is_selected(entry.name);
-        const ItemStyle style = item_style(palette, entry,
-                                           {.selected = selected,
-                                            .cursor = cursor == i,
-                                            .ring = cursor_ring,
-                                            .focused = true,
-                                            .hovered = hovered_ == i});
+        const ItemStyle style =
+            item_style(palette, entry,
+                       {.selected = selected,
+                        .cursor = cursor == i,
+                        .ring = cursor_ring,
+                        .focused = true,
+                        .hovered = hovered_ == i,
+                        .cut = cut_ != nullptr && cut_->holds(folder_->path(), entry)});
         if (style.fill || style.ring) {
             renderer.draw_box(
                 {table_left, y + kRowInset, table_width, kRowHeight - (2.0F * kRowInset)},

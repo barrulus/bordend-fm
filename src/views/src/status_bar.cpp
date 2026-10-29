@@ -18,6 +18,7 @@ constexpr float kButtonHeight = 22.0F;
 constexpr float kButtonGap = 2.0F;
 constexpr float kHelpGap = 10.0F;  // between the views' buttons and "?"
 constexpr float kIconSize = 16.0F;
+constexpr float kProgressHeight = 2.0F;
 constexpr std::array<std::string_view, StatusBar::kViews + 1> kIcons{
     "layout-columns", "layout-grid", "list-details", "help"};
 
@@ -95,6 +96,15 @@ void StatusBar::show_message(std::string text, bool error) {
     redraw_();
 }
 
+void StatusBar::set_transfer(std::optional<TransferStatus> transfer) {
+    transfer_ = std::move(transfer);
+    if (!transfer_) {
+        cancel_button_ = {};
+        cancel_hovered_ = false;
+    }
+    redraw_();
+}
+
 void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                      ui::IconSet& icons, const Folder& folder, std::size_t view) {
     bounds_ = bounds;
@@ -128,11 +138,35 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
                    button.y + ((kButtonHeight - kIconSize) / 2.0F), kIconSize, color);
     }
 
-    // The message, else the status and the free space; cut in the middle when the buttons leave
-    // too little room.
+    // A transfer: its progress along the top edge, a button to stop it before the views'.
+    float text_right = buttons_.front().x - kPadding;
+    if (transfer_) {
+        if (transfer_->fraction >= 0.0F) {
+            renderer.fill_rect(
+                {bounds.x, bounds.y, bounds.width * std::clamp(transfer_->fraction, 0.0F, 1.0F),
+                 kProgressHeight},
+                palette.primary);
+        }
+        cancel_button_ = {buttons_.front().x - kHelpGap - kButtonWidth, top, kButtonWidth,
+                          kButtonHeight};
+        if (cancel_hovered_) {
+            renderer.draw_box(cancel_button_, {.fill = palette.surface_container_high,
+                                               .radius = ui::Corners::all(6.0F)});
+        }
+        icons.draw(renderer, "x", cancel_button_.x + ((kButtonWidth - kIconSize) / 2.0F),
+                   cancel_button_.y + ((kButtonHeight - kIconSize) / 2.0F), kIconSize,
+                   cancel_hovered_ ? palette.error : palette.on_surface_variant);
+        text_right = cancel_button_.x - kPadding;
+    }
+
+    // The message, else a transfer, else the status and the free space; cut in the middle when
+    // the buttons leave too little room.
     std::string text = message_;
     ui::Color color = message_error_ ? palette.error : palette.on_surface;
-    if (message_.empty()) {
+    if (message_.empty() && transfer_) {
+        text = transfer_->text;
+        color = palette.on_surface;
+    } else if (message_.empty()) {
         text = status_of(folder);
         if (free_ && !folder.model().error()) {
             text += std::format("  ·  {} free of {}", format_size(free_->free),
@@ -140,7 +174,7 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
         }
         color = folder.model().error() ? palette.error : palette.on_surface_variant;
     }
-    const float room = std::max(1.0F, buttons_.front().x - kPadding - (bounds.x + kPadding));
+    const float room = std::max(1.0F, text_right - (bounds.x + kPadding));
     renderer.draw_text(text, bounds.x + kPadding, bounds.y + ((kHeight - kTextSize) / 2.0F) - 2.0F,
                        kTextSize, color, room, ui::Ellipsis::middle);
 }
@@ -162,6 +196,19 @@ bool StatusBar::claims(float x, float y) const {
 
 void StatusBar::pointer(const ui::PointerEvent& event) {
     using Kind = ui::PointerEvent::Kind;
+    const bool on_cancel = event.kind != Kind::leave && !cancel_button_.empty() &&
+                           event.x >= cancel_button_.x && event.x < cancel_button_.right() &&
+                           event.y >= cancel_button_.y && event.y < cancel_button_.bottom();
+    if (on_cancel != cancel_hovered_) {
+        cancel_hovered_ = on_cancel;
+        redraw_();
+    }
+    if (on_cancel && event.kind == Kind::press && event.button == ui::PointerButton::left) {
+        if (cancel_) {
+            cancel_();
+        }
+        return;
+    }
     const std::optional<std::size_t> over =
         event.kind == Kind::leave ? std::nullopt : button_at(event.x, event.y);
     if (over != hovered_) {

@@ -79,24 +79,21 @@ MadeFolder make_folder(const std::filesystem::path& directory, std::string_view 
     return {.name = {}, .error = std::make_error_code(std::errc::file_exists)};
 }
 
-std::vector<std::pair<std::string, std::string>> sidecar_renames(std::span<const std::string> names,
-                                                                 std::string_view from,
-                                                                 std::string_view to) {
+std::vector<std::string> sidecars_of(std::span<const std::string> names, std::string_view name) {
     constexpr std::string_view xmp = ".xmp";
-    std::vector<std::pair<std::string, std::string>> renames;
-    if (from == to || from.ends_with(xmp)) {
-        return renames;
+    std::vector<std::string> sidecars;
+    if (name.ends_with(xmp)) {
+        return sidecars;
     }
-    const auto [stem, extension] = split_extension(from);
-    const auto [new_stem, new_extension] = split_extension(to);
-    for (const std::string& name : names) {
-        const std::string_view view{name};
+    const auto [stem, extension] = split_extension(name);
+    for (const std::string& candidate : names) {
+        const std::string_view view{candidate};
         if (!view.ends_with(xmp)) {
             continue;
         }
         const std::string_view base = view.substr(0, view.size() - xmp.size());
-        if (base == from) {
-            renames.emplace_back(name, std::string{to} + std::string{xmp});
+        if (base == name) {
+            sidecars.push_back(candidate);
             continue;
         }
         // A duplicate: stem, "_", two digits or more, the extension; unless a file has that name
@@ -112,10 +109,37 @@ std::vector<std::pair<std::string, std::string>> sidecar_renames(std::span<const
             !std::ranges::all_of(number, [](char c) { return c >= '0' && c <= '9'; })) {
             continue;
         }
-        renames.emplace_back(name, std::string{new_stem} + "_" + std::string{number} +
-                                       std::string{new_extension} + std::string{xmp});
+        sidecars.push_back(candidate);
     }
-    std::ranges::sort(renames);
+    std::ranges::sort(sidecars);
+    return sidecars;
+}
+
+std::string sidecar_name(std::string_view sidecar, std::string_view from, std::string_view to) {
+    constexpr std::string_view xmp = ".xmp";
+    if (sidecar == std::string{from} + std::string{xmp}) {
+        return std::string{to} + std::string{xmp};
+    }
+    // A duplicate: the number between the stem and the extension stays.
+    const auto [stem, extension] = split_extension(from);
+    const auto [new_stem, new_extension] = split_extension(to);
+    const std::string_view number = sidecar.substr(
+        stem.size() + 1, sidecar.size() - xmp.size() - extension.size() - stem.size() - 1);
+    return std::string{new_stem} + "_" + std::string{number} + std::string{new_extension} +
+           std::string{xmp};
+}
+
+std::vector<std::pair<std::string, std::string>> sidecar_renames(std::span<const std::string> names,
+                                                                 std::string_view from,
+                                                                 std::string_view to) {
+    std::vector<std::pair<std::string, std::string>> renames;
+    if (from == to) {
+        return renames;
+    }
+    for (std::string& sidecar : sidecars_of(names, from)) {
+        std::string renamed = sidecar_name(sidecar, from, to);
+        renames.emplace_back(std::move(sidecar), std::move(renamed));
+    }
     return renames;
 }
 

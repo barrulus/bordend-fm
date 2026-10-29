@@ -1,6 +1,8 @@
 #include "nordend/views/browser.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <format>
 #include <string>
@@ -9,6 +11,7 @@
 
 #include "draw_helpers.hpp"
 #include "nordend/fs/operations.hpp"
+#include "nordend/views/format.hpp"
 
 namespace nordend::views {
 namespace {
@@ -43,16 +46,196 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                   [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
                   [this] { shortcuts_.open(); }},
       shortcuts_{redraw},
-      editor_{std::move(redraw),
+      editor_{redraw,
               [this](const std::shared_ptr<Folder>& folder, const std::string& from,
                      const std::string& to) { rename(folder, from, to); },
-              [this](std::string problem) { show_message(std::move(problem), true); }} {
+              [this](std::string problem) { show_message(std::move(problem), true); }},
+      conflict_{std::move(redraw)},
+      transfers_{loop,
+                 [this](const fs::TransferRequest& request, const fs::TransferProgress& progress) {
+                     transfer_progress(request, progress);
+                 },
+                 [this](const fs::Conflict& conflict, std::function<void(fs::Resolution)> answer) {
+                     ask(conflict, std::move(answer));
+                 },
+                 [this](const fs::TransferRequest& request, const fs::TransferResult& result) {
+                     transfer_done(request, result);
+                 }} {
     columns_.set_open_handler([this] { open_selection(); });
     grid_.set_open_handler([this] { open_selection(); });
     details_.set_open_handler([this] { open_selection(); });
     columns_.set_edit_slot(&editor_.slot());
     grid_.set_edit_slot(&editor_.slot());
     details_.set_edit_slot(&editor_.slot());
+    columns_.set_cut_marks(&cut_marks_);
+    grid_.set_cut_marks(&cut_marks_);
+    details_.set_cut_marks(&cut_marks_);
+    status_bar_.set_cancel_handler([this] { cancel_transfer(); });
+}
+
+void Browser::take_selection(bool cut) {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    std::vector<std::string> names = folder->selected_names();
+    if (names.empty()) {
+        if (const fs::Entry* const cursor = folder->cursor_entry()) {
+            names.push_back(cursor->name);
+        }
+    }
+    if (names.empty()) {
+        return;
+    }
+    const std::size_t count = names.size();
+    clipboard_ = {.directory = folder->path(), .names = std::move(names), .cut = cut};
+    cut_marks_ = {};
+    if (cut) {
+        cut_marks_ = {.directory = clipboard_.directory,
+                      .names = {clipboard_.names.begin(), clipboard_.names.end()}};
+    }
+    const std::string items =
+        count == 1 ? std::format("“{}”", clipboard_.names.front()) : std::format("{} items", count);
+    show_message(cut ? std::format("Ctrl+V moves {} where you want them", items)
+                     : std::format("Ctrl+V copies {} where you want them", items),
+                 false);
+}
+
+void Browser::paste() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    if (clipboard_.names.empty()) {
+        show_message("Nothing to paste: Ctrl+C or Ctrl+X first", false);
+        return;
+    }
+    const bool cut = clipboard_.cut;
+    transfers_.submit({.kind = cut ? fs::TransferKind::move : fs::TransferKind::copy,
+                       .source = clipboard_.directory,
+                       .names = clipboard_.names,
+                       .destination = folder->path(),
+                       .force_copy = false});
+    if (cut) {
+        clipboard_ = {};  // moved once: there is nothing left to move
+        cut_marks_ = {};
+    }
+    if (!status_bar_.transfer()) {
+        status_bar_.set_transfer(TransferStatus{
+            .text = cut ? "Getting ready to move…" : "Getting ready to copy…", .fraction = -1.0F});
+    }
+    redraw_();
+}
+
+void Browser::cancel_transfer() {
+    transfers_.cancel();
+    conflict_.close();
+}
+
+void Browser::ask(const fs::Conflict& conflict, std::function<void(fs::Resolution)> answer) {
+    if (for_the_rest_ && (*for_the_rest_ != fs::Resolution::replace ||
+                          conflict.directory == conflict.target_directory)) {
+        answer(*for_the_rest_);
+        return;
+    }
+    copy_started_.reset();  // the time spent on the question does not count in the rate
+    conflict_.open(conflict, conflict.destination.filename().string(),
+                   [this, answer = std::move(answer)](fs::Resolution resolution, bool rest) {
+                       if (rest) {
+                           for_the_rest_ = resolution;
+                       }
+                       answer(resolution);
+                   });
+}
+
+namespace {
+
+// "8 s", "2 min", "1 h 5 min".
+std::string format_duration(double seconds) {
+    const long whole = std::lround(seconds);
+    if (whole < 60) {
+        return std::format("{} s", std::max(whole, 1L));
+    }
+    if (whole < 3600) {
+        return std::format("{} min", (whole + 30) / 60);
+    }
+    return std::format("{} h {} min", whole / 3600, (whole % 3600) / 60);
+}
+
+}  // namespace
+
+void Browser::transfer_progress(const fs::TransferRequest& request,
+                                const fs::TransferProgress& progress) {
+    const bool copy = request.kind == fs::TransferKind::copy;
+    const std::size_t items = request.names.size();
+    TransferStatus status;
+    if (progress.preparing) {
+        status.text = std::format("Getting ready to {} {} {}…", copy ? "copy" : "move", items,
+                                  items == 1 ? "item" : "items");
+    } else if (progress.bytes_total > 0) {
+        const auto now = std::chrono::steady_clock::now();
+        if (!copy_started_) {
+            copy_started_ = RateStart{.time = now, .bytes = progress.bytes_done};
+        }
+        status.fraction = static_cast<float>(static_cast<double>(progress.bytes_done) /
+                                             static_cast<double>(progress.bytes_total));
+        status.text =
+            std::format("{} {} {} · {} of {}", copy ? "Copying" : "Moving", progress.files_total,
+                        progress.files_total == 1 ? "file" : "files",
+                        format_size(progress.bytes_done), format_size(progress.bytes_total));
+        const double seconds = std::chrono::duration<double>(now - copy_started_->time).count();
+        if (seconds >= 1.0 && progress.bytes_done > copy_started_->bytes) {
+            const double rate =
+                static_cast<double>(progress.bytes_done - copy_started_->bytes) / seconds;
+            status.text += std::format(
+                " · {}/s · {} left", format_size(static_cast<std::uint64_t>(rate)),
+                format_duration(static_cast<double>(progress.bytes_total - progress.bytes_done) /
+                                rate));
+        }
+    } else {
+        status.fraction = progress.files_total > 0 ? static_cast<float>(progress.files_done) /
+                                                         static_cast<float>(progress.files_total)
+                                                   : -1.0F;
+        status.text =
+            std::format("Moving {} of {} items", progress.files_done, progress.files_total);
+    }
+    if (transfers_.pending() > 1) {
+        status.text += std::format(" · {} more waiting", transfers_.pending() - 1);
+    }
+    status_bar_.set_transfer(std::move(status));
+}
+
+void Browser::transfer_done(const fs::TransferRequest& request, const fs::TransferResult& result) {
+    for_the_rest_.reset();
+    copy_started_.reset();
+    conflict_.close();
+    if (transfers_.pending() == 0) {
+        status_bar_.set_transfer(std::nullopt);
+    }
+    const bool copy = request.kind == fs::TransferKind::copy;
+    const std::string_view done = copy ? "Copied" : "Moved";
+    const std::size_t files = result.files_done;
+    const std::string what = std::format("{} {}", files, files == 1 ? "file" : "files");
+    if (!result.refused.empty()) {
+        show_message(result.refused, true);
+    } else if (result.cancelled) {
+        show_message(std::format("Stopped: {} {} so far", what, copy ? "copied" : "moved"), false);
+    } else if (!result.errors.empty()) {
+        show_message(std::format("{} {}; {} could not be: {}", done, what, result.errors.size(),
+                                 result.errors.front()),
+                     true);
+    } else if (result.placed.empty()) {
+        show_message("Nothing to do: every name was skipped", false);
+    } else if (result.bytes_done > 0) {
+        show_message(std::format("{} {} ({})", done, what, format_size(result.bytes_done)), false);
+    } else {
+        show_message(std::format("{} {}", done, what), false);
+    }
+    // What arrived is selected, when its folder is the one shown.
+    if (const std::shared_ptr<Folder> folder = current_folder();
+        folder && folder->path() == request.destination && !result.placed.empty()) {
+        folder->expect_names(result.placed);
+    }
 }
 
 Browser::~Browser() { *alive_ = false; }
@@ -250,6 +433,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     }
     quick_look_.draw(renderer, bounds, palette, icons, now);
     shortcuts_.draw(renderer, bounds, palette);
+    conflict_.draw(renderer, bounds, palette);  // last: over everything else
     if (thumbnails_) {
         thumbnails_->end_frame();
     }
@@ -288,7 +472,8 @@ bool Browser::animating() const {
 }
 
 bool Browser::loading() const {
-    if (operations_ > 0 || quick_look_.loading() || info_pane_.loading() || status_bar_.loading()) {
+    if (operations_ > 0 || transfers_.pending() > 0 || quick_look_.loading() ||
+        info_pane_.loading() || status_bar_.loading()) {
         return true;
     }
     switch (mode_) {
@@ -303,6 +488,10 @@ bool Browser::loading() const {
 }
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    if (conflict_.is_open()) {
+        conflict_.pointer(event);  // the question first: nothing under it reacts
+        return;
+    }
     // While a name is edited, a press in its field is the field's; elsewhere it keeps the name,
     // then does what it does.
     if (editor_.pointer(event)) {
@@ -436,10 +625,22 @@ std::shared_ptr<Folder> Browser::current_folder() const {
 }
 
 bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
+    if (conflict_.is_open()) {
+        return conflict_.key(event);  // a copy waits for the answer: every key is the card's
+    }
     if (editor_.active()) {
         return editor_.key(event);  // every key is the name's meanwhile
     }
     const Command command = command_for(event);
+    if (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{} &&
+        !cut_marks_.names.empty() && !shortcuts_.is_open() && !quick_look_.is_open() &&
+        !sidebar_.focused()) {
+        clipboard_ = {};  // Escape keeps cut entries where they are; the view gets it too
+        cut_marks_ = {};
+        redraw_();
+        view_key(event, now);
+        return true;
+    }
     if (shortcuts_.is_open()) {
         if (command == Command::show_shortcuts ||
             (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{})) {
@@ -518,6 +719,16 @@ void Browser::run(Command command, Clock::time_point now) {
         case Command::new_folder:
             quick_look_.close();
             new_folder();
+            break;
+        case Command::copy:
+            take_selection(false);
+            break;
+        case Command::cut:
+            take_selection(true);
+            break;
+        case Command::paste:
+            quick_look_.close();
+            paste();
             break;
     }
 }

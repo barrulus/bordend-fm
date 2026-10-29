@@ -26,12 +26,16 @@ struct ItemStyle {
     ui::Color text;
 };
 
+// How much of an entry cut with Ctrl+X shows (icon, name, thumbnail).
+inline constexpr float kCutOpacity = 0.45F;
+
 struct ItemState {
     bool selected{false};
     bool cursor{false};
     bool ring{false};  // the cursor needs its own mark
     bool focused{false};
     bool hovered{false};
+    bool cut{false};  // cut with Ctrl+X, not pasted yet: faded
 };
 
 inline ItemStyle item_style(const theme::Palette& palette, const fs::Entry& entry,
@@ -53,6 +57,10 @@ inline ItemStyle item_style(const theme::Palette& palette, const fs::Entry& entr
     }
     if (item.cursor && item.ring && item.focused) {
         style.ring = item.selected ? palette.on_primary : palette.primary;
+    }
+    if (item.cut) {
+        style.icon.a *= kCutOpacity;
+        style.text.a *= kCutOpacity;
     }
     return style;
 }

@@ -19,6 +19,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
+#include "nordend/views/cut_marks.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
 #include "nordend/views/info_pane.hpp"
@@ -82,6 +83,9 @@ public:
     // The name being edited, which the view leaves for the editor to draw (the browser's).
     void set_edit_slot(EditSlot* edit) { edit_ = edit; }
 
+    // The entries cut and not pasted yet, drawn faded (the browser's).
+    void set_cut_marks(const CutMarks* cut) { cut_ = cut; }
+
     // The folder has loaded and its cursor landed (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
@@ -123,6 +127,7 @@ private:
     std::function<void()> redraw_;
     std::function<void()> open_;
     EditSlot* edit_{nullptr};
+    const CutMarks* cut_{nullptr};
     std::function<void(ui::CursorShape)> set_cursor_;
     bool info_visible_{true};
     InfoPane* info_pane_;

@@ -3,7 +3,7 @@
 //
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
-//                    [--walk FRAMES] [--message TEXT]]
+//                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -16,6 +16,8 @@
 // the grid a thumbnail cache directory (none by default: icons only, nothing written to ~/.cache).
 // The sidebar lists the places of $HOME and $XDG_CONFIG_HOME; "Ctrl+B" hides it, "F6" focuses it.
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
+// --transfer shows TEXT as a transfer's progress, 40 % done; --conflict asks about NAME as a
+// paste would.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -222,6 +224,8 @@ int main(int argc, char** argv) {
     bool info_expanded = false;
     float info_width = 0.0F;  // the info pane as if dragged to this width
     std::string message;
+    std::string transfer;
+    std::string conflict;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -246,6 +250,10 @@ int main(int argc, char** argv) {
             info_width = std::stof(args[2]);
         } else if (option == "--message") {
             message = args[2];
+        } else if (option == "--transfer") {
+            transfer = args[2];
+        } else if (option == "--conflict") {
+            conflict = args[2];
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -259,7 +267,7 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
-            "FRAMES] [--message TEXT]] "
+            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -325,6 +333,15 @@ int main(int argc, char** argv) {
                 if (!message.empty()) {
                     const bool error = message.starts_with('!');
                     columns->show_message(error ? message.substr(1) : message, error);
+                }
+                if (!transfer.empty()) {
+                    columns->status_bar().set_transfer(
+                        views::TransferStatus{.text = transfer, .fraction = 0.4F});
+                }
+                if (!conflict.empty()) {
+                    columns->conflict_dialog().open({.name = conflict, .destination = columns_dir},
+                                                    columns_dir.filename(),
+                                                    [](nordend::fs::Resolution, bool) {});
                 }
                 frame();  // lays out: keys need the viewport
                 for (const ui::KeyEvent& event : parse_keys(keys)) {

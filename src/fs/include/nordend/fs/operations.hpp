@@ -26,6 +26,17 @@ struct MadeFolder {
 // taken atomically (mkdir fails on an existing one, and the next is tried).
 [[nodiscard]] MadeFolder make_folder(const std::filesystem::path& directory, std::string_view base);
 
+// The darktable sidecars of a file among names (the directory's entries), sorted: "X.ORF.xmp" and
+// the duplicates "X_01.ORF.xmp" (an underscore and two or more digits before the file's
+// extension), unless a file of the directory has the duplicate's name ("X_1234.ORF": the sidecar
+// is its own).
+[[nodiscard]] std::vector<std::string> sidecars_of(std::span<const std::string> names,
+                                                   std::string_view name);
+
+// The name a sidecar of from (one sidecars_of gave) takes when from becomes to.
+[[nodiscard]] std::string sidecar_name(std::string_view sidecar, std::string_view from,
+                                       std::string_view to);
+
 // The darktable sidecars that go with a file and the names they take when it is renamed to to:
 // "X.ORF.xmp" becomes "Y.ORF.xmp", and duplicates "X_01.ORF.xmp" (an underscore and two or more
 // digits before the file's extension) become "Y_01.ORF.xmp", unless a file of the directory has

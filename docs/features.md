@@ -89,6 +89,24 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   the field stays open for another try.
 - **Photo-safe renames:** renaming `P1.ORF` also renames `P1.ORF.xmp` and the duplicates
   `P1_01.ORF.xmp`, `P1_02.ORF.xmp`… If any of their new names is taken, nothing moves.
+- **Copy and move** (Ctrl+C or Ctrl+X, then Ctrl+V), in any of the three views:
+  - a move on one disk is a rename: instant, whatever the size;
+  - a copy runs as fast as `cp` (3.1 GB of photos in 1.39 s, warm cache, against 1.39 s), by
+    the kernel's `copy_file_range`, on a thread of its own, so the window never waits;
+  - the status bar shows "Copying 163 files · 2.1 GB of 3.4 GB · 180 MB/s · 8 s left", a
+    progress line and an × to stop; what arrived is selected afterwards;
+  - nothing half-copied ever carries a real name: each file is written under a hidden temporary
+    name and renamed when complete, and a folder is built whole the same way. Stopping leaves
+    nothing behind;
+  - moving off another disk (an SD card, a USB drive) deletes the original only after its copy is
+    flushed to disk;
+  - dates (to the nanosecond), permissions and symbolic links are kept, and darktable sidecars
+    travel with their photo, even under a new name;
+  - cut files fade until pasted (Escape keeps them where they are);
+  - a taken name asks on a card: Replace (the old file goes only once the new one is complete;
+    folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
+    the rest; pasting into the same folder keeps both by itself;
+  - refused before anything moves: a folder into itself, or more than the free space.
 - **Clear errors:** a read-only folder, permission denied or a missing file shows a message in the
   status bar, never a crash.
 
@@ -132,9 +150,10 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 | Sorting 10 000 entries by size, date or type | 1-3 ms |
 | Quick Look of an ORF, fitted to 2880x1620 | 51-55 ms |
 | Reading every installed app to choose one | 0.5 ms |
+| Copying 342 photos, 3.1 GB, warm cache (Nordend / `cp -a`) | 1.39 s / 1.39 s |
 | CPU while nothing moves | 0 |
 
-A 2.3 MB binary with 18 direct libraries; 33 MB of its own memory in a folder of sources.
+A 2.5 MB binary with 18 direct libraries; 33 MB of its own memory in a folder of sources.
 
 ## Settings
 
@@ -152,6 +171,5 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Copy and move with progress and conflict handling, the trash (freedesktop), and copy and paste
-of files with other apps. Then settings, remembered state, and the MVP. See the
+The trash (freedesktop), copy and paste of files with other apps, and drag and drop. Then settings, remembered state, and the MVP. See the
 [roadmap](ROADMAP.md).

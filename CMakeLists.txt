@@ -118,6 +118,11 @@ target_link_libraries(nordend-thumb PRIVATE nordend::thumbs nordend::warnings)
 add_executable(nordend-open src/tools/open.cpp)
 target_link_libraries(nordend-open PRIVATE nordend::core nordend::fs nordend::platform nordend::warnings)
 
+# Development tool: the copy and move engine from the command line, timed (ROADMAP 6.3). Not
+# installed.
+add_executable(nordend-transfer src/tools/transfer.cpp)
+target_link_libraries(nordend-transfer PRIVATE nordend::core nordend::fs nordend::warnings)
+
 # Development tool: JPEG decoding, wuffs against TurboJPEG scaling (ROADMAP 5.2). Not installed;
 # built only when libjpeg-turbo-devel is there.
 if(TURBOJPEG_FOUND)
@@ -143,7 +148,7 @@ endif()
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
     foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch
-            nordend-decode nordend-thumb nordend-open)
+            nordend-decode nordend-thumb nordend-open nordend-transfer)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()

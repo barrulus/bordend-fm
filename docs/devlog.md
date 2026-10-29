@@ -4,6 +4,83 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Copy and move (ROADMAP 6.3)
+
+**Done**
+- `fs::run_transfer` (`fs/transfer`), the engine, blocking:
+  - a move on one file system is `renameat2(RENAME_NOREPLACE)`, instant (falls back to copying
+    on EXDEV, a mount point below the source);
+  - a copy, or a move between file systems, copies data with `copy_file_range` in 8 MB pieces
+    (read/write when the kernel refuses across file systems) into a hidden
+    `.nordend-part-<pid>-<n>` next to the target, renamed to its name only when complete; a new
+    folder is built the same way, as a whole. Cancelled or failed: the temporary is removed, so
+    nothing half-written ever carries a real name;
+  - between file systems the copy is `fsync`ed (and its folder) before the source is deleted; a
+    folder's source goes only if all of it arrived;
+  - permissions, access and modification times (nanoseconds) and symbolic links are kept;
+    special files are reported, not copied;
+  - darktable sidecars travel with their photo (`sidecars_of`, now split out of
+    `sidecar_renames` with `sidecar_name`), named after the photo's final name; a sidecar picked
+    with its photo goes with it once; a taken sidecar name is a conflict on the photo;
+  - conflicts go to a `resolve` callback: replace (a file replaced only once the new one is
+    complete, by an atomic rename over it; folders merged, same names replaced), skip, keep both
+    (`free_name`: "P1 2.ORF" with "P1 2.ORF.xmp", "Trip 2"), cancel. A file never replaces a
+    folder nor the reverse. A copy into its own folder keeps both by itself; a move into its own
+    folder does nothing;
+  - refused before anything moves: a folder into itself or below ("Cannot copy Trip into
+    itself"), or more bytes than the destination's free space ("Not enough space: 3.4 GB
+    needed, 1.2 GB free").
+- `fs::TransferQueue`: one thread, one transfer at a time in order. Progress reaches the loop at
+  most every 100 ms; a conflict is posted as a question and the thread waits for the answer
+  (cancel and destruction answer it); the result is posted. Callbacks check an `alive` flag.
+- `Browser`: Ctrl+C / Ctrl+X take the selection (or the cursor's entry); cut entries fade in all
+  three views (`CutMarks`, `ItemState::cut`, thumbnails drawn at 45 %); Escape keeps them where
+  they are. Ctrl+V submits a copy or a move into the folder shown (a cut is pasted once). The
+  status bar shows "Copying 163 files · 2.1 GB of 3.4 GB · 180 MB/s · 8 s left" (rate measured
+  from the first byte, restarted after a question), a 2 px bar along its top and an × that
+  stops the transfer; the result is one line ("Copied 342 files (3.1 GB)", "Stopped: 40 files
+  copied so far", "Copied 161 files; 2 could not be: ..."), and what arrived is selected when
+  its folder is shown (`Folder::expect_names`). `loading()` counts transfers.
+- `views::ConflictDialog`: a card ("“P1.ORF” is already in album"), a note on what Replace does
+  (or that it cannot, file against folder), "Do the same for the rest" (A), Skip (S), Replace
+  (R), Keep both (Enter), Escape stops. It takes every key and click while open.
+- Shortcuts: Ctrl+C, Ctrl+X, Ctrl+V, and the card's keys under a new `kConflict` scope (a test
+  presses each on a real conflict). The overlay's columns were rebalanced (Grid moved left).
+- Tools: `nordend-transfer [--move] [--force-copy] SRC DEST [NAME...]` (the engine, timed);
+  `nordend-snapshot --transfer TEXT` and `--conflict NAME` to look at the bar and the card.
+- Tests (171 with the raw samples, 13 new): copy (contents, nanosecond times, permissions,
+  links, recursive folders, sidecars, progress totals), move on one disk (same inode), move
+  between disks forced (new inode, sources gone), each resolution, sidecar names on keep both,
+  folder merge, file against folder, own-folder copy, into itself, not enough space (a 1 PiB
+  sparse file), cancel after the first piece (no temporary left, source whole), a read-only
+  destination, the queue (question answered later, destroyed while asking), and in the browser:
+  copy and paste with selection, cut and Escape, move once, each answer, "for the rest", stop,
+  every listed key. Release, ASan, TSan pass (transfer and paste ones 6 times in Release and
+  TSan); snapshots under ASan and TSan; tidy and format clean.
+
+**Measured** (see benchmarks): the author's `vero` folder (342 files, 3.1 GB) from the SATA SSD
+into `/tmp` (tmpfs), page cache warm, three runs each: Nordend 1.38-1.39 s (about 2.2 GB/s),
+`cp -a` 1.38-1.40 s. The same speed.
+
+**Tested by the author**
+- On screen: the 342-file copy of `vero` with progress, rate and time left (`diff -r` equal,
+  dates kept), a cancelled copy leaving no temporary, the conflict card (skip, replace, keep both
+  for the rest, Escape), a cut fading and Escape, a move on one disk and one onto the DATA disk,
+  the three refusals (into itself, not enough space, read-only), F1, `top` at 0.0 % CPU
+  afterwards: "il resto funziona tutto".
+- `top` showed 412 MB resident after the 3 GB copy and browsing the photos: memory with photos is
+  still *to be measured* (open since 5.8; next, before 6.4, is the proposal).
+
+**Open**
+- Cold-cache throughput (after `drop_caches`, the author's `sudo`) and a real move between disks
+  (an SD card or a USB disk) are for the author's test.
+- No drag and drop yet: proposed as a next step on the same engine.
+- The temporary is visible (dimmed, hidden name) in the destination while a file is copied.
+- Merging folders replaces same-named files without asking again inside them.
+- No key stops a transfer (the × only); copying files between Nordend and other apps is 6.5.
+
+---
+
 ## 2026-10-29 — New folder and rename (ROADMAP 6.2)
 
 **Done**
