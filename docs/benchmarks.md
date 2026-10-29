@@ -354,6 +354,47 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 
 The same as without it (sidebar section below): nothing measurable.
 
+## Giving decoded photos back (ROADMAP 6.3c)
+
+### 2026-10-29: on screen, the author's five steps, after the change
+
+The same script and steps as for 6.3b, no `GLIBC_TUNABLES`: the app sets the threshold itself.
+
+| Step | RSS (peak so far) | malloc in use / freed but kept | VRAM | Thumbnail textures |
+|------|------:|------:|-----:|------:|
+| 1 home | 111.2 MB (111.2) | 18.2 / 3.6 MB | 50 MB | 0 |
+| 2 `vero`, columns | 119.5 MB (164.2) | 18.6 / 8.9 MB | 54 MB | 1.0 MB |
+| 3 grid, all thumbnails | 141.0 MB (189.7) | 21.4 / 25.7 MB | 156 MB | 85.5 MB |
+| 4 after Quick Look | 142.6 MB (240.4) | 22.9 / 25.6 MB | 206 MB | 120.1 MB |
+| 5 back home | **142.6 MB** | 22.9 / 25.6 MB | 206 MB | 120.1 MB |
+
+Against 6.3b's default run: 143 MB instead of 545 MB after browsing the photos. The VRAM is
+the thumbnails' textures (257 of them, under the 256 MB budget), kept for a return to the
+folder; it is GPU memory, not in the RSS.
+
+### 2026-10-29: offscreen, with `core::give_back_large_blocks` (mmap threshold 16 MB)
+
+`nordend-snapshot --memory` reports the peak too (`VmHWM`); `--default-malloc` leaves glibc's
+threshold alone to compare. Grid's first screenful into an empty thumbnail cache, three runs
+each; the concurrency limit was a temporary experiment (a semaphore around
+`thumbs::Cache::make`, removed):
+
+| malloc | Thumbnails made at once | Ready | RSS after | Peak |
+|--------|------------------------:|------:|----------:|-----:|
+| glibc's default | 8 (all workers) | 188-201 ms | 386 MB | 524-525 MB |
+| glibc's default | 4 | 230-234 ms | 547 MB | 547 MB |
+| glibc's default | 2 | 378-395 ms | 543-545 MB | 543-545 MB |
+| threshold 16 MB | 8 | 205-215 ms | 152 MB | 536 MB |
+| threshold 16 MB | 4 | 252-255 ms | 152 MB | 348 MB |
+| threshold 16 MB | 2 | 440-452 ms | 152 MB | 250 MB |
+
+The threshold costs 7 % on a screenful of new thumbnails and keeps 234 MB less afterwards. A
+limit of 4 would lower the peak (the moment all workers decode at once) by 188 MB for 20 % more
+time, 2 by 286 MB for twice the time: over the 10 % agreed, so no limit.
+
+Quick Look over 20 ORF (`--keys Down,Down,space --walk 20`): RSS 155 MB (peak 457 MB) instead of
+584 MB; the three slots keep 0 bytes of pixels once uploaded (was 10.5 MB).
+
 ## Memory with photos (ROADMAP 6.3b)
 
 **Tools:** the memory report (`pkill -USR1 nordend` logs it; `nordend-snapshot --memory

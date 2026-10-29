@@ -153,7 +153,8 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 | Copying 342 photos, 3.1 GB, warm cache (Nordend / `cp -a`) | 1.39 s / 1.39 s |
 | CPU while nothing moves | 0 |
 
-A 2.5 MB binary with 18 direct libraries; 33 MB of its own memory in a folder of sources.
+A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 MB after browsing
+163 raw photos (143 MB resident with the shared libraries): decoded photos go back to the system.
 
 ## Settings
 

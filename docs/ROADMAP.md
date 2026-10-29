@@ -184,6 +184,17 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   privata; heaptrack conferma o smentisce le ipotesi con le righe responsabili; si sa se la memoria
   torna giù lasciando una cartella di foto e perché; ogni correzione sensata ha una stima di
   guadagno ed è proposta come passo successivo.
+- [x] **6.3c Restituire la memoria delle decodifiche**
+  `mallopt(M_MMAP_THRESHOLD, 16 MB)` all'avvio (app e snapshot): i buffer grandi tornano al
+  sistema appena liberati. Quick Look libera i pixel dopo averli caricati. Il picco mentre si fanno
+  le miniature (8 decodifiche intere insieme) misurato con `VmHWM`; un limite alle decodifiche
+  grandi contemporanee (8, 4, 2) solo se abbassa il picco in modo netto con meno del 10 % di tempo
+  in più. Il tetto delle texture delle miniature (VRAM) resta com'è.
+  Fatto quando: lo script dei 5 passi, sullo schermo e senza `GLIBC_TUNABLES`, resta intorno ai
+  150 MB dal passo 3 al 5 e la memoria torna giù lasciando le foto; il primo schermo di miniature
+  senza cache costa al massimo il 10 % in più (offscreen, 3 giri); il picco è misurato e la scelta
+  sul limite motivata; Quick Look non tiene pixel dopo il caricamento (test); README At a glance con
+  la memoria con le foto.
 - [ ] **6.4 Cestino** (spec freedesktop)
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 

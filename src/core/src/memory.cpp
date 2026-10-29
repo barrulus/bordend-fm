@@ -86,6 +86,17 @@ void read_rollup(MemoryReport& report) {
     }
 }
 
+void read_peak(MemoryReport& report) {
+    std::ifstream in{"/proc/self/status"};
+    std::string line;
+    while (std::getline(in, line)) {
+        if (key_of(line) == "VmHWM") {
+            report.peak_rss = kilobytes(line).value_or(0);
+            return;
+        }
+    }
+}
+
 void read_mappings(MemoryReport& report) {
     std::ifstream in{"/proc/self/smaps"};
     std::map<std::string, MemoryReport::Mapping> groups;
@@ -178,9 +189,15 @@ std::string mb(const std::optional<std::uint64_t>& bytes) {
 
 }  // namespace
 
+void give_back_large_blocks() {
+    constexpr int threshold = 16 << 20;  // 16 MB: measured against 1 and 4 MB (benchmarks, 6.3c)
+    mallopt(M_MMAP_THRESHOLD, threshold);
+}
+
 MemoryReport read_memory_report() {
     MemoryReport report;
     read_rollup(report);
+    read_peak(report);
     read_mappings(report);
     read_heap(report);
     read_gpu(report);
@@ -190,10 +207,10 @@ MemoryReport read_memory_report() {
 std::vector<std::string> describe(const MemoryReport& report) {
     std::vector<std::string> lines;
     lines.push_back(
-        std::format("process: rss {}, anonymous {}, private {} clean + {} dirty, "
+        std::format("process: rss {} (peak {}), anonymous {}, private {} clean + {} dirty, "
                     "shared {}",
-                    mb(report.rss), mb(report.anonymous), mb(report.private_clean),
-                    mb(report.private_dirty), mb(report.shared)));
+                    mb(report.rss), mb(report.peak_rss), mb(report.anonymous),
+                    mb(report.private_clean), mb(report.private_dirty), mb(report.shared)));
     lines.push_back(std::format("malloc: in use {}, freed but kept {}, arenas {}, mmapped {}",
                                 mb(report.heap_in_use), mb(report.heap_free), mb(report.heap_arena),
                                 mb(report.heap_mmapped)));

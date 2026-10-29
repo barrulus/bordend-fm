@@ -167,6 +167,7 @@ int check_config(const std::filesystem::path& path, const core::ConfigResult& re
 }  // namespace
 
 int main(int argc, char** argv) {
+    core::give_back_large_blocks();  // before any thread: decoded photos go back to the system
     std::filesystem::path config_path;
     std::filesystem::path start_dir;
     bool check_only = false;

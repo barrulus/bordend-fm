@@ -12,6 +12,7 @@ namespace nordend::core {
 struct MemoryReport {
     // /proc/self/smaps_rollup, bytes.
     std::uint64_t rss{0};
+    std::uint64_t peak_rss{0};   // the most it has ever been (VmHWM, /proc/self/status)
     std::uint64_t anonymous{0};  // heap, thread stacks, anonymous mappings: Nordend's own
     std::uint64_t private_clean{0};
     std::uint64_t private_dirty{0};
@@ -40,6 +41,13 @@ struct MemoryReport {
     std::optional<std::uint64_t> gpu_gtt;  // system memory the GPU maps
     std::optional<std::uint64_t> gpu_cpu;
 };
+
+// Makes malloc give large blocks back to the system as soon as they are freed: blocks of 16 MB or
+// more get mappings of their own. glibc's default threshold grows with the blocks freed (up to
+// 32 MB), so the 15-30 MB buffers of decoding photos end up in the worker threads' arenas, which
+// it keeps: 430 MB after browsing a folder of ORF files, 21 MB of it in use (ROADMAP 6.3b). Call
+// it first thing in main(), before any thread starts.
+void give_back_large_blocks();
 
 // Reads it now (a few files of /proc; a few milliseconds).
 [[nodiscard]] MemoryReport read_memory_report();

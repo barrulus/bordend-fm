@@ -293,12 +293,13 @@ void QuickLook::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
 void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
                            const theme::Palette& palette, ui::IconSet& icons,
                            const fs::Entry& entry, Slot& slot, float fade) {
-    const auto* const fitted =
-        slot.content ? std::get_if<image::Fitted>(slot.content.get()) : nullptr;
-    // Upload what arrived: the sharp image replaces the thumbnail.
+    auto* const fitted = slot.content ? std::get_if<image::Fitted>(slot.content.get()) : nullptr;
+    // Upload what arrived: the sharp image replaces the thumbnail. The pixels are on the GPU now:
+    // they go (the size stays, for the caption).
     if (fitted != nullptr && !fitted->image.empty() && !slot.image_texture) {
         slot.image_texture = std::make_unique<ui::Texture>(
             fitted->image.width, fitted->image.height, fitted->image.rgba);
+        std::vector<std::uint8_t>{}.swap(fitted->image.rgba);
         if (slot.thumbnail_texture) {
             retired_.push_back(std::move(slot.thumbnail_texture));
         }

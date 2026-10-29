@@ -33,3 +33,18 @@ TEST_CASE("memory report: the process, malloc and the lines for the log") {
     CHECK(lines[2].starts_with("gpu: "));  // "?" without a GPU client in the tests
     CHECK(block.back() == 1);
 }
+
+TEST_CASE("memory: large blocks go back to the system once freed") {
+#if !defined(__SANITIZE_ADDRESS__) && !defined(__SANITIZE_THREAD__)
+    nordend::core::give_back_large_blocks();
+    const nordend::core::MemoryReport before = nordend::core::read_memory_report();
+    for (int i = 0; i < 8; ++i) {
+        // 20 MB, as a decoded photo preview: over the threshold, so a mapping of its own.
+        std::vector<std::uint8_t> block(std::size_t{20} << 20U, static_cast<std::uint8_t>(i));
+        CHECK(block.back() == i);
+    }
+    const nordend::core::MemoryReport after = nordend::core::read_memory_report();
+    CHECK(after.heap_free < before.heap_free + (std::size_t{4} << 20U));  // nothing kept
+    CHECK(after.anonymous < before.anonymous + (std::size_t{8} << 20U));
+#endif
+}

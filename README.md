@@ -51,7 +51,7 @@ packages yet: see [Building](#building). What happens step by step is in the
 | Binary | **2.48 MB** (2.10 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
 | Code | about 23 300 lines of C++20, plus 5 500 lines of tests (171 test cases, run under AddressSanitizer and ThreadSanitizer too) |
-| Memory | **33 MB** of its own (private, anonymous); 117 MB resident counting shared libraries, 67 MB of which are Mesa's GPU driver (LLVM + gallium), shared with every OpenGL app |
+| Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
 

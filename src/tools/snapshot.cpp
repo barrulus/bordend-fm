@@ -4,7 +4,7 @@
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
 //                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]
-//                    [--memory [--trim]]]
+//                    [--memory [--trim] [--default-malloc]]]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -19,7 +19,8 @@
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
 // --transfer shows TEXT as a transfer's progress, 40 % done; --conflict asks about NAME as a
 // paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
-// results are in; with --trim, after malloc_trim(0) and the time it took.
+// results are in; with --trim, after malloc_trim(0) and the time it took. --default-malloc leaves
+// glibc's mmap threshold as it is (the app sets it: core::give_back_large_blocks), to compare.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -228,6 +229,7 @@ int main(int argc, char** argv) {
     bool info_expanded = false;
     bool memory = false;
     bool trim = false;
+    bool default_malloc = false;
     float info_width = 0.0F;  // the info pane as if dragged to this width
     std::string message;
     std::string transfer;
@@ -246,6 +248,11 @@ int main(int argc, char** argv) {
         }
         if (option == "--trim") {
             trim = true;
+            args = args.subspan(1);
+            continue;
+        }
+        if (option == "--default-malloc") {
+            default_malloc = true;
             args = args.subspan(1);
             continue;
         }
@@ -283,10 +290,14 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
-            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--memory [--trim]]] "
+            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--memory [--trim] "
+            "[--default-malloc]]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
+    }
+    if (!default_malloc) {
+        nordend::core::give_back_large_blocks();  // as the app does; before any thread starts
     }
     try {
         const std::string out{args[1]};

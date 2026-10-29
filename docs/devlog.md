@@ -4,6 +4,31 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Giving decoded photos back (ROADMAP 6.3c)
+
+**Done**
+- `core::give_back_large_blocks()`: `mallopt(M_MMAP_THRESHOLD, 16 MB)`, first thing in `main()`
+  (and in `nordend-snapshot`, which has `--default-malloc` to compare). Blocks of 16 MB or more
+  get mappings of their own and go back to the system when freed; glibc's dynamic threshold
+  would otherwise grow to the decode buffers' size and serve them from the workers' arenas.
+- Quick Look drops the fitted pixels once they are a texture (the size stays for the caption).
+- The memory report also gives the peak (`VmHWM`).
+- Tests (173 with the raw samples): eight 20 MB blocks allocated and freed leave nothing kept
+  (checked to fail without the call: 21 MB kept); skipped under ASan and TSan, whose malloc
+  replaces glibc's. Quick Look's pixels need GL to be uploaded, so that one is checked with
+  `nordend-snapshot --memory` ("pixels kept 0.0 MB"), not a unit test.
+
+**Measured** (see benchmarks): offscreen, a screenful of new thumbnails 205-215 ms instead of
+188-201 ms (+7 %), 152 MB afterwards instead of 386 MB; Quick Look over 20 photos 155 MB
+instead of 584 MB. Limiting the thumbnails made at once (4 or 2) lowers the peak but costs 20 %
+or twice the time: not kept. The thumbnail texture budget (256 MB, in VRAM) stays.
+
+**Tested by the author**: the five steps on screen (`giro.sh dopo`): 111, 120, 141, 143 and
+143 MB back home, instead of 545 MB; peak 240 MB. Thumbnail textures reached 120 MB of VRAM
+(257 thumbnails, grid and info pane sizes), kept under the budget.
+
+---
+
 ## 2026-10-29 — Memory with photos (ROADMAP 6.3b)
 
 Asked for after `top` showed 290 MB (6.2) and 412 MB (6.3) resident. Measure first; fixes are
