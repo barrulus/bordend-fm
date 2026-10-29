@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
@@ -54,6 +55,10 @@ public:
 
     // Row at a window point, from the last drawn bounds; nullopt outside the rows.
     [[nodiscard]] std::optional<std::size_t> row_at(float x, float y) const;
+
+    // Below the cursor's row, near its left: where a menu opened from the keyboard goes; nullopt
+    // when the row is not shown.
+    [[nodiscard]] std::optional<std::pair<float, float>> cursor_anchor() const;
 
     // Hover highlight; returns true if it changed.
     bool set_hovered(std::optional<std::size_t> row);

@@ -26,6 +26,21 @@ struct MadeFolder {
 // taken atomically (mkdir fails on an existing one, and the next is tried).
 [[nodiscard]] MadeFolder make_folder(const std::filesystem::path& directory, std::string_view base);
 
+struct MadeFile {
+    std::string name;  // empty on error
+    std::error_code error;
+};
+
+// Makes a file in directory called name, else "name 2" ("Letter 2.odt": the number goes before
+// the extension), "name 3"...: the first free name, taken atomically (O_EXCL). Empty, or with
+// the contents and permissions of from (a template); a copy that fails leaves nothing.
+[[nodiscard]] MadeFile make_file(const std::filesystem::path& directory, std::string_view name,
+                                 const std::filesystem::path& from = {});
+
+// The templates "New File" offers: the regular files in directory (links to them too), not
+// hidden nor backups ("~"), sorted by name; empty when there is no such folder.
+[[nodiscard]] std::vector<std::string> templates_in(const std::filesystem::path& directory);
+
 // The darktable sidecars of a file among names (the directory's entries), sorted: "X.ORF.xmp" and
 // the duplicates "X_01.ORF.xmp" (an underscore and two or more digits before the file's
 // extension), unless a file of the directory has the duplicate's name ("X_1234.ORF": the sidecar

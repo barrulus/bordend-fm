@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
@@ -72,6 +73,13 @@ public:
     // Called on a double click on a file (not a folder): the browser opens the selection.
     void set_open_handler(std::function<void()> open) { open_ = std::move(open); }
 
+    // A right click on an entry (selected first, unless it was), on empty space (the selection
+    // cleared) or on the info pane: menu(x, y) opens the context menu there.
+    void set_menu_handler(std::function<void(float x, float y)> menu) { menu_ = std::move(menu); }
+
+    // Where a context menu opened from the keyboard goes: by the cursor's entry, when it is shown.
+    [[nodiscard]] std::optional<std::pair<float, float>> cursor_anchor() const;
+
     // The name being edited, which the view leaves for the editor to draw (the browser's).
     void set_edit_slot(EditSlot* edit) { edit_ = edit; }
 
@@ -97,6 +105,7 @@ public:
     [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
 
 private:
+    void right_click(float x, float y);
     void enter();
     void go_up();
     void zoom(std::size_t size);
@@ -115,6 +124,7 @@ private:
     std::shared_ptr<const fs::MimeDatabase> mime_;
     std::function<void()> redraw_;
     std::function<void()> open_;
+    std::function<void(float, float)> menu_;
     EditSlot* edit_{nullptr};
     const CutMarks* cut_{nullptr};
     Thumbnails* thumbnails_;

@@ -24,6 +24,7 @@
 #include "nordend/views/breadcrumb.hpp"
 #include "nordend/views/column_view.hpp"
 #include "nordend/views/conflict_dialog.hpp"
+#include "nordend/views/context_menu.hpp"
 #include "nordend/views/cut_marks.hpp"
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/grid_view.hpp"
@@ -54,7 +55,8 @@ namespace nordend::views {
 // the selection (cut entries fade until pasted; Escape keeps them), Ctrl+V copies or moves it
 // into the folder shown, on the transfer thread, with progress in the status bar and a question
 // on a card for every name taken. Delete moves the selection to the trash (freedesktop), on the
-// same thread; the cursor goes on to the entry after it.
+// same thread; the cursor goes on to the entry after it. A right click (or the Menu key, Shift+F10)
+// opens a context menu with the same actions, "Open With" and "New File".
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -109,6 +111,31 @@ public:
         std::function<void(const std::filesystem::path& directory, std::vector<fs::Entry> files)>;
 
     void set_open_handler(OpenHandler open) { open_ = std::move(open); }
+
+    // An application "Open With" offers.
+    struct AppChoice {
+        std::string id;
+        std::string name;
+        bool is_default{false};
+    };
+
+    // The applications for entry, handed to done later on the loop thread; and opening files
+    // with one of them. Without them the menu has no "Open With".
+    using ChoicesHandler =
+        std::function<void(const std::filesystem::path& directory, fs::Entry entry,
+                           std::function<void(std::vector<AppChoice>)> done)>;
+    using OpenWithHandler = std::function<void(const std::filesystem::path& directory,
+                                               std::vector<fs::Entry> files, std::string app_id)>;
+
+    void set_open_with_handlers(ChoicesHandler choices, OpenWithHandler open_with) {
+        choices_ = std::move(choices);
+        open_with_ = std::move(open_with);
+    }
+
+    // Where "New File" takes its templates from: fs::templates_dir() unless set (tests).
+    void set_templates_dir(std::filesystem::path directory) {
+        templates_dir_ = std::move(directory);
+    }
 
     // A line in the status bar for a few seconds (what opening a file did).
     void show_message(std::string text, bool error) {
@@ -169,6 +196,17 @@ public:
     // Where Delete puts what is on the home trash's disk: fs::home_trash() unless set (tests).
     void set_home_trash(std::filesystem::path trash) { home_trash_ = std::move(trash); }
 
+    // The context menu at (x, y): the selection's when there is one, else the folder's. From the
+    // keyboard (Menu, Shift+F10), by the cursor's entry.
+    void open_menu(float x, float y, bool keyboard);
+    void open_menu_from_keyboard();
+
+    [[nodiscard]] ContextMenu& context_menu() noexcept { return menu_; }
+
+    // "New File": makes name (from a template when from is set) in the folder shown, puts the
+    // cursor on it and edits its name.
+    void new_file(const std::string& name, const std::filesystem::path& from);
+
     // Stops the transfer running (the status bar's ×).
     void cancel_transfer();
 
@@ -206,12 +244,23 @@ private:
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now);
 
+    // The names a command acts on: the selection, else the cursor's entry.
+    [[nodiscard]] static std::vector<std::string> targets(const Folder& folder);
+    [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
+    [[nodiscard]] std::vector<MenuItem> folder_menu();
+
     core::WorkerPool& pool_;
     std::function<void()> redraw_;
     OpenHandler open_;
-    std::unique_ptr<Thumbnails> thumbnails_;  // before the views that draw them
-    InfoPane info_pane_;                      // the same: every view draws it
-    ColumnView columns_;                      // before grid_: grid folders may report to it
+    ChoicesHandler choices_;
+    OpenWithHandler open_with_;
+    std::optional<std::filesystem::path> templates_dir_;
+    fs::PlaceSources place_sources_{
+        fs::PlaceSources::from_environment()};  // read at start: where the templates folder is
+                                                // found
+    std::unique_ptr<Thumbnails> thumbnails_;    // before the views that draw them
+    InfoPane info_pane_;                        // the same: every view draws it
+    ColumnView columns_;                        // before grid_: grid folders may report to it
     GridView grid_;
     DetailsView details_;
     QuickLook quick_look_;
@@ -221,6 +270,11 @@ private:
     ShortcutsOverlay shortcuts_;
     NameEditor editor_;
     ConflictDialog conflict_;
+    ContextMenu menu_;
+    std::uint64_t menu_generation_{0};  // a submenu found late fills only the menu it was for
+    std::size_t menu_loads_{0};         // applications and templates being looked for
+    std::vector<std::function<void()>> menu_loaders_;  // started once the menu is open
+    ui::Rect view_area_{};                             // where the view was last drawn
     Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};

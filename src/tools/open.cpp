@@ -2,6 +2,7 @@
 //
 //   nordend-open [--dry-run] FILE...   open files as Nordend does, or only print how
 //   nordend-open --default TYPE...     the default application of each type
+//   nordend-open --apps TYPE...        every application of each type ("Open With")
 //   nordend-open --types               every type a mimeapps.list or desktop entry names
 //
 // --dry-run prints "<type>\t<file>" for each file, then each process: its application, folder
@@ -34,6 +35,7 @@ namespace platform = nordend::platform;
 constexpr const char* kUsage =
     "usage: nordend-open [--dry-run] FILE...\n"
     "       nordend-open --default TYPE...\n"
+    "       nordend-open --apps TYPE...\n"
     "       nordend-open --types\n";
 
 // A file as a directory listing would give it (the type left to detection).
@@ -80,6 +82,23 @@ int defaults(std::span<char*> types, const platform::Applications& apps,
     return 0;
 }
 
+// "<type>\t<registered IDs, ;-separated>\t<recommended IDs>", as `gio mime TYPE` lists them.
+int all_apps(std::span<char*> types, const platform::Applications& apps,
+             const fs::MimeDatabase& database) {
+    const auto ids = [](const std::vector<const platform::DesktopEntry*>& entries) {
+        std::string line;
+        for (const platform::DesktopEntry* const entry : entries) {
+            line += entry->id + ";";
+        }
+        return line.empty() ? std::string{"-"} : line;
+    };
+    for (const char* const type : types) {
+        std::printf("%s\t%s\t%s\n", type, ids(apps.all_for(type, database, true)).c_str(),
+                    ids(apps.all_for(type, database, false)).c_str());
+    }
+    return 0;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -107,6 +126,9 @@ int main(int argc, char** argv) {
         if (first == "--default") {
             return defaults(args.subspan(1), apps, *database);
         }
+        if (first == "--apps") {
+            return all_apps(args.subspan(1), apps, *database);
+        }
         const bool dry_run = first == "--dry-run";
         const std::span<char*> files = dry_run ? args.subspan(1) : args;
         if (files.empty() || (!dry_run && first.starts_with("-"))) {
@@ -119,8 +141,8 @@ int main(int argc, char** argv) {
             for (const char* const file : files) {
                 const std::filesystem::path path = std::filesystem::absolute(file);
                 const fs::Entry entry = entry_of(path);
-                const std::string_view type =
-                    database->name(database->detect(path.parent_path(), entry));
+                const std::string_view type = database->name(
+                    database->to_open(database->detect(path.parent_path(), entry), entry.name));
                 std::printf("%.*s\t%s\n", static_cast<int>(type.size()), type.data(), path.c_str());
                 if (!entry.is_directory()) {
                     open_files.push_back({.path = path, .mime = std::string{type}});

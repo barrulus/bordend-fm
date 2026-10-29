@@ -58,6 +58,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
+#include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
@@ -326,6 +327,7 @@ int main(int argc, char** argv) {
             core::EventLoop loop;
             core::WorkerPool pool{loop};
             nordend::fs::DirectoryWatcher watcher{loop};
+            std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches
             std::unique_ptr<views::Browser> columns;
             const ui::Rect bounds{0.0F, 0.0F, width, height};
             const auto frame = [&] {
@@ -339,14 +341,36 @@ int main(int argc, char** argv) {
                 renderer.end_frame();
             };
             if (!columns_dir.empty()) {
+                const auto mime = nordend::fs::MimeDatabase::load();
                 columns = std::make_unique<views::Browser>(
-                    loop, pool, watcher, nordend::fs::MimeDatabase::load(), [] {},
-                    [](ui::CursorShape /*shape*/) {},
+                    loop, pool, watcher, mime, [] {}, [](ui::CursorShape /*shape*/) {},
                     thumbnails.empty()
                         ? nullptr
                         : std::make_shared<nordend::thumbs::Cache>(thumbnails, "nordend-dev"));
                 columns->set_places(
                     nordend::fs::load_places(nordend::fs::PlaceSources::from_environment()));
+                opener = std::make_unique<nordend::platform::Opener>(
+                    loop, pool, mime, nordend::platform::Environment::from_environment(),
+                    [](const std::string& /*message*/, bool /*error*/) {});
+                columns->set_open_with_handlers(
+                    [&opener](const std::filesystem::path& directory, nordend::fs::Entry entry,
+                              std::function<void(std::vector<views::Browser::AppChoice>)> done) {
+                        opener->choices(directory, std::move(entry),
+                                        [done = std::move(done)](
+                                            std::vector<nordend::platform::AppChoice> found) {
+                                            std::vector<views::Browser::AppChoice> apps;
+                                            apps.reserve(found.size());
+                                            for (nordend::platform::AppChoice& app : found) {
+                                                apps.push_back({.id = std::move(app.id),
+                                                                .name = std::move(app.name),
+                                                                .is_default = app.is_default});
+                                            }
+                                            done(std::move(apps));
+                                        });
+                    },
+                    [](const std::filesystem::path& /*directory*/,
+                       const std::vector<nordend::fs::Entry>& /*files*/,
+                       const std::string& /*app_id*/) {});
                 if (reveal.empty()) {
                     columns->open(columns_dir);
                 } else {

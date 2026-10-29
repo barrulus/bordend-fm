@@ -123,7 +123,10 @@ Dentro:
 - Quick Look: immagini (png, jpeg, webp, jxl, gif), RAW tramite JPEG incorporato con orientamento
   corretto, testo (monospace, limite di dimensione), fallback con info del file
 - apertura con l'app predefinita: risolutore e lancio nostri (vedi "Apertura dei file")
-- operazioni base: copia, sposta, rinomina, nuova cartella, cestino (spec freedesktop)
+- operazioni base: copia, sposta, rinomina, nuova cartella, nuovo file (vuoto o da un modello di
+  `XDG_TEMPLATES_DIR`), cestino (spec freedesktop)
+- menu contestuale (tasto destro, tasto Menu, Shift+F10) con le stesse azioni e "Apri con", disegnato
+  da Nordend dentro la finestra (aggiunto il 2026-10-29 con l'OK dell'autore)
 
 Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal, udisks2,
 evidenziazione della sintassi, DnD verso altre app, editor esterno.

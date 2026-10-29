@@ -108,7 +108,10 @@ Environment Environment::from_environment() {
          dir_list(env("XDG_DATA_DIRS"), "/usr/local/share:/usr/share")) {
         environment.data_dirs.push_back(std::move(dir));
     }
-    for (const std::string_view desktop : split(env("XDG_CURRENT_DESKTOP"), ':')) {
+    // Kept in a variable: split() gives views into it, and a temporary would be gone by the
+    // loop's first turn.
+    const std::string desktops = env("XDG_CURRENT_DESKTOP");
+    for (const std::string_view desktop : split(desktops, ':')) {
         if (!desktop.empty()) {
             std::string lower{desktop};
             std::ranges::transform(lower, lower.begin(), [](char c) {

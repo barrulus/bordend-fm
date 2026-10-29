@@ -162,20 +162,64 @@ const DesktopEntry* Applications::find(std::string_view id) const {
     return nullptr;
 }
 
-const DesktopEntry* Applications::default_for(std::string_view mime,
-                                              const fs::MimeDatabase& database) const {
+std::vector<std::string> Applications::types_for(std::string_view mime,
+                                                 const fs::MimeDatabase& database, bool parents) {
     // The type and its parents, breadth first, without repeats.
     std::vector<std::string> types;
     const fs::MimeId id = database.find(mime);
     types.emplace_back(id == fs::kUnknownMime ? mime : database.name(id));
-    for (std::size_t i = 0; i < types.size(); ++i) {
+    for (std::size_t i = 0; parents && i < types.size(); ++i) {
         for (const fs::MimeId parent : database.parents(database.find(types[i]))) {
             add_unique(types, std::string{database.name(parent)});
         }
     }
+    return types;
+}
 
+void Applications::associate(const std::string& type, std::vector<std::string>& hits,
+                             std::vector<std::string>& blocked) const {
+    for (std::size_t i = 0; i < dirs_.size(); ++i) {
+        const Dir& dir = dirs_[i];
+        const auto consider = [&](const std::string& app, std::vector<std::string>& into) {
+            if (!masked(i, app) && !contains(blocked, app) && !contains(hits, app)) {
+                into.push_back(app);
+            }
+        };
+        if (const auto it = dir.lists.types.find(type); it != dir.lists.types.end()) {
+            for (const std::string& app : it->second.added) {
+                consider(app, hits);
+            }
+            for (const std::string& app : it->second.removed) {
+                consider(app, blocked);
+            }
+            for (const std::string& app : it->second.cached) {
+                consider(app, hits);
+            }
+        }
+    }
+}
+
+std::vector<const DesktopEntry*> Applications::all_for(std::string_view mime,
+                                                       const fs::MimeDatabase& database,
+                                                       bool parents) const {
+    std::vector<std::string> hits;
     std::vector<std::string> blocked;  // kept from one type to the next, as GLib does
-    for (const std::string& type : types) {
+    for (const std::string& type : types_for(mime, database, parents)) {
+        associate(type, hits, blocked);
+    }
+    std::vector<const DesktopEntry*> apps;
+    for (const std::string& app : hits) {
+        if (const DesktopEntry* entry = find(app)) {
+            apps.push_back(entry);
+        }
+    }
+    return apps;
+}
+
+const DesktopEntry* Applications::default_for(std::string_view mime,
+                                              const fs::MimeDatabase& database) const {
+    std::vector<std::string> blocked;  // kept from one type to the next, as GLib does
+    for (const std::string& type : types_for(mime, database, true)) {
         std::vector<std::string> candidates;
         for (const Dir& dir : dirs_) {
             if (const auto it = dir.lists.types.find(type); it != dir.lists.types.end()) {
@@ -184,25 +228,7 @@ const DesktopEntry* Applications::default_for(std::string_view mime,
                 }
             }
         }
-        for (std::size_t i = 0; i < dirs_.size(); ++i) {
-            const Dir& dir = dirs_[i];
-            const auto consider = [&](const std::string& app, std::vector<std::string>& into) {
-                if (!masked(i, app) && !contains(blocked, app) && !contains(candidates, app)) {
-                    into.push_back(app);
-                }
-            };
-            if (const auto it = dir.lists.types.find(type); it != dir.lists.types.end()) {
-                for (const std::string& app : it->second.added) {
-                    consider(app, candidates);
-                }
-                for (const std::string& app : it->second.removed) {
-                    consider(app, blocked);
-                }
-                for (const std::string& app : it->second.cached) {
-                    consider(app, candidates);
-                }
-            }
-        }
+        associate(type, candidates, blocked);
         for (const std::string& app : candidates) {
             if (const DesktopEntry* entry = find(app)) {
                 return entry;

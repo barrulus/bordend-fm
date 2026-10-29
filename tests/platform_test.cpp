@@ -399,10 +399,88 @@ TEST_CASE("opener: the files reach their application, and what happened is repor
     CHECK(reports[1] ==
           std::pair<std::string, bool>{"broken.desktop quit at once with status 1", true});
 
+    // An empty file opens as its name says (GLib calls it application/x-zerosize): a new notes.txt
+    // goes to the text application, and so do its "Open With" choices.
+    reports.clear();
+    static_cast<void>(sys.dir.write("photos/empty.txt", ""));
+    static_cast<void>(sys.dir.write("photos/empty", ""));
+    opener.open(sys.dir.path / "photos", {{.name = "empty.txt", .kind = Kind::file, .size = 0}});
+    REQUIRE(run_until(loop, [&] { return reports.size() == 2; }));
+    CHECK(reports[0] ==
+          std::pair<std::string, bool>{"Opening empty.txt with broken.desktop…", false});
+    std::vector<platform::AppChoice> choices;
+    bool answered = false;
+    opener.choices(sys.dir.path / "photos", {.name = "empty.txt", .kind = Kind::file, .size = 0},
+                   [&](std::vector<platform::AppChoice> found) {
+                       choices = std::move(found);
+                       answered = true;
+                   });
+    REQUIRE(run_until(loop, [&] { return answered; }));
+    REQUIRE(choices.size() == 1);
+    CHECK(choices[0].id == "broken.desktop");
+    // Without a type in its name, an empty file is still empty.
+    reports.clear();
+    opener.open(sys.dir.path / "photos", {{.name = "empty", .kind = Kind::file, .size = 0}});
+    REQUIRE(run_until(loop, [&] { return !reports.empty(); }));
+    CHECK(reports[0] ==
+          std::pair<std::string, bool>{"No application opens application/x-zerosize", true});
+
     // No application at all.
     reports.clear();
     opener.open(sys.dir.path / "photos",
                 {{.name = "d.zip", .kind = Kind::file, .mime = sys.mime->find("application/zip")}});
     REQUIRE(run_until(loop, [&] { return !reports.empty(); }));
     CHECK(reports[0] == std::pair<std::string, bool>{"No application opens application/zip", true});
+}
+
+TEST_CASE("applications: every one for a type, in GLib's order, the default first to choose") {
+    System sys;
+    for (const char* const name : {"viewer", "editor", "other", "gone"}) {
+        sys.program(name);
+        sys.app("share", std::string{name} + ".desktop", name);
+    }
+    static_cast<void>(
+        sys.dir.write("share/applications/mimeinfo.cache",
+                      "[MIME Cache]\nimage/png=other.desktop;viewer.desktop;missing.desktop;\n"
+                      "text/plain=editor.desktop;viewer.desktop;\n"
+                      "text/x-csrc=gone.desktop;\n"));
+    static_cast<void>(sys.dir.write("config/mimeapps.list",
+                                    "[Default Applications]\nimage/png=viewer.desktop\n"
+                                    "[Added Associations]\nimage/png=editor.desktop;\n"
+                                    "[Removed Associations]\ntext/x-csrc=gone.desktop;\n"));
+    const Applications apps = Applications::load(sys.environment, *sys.mime);
+    const auto ids = [&](std::string_view type, bool parents) {
+        std::vector<std::string> out;
+        for (const DesktopEntry* const app : apps.all_for(type, *sys.mime, parents)) {
+            out.push_back(app->id);
+        }
+        return out;
+    };
+    using Ids = std::vector<std::string>;
+    // Added associations first, then the cache; not installed ones left out; no defaults.
+    CHECK(ids("image/png", true) == Ids{"editor.desktop", "other.desktop", "viewer.desktop"});
+    // C source: its own (removed: none), then plain text's.
+    CHECK(ids("text/x-csrc", false).empty());
+    CHECK(ids("text/x-csrc", true) == Ids{"editor.desktop", "viewer.desktop"});
+
+    // The choices: the default first, each application once.
+    const std::vector<platform::AppChoice> choices =
+        platform::choices_for("image/png", apps, *sys.mime);
+    REQUIRE(choices.size() == 3);
+    CHECK(choices[0].id == "viewer.desktop");
+    CHECK(choices[0].is_default);
+    CHECK(choices[1].id == "editor.desktop");
+    CHECK_FALSE(choices[1].is_default);
+    CHECK(choices[2].id == "other.desktop");
+
+    // Open With: every file goes to the chosen application, whatever its type.
+    const std::vector<OpenFile> files{{.path = "/d/a.png", .mime = "image/png"},
+                                      {.path = "/d/b.zip", .mime = "application/zip"}};
+    const OpenPlan plan =
+        platform::plan_open(files, apps, *sys.mime, sys.environment, "other.desktop");
+    REQUIRE(plan.launches.size() == 1);
+    CHECK(plan.launches[0].app_id == "other.desktop");
+    CHECK(plan.files == 2);
+    CHECK(platform::plan_open(files, apps, *sys.mime, sys.environment, "nope.desktop").problems ==
+          std::vector<std::string>{"nope.desktop is not installed"});
 }

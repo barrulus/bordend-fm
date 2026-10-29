@@ -390,6 +390,12 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 go_up();
                 break;
             }
+            if (event.button == ui::PointerButton::right) {
+                if (event.y >= area_.y && event.y < area_.bottom()) {
+                    right_click(event.x, event.y);
+                }
+                break;
+            }
             if (event.button != ui::PointerButton::left || event.y < area_.y ||
                 event.y >= area_.bottom()) {
                 break;
@@ -531,6 +537,42 @@ bool GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     }
     redraw_();
     return true;
+}
+
+void GridView::right_click(float x, float y) {
+    if (!folder_) {
+        return;
+    }
+    if (x < area_.right()) {  // the pane keeps the selection it shows
+        const std::optional<std::size_t> cell = cell_at(x, y);
+        if (!cell) {
+            folder_->set_cursor(std::nullopt);  // empty space: the folder's own menu
+        } else {
+            folder_->set_cursor(cell, folder_->is_selected(folder_->entries()[*cell].name)
+                                          ? SelectMode::keep
+                                          : SelectMode::replace);
+        }
+    }
+    if (menu_) {
+        menu_(x, y);
+    }
+}
+
+std::optional<std::pair<float, float>> GridView::cursor_anchor() const {
+    const std::optional<std::size_t> cursor = folder_ ? folder_->cursor() : std::nullopt;
+    if (!cursor || columns_ == 0) {
+        return std::nullopt;
+    }
+    const std::size_t row = *cursor / columns_;
+    const std::size_t column = *cursor % columns_;
+    const float x =
+        area_.x + kPadding + (static_cast<float>(column) * cell_width_) + (cell_width_ / 2.0F);
+    const float y = area_.y + kPadding + (static_cast<float>(row) * cell_height()) +
+                    (cell_height() / 2.0F) - scroller_.offset();
+    if (y < area_.y || y > area_.bottom()) {
+        return std::nullopt;
+    }
+    return std::pair{x, y};
 }
 
 }  // namespace nordend::views

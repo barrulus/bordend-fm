@@ -12,6 +12,7 @@
 
 #include "draw_helpers.hpp"
 #include "nordend/fs/operations.hpp"
+#include "nordend/fs/places.hpp"
 #include "nordend/fs/trash.hpp"
 #include "nordend/views/format.hpp"
 
@@ -52,7 +53,8 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
               [this](const std::shared_ptr<Folder>& folder, const std::string& from,
                      const std::string& to) { rename(folder, from, to); },
               [this](std::string problem) { show_message(std::move(problem), true); }},
-      conflict_{std::move(redraw)},
+      conflict_{redraw},
+      menu_{std::move(redraw)},
       transfers_{loop,
                  [this](const fs::TransferRequest& request, const fs::TransferProgress& progress) {
                      transfer_progress(request, progress);
@@ -69,6 +71,9 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     columns_.set_edit_slot(&editor_.slot());
     grid_.set_edit_slot(&editor_.slot());
     details_.set_edit_slot(&editor_.slot());
+    columns_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
+    grid_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
+    details_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     columns_.set_cut_marks(&cut_marks_);
     grid_.set_cut_marks(&cut_marks_);
     details_.set_cut_marks(&cut_marks_);
@@ -106,17 +111,22 @@ std::vector<std::string> Browser::memory_lines() const {
     return lines;
 }
 
+std::vector<std::string> Browser::targets(const Folder& folder) {
+    std::vector<std::string> names = folder.selected_names();
+    if (names.empty()) {
+        if (const fs::Entry* const cursor = folder.cursor_entry()) {
+            names.push_back(cursor->name);
+        }
+    }
+    return names;
+}
+
 void Browser::take_selection(bool cut) {
     const std::shared_ptr<Folder> folder = current_folder();
     if (!folder) {
         return;
     }
-    std::vector<std::string> names = folder->selected_names();
-    if (names.empty()) {
-        if (const fs::Entry* const cursor = folder->cursor_entry()) {
-            names.push_back(cursor->name);
-        }
-    }
+    std::vector<std::string> names = targets(*folder);
     if (names.empty()) {
         return;
     }
@@ -165,12 +175,7 @@ void Browser::trash() {
     if (!folder) {
         return;
     }
-    std::vector<std::string> names = folder->selected_names();
-    if (names.empty()) {
-        if (const fs::Entry* const cursor = folder->cursor_entry()) {
-            names.push_back(cursor->name);
-        }
-    }
+    std::vector<std::string> names = targets(*folder);
     if (names.empty()) {
         return;
     }
@@ -399,6 +404,224 @@ void Browser::new_folder() {
         });
 }
 
+void Browser::new_file(const std::string& name, const std::filesystem::path& from) {
+    std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    ++operations_;
+    pool_.submit(
+        core::Priority::visible,
+        [directory = folder->path(), name, from](const core::CancelToken& /*token*/) {
+            return fs::make_file(directory, name, from);
+        },
+        [this, alive = alive_, folder](const fs::MadeFile& made) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (made.error) {
+                show_message(std::format("Cannot make a file in {}: {}",
+                                         folder->path().filename().string(), made.error.message()),
+                             true);
+                return;
+            }
+            folder->expect_name(made.name);  // lands when the watcher reports it
+            if (current_folder() == folder && !editor_.active()) {
+                editor_.start(folder, made.name, false);
+            }
+        });
+}
+
+std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder) {
+    const std::vector<std::string> names = targets(*folder);
+    const fs::Entry* const cursor = folder->cursor_entry();
+    std::vector<MenuItem> items;
+    const auto add = [&items](std::string id, std::string label, std::string keys,
+                              std::function<void()> action, bool separator = false,
+                              bool enabled = true) {
+        MenuItem item;
+        item.id = std::move(id);
+        item.label = std::move(label);
+        item.keys = std::move(keys);
+        item.action = std::move(action);
+        item.separator = separator;
+        item.enabled = enabled;
+        items.push_back(std::move(item));
+    };
+    add("open", "Open", "Enter", [this] {
+        ui::KeyEvent enter;
+        enter.keysym = XKB_KEY_Return;
+        view_key(enter, Clock::now());
+    });
+    if (cursor != nullptr && !cursor->is_directory() && choices_ && open_with_) {
+        MenuItem with;
+        with.id = "open_with";
+        with.label = "Open With";
+        with.submenu = true;
+        with.empty_text = "Looking for applications…";
+        items.push_back(std::move(with));
+        // The files it would open: the selected ones, else the cursor's; their types as known.
+        std::vector<fs::Entry> files;
+        for (const fs::Entry& entry : folder->entries()) {
+            if (!entry.is_directory() && std::ranges::find(names, entry.name) != names.end()) {
+                fs::Entry typed = entry;
+                typed.mime = folder->mime_of(entry);
+                files.push_back(std::move(typed));
+            }
+        }
+        fs::Entry typed = *cursor;
+        typed.mime = folder->mime_of(*cursor);
+        ++menu_loads_;
+        menu_loaders_.emplace_back([this, directory = folder->path(), typed = std::move(typed),
+                                    files = std::move(files)]() mutable {
+            choices_(directory, std::move(typed),
+                     [this, alive = alive_, generation = menu_generation_, directory,
+                      files = std::move(files)](const std::vector<AppChoice>& apps) {
+                         if (!*alive) {
+                             return;
+                         }
+                         --menu_loads_;
+                         if (generation != menu_generation_) {
+                             return;  // another menu now
+                         }
+                         std::vector<MenuItem> children;
+                         for (const AppChoice& app : apps) {
+                             MenuItem item;
+                             item.id = app.id;
+                             item.label = app.is_default ? app.name + " (default)" : app.name;
+                             item.action = [this, directory, files, id = app.id] {
+                                 open_with_(directory, files, id);
+                             };
+                             children.push_back(std::move(item));
+                         }
+                         if (children.empty()) {
+                             MenuItem none;  // a dimmed line says so
+                             none.label = "No applications";
+                             none.enabled = false;
+                             children.push_back(std::move(none));
+                         }
+                         menu_.set_submenu("open_with", std::move(children));
+                     });
+        });
+    }
+    const std::size_t count = names.size();
+    add("copy", "Copy", keys_for(Command::copy), [this] { take_selection(false); }, true);
+    add("cut", "Cut", keys_for(Command::cut), [this] { take_selection(true); });
+    add(
+        "paste", "Paste", keys_for(Command::paste), [this] { paste(); }, false,
+        !clipboard_.names.empty());
+    add(
+        "rename", "Rename…", keys_for(Command::rename), [this] { start_rename(); }, true,
+        count == 1);
+    add("trash", "Move to Trash", keys_for(Command::trash), [this] { trash(); });
+    return items;
+}
+
+std::vector<MenuItem> Browser::folder_menu() {
+    std::vector<MenuItem> items;
+    MenuItem make_folder;
+    make_folder.id = "new_folder";
+    make_folder.label = "New Folder";
+    make_folder.keys = keys_for(Command::new_folder);
+    make_folder.action = [this] { new_folder(); };
+    items.push_back(std::move(make_folder));
+
+    // "New File": an empty one at once, the templates when they have been looked for.
+    const auto empty_file = [this] {
+        MenuItem item;
+        item.id = "empty_file";
+        item.label = "Empty File";
+        item.action = [this] { new_file("New File", {}); };
+        return item;
+    };
+    MenuItem make_file;
+    make_file.id = "new_file";
+    make_file.label = "New File";
+    make_file.submenu = true;
+    make_file.children.push_back(empty_file());
+    items.push_back(std::move(make_file));
+    ++menu_loads_;
+    menu_loaders_.emplace_back([this, empty_file] {
+        pool_.submit(
+            core::Priority::visible,
+            [sources = place_sources_, fixed = templates_dir_](const core::CancelToken& /*token*/) {
+                std::filesystem::path directory = fixed ? *fixed : fs::templates_dir(sources);
+                std::vector<std::string> names =
+                    directory.empty() ? std::vector<std::string>{} : fs::templates_in(directory);
+                return std::pair{std::move(directory), std::move(names)};
+            },
+            [this, alive = alive_, generation = menu_generation_,
+             empty_file](const std::pair<std::filesystem::path, std::vector<std::string>>& found) {
+                if (!*alive) {
+                    return;
+                }
+                --menu_loads_;
+                if (generation != menu_generation_ || found.second.empty()) {
+                    return;
+                }
+                std::vector<MenuItem> children{empty_file()};
+                bool first = true;
+                for (const std::string& name : found.second) {
+                    MenuItem item;
+                    item.id = "template:" + name;
+                    item.label = name;
+                    item.separator = std::exchange(first, false);
+                    item.action = [this, name, from = found.first / name] { new_file(name, from); };
+                    children.push_back(std::move(item));
+                }
+                menu_.set_submenu("new_file", std::move(children));
+            });
+    });
+
+    MenuItem paste_here;
+    paste_here.id = "paste";
+    paste_here.label = "Paste";
+    paste_here.keys = keys_for(Command::paste);
+    paste_here.separator = true;
+    paste_here.enabled = !clipboard_.names.empty();
+    paste_here.action = [this] { paste(); };
+    items.push_back(std::move(paste_here));
+    return items;
+}
+
+void Browser::open_menu(float x, float y, bool keyboard) {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    if (sidebar_.focused()) {
+        sidebar_.set_focused(false);
+    }
+    ++menu_generation_;
+    menu_loaders_.clear();
+    std::vector<MenuItem> items = targets(*folder).empty() ? folder_menu() : entry_menu(folder);
+    menu_.open(x, y, std::move(items), keyboard);
+    // Submenus found later, once the menu they fill is open (the answer may come at once).
+    for (const std::function<void()>& load : std::exchange(menu_loaders_, {})) {
+        load();
+    }
+}
+
+void Browser::open_menu_from_keyboard() {
+    std::optional<std::pair<float, float>> anchor;
+    switch (mode_) {
+        case Mode::columns:
+            anchor = columns_.cursor_anchor();
+            break;
+        case Mode::grid:
+            anchor = grid_.cursor_anchor();
+            break;
+        case Mode::details:
+            anchor = details_.cursor_anchor();
+            break;
+    }
+    // No entry shown under the cursor: near the view's top left.
+    const auto [x, y] =
+        anchor.value_or(std::pair{view_area_.x + (view_area_.width / 4.0F), view_area_.y + 40.0F});
+    open_menu(x, y, true);
+}
+
 void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& from,
                      const std::string& to) {
     ++operations_;
@@ -544,16 +767,16 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
     }
     editor_.slot().rect.reset();  // the view places it again if it shows the name
-    draw_view(renderer,
-              {view.x, view.y + kTitleHeight, view.width,
-               std::max(0.0F, view.height - kTitleHeight - bar)},
-              palette, icons, now);
+    view_area_ = {view.x, view.y + kTitleHeight, view.width,
+                  std::max(0.0F, view.height - kTitleHeight - bar)};
+    draw_view(renderer, view_area_, palette, icons, now);
     editor_.draw(renderer, palette);
     if (quick_look_.is_open()) {
         quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
     }
     quick_look_.draw(renderer, bounds, palette, icons, now);
     shortcuts_.draw(renderer, bounds, palette);
+    menu_.draw(renderer, bounds, palette);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
     if (thumbnails_) {
         thumbnails_->end_frame();
@@ -593,7 +816,7 @@ bool Browser::animating() const {
 }
 
 bool Browser::loading() const {
-    if (operations_ > 0 || transfers_.pending() > 0 || quick_look_.loading() ||
+    if (operations_ > 0 || menu_loads_ > 0 || transfers_.pending() > 0 || quick_look_.loading() ||
         info_pane_.loading() || status_bar_.loading()) {
         return true;
     }
@@ -611,6 +834,14 @@ bool Browser::loading() const {
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
+        return;
+    }
+    if (menu_.is_open()) {
+        menu_.pointer(event);  // a click outside closes it and does nothing else
+        if (event.kind != ui::PointerEvent::Kind::leave) {
+            pointer_x_ = event.x;
+            pointer_y_ = event.y;
+        }
         return;
     }
     // While a name is edited, a press in its field is the field's; elsewhere it keeps the name,
@@ -749,6 +980,9 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         return conflict_.key(event);  // a copy waits for the answer: every key is the card's
     }
+    if (menu_.is_open()) {
+        return menu_.key(event);  // every key is the menu's meanwhile
+    }
     if (editor_.active()) {
         return editor_.key(event);  // every key is the name's meanwhile
     }
@@ -853,6 +1087,9 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::trash:
             trash();
+            break;
+        case Command::context_menu:
+            open_menu_from_keyboard();
             break;
     }
 }

@@ -107,6 +107,21 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
     the rest; pasting into the same folder keeps both by itself;
   - refused before anything moves: a folder into itself, or more than the free space.
+- **Context menu**: a right click (or a two-finger tap on the touchpad) in any of the three views
+  or on the info pane, the Menu key or Shift+F10:
+  - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash;
+    on a folder's empty space: New Folder, New File, Paste; what cannot be done now is dimmed,
+    and each item shows its shortcut;
+  - a right click on an entry selects it first, unless it is part of the selection already;
+  - Open With lists the applications for the file's type exactly as GTK apps do (0 differences
+    from `gio mime` on all 1 232 types and aliases), the default one first, and opens every
+    selected file with the one chosen;
+  - New File makes an empty file, or a copy of one of your templates (`XDG_TEMPLATES_DIR`),
+    never over an existing file, with the name ready to edit;
+  - drawn by Nordend in your theme's colors, it stays whole near the window's edges, and the
+    keyboard works in it: arrows, Enter, → into a submenu, ← and Escape back.
+- **Empty files open as their name says**: a new, empty `notes.txt` opens in your text editor
+  (GLib calls any empty file `application/x-zerosize`, which no application opens).
 - **Trash** (Delete), the freedesktop Trash specification 1.0, in any of the three views and in
   Quick Look:
   - files on the home's disk go to `~/.local/share/Trash`, files on other disks to that disk's

@@ -570,6 +570,14 @@ MimeId MimeDatabase::by_content(std::span<const std::byte> head) const {
 }
 
 // The order of GLib's g_content_type_guess, so Nordend agrees with GTK apps and gio.
+MimeId MimeDatabase::to_open(MimeId mime, std::string_view file_name) const {
+    if (mime != kZeroSize) {
+        return mime;
+    }
+    const MimeId named = by_name(file_name).mime;
+    return named == kUnknownMime ? mime : named;
+}
+
 MimeId MimeDatabase::detect(std::string_view file_name, std::span<const std::byte> head,
                             std::uint64_t size) const {
     if (size == 0) {

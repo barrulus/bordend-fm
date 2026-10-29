@@ -59,6 +59,15 @@ public:
     [[nodiscard]] const DesktopEntry* default_for(std::string_view mime,
                                                   const fs::MimeDatabase& database) const;
 
+    // The installed applications associated with a type, in GLib's order (what `gio mime TYPE`
+    // lists as "Registered applications" with parents, "Recommended applications" without): the
+    // added associations and the cached entries declaring the type, dir by dir, minus the
+    // removed ones; then the same for each parent. Defaults are not added: callers put
+    // default_for() first.
+    [[nodiscard]] std::vector<const DesktopEntry*> all_for(std::string_view mime,
+                                                           const fs::MimeDatabase& database,
+                                                           bool parents = true) const;
+
     // The application with this desktop ID, if installed: found, not Hidden, an Application with
     // an Exec line whose program (and TryExec) is in the PATH. nullptr otherwise.
     [[nodiscard]] const DesktopEntry* find(std::string_view id) const;
@@ -74,6 +83,14 @@ private:
         MimeApps lists;
         std::unordered_map<std::string, DesktopEntry> entries;  // by desktop ID
     };
+
+    // mime unaliased, then (with parents) its parents breadth first.
+    [[nodiscard]] static std::vector<std::string> types_for(std::string_view mime,
+                                                            const fs::MimeDatabase& database,
+                                                            bool parents);
+    // Adds the apps associated with type in every dir to hits, the removed ones to blocked.
+    void associate(const std::string& type, std::vector<std::string>& hits,
+                   std::vector<std::string>& blocked) const;
 
     // Is id defined in a dir above dirs_[index]?
     [[nodiscard]] bool masked(std::size_t index, const std::string& id) const;

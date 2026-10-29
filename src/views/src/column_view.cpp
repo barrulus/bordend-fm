@@ -455,6 +455,12 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 go_left();
                 break;
             }
+            if (event.button == ui::PointerButton::right) {
+                if (event.y >= area_.y && event.y < area_.bottom()) {
+                    right_click(event.x, event.y);
+                }
+                break;
+            }
             if (event.button != ui::PointerButton::left) {
                 break;
             }
@@ -621,6 +627,39 @@ bool ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     reveal_focus_ = true;
     redraw_();
     return true;
+}
+
+void ColumnView::right_click(float x, float y) {
+    const bool in_pane = info_area_.width > 0.0F && x >= info_area_.x && x < info_area_.right() &&
+                         y >= info_area_.y && y < info_area_.bottom();
+    if (!in_pane) {
+        const std::optional<std::size_t> index = column_at(x);
+        if (!index) {
+            return;
+        }
+        reveal_.clear();
+        focus_on(*index);
+        Folder& folder = columns_[*index].column->folder();
+        const std::optional<std::size_t> row = columns_[*index].column->row_at(x, y);
+        if (!row) {
+            folder.set_cursor(std::nullopt);  // empty space: the folder's own menu
+        } else {
+            folder.set_cursor(row, folder.is_selected(folder.entries()[*row].name)
+                                       ? SelectMode::keep
+                                       : SelectMode::replace);
+        }
+        redraw_();
+    }
+    if (menu_) {
+        menu_(x, y);
+    }
+}
+
+std::optional<std::pair<float, float>> ColumnView::cursor_anchor() const {
+    if (columns_.empty()) {
+        return std::nullopt;
+    }
+    return columns_[focus_].column->cursor_anchor();
 }
 
 }  // namespace nordend::views

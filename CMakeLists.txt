@@ -90,8 +90,8 @@ target_link_libraries(nordend
 # list scrolling benchmark. Not installed.
 add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
-    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend_test_scene
-            nordend::warnings)
+    PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
+            nordend_test_scene nordend::warnings)
 
 # Development tool: directory loading benchmark (ROADMAP 3.1). Not installed.
 add_executable(nordend-bench-dir src/tools/bench_dir.cpp)

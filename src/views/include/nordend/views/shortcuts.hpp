@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 #include <xkbcommon/xkbcommon.h>
 
@@ -40,6 +41,7 @@ enum class Command : std::uint8_t {
     cut,
     paste,
     trash,
+    context_menu,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.
@@ -60,6 +62,9 @@ struct Shortcut {
 // Every shortcut, in the overlay's order. The browser runs its commands from here and passes a
 // view (or the sidebar) only the chords listed for it, so this list is what works.
 [[nodiscard]] std::span<const Shortcut> shortcuts();
+
+// The keys shown for command in the overlay ("Ctrl+C"); empty when it has none.
+[[nodiscard]] std::string keys_for(Command command);
 
 // The browser's command for event; Command::none when it has none.
 [[nodiscard]] Command command_for(const ui::KeyEvent& event);

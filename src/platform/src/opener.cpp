@@ -42,13 +42,17 @@ std::string opening_message(const OpenPlan& plan) {
 }  // namespace
 
 OpenPlan plan_open(std::span<const OpenFile> files, const Applications& apps,
-                   const fs::MimeDatabase& database, const Environment& environment) {
+                   const fs::MimeDatabase& database, const Environment& environment,
+                   std::string_view app_id) {
     OpenPlan plan;
     std::vector<Group> groups;
     for (const OpenFile& file : files) {
-        const DesktopEntry* const app = apps.default_for(file.mime, database);
+        const DesktopEntry* const app =
+            app_id.empty() ? apps.default_for(file.mime, database) : apps.find(app_id);
         if (app == nullptr) {
-            add_problem(plan.problems, std::format("No application opens {}", file.mime));
+            add_problem(plan.problems, app_id.empty()
+                                           ? std::format("No application opens {}", file.mime)
+                                           : std::format("{} is not installed", app_id));
             continue;
         }
         auto group = std::ranges::find(groups, app, &Group::app);
@@ -101,6 +105,25 @@ OpenPlan plan_open(std::span<const OpenFile> files, const Applications& apps,
     return plan;
 }
 
+std::vector<AppChoice> choices_for(std::string_view mime, const Applications& apps,
+                                   const fs::MimeDatabase& database) {
+    std::vector<AppChoice> choices;
+    const auto add = [&choices](const DesktopEntry& app, bool is_default) {
+        if (std::ranges::find(choices, app.id, &AppChoice::id) == choices.end()) {
+            choices.push_back({.id = app.id,
+                               .name = app.name.empty() ? app.id : app.name,
+                               .is_default = is_default});
+        }
+    };
+    if (const DesktopEntry* const app = apps.default_for(mime, database)) {
+        add(*app, true);
+    }
+    for (const DesktopEntry* const app : apps.all_for(mime, database)) {
+        add(*app, false);
+    }
+    return choices;
+}
+
 Opener::Opener(core::EventLoop& loop, core::WorkerPool& pool,
                std::shared_ptr<const fs::MimeDatabase> database, Environment environment,
                Report report, TokenRequest token)
@@ -113,7 +136,8 @@ Opener::Opener(core::EventLoop& loop, core::WorkerPool& pool,
 
 Opener::~Opener() { *alive_ = false; }
 
-void Opener::open(const std::filesystem::path& directory, std::vector<fs::Entry> entries) {
+void Opener::open(const std::filesystem::path& directory, std::vector<fs::Entry> entries,
+                  std::string app_id) {
     std::erase_if(entries, [](const fs::Entry& entry) { return entry.is_directory(); });
     if (entries.empty()) {
         return;
@@ -121,23 +145,43 @@ void Opener::open(const std::filesystem::path& directory, std::vector<fs::Entry>
     ++planning_;
     pool_.submit(
         core::Priority::visible,
-        [directory, entries = std::move(entries), database = database_,
-         environment = environment_](const core::CancelToken& /*token*/) {
+        [directory, entries = std::move(entries), database = database_, environment = environment_,
+         app_id = std::move(app_id)](const core::CancelToken& /*token*/) {
             std::vector<OpenFile> files;
             for (const fs::Entry& entry : entries) {
-                const fs::MimeId mime = entry.mime != fs::kUnknownMime
-                                            ? entry.mime
-                                            : database->detect(directory, entry);
+                const fs::MimeId mime = database->to_open(entry.mime != fs::kUnknownMime
+                                                              ? entry.mime
+                                                              : database->detect(directory, entry),
+                                                          entry.name);
                 files.push_back(
                     {.path = directory / entry.name, .mime = std::string{database->name(mime)}});
             }
             const Applications apps = Applications::load(*environment, *database);
-            return plan_open(files, apps, *database, *environment);
+            return plan_open(files, apps, *database, *environment, app_id);
         },
         [this, alive = alive_](OpenPlan plan) {
             if (*alive) {
                 --planning_;
                 start(std::move(plan));
+            }
+        });
+}
+
+void Opener::choices(const std::filesystem::path& directory, fs::Entry entry,
+                     std::function<void(std::vector<AppChoice>)> done) {
+    pool_.submit(
+        core::Priority::visible,
+        [directory, entry = std::move(entry), database = database_,
+         environment = environment_](const core::CancelToken& /*token*/) {
+            const fs::MimeId mime = database->to_open(
+                entry.mime != fs::kUnknownMime ? entry.mime : database->detect(directory, entry),
+                entry.name);
+            const Applications apps = Applications::load(*environment, *database);
+            return choices_for(database->name(mime), apps, *database);
+        },
+        [alive = alive_, done = std::move(done)](std::vector<AppChoice> choices) {
+            if (*alive) {
+                done(std::move(choices));
             }
         });
 }

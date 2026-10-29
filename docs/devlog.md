@@ -4,6 +4,88 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Context menu (ROADMAP 6.4b)
+
+Asked for by the author after 6.4 ("manca il menu contestuale?"); added to DESIGN with the
+author's OK.
+
+**Done**
+- `views::ContextMenu`: a menu drawn by Nordend over the window, in the theme's colors (panel
+  `surface_container_high`, highlight `hover` / `on_hover` like Noctalia's menus), items with the
+  shortcut at the right, separators, one level of submenus. Moved to stay whole: it opens to the
+  left of the point near the right edge, a submenu to the left of its menu, both pushed up near
+  the bottom. Keys: Up/Down over what can be chosen (wrapping), Home/End, Enter, Right into a
+  submenu, Left and Escape out of it, Escape closes; every key is the menu's while it is open.
+  Pointer: hovering highlights and opens a submenu, a click runs an item, a click outside only
+  closes it.
+- Right click (and two-finger tap, which libinput sends as the right button) in the three views:
+  on an entry, selected first unless it already was (a right click inside a selection keeps it);
+  on empty space, the selection cleared and the folder's own menu; on the info pane, the menu of
+  what it shows. Menu and Shift+F10 open it from the keyboard, under the cursor's row or cell
+  (`cursor_anchor()` in each view).
+- On entries: Open (as Enter), Open With ▸, Copy, Cut, Paste, Rename… (one entry), Move to
+  Trash. On a folder's empty space: New Folder, New File ▸, Paste. Paste is dimmed with nothing
+  taken, Rename with several entries, Open With is left out for a folder. The keys shown come
+  from the shortcuts table (`keys_for(Command)`).
+- Open With: `Applications::all_for(type, parents)`, GLib's `g_app_info_get_all_for_type` /
+  `_recommended_for_type` (read in `gdesktopappinfo.c` 2.88.3: added associations and cache
+  entries dir by dir, removed ones blocked from then on, parents after). The menu lists the
+  default first ("Darktable (default)"), then the rest once each; the chosen application opens
+  every selected file (`plan_open(..., app_id)`, `Opener::open(..., app_id)`), folders left out.
+  Found on a worker (`Opener::choices`); the submenu says "Looking for applications…" until then,
+  "No applications" when there are none.
+- New File: "Empty File" makes "New File" ("New File 2"...), a template makes a copy under its
+  name ("Letter.txt", "Letter 2.txt"), with its permissions, created with `O_EXCL` (never over
+  anything), removed if the copy fails; the name is edited at once, as for a new folder. The
+  templates are the visible regular files of `XDG_TEMPLATES_DIR` (user-dirs.dirs), else
+  `~/Templates` when there is no user-dirs.dirs (as the sidebar's user dirs); backups `~` left
+  out. Looked for on a worker every time the menu opens.
+- Empty files open as their name says (asked for after the author's test, where an "Empty
+  File" renamed `Lettera.txt` answered "No application opens application/x-zerosize"):
+  `MimeDatabase::to_open(mime, name)` turns `application/x-zerosize` (GLib's type for any empty
+  file) into the name's type when it has one; opening, Open With and `nordend-open --dry-run`
+  use it, and so do icons (which already followed the name). The type shown in the info pane is
+  still GLib's. An empty file without a known extension still has no application. Nautilus does
+  something similar for empty files: *to be verified*.
+- `nordend-open --apps TYPE...` prints both lists; `nordend-snapshot` gets an Opener (lists only,
+  nothing launched) so "Open With" can be checked offscreen.
+- Tests (187 with the raw samples): the menu's keyboard (skipping, wrapping, submenus, a submenu
+  filled while the keyboard waits in it, Escape twice, a click outside); the items for one entry,
+  several, a folder, empty space, before and after Copy; Open With choosing an application and
+  opening only the files; Move to Trash and Rename from the menu; New File empty and from a
+  template twice (permissions kept); `make_file` numbering and failure; `templates_in`,
+  `templates_dir`; `all_for` and `choices_for` against a fake system (added, cached, removed,
+  parents, not installed).
+- Slip found on the way, and fixed: `Environment::from_environment()` (6.1) looped over views
+  into a temporary string (`split(env("XDG_CURRENT_DESKTOP"), ':')`): use after scope whenever
+  `XDG_CURRENT_DESKTOP` is set (here: `umbriel`), so the desktop-specific `umbriel-mimeapps.list`
+  could be read under a garbled name. ASan caught it in the new snapshot. No other loop does
+  this.
+
+**Tested by the author**: on screen, with a temporary config holding `XDG_TEMPLATES_DIR`. The
+menu in the three views, Open With opening Darktable and Helix, New File from the template twice
+("Lettera 2.txt", "Lettera 3.txt", both "Caro,"), an empty `Lettera.txt` opening in Helix after
+the fix. The first try used empty test files (`touch`): GLib's `application/x-zerosize`, no
+application, which led to the fix above. The theme did not follow Noctalia during the test only
+because the temporary config had a copy of `colors.toml`; without it, "theme: reloaded".
+
+**Measured** (see benchmarks): `nordend-open --apps` against `gio mime` on all 1 232 types and
+aliases: 0 differences in both lists ("Registered" and "Recommended"); 564 types have
+applications, 380 of them different lists with and without parents.
+
+**Decisions**
+- In the window, not an `xdg_popup`: simpler and like the conflict card; it cannot go past the
+  window's edges. A real popup can come later.
+- Activation on press, not release: the press that opens the menu never runs an item.
+
+**Open**
+- Snapshot keys reach the menu before the templates are found, so `--keys` cannot choose a
+  template (the tests can).
+- No icons in the menu (applications' icons would need their icon themes).
+- Open With offers the cursor's file's applications even for a mixed selection.
+
+---
+
 ## 2026-10-29 — Trash (ROADMAP 6.4)
 
 **Done**

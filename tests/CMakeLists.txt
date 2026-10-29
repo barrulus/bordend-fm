@@ -3,6 +3,7 @@ add_executable(nordend-tests
     breadcrumb_test.cpp
     column_view_test.cpp
     config_test.cpp
+    context_menu_test.cpp
     details_view_test.cpp
     directory_model_test.cpp
     directory_test.cpp

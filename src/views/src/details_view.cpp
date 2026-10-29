@@ -472,6 +472,10 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
                 go_up();
                 break;
             }
+            if (event.button == ui::PointerButton::right) {
+                right_click(event.x, event.y);
+                break;
+            }
             if (event.button != ui::PointerButton::left) {
                 break;
             }
@@ -603,6 +607,41 @@ bool DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     }
     redraw_();
     return true;
+}
+
+void DetailsView::right_click(float x, float y) {
+    if (!folder_) {
+        return;
+    }
+    if (x < header_.right()) {  // the pane keeps the selection it shows
+        if (y < rows_.y || y >= rows_.bottom()) {
+            return;  // the titles
+        }
+        const std::optional<std::size_t> row = row_at(x, y);
+        if (!row) {
+            folder_->set_cursor(std::nullopt);  // empty space: the folder's own menu
+        } else {
+            folder_->set_cursor(row, folder_->is_selected(folder_->entries()[*row].name)
+                                         ? SelectMode::keep
+                                         : SelectMode::replace);
+        }
+    }
+    if (menu_) {
+        menu_(x, y);
+    }
+}
+
+std::optional<std::pair<float, float>> DetailsView::cursor_anchor() const {
+    const std::optional<std::size_t> cursor = folder_ ? folder_->cursor() : std::nullopt;
+    if (!cursor) {
+        return std::nullopt;
+    }
+    const float bottom =
+        rows_.y + (static_cast<float>(*cursor + 1) * kRowHeight) - scroller_.offset();
+    if (bottom - kRowHeight < rows_.y || bottom > rows_.bottom()) {
+        return std::nullopt;
+    }
+    return std::pair{rows_.x + 48.0F, bottom};
 }
 
 }  // namespace nordend::views

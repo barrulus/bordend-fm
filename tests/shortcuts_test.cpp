@@ -123,6 +123,7 @@ struct Fixture {
         REQUIRE_FALSE(browser.name_editor().active());
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
+        browser.context_menu().close();
         browser.sidebar().set_focused(false);
         make_files();
         browser.open(root);

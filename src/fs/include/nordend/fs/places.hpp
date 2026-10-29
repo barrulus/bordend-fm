@@ -48,6 +48,10 @@ struct UserDir {
 [[nodiscard]] std::vector<UserDir> parse_user_dirs(std::string_view text,
                                                    const std::filesystem::path& home);
 
+// The folder of templates "New File" offers: XDG_TEMPLATES_DIR from user-dirs.dirs, or ~/Templates
+// without that file (as the sidebar's user dirs); empty when there is none.
+[[nodiscard]] std::filesystem::path templates_dir(const PlaceSources& sources);
+
 // The local folders in a GTK bookmarks file ("file:///path%20with%20spaces Label"); other URIs
 // (sftp://, smb://) are left out. Without a label, the folder's name.
 [[nodiscard]] std::vector<Place> parse_bookmarks(std::string_view text);

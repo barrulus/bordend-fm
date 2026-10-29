@@ -140,11 +140,8 @@ std::string_view icon_name(const MimeDatabase& db, const Entry& entry) {
         return "adjustments-horizontal";
     }
     // An empty file's type is "empty" (as GLib says), but a freshly created notes.txt should
-    // still look like text: the icon follows the name.
-    if (entry.mime == MimeDatabase::kZeroSize) {
-        return icon_name(db, db.by_name(entry.name).mime);
-    }
-    return icon_name(db, entry.mime);
+    // still look like text: the icon follows the name, as opening does.
+    return icon_name(db, db.to_open(entry.mime, entry.name));
 }
 
 }  // namespace nordend::fs

@@ -39,7 +39,8 @@ It is made for people who browse a lot of files, photos above all:
   click.
 
 **Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work, and so do
-opening files in their apps, renaming, new folders, copying, moving and the trash; copy and
+opening files in their apps, a context menu, renaming, new folders and files, copying, moving
+and the trash; copy and
 paste with other apps comes next. There are no
 packages yet: see [Building](#building). What happens step by step is in the
 [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
@@ -48,9 +49,9 @@ packages yet: see [Building](#building). What happens step by step is in the
 
 | | |
 |---|---|
-| Binary | **2.59 MB** (2.20 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.73 MB** (2.30 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 24 500 lines of C++20, plus 5 900 lines of tests (179 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 25 700 lines of C++20, plus 6 400 lines of tests (187 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -146,6 +147,9 @@ status bar cost nothing measurable.
   asks: replace, skip or keep both, for one or for the rest.
 - **A real trash.** Delete moves files to the freedesktop trash, on their own disk (no copies),
   where any other trash program finds and restores them; darktable sidecars go with their photo.
+- **A context menu.** A right click, a two-finger tap or the Menu key: Open With lists the same
+  applications GTK apps would offer (0 differences from `gio` on 1 232 types), New File makes an
+  empty file or one from your templates, and every action shows its shortcut.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -179,6 +183,7 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> | Copy / cut (<kbd>Escape</kbd> keeps them) / paste |
 | <kbd>Delete</kbd> | Move to the trash |
+| <kbd>Menu</kbd>, <kbd>Shift</kbd>+<kbd>F10</kbd>, right click | Context menu |
 | <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up) |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |
 | <kbd>Escape</kbd> | Back to one entry |

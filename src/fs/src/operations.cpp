@@ -1,12 +1,14 @@
 #include "nordend/fs/operations.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <climits>
 #include <cstdio>
 #include <fcntl.h>
 #include <format>
 #include <sys/stat.h>
+#include <unistd.h>
 
 namespace nordend::fs {
 namespace {
@@ -77,6 +79,93 @@ MadeFolder make_folder(const std::filesystem::path& directory, std::string_view 
         }
     }
     return {.name = {}, .error = std::make_error_code(std::errc::file_exists)};
+}
+
+MadeFile make_file(const std::filesystem::path& directory, std::string_view name,
+                   const std::filesystem::path& from) {
+    int source = -1;
+    mode_t mode = 0666;  // less the umask, as any new file
+    if (!from.empty()) {
+        source = open(from.c_str(), O_RDONLY | O_CLOEXEC);
+        struct stat info{};
+        if (source < 0 || fstat(source, &info) != 0) {
+            const std::error_code error = last_error();
+            if (source >= 0) {
+                close(source);
+            }
+            return {.name = {}, .error = error};
+        }
+        mode = info.st_mode & 0777;
+    }
+    const auto [stem, extension] = split_extension(name);
+    MadeFile made{.name = {}, .error = std::make_error_code(std::errc::file_exists)};
+    constexpr int tries = 10'000;
+    for (int i = 1; i <= tries; ++i) {
+        std::string candidate =
+            i == 1 ? std::string{name} : std::format("{} {}{}", stem, i, extension);
+        const std::filesystem::path path = directory / candidate;
+        const int fd = open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, mode);
+        if (fd < 0) {
+            if (errno == EEXIST) {
+                continue;
+            }
+            made.error = last_error();
+            break;
+        }
+        std::error_code error;
+        std::array<char, 65536> buffer{};
+        for (ssize_t got = 0; source >= 0 && error == std::error_code{};) {
+            got = read(source, buffer.data(), buffer.size());
+            if (got == 0) {
+                break;
+            }
+            if (got < 0) {
+                if (errno != EINTR) {
+                    error = last_error();
+                }
+                continue;
+            }
+            for (ssize_t done = 0; done < got && !error;) {
+                const ssize_t wrote =
+                    write(fd, buffer.data() + done, static_cast<std::size_t>(got - done));
+                if (wrote < 0 && errno != EINTR) {
+                    error = last_error();
+                } else if (wrote > 0) {
+                    done += wrote;
+                }
+            }
+        }
+        if (close(fd) != 0 && !error) {
+            error = last_error();
+        }
+        if (error) {
+            unlink(path.c_str());
+            made.error = error;
+        } else {
+            made = {.name = std::move(candidate), .error = {}};
+        }
+        break;
+    }
+    if (source >= 0) {
+        close(source);
+    }
+    return made;
+}
+
+std::vector<std::string> templates_in(const std::filesystem::path& directory) {
+    std::vector<std::string> names;
+    std::error_code error;
+    for (const std::filesystem::directory_entry& entry :
+         std::filesystem::directory_iterator{directory, error}) {
+        std::string name = entry.path().filename().string();
+        std::error_code ignored;
+        if (name.starts_with('.') || name.ends_with('~') || !entry.is_regular_file(ignored)) {
+            continue;
+        }
+        names.push_back(std::move(name));
+    }
+    std::ranges::sort(names);
+    return names;
 }
 
 std::vector<std::string> sidecars_of(std::span<const std::string> names, std::string_view name) {

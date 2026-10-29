@@ -4,6 +4,7 @@ add_library(nordend_views
     src/column.cpp
     src/column_view.cpp
     src/conflict_dialog.cpp
+    src/context_menu.cpp
     src/details_view.cpp
     src/draw_helpers.cpp
     src/folder.cpp

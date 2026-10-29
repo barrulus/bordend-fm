@@ -73,6 +73,13 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_F1, XKB_KEY_question},
              .command = Command::show_shortcuts},
     Shortcut{.group = "General",
+             .keys = "Menu  Shift+F10",
+             .action = "Context menu",
+             .scope = scope::kViews,
+             .any_shift = true,
+             .keysyms = {XKB_KEY_Menu, XKB_KEY_F10},
+             .command = Command::context_menu},
+    Shortcut{.group = "General",
              .keys = "Ctrl+Q",
              .action = "Quit",
              .scope = scope::kWindow,
@@ -285,6 +292,11 @@ bool Shortcut::matches(const ui::KeyEvent& event) const {
 }
 
 std::span<const Shortcut> shortcuts() { return kShortcuts; }
+
+std::string keys_for(Command command) {
+    const auto* const it = std::ranges::find(kShortcuts, command, &Shortcut::command);
+    return it == kShortcuts.end() ? std::string{} : std::string{it->keys};
+}
 
 Command command_for(const ui::KeyEvent& event) {
     for (const Shortcut& shortcut : kShortcuts) {

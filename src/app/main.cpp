@@ -291,6 +291,26 @@ int main(int argc, char** argv) {
                 [&](const std::filesystem::path& directory, std::vector<fs::Entry> files) {
                     opener->open(directory, std::move(files));
                 });
+            columns->set_open_with_handlers(
+                [&](const std::filesystem::path& directory, fs::Entry entry,
+                    std::function<void(std::vector<views::Browser::AppChoice>)> done) {
+                    opener->choices(
+                        directory, std::move(entry),
+                        [done = std::move(done)](std::vector<platform::AppChoice> found) {
+                            std::vector<views::Browser::AppChoice> apps;
+                            apps.reserve(found.size());
+                            for (platform::AppChoice& app : found) {
+                                apps.push_back({.id = std::move(app.id),
+                                                .name = std::move(app.name),
+                                                .is_default = app.is_default});
+                            }
+                            done(std::move(apps));
+                        });
+                },
+                [&](const std::filesystem::path& directory, std::vector<fs::Entry> files,
+                    std::string app_id) {
+                    opener->open(directory, std::move(files), std::move(app_id));
+                });
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }

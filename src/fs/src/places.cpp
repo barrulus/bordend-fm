@@ -243,6 +243,20 @@ std::vector<Place> parse_mounts(std::string_view text) {
     return places;
 }
 
+std::filesystem::path templates_dir(const PlaceSources& sources) {
+    const core::TextFile user_dirs = core::read_text_file(sources.config_home / "user-dirs.dirs");
+    std::filesystem::path path = sources.home / "Templates";
+    if (user_dirs.exists) {
+        const std::vector<UserDir> dirs = parse_user_dirs(user_dirs.text, sources.home);
+        const auto it = std::ranges::find(dirs, std::string_view{"TEMPLATES"}, &UserDir::key);
+        if (it == dirs.end()) {
+            return {};
+        }
+        path = it->path;
+    }
+    return is_folder(path) ? path : std::filesystem::path{};
+}
+
 std::vector<Place> load_places(const PlaceSources& sources) {
     std::vector<Place> places;
     places.push_back(

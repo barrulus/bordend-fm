@@ -158,4 +158,17 @@ bool Column::set_hovered(std::optional<std::size_t> row) {
     return true;
 }
 
+std::optional<std::pair<float, float>> Column::cursor_anchor() const {
+    const std::optional<std::size_t> cursor = folder_->cursor();
+    if (!cursor) {
+        return std::nullopt;
+    }
+    const float bottom =
+        rows_area_.y + (static_cast<float>(*cursor + 1) * kRowHeight) - scroller_.offset();
+    if (bottom - kRowHeight < rows_area_.y || bottom > rows_area_.bottom()) {
+        return std::nullopt;
+    }
+    return std::pair{rows_area_.x + 32.0F, bottom};
+}
+
 }  // namespace nordend::views

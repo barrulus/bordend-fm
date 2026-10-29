@@ -64,6 +64,11 @@ public:
     [[nodiscard]] MimeId detect(std::string_view file_name, std::span<const std::byte> head,
                                 std::uint64_t size) const;
 
+    // The type a file is opened as: an empty file (kZeroSize, as GLib says) takes its name's
+    // type when the name has one, so a new, empty notes.txt opens in a text editor; any other
+    // type is kept.
+    [[nodiscard]] MimeId to_open(MimeId mime, std::string_view file_name) const;
+
     [[nodiscard]] std::string_view name(MimeId mime) const;
 
     // Id of a type name, aliases resolved; kUnknownMime if the database does not know it.

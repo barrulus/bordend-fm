@@ -354,6 +354,31 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 
 The same as without it (sidebar section below): nothing measurable.
 
+## Context menu: Open With (ROADMAP 6.4b)
+
+**Tool:** `nordend-open --apps TYPE...` ("<type>\t<registered>\t<recommended>", IDs separated by
+`;`), against `gio mime TYPE` (GLib 2.88.3).
+
+### 2026-10-29
+
+Every type in `/usr/share/mime/types` and every alias in `/usr/share/mime/aliases`, 1 232 names:
+**0 differences** in both lists. 564 have applications; for 380 the lists with and without
+parent types differ.
+
+```sh
+(cat /usr/share/mime/types; cut -d' ' -f1 /usr/share/mime/aliases) | sort -u > all.txt
+build/nordend-open --apps $(cat all.txt) 2>/dev/null > ours.txt
+while read t; do
+  out=$(gio mime "$t" 2>/dev/null)
+  reg=$(printf '%s\n' "$out" | sed -n '/^Registered applications:/,/^Recommended applications:/p' \
+        | grep '^\s' | tr -d '\t ' | sed 's/$/;/' | tr -d '\n')
+  rec=$(printf '%s\n' "$out" | sed -n '/^Recommended applications:/,$p' \
+        | grep '^\s' | tr -d '\t ' | sed 's/$/;/' | tr -d '\n')
+  printf '%s\t%s\t%s\n' "$t" "${reg:--}" "${rec:--}"
+done < all.txt > gio.txt
+diff ours.txt gio.txt
+```
+
 ## Trash (ROADMAP 6.4)
 
 **Tool:** `nordend-transfer --trash SOURCE_DIR NAME...` (the engine behind Delete), against

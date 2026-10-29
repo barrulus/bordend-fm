@@ -207,6 +207,19 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   posto (`gio trash --restore`, `trash-restore`); una cartella di sola lettura dà un errore chiaro
   e non perde nulla; test sulla scelta del cestino, sul `.trashinfo` (codifica del percorso, nomi
   doppi) e sui sidecar; la scorciatoia è nella tabella e nell'overlay F1.
+- [x] **6.4b Menu contestuale** (tasto destro, tap a due dita, tasto Menu, Shift+F10)
+  Su un elemento (selezionato prima, se non lo era): Apri, Apri con ▸ (le app del tipo, la
+  predefinita per prima), Copia, Taglia, Incolla, Rinomina (un solo elemento), Sposta nel cestino.
+  Sullo spazio vuoto: Nuova cartella, Nuovo file ▸ ("Documento vuoto" e i modelli di
+  `XDG_TEMPLATES_DIR`, il nome subito in modifica), Incolla. Disegnato da Nordend dentro la
+  finestra con i colori del tema, spostato per restare intero vicino ai bordi; ogni voce con la sua
+  scorciatoia presa dalla tabella unica; frecce, Invio, → nel sottomenu, ← ed Esc indietro, un clic
+  fuori lo chiude; voci non applicabili spente. Nelle tre viste e nel pannello info.
+  Fatto quando: in tutte e tre le viste il menu si apre con tasto destro, touchpad e tastiera;
+  "Apri con" elenca le stesse app di `gio mime` per il tipo e le apre; "Nuovo file" crea un file
+  vuoto e uno da un modello senza mai sovrascrivere; test sulle voci per ogni situazione (un
+  elemento, più elementi, spazio vuoto, appunti vuoti) e sulla navigazione da tastiera; snapshot
+  del menu e del sottomenu.
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 
 ## Fase 7 — MVP

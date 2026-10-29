@@ -44,9 +44,22 @@ struct OpenPlan {
 
 // Groups files by their default application (in the order they come) and expands each group's
 // Exec line: files for one application go to one process when it takes a list. Terminal=true
-// applications run inside in_terminal().
+// applications run inside in_terminal(). With app_id, every file goes to that application
+// ("Open With").
 [[nodiscard]] OpenPlan plan_open(std::span<const OpenFile> files, const Applications& apps,
-                                 const fs::MimeDatabase& database, const Environment& environment);
+                                 const fs::MimeDatabase& database, const Environment& environment,
+                                 std::string_view app_id = {});
+
+// An application to offer for a file ("Open With").
+struct AppChoice {
+    std::string id;
+    std::string name;  // the localized Name, else the ID
+    bool is_default{false};
+};
+
+// The applications for a type: the default first, then Applications::all_for's.
+[[nodiscard]] std::vector<AppChoice> choices_for(std::string_view mime, const Applications& apps,
+                                                 const fs::MimeDatabase& database);
 
 // Opens files with their default applications (DESIGN, "Apertura dei file"): types and
 // applications are worked out on a worker, the processes start on the loop thread, each with an
@@ -73,7 +86,14 @@ public:
 
     // Opens directory's entries (not folders: callers go into those). Entries with a known type
     // keep it; the others are detected as the views would.
-    void open(const std::filesystem::path& directory, std::vector<fs::Entry> entries);
+    // With app_id, all of them with that application.
+    void open(const std::filesystem::path& directory, std::vector<fs::Entry> entries,
+              std::string app_id = {});
+
+    // The applications for entry (its type detected if unknown), worked out on a worker and
+    // handed to done on the loop thread.
+    void choices(const std::filesystem::path& directory, fs::Entry entry,
+                 std::function<void(std::vector<AppChoice>)> done);
 
     // A process that ends with an error sooner than this after it started is reported: the
     // application could not open the file. Later exits are its own business.
