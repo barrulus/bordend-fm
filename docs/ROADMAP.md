@@ -195,7 +195,18 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   senza cache costa al massimo il 10 % in più (offscreen, 3 giri); il picco è misurato e la scelta
   sul limite motivata; Quick Look non tiene pixel dopo il caricamento (test); README At a glance con
   la memoria con le foto.
-- [ ] **6.4 Cestino** (spec freedesktop)
+- [x] **6.4 Cestino** (spec freedesktop 1.0, Canc)
+  Canc sposta la selezione nel cestino: sul file system della home in `$XDG_DATA_HOME/Trash`,
+  sugli altri in `$topdir/.Trash/$uid` (solo se ha lo sticky bit e non è un link) o
+  `$topdir/.Trash-$uid`. Prima il `.trashinfo` con `O_EXCL` (percorso originale e data), poi il
+  `rename`; mai copie tra file system: se il cestino non si può usare, un errore e nulla perso.
+  Le cartelle in `directorysizes`, i sidecar di darktable con la loro foto, sul thread dei
+  trasferimenti; il cursore va all'elemento successivo, la barra di stato dice cosa è andato.
+  Fatto quando: un altro programma del cestino (`gio trash --list` con gvfs, o `trash-list` di
+  trash-cli) vede gli elementi cestinati da Nordend nella home e su DATA e li rimette al loro
+  posto (`gio trash --restore`, `trash-restore`); una cartella di sola lettura dà un errore chiaro
+  e non perde nulla; test sulla scelta del cestino, sul `.trashinfo` (codifica del percorso, nomi
+  doppi) e sui sidecar; la scorciatoia è nella tabella e nell'overlay F1.
 - [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
 
 ## Fase 7 — MVP

@@ -7,6 +7,8 @@
 #include <optional>
 #include <utility>
 
+#include "nordend/fs/trash.hpp"
+
 namespace nordend::fs {
 
 struct TransferQueue::Shared {
@@ -127,7 +129,9 @@ void TransferQueue::work() {
             return resolution;
         };
 
-        TransferResult result = run_transfer(*request, token, callbacks);
+        TransferResult result = request->kind == TransferKind::trash
+                                    ? run_trash(*request, token, callbacks)
+                                    : run_transfer(*request, token, callbacks);
         loop_.post([this, alive = alive_, request, result = std::move(result)] {
             if (!*alive) {
                 return;

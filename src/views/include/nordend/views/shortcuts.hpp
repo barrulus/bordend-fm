@@ -39,6 +39,7 @@ enum class Command : std::uint8_t {
     copy,
     cut,
     paste,
+    trash,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

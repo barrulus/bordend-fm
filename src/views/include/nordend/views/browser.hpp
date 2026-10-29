@@ -53,7 +53,8 @@ namespace nordend::views {
 // folder and edits its name; both on a worker, never replacing anything. Ctrl+C and Ctrl+X take
 // the selection (cut entries fade until pasted; Escape keeps them), Ctrl+V copies or moves it
 // into the folder shown, on the transfer thread, with progress in the status bar and a question
-// on a card for every name taken.
+// on a card for every name taken. Delete moves the selection to the trash (freedesktop), on the
+// same thread; the cursor goes on to the entry after it.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -161,6 +162,13 @@ public:
     // Ctrl+V: copies or moves what was taken into the folder shown.
     void paste();
 
+    // Delete: moves the selection (or the entry under the cursor) to the trash, and the cursor to
+    // the entry after it.
+    void trash();
+
+    // Where Delete puts what is on the home trash's disk: fs::home_trash() unless set (tests).
+    void set_home_trash(std::filesystem::path trash) { home_trash_ = std::move(trash); }
+
     // Stops the transfer running (the status bar's ×).
     void cancel_transfer();
 
@@ -174,6 +182,7 @@ public:
     [[nodiscard]] std::vector<std::string> memory_lines() const;
 
 private:
+    void trash_done(const fs::TransferResult& result);
     // The folder the keyboard is in: the focused column's, or the grid's.
     [[nodiscard]] std::shared_ptr<Folder> current_folder() const;
     void run(Command command, Clock::time_point now);
@@ -235,6 +244,7 @@ private:
     };
 
     Clipboard clipboard_;
+    std::filesystem::path home_trash_;
     CutMarks cut_marks_;
     std::optional<fs::Resolution> for_the_rest_;  // the running transfer's "the same for the rest"
 

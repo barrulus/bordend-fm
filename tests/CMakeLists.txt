@@ -25,6 +25,7 @@ add_executable(nordend-tests
     sort_test.cpp
     thumbs_test.cpp
     transfer_test.cpp
+    trash_test.cpp
     worker_pool_test.cpp)
 target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image nordend::thumbs nordend::preview nordend::platform doctest::doctest nordend::warnings)
 # The shipped example config must parse clean and match the built-in defaults.

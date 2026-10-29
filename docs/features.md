@@ -107,6 +107,20 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
     the rest; pasting into the same folder keeps both by itself;
   - refused before anything moves: a folder into itself, or more than the free space.
+- **Trash** (Delete), the freedesktop Trash specification 1.0, in any of the three views and in
+  Quick Look:
+  - files on the home's disk go to `~/.local/share/Trash`, files on other disks to that disk's
+    own trash (`.Trash-1000` at its top, or `.Trash/1000`): a rename, never a copy, so trashing
+    is instant (1 001 items in 25 ms, `gio trash` 70 ms); where no trash can be made, the files
+    stay and the status bar says why;
+  - other trash programs (`trash-list`, `trash-restore`, gio, file managers) see what Nordend
+    trashed and restore it to its place: the `.trashinfo` files are the same as GLib's, odd
+    names included;
+  - darktable sidecars go with their photo, each restorable on its own;
+  - the cursor moves on to the next entry; the status bar says what went ("“P2.ORF” with 1
+    darktable sidecar moved to the trash") or what could not;
+  - trashed folders are listed in `directorysizes` with their size, so trash tools need not
+    measure them again.
 - **Clear errors:** a read-only folder, permission denied or a missing file shows a message in the
   status bar, never a crash.
 
@@ -172,5 +186,5 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-The trash (freedesktop), copy and paste of files with other apps, and drag and drop. Then settings, remembered state, and the MVP. See the
+Copy and paste of files with other apps, and drag and drop. Then settings, remembered state, and the MVP. See the
 [roadmap](ROADMAP.md).

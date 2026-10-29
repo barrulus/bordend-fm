@@ -354,6 +354,32 @@ The breadcrumb measures its steps' text every frame (cached layouts).
 
 The same as without it (sidebar section below): nothing measurable.
 
+## Trash (ROADMAP 6.4)
+
+**Tool:** `nordend-transfer --trash SOURCE_DIR NAME...` (the engine behind Delete), against
+`gio trash NAME...` (GLib 2.88.3, which trashes local files itself, without gvfs).
+
+### 2026-10-29
+
+1 000 empty files and a folder of 200, in a fake `$HOME` on tmpfs, each tool with its own
+`$XDG_DATA_HOME` (3 runs):
+
+| What | Time |
+|------|-----:|
+| Nordend, 1 001 items | 24-25 ms |
+| `gio trash`, 1 001 items | 69-71 ms |
+
+Each item is a `.trashinfo` made with `O_EXCL`, then a rename; the folder's size (`du -B1`) goes
+to `directorysizes`. Same files, same `.trashinfo` sizes and `Path=` lines as gio's for names
+with spaces, `%`, `#`, `?`, accented letters and leading dots; the same numbering for a name
+trashed twice (`a b%#?.2.ORF`).
+
+```sh
+set -x HOME $S/home   # fish; files in $S/home/n and $S/home/g
+cd $S/home/n; env XDG_DATA_HOME=$S/home/dn build/nordend-transfer --trash . (ls)
+cd $S/home/g; env XDG_DATA_HOME=$S/home/dg gio trash (ls)
+```
+
 ## Giving decoded photos back (ROADMAP 6.3c)
 
 ### 2026-10-29: on screen, the author's five steps, after the change

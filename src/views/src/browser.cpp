@@ -6,11 +6,13 @@
 #include <cstdlib>
 #include <format>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
 #include "nordend/fs/operations.hpp"
+#include "nordend/fs/trash.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
@@ -71,6 +73,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     grid_.set_cut_marks(&cut_marks_);
     details_.set_cut_marks(&cut_marks_);
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
+    home_trash_ = fs::home_trash();
 }
 
 std::vector<std::string> Browser::memory_lines() const {
@@ -157,6 +160,64 @@ void Browser::paste() {
     redraw_();
 }
 
+void Browser::trash() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    std::vector<std::string> names = folder->selected_names();
+    if (names.empty()) {
+        if (const fs::Entry* const cursor = folder->cursor_entry()) {
+            names.push_back(cursor->name);
+        }
+    }
+    if (names.empty()) {
+        return;
+    }
+    // The cursor goes on to the first entry after the last one trashed that stays (else the one
+    // before them): their darktable sidecars go too.
+    const std::vector<fs::Entry>& entries = folder->entries();
+    std::vector<std::string> listing;
+    listing.reserve(entries.size());
+    for (const fs::Entry& entry : entries) {
+        listing.push_back(entry.name);
+    }
+    std::unordered_set<std::string> going{names.begin(), names.end()};
+    for (const std::string& name : names) {
+        for (std::string& sidecar : fs::sidecars_of(listing, name)) {
+            going.insert(std::move(sidecar));
+        }
+    }
+    std::size_t last = 0;
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (going.contains(entries[i].name)) {
+            last = i;
+        }
+    }
+    std::string next;
+    for (std::size_t i = last + 1; i < entries.size() && next.empty(); ++i) {
+        if (!going.contains(entries[i].name)) {
+            next = entries[i].name;
+        }
+    }
+    for (std::size_t i = last; i-- > 0 && next.empty();) {
+        if (!going.contains(entries[i].name)) {
+            next = entries[i].name;
+        }
+    }
+    transfers_.submit({.kind = fs::TransferKind::trash,
+                       .source = folder->path(),
+                       .names = std::move(names),
+                       .destination = home_trash_,
+                       .force_copy = false});
+    if (next.empty()) {
+        folder->set_cursor(std::nullopt);
+    } else {
+        folder->select_name(std::move(next));
+    }
+    redraw_();
+}
+
 void Browser::cancel_transfer() {
     transfers_.cancel();
     conflict_.close();
@@ -199,7 +260,13 @@ void Browser::transfer_progress(const fs::TransferRequest& request,
     const bool copy = request.kind == fs::TransferKind::copy;
     const std::size_t items = request.names.size();
     TransferStatus status;
-    if (progress.preparing) {
+    if (request.kind == fs::TransferKind::trash) {
+        status.fraction = progress.files_total > 0 ? static_cast<float>(progress.files_done) /
+                                                         static_cast<float>(progress.files_total)
+                                                   : -1.0F;
+        status.text = std::format("Moving {} of {} items to the trash", progress.files_done,
+                                  progress.files_total);
+    } else if (progress.preparing) {
         status.text = std::format("Getting ready to {} {} {}…", copy ? "copy" : "move", items,
                                   items == 1 ? "item" : "items");
     } else if (progress.bytes_total > 0) {
@@ -242,6 +309,10 @@ void Browser::transfer_done(const fs::TransferRequest& request, const fs::Transf
     if (transfers_.pending() == 0) {
         status_bar_.set_transfer(std::nullopt);
     }
+    if (request.kind == fs::TransferKind::trash) {
+        trash_done(result);
+        return;
+    }
     const bool copy = request.kind == fs::TransferKind::copy;
     const std::string_view done = copy ? "Copied" : "Moved";
     const std::size_t files = result.files_done;
@@ -265,6 +336,26 @@ void Browser::transfer_done(const fs::TransferRequest& request, const fs::Transf
     if (const std::shared_ptr<Folder> folder = current_folder();
         folder && folder->path() == request.destination && !result.placed.empty()) {
         folder->expect_names(result.placed);
+    }
+}
+
+void Browser::trash_done(const fs::TransferResult& result) {
+    const std::size_t items = result.placed.size();
+    std::string what =
+        items == 1 ? std::format("“{}”", result.placed.front()) : std::format("{} items", items);
+    if (const std::size_t sidecars = result.files_done - items; sidecars > 0) {
+        what += std::format(" with {} darktable sidecar{}", sidecars, sidecars == 1 ? "" : "s");
+    }
+    if (!result.refused.empty()) {
+        show_message(result.refused, true);
+    } else if (result.cancelled) {
+        show_message(std::format("Stopped: {} moved to the trash so far", what), false);
+    } else if (!result.errors.empty()) {
+        show_message(std::format("{} moved to the trash; {} could not be: {}", what,
+                                 result.errors.size(), result.errors.front()),
+                     true);
+    } else if (items > 0) {
+        show_message(std::format("{} moved to the trash", what), false);
     }
 }
 
@@ -759,6 +850,9 @@ void Browser::run(Command command, Clock::time_point now) {
         case Command::paste:
             quick_look_.close();
             paste();
+            break;
+        case Command::trash:
+            trash();
             break;
     }
 }

@@ -4,6 +4,72 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-29 — Trash (ROADMAP 6.4)
+
+**Done**
+- `fs/trash`: the freedesktop Trash specification 1.0 (read from its source, `xdg-specs`
+  `trash/index.rst`), with GLib's `g_local_file_trash` (2.88, `glocalfile.c`) as the reference
+  for the details the spec leaves open.
+  - Which trash: the home trash (`$XDG_DATA_HOME/Trash`, else `~/.local/share/Trash`, made 0700
+    when missing) when the folder is on its device; else the top directory (`mount_top`: the
+    highest ancestor on the same device) holds it: `$topdir/.Trash/$uid` when `.Trash` is a real
+    folder with the sticky bit, else `$topdir/.Trash-$uid`, made when missing; either must be a
+    folder owned by the user. Never copied between disks: no trash there, the item stays and the
+    status bar says why.
+  - Each item: `info/NAME.trashinfo` created with `O_EXCL` and written whole, then a rename into
+    `files/` without replacing; a failed rename removes the info. Names as GLib numbers them
+    (`P1.ORF`, `P1.2.ORF`; `Trip.2`); a name too long for `.trashinfo` is shortened from its
+    front at a character boundary. `Path=` absolute in the home trash, relative to the top
+    directory elsewhere, escaped like `g_uri_escape_string(path, "/")`; `DeletionDate` in local
+    time.
+  - Folders go to `directorysizes` (`du -B1`, a hard link counted once; the info file's mtime),
+    rewritten through a temporary and a rename; lines of folders no longer in `files/` are
+    dropped. gio does not keep this file; KDE reads it.
+  - Not trashed again: what is in the trash (refused), the folder that holds it (an error).
+  - Darktable sidecars go with their photo, each with its own `.trashinfo` (restored one by one
+    by any trash program).
+- `TransferKind::trash`: the transfer queue runs `run_trash` for it, so Delete waits behind a
+  copy and shows its progress the same way ("Moving 3 of 120 items to the trash").
+- Delete (and keypad Delete) in the views and Quick Look: the selection, or the cursor's entry.
+  The cursor moves at once to the first entry after the last one trashed that stays (else the
+  one before). Messages: "“P2.ORF” with 1 darktable sidecar moved to the trash", "3 items moved
+  to the trash; 1 could not be: ...".
+- `nordend-transfer --trash SOURCE_DIR NAME...` trashes from the command line (the real trash).
+- Tests (179 with the raw samples): escaping, numbering, `.trashinfo`; the home trash with
+  sidecars, a folder with a hard link (size checked against `du -B1`), the same names twice, a
+  stale file in `files/`; a read-only folder and a missing name (nothing lost, no info left);
+  the trash not trashed; the top directory's trash (`.Trash-uid`, `.Trash` without sticky bit or
+  as a link refused, `.Trash/uid` with it; paths relative); `mount_top`; Delete in the browser,
+  the cursor moving on and back.
+- Slip, fixed before anything else: the shortcuts test presses every listed key, so Delete
+  trashed its temporary files into a real `/tmp/.Trash-1000` (tmpfs is not the home's disk).
+  The fixture now uses a trash inside its temporary folder and makes its files again; the stray
+  trash was removed. The author's home trash was not touched.
+
+**Measured** (see benchmarks): 1 001 items in 24-25 ms, `gio trash` 69-71 ms. The
+`.trashinfo` files match gio's for awkward names.
+
+**Decisions**
+- No permanent delete (Shift+Delete) and no trash view in the sidebar in this step: the first
+  needs its own confirmation card, the second (with restore) is a step of its own.
+- The trash goes through the transfer queue rather than a worker: trashing a folder on a slow
+  disk is quick, but its `du` can take a while, and the order with a copy running matters.
+
+**Tested by the author**: on screen, in `~/nordend-trash-test` and on DATA. `trash-list`
+(trash-cli, installed for this) lists the five items Nordend trashed, the home ones with their
+absolute paths and `x.txt` from DATA's `.Trash-1000` (relative `Path=`); `trash-restore` put
+`Viaggio` back in its folder. The read-only folder's file stayed. `directorysizes` gave
+`Viaggio` 0 bytes: right, on btrfs a folder and an empty file take no blocks (`du -B1` says 0
+too).
+
+**Open**
+- No check that a folder's contents can be deleted later (GLib's `check_removing_recursively`):
+  a folder with a read-only subfolder goes to the trash and then needs `chmod` to be emptied.
+- Bind mounts of one file system: the top directory is found by device, so a rename across them
+  fails (EXDEV) and is reported, as in GLib.
+
+---
+
 ## 2026-10-29 — Giving decoded photos back (ROADMAP 6.3c)
 
 **Done**

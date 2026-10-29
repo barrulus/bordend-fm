@@ -13,7 +13,11 @@
 // own (TransferQueue does).
 namespace nordend::fs {
 
-enum class TransferKind : std::uint8_t { copy, move };
+enum class TransferKind : std::uint8_t {
+    copy,
+    move,
+    trash,  // run_trash (trash.hpp): destination is the home trash
+};
 
 struct TransferRequest {
     TransferKind kind{TransferKind::copy};
@@ -22,6 +26,9 @@ struct TransferRequest {
     std::filesystem::path destination;  // the folder they go to
     // Tests: move by copying and deleting even on one file system (the path between disks).
     bool force_copy{false};
+    // Tests: trash into this top directory's trash, as if the items were on another disk.
+    std::filesystem::path trash_top{};  // NOLINT(readability-redundant-member-init): GCC wants one
+                                        // for designated initializers that leave it out
 };
 
 // What to do with an item whose name is taken in the destination.

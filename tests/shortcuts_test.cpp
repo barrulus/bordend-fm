@@ -88,12 +88,20 @@ struct Fixture {
                     [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
 
     Fixture() {
-        fs::create_directories(root / "sub");
-        std::ofstream{root / "sub" / "inner.txt"} << "x";
-        std::ofstream{root / "a.txt"} << "a";
-        std::ofstream{root / "b.txt"} << "b";
+        make_files();
+        browser.set_home_trash(dir.path / "Trash");  // Delete trashes them here, never in the home
         browser.set_places({{.label = "root", .path = root, .icon = "folder"},
                             {.label = "sub", .path = root / "sub", .icon = "folder"}});
+    }
+
+    // The files again, after Delete took some.
+    void make_files() const {
+        fs::create_directories(root / "sub");
+        for (const char* name : {"sub/inner.txt", "a.txt", "b.txt"}) {
+            if (!fs::exists(root / name)) {
+                std::ofstream{root / name} << name;
+            }
+        }
     }
 
     std::shared_ptr<Folder> folder() {
@@ -116,10 +124,12 @@ struct Fixture {
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
         browser.sidebar().set_focused(false);
+        make_files();
         browser.open(root);
         browser.set_mode(mode);
         REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
         folder()->select_name(cursor_on);
+        REQUIRE(run_until(loop, [&] { return folder()->cursor_entry() != nullptr; }));
         REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
     }
 };
