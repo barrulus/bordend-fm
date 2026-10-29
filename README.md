@@ -47,9 +47,9 @@ packages yet: see [Building](#building). What happens step by step is in the
 
 | | |
 |---|---|
-| Binary | **2.25 MB** (1.92 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.34 MB** (1.99 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 20 500 lines of C++20, plus 4 600 lines of tests (147 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 21 500 lines of C++20, plus 5 000 lines of tests (158 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **33 MB** of its own (private, anonymous); 117 MB resident counting shared libraries, 67 MB of which are Mesa's GPU driver (LLVM + gallium), shared with every OpenGL app |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -91,7 +91,7 @@ status bar cost nothing measurable.
 | Sorting 10 000 entries by size, date or type | **1-3 ms** |
 
 <details>
-<summary><b>Features</b>: what works today</summary>
+<summary><b>Features</b>: what works today (the full list: <a href="docs/features.md">docs/features.md</a>)</summary>
 
 - **Natural touch.** Scrolling that feels physical: on a touchpad the list follows your fingers
   1:1 and, when they lift, keeps gliding and slows down smoothly, stopping softly at the ends;
@@ -135,6 +135,9 @@ status bar cost nothing measurable.
 - **Opens in the right app.** Enter or a double click opens a file in its default application,
   the same one GTK apps choose (checked on all 1 232 file types); five photos go to one darktable,
   not five; terminal apps such as Helix get a terminal; and the new window comes up in front.
+- **Rename where the name is.** F2 turns the name into a field, the extension left out of the
+  selection; Ctrl+Shift+N makes a new folder ready to be named. Nothing is ever overwritten, and
+  renaming a photo takes its darktable sidecars along, duplicates included, so no edit is lost.
 - **Live folders.** Files created, removed or renamed by any program appear at once; a
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
@@ -166,6 +169,8 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+moves | Move without selecting |
 | <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Select or unselect |
 | <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
+| <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up) |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |
 | <kbd>Escape</kbd> | Back to one entry |
 | <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> | Grid: larger, smaller, usual size |
 
@@ -233,6 +238,7 @@ ctest --test-dir build
 
 ## Documentation
 
+- [Features](docs/features.md): everything Nordend does, area by area
 - [Design](docs/DESIGN.md) (Italian): what Nordend is and why
 - [Roadmap](docs/ROADMAP.md) (Italian): the steps, each with when it counts as done
 - [Devlog](docs/devlog.md): what was done, measured and decided, step by step

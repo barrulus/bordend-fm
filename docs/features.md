@@ -1,0 +1,157 @@
+# Nordend: every feature
+
+Everything Nordend does today, by area. Numbers are measurements from
+[benchmarks.md](benchmarks.md), taken on a Ryzen 7 5700G with an RX 6650 XT; how each feature came
+to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROADMAP.md).
+
+## What it is
+
+- A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
+  boxes, text, icons and images. **No GTK, no Qt, no GLib.**
+- Part of the Noctalia family (Noctalia Shell, the Umbriel compositor): it wears the Noctalia
+  theme and its icons, and Umbriel draws its title bar.
+- One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
+  nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
+
+## Three views of the same folder
+
+- **Columns** (Ctrl+1), as in Finder: each folder you pick opens in the next column, and the last
+  column shows the selected file. Left from the first column climbs to the parent. Columns are
+  resized by dragging their edge (a double click on the edge resets it), and the row slides
+  sideways by itself to keep the focused column in sight.
+- **Grid** (Ctrl+2): large icons and thumbnails. Ctrl+plus, Ctrl+minus or Ctrl+wheel resize the
+  cells from 48 to 256 px, and Ctrl+0 goes back to the usual size.
+- **Details** (Ctrl+3): a table of name, size, date and type. Click a title to sort by it and
+  click again to reverse; drag a column's edge to widen it. By size, folders keep their name
+  order; by type, unknown types come last. The order you choose is used in the other views too.
+- **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
+  the file types already detected. The status bar has a button for each view.
+
+## Moving and selecting
+
+- **Natural scrolling.** On a touchpad the list follows the fingers 1:1, keeps gliding when they
+  lift, slows down smoothly and stops softly at the ends. A mouse wheel glides instead of jumping,
+  and quick turns add up. The arrows and Page Up/Down glide; Home and End jump.
+- **Keyboard first:** arrows, Page Up/Down, Home and End; Enter, Right or Alt+Down to go in;
+  Backspace, Left or Alt+Up to go back. The cursor lands on the folder you came from.
+- **Selection as you expect it:** click, Ctrl+click and Shift+click; Shift+arrows for a range,
+  Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all, Escape for one again.
+- **The selection follows its files:** cursor and selection are kept by name, so they stay on a
+  file that another program renames or that moves in the order.
+- **Every shortcut on one card:** F1 or "?" lists them all, from the same table the code runs on,
+  and a test checks that the card and the behaviour agree.
+
+## Photos first
+
+- **Thumbnails in a fraction of a second.** Nordend reads the previews that cameras already store
+  inside their raw files instead of developing the raw. A screenful of photos is ready in
+  0.15-0.4 s the first time and in 12-22 ms from the cache. One thumbnail takes 12 ms from an
+  OM-1 JPEG and 36 ms from an ORF.
+- **Raw files from many cameras:** OM System and Olympus ORF (including the maker-note preview),
+  Canon CR2, Nikon NEF and TIFF, Sony ARW, Fujifilm RAF, Panasonic RW2 (cropped to the shot's
+  aspect ratio), Hasselblad 3FR. Each is shown upright, in the shape it was shot, without the
+  black bars some cameras put on their thumbnails.
+- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), with EXIF orientation.
+- **Shared freedesktop thumbnail cache:** thumbnails go where GNOME, KDE and other apps look for
+  them, byte-compatible, so they are made once for all of them. Files that fail are remembered.
+- **Quick Look** (Space): the photo fills the window, raw files included. An ORF fitted to a
+  2880x1620 screen takes 51-55 ms. The arrows walk the folder without closing it, and the next
+  photo is already loading. Text files open on a page you can scroll, in your monospace font
+  (darktable sidecars included); any other file shows what it is.
+- **The info pane** beside every view shows the preview and what the file is: size, pixel size,
+  dates (including the birth time), type, and for photos the shot itself (camera, lens,
+  exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`
+  sidecar. "More details" adds permissions, owner and group, link target and item count. In the
+  grid and the details Ctrl+I hides it, and its edge can be dragged from 240 to 720 px.
+- **darktable-aware:** sidecars get their own icon, show your rating, and follow their photo when
+  it is renamed.
+
+## Working with files
+
+- **Opens in the right app.** Enter or a double click opens a file in its default application,
+  chosen exactly as GTK apps choose it: 0 differences from `gio` on all 1 232 file types and
+  aliases. Nordend implements the freedesktop specs itself, without `xdg-open`:
+  - several files for the same app start one instance (five photos, one darktable);
+  - terminal apps such as Helix open in a terminal (`$TERMINAL`, `xdg-terminal-exec`, foot,
+    kitty, ghostty, alacritty, wezterm...);
+  - the new window comes up in front, through an xdg-activation token;
+  - apps run detached: no zombies, and closing Nordend leaves them open;
+  - an executable is never run: it opens in the app for its type;
+  - the status bar says what happened ("Opening 5 files with Darktable…"), in red when there is
+    no app for a type or the app fails at once.
+- **Rename in place** (F2): the name becomes a field where it is, in all three views, with the
+  name selected but not its extension. Typing works with accents and compose. Enter keeps the
+  name, Escape gives up, and a click elsewhere keeps it. The usual editing keys work, including
+  words with Ctrl+arrows and selection with Shift.
+- **New folder** (Ctrl+Shift+N): "New Folder" (or "New Folder 2"...), ready to be named.
+- **Never overwrites:** renames use `RENAME_NOREPLACE`, so an existing file is never replaced,
+  even one that appears in the meantime. A taken or invalid name is refused with a message and
+  the field stays open for another try.
+- **Photo-safe renames:** renaming `P1.ORF` also renames `P1.ORF.xmp` and the duplicates
+  `P1_01.ORF.xmp`, `P1_02.ORF.xmp`… If any of their new names is taken, nothing moves.
+- **Clear errors:** a read-only folder, permission denied or a missing file shows a message in the
+  status bar, never a crash.
+
+## Finding your way
+
+- **Sidebar:** your home and its folders (Downloads, Pictures… in your language, from
+  `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
+  the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.
+  Ctrl+B hides the sidebar, and F6 moves the keyboard into it and back.
+- **Breadcrumb:** the folder's path as a row of clickable steps, starting from your home. A long
+  path is shortened from the left.
+- **Status bar:** item count, selection, free space on the disk (updated after a copy into the
+  folder), the three view buttons and "?". Messages appear here for a few seconds.
+
+## Always current
+
+- **Live folders:** files created, removed, changed or renamed by any program show up at once
+  (inotify). A thousand-file copy arrives in a few smooth updates, not a thousand.
+- **File types exactly as GTK sees them:** the freedesktop shared-mime-info database, read by
+  name first and by content only when needed (and only for what is on screen). 0 differences from
+  `gio` on about 4 750 files.
+- **Live theme:** change the palette in Noctalia and Nordend follows instantly.
+
+## Looks
+
+- Noctalia's colors and Noctalia's own line icons (Tabler), tinted by the theme; camera raw
+  files and darktable sidecars have their own icons.
+- Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
+- Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
+  monospace font come from `config.toml`.
+- Pointer shapes from the compositor's cursor theme (cursor-shape-v1), with a resize arrow on
+  every draggable edge.
+
+## Fast, and measured
+
+| What | Time |
+|------|-----:|
+| First entries of a 10 000-file folder (warm / cold cache) | 0.8 ms / 1.7 ms |
+| The whole folder loaded and sorted (warm / cold) | 19.5 ms / 81 ms |
+| A scrolling frame at 2880x1620 (columns / grid / details) | 0.26 / 0.30 / 0.36-0.50 ms |
+| Sorting 10 000 entries by size, date or type | 1-3 ms |
+| Quick Look of an ORF, fitted to 2880x1620 | 51-55 ms |
+| Reading every installed app to choose one | 0.5 ms |
+| CPU while nothing moves | 0 |
+
+A 2.3 MB binary with 18 direct libraries; 33 MB of its own memory in a folder of sources.
+
+## Settings
+
+- `~/.config/nordend/config.toml`: font family, monospace font, double-click time and distance
+  ([example](config.example.toml)). `nordend --check-config` reports every problem with its
+  line.
+- Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
+  template). Without the file, a built-in default palette is used.
+
+## Standards it follows
+
+freedesktop thumbnails, shared-mime-info, MIME applications associations, Desktop Entry, XDG
+base and user directories, GTK bookmarks; Wayland xdg-shell, xdg-decoration, fractional-scale,
+viewporter, cursor-shape and xdg-activation.
+
+## Next
+
+Copy and move with progress and conflict handling, the trash (freedesktop), and copy and paste
+of files with other apps. Then settings, remembered state, and the MVP. See the
+[roadmap](ROADMAP.md).
