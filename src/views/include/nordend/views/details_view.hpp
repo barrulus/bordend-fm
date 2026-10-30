@@ -35,8 +35,8 @@ namespace nordend::views {
 //
 // Keys: Up/Down move the cursor, Page Up/Down by a screenful, Home/End to the ends; Shift, Ctrl,
 // Ctrl+Space, Ctrl+A and Escape select as in the other views. Right, Enter, Alt+Down or a double
-// click open the folder under the cursor; Left, Backspace, Alt+Up and the mouse back button open
-// the parent, with the cursor on where we were.
+// click open the folder under the cursor; Left, Backspace and Alt+Up open the parent, with the
+// cursor on where we were.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class DetailsView {
@@ -61,6 +61,9 @@ public:
 
     // The folder shown; nullptr before show() or open().
     [[nodiscard]] const std::shared_ptr<Folder>& folder() const noexcept { return folder_; }
+
+    // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
+    void set_show_hidden(bool show);
 
     // Sorts by field: ascending, or reversed when it is the field already sorted by.
     void sort_by(Field field);
@@ -153,6 +156,7 @@ private:
     float pane_edge_{-1.0F};  // x of the info pane's edge as last drawn; < 0 without a pane
 
     std::shared_ptr<Folder> folder_;
+    bool show_hidden_{false};
     fs::SortOrder order_;
     ui::Scroller scroller_;
     // Widths of size, modified and type; the name takes the rest.

@@ -115,13 +115,18 @@ Info read_info(const std::filesystem::path& path, const core::CancelToken& cance
         std::filesystem::directory_iterator it{path, error};
         if (!error) {
             std::uint64_t count = 0;
+            std::uint64_t hidden = 0;
             for (; it != std::filesystem::directory_iterator{}; it.increment(error)) {
                 if (error || (++count % kCancelCheck == 0 && cancel.cancelled())) {
                     break;
                 }
+                if (it->path().filename().native().starts_with('.')) {
+                    ++hidden;
+                }
             }
             if (!error) {
                 info.items = count;
+                info.hidden_items = hidden;
             }
         }
     }

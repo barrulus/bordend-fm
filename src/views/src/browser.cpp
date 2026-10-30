@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <format>
 #include <string>
+#include <system_error>
 #include <unordered_set>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -1395,7 +1396,8 @@ void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& f
             }
             // The cursor follows the new name by itself (the watcher reports a rename), unless it
             // still waits for the old one: a new folder renamed before the watcher saw it.
-            if (folder->cursor_pending()) {
+            // A hidden name would leave the listing: the cursor keeps it in sight.
+            if (folder->cursor_pending() || (!folder->shows_hidden() && to.starts_with('.'))) {
                 folder->expect_name(to);
             }
             record({.kind = FileOperation::Kind::rename,
@@ -1421,11 +1423,97 @@ void Browser::open(const std::filesystem::path& directory) {
         columns_.suspend();
         details_.show(columns_.focused_folder());
     }
+    note_location();
 }
 
 void Browser::reveal(const std::filesystem::path& root, const std::filesystem::path& target) {
     set_mode(Mode::columns);
     columns_.reveal(root, target);
+    note_location();
+}
+
+void Browser::note_location() {
+    if (mode_ == Mode::columns && columns_.revealing()) {
+        return;  // noted once the columns have unfolded
+    }
+    const std::shared_ptr<Folder> shown = current_folder();
+    if (!shown) {
+        return;
+    }
+    const fs::Entry* const cursor = shown->cursor_entry();
+    if (!history_.empty() && history_[here_].folder == shown->path()) {
+        if (cursor != nullptr) {
+            history_[here_].cursor = cursor->name;
+        }
+        return;
+    }
+    if (!history_.empty()) {
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(here_) + 1, history_.end());
+    }
+    history_.push_back({.folder = shown->path(), .cursor = cursor ? cursor->name : ""});
+    if (history_.size() > kHistorySize) {
+        history_.erase(history_.begin());
+    }
+    here_ = history_.size() - 1;
+}
+
+void Browser::back() { travel(-1); }
+
+void Browser::forward() { travel(1); }
+
+void Browser::travel(int direction) {
+    note_location();  // the cursor where it is now
+    quick_look_.close();
+    const auto ahead = [&] { return direction < 0 ? here_ > 0 : here_ + 1 < history_.size(); };
+    std::vector<std::string> gone;
+    const auto report_gone = [&] {
+        if (!gone.empty()) {
+            show_message(gone.size() == 1 ? std::format("{} no longer exists", gone.front())
+                                          : std::format("{} folders no longer exist", gone.size()),
+                         true);
+        }
+    };
+    bool moved = false;
+    while (ahead()) {
+        here_ = direction < 0 ? here_ - 1 : here_ + 1;
+        const Step step = history_[here_];  // go_to() notes the cursor it finds there
+        go_to(step.folder, step.cursor);
+        moved = true;
+        const std::shared_ptr<Folder> shown = current_folder();
+        if (!shown) {
+            return;
+        }
+        // Opening a folder that is not there fails at once (it cannot be watched).
+        const std::error_code& error = shown->model().error();
+        if (error != std::errc::no_such_file_or_directory && error != std::errc::not_a_directory) {
+            if (!step.cursor.empty() &&
+                (shown->cursor_entry() == nullptr || shown->cursor_entry()->name != step.cursor)) {
+                shown->select_name(step.cursor);
+            }
+            history_[here_].cursor = step.cursor;
+            report_gone();
+            return;
+        }
+        gone.push_back(step.folder.filename().string());
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(here_));
+        if (direction > 0) {
+            --here_;  // back on the step we left: the next one ahead took its place
+        }
+    }
+    if (moved) {
+        const Step step = history_[here_];
+        go_to(step.folder, step.cursor);  // nothing there: back where it started
+    }
+    report_gone();
+}
+
+void Browser::set_show_hidden(bool show) {
+    show_hidden_ = show;
+    columns_.set_show_hidden(show);
+    grid_.set_show_hidden(show);
+    details_.set_show_hidden(show);
+    show_message(show ? "Hidden files shown" : "Hidden files hidden", false);
+    redraw_();
 }
 
 void Browser::set_info_visible(bool visible) {
@@ -1587,6 +1675,18 @@ bool Browser::loading() const {
 }
 
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    const bool button = event.kind == ui::PointerEvent::Kind::press ||
+                        event.kind == ui::PointerEvent::Kind::release;
+    if (button) {
+        note_location();  // the cursor of the folder the click may leave
+    }
+    take_pointer(event, now);
+    if (button) {
+        note_location();
+    }
+}
+
+void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
         return;
@@ -1639,6 +1739,11 @@ void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
         pointer_inside_ = true;
         pointer_x_ = event.x;
         pointer_y_ = event.y;
+    }
+    if (event.kind == ui::PointerEvent::Kind::press &&
+        (event.button == ui::PointerButton::back || event.button == ui::PointerButton::forward)) {
+        travel(event.button == ui::PointerButton::back ? -1 : 1);
+        return;
     }
     dispatch_pointer(event, now);
 }
@@ -1701,12 +1806,13 @@ void Browser::go_to(const std::filesystem::path& folder, const std::string& chil
             columns_.reveal(folder, child.empty() ? folder : folder / child);
         }
         redraw_();
-        return;
+    } else {
+        open(folder);
+        if (const std::shared_ptr<Folder> shown = current_folder(); shown && !child.empty()) {
+            shown->select_name(child);
+        }
     }
-    open(folder);
-    if (const std::shared_ptr<Folder> shown = current_folder(); shown && !child.empty()) {
-        shown->select_name(child);
-    }
+    note_location();
 }
 
 void Browser::view_pointer(const ui::PointerEvent& event, Clock::time_point now) {
@@ -1736,6 +1842,13 @@ std::shared_ptr<Folder> Browser::current_folder() const {
 }
 
 bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
+    note_location();  // the cursor of the folder the key may leave
+    const bool handled = take_key(event, now);
+    note_location();
+    return handled;
+}
+
+bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         return conflict_.key(event);  // a copy waits for the answer: every key is the card's
     }
@@ -1882,6 +1995,15 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::context_menu:
             open_menu_from_keyboard();
+            break;
+        case Command::back:
+            back();
+            break;
+        case Command::forward:
+            forward();
+            break;
+        case Command::toggle_hidden:
+            set_show_hidden(!show_hidden_);
             break;
     }
 }

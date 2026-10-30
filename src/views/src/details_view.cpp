@@ -88,7 +88,14 @@ void DetailsView::show(std::shared_ptr<Folder> folder) {
 }
 
 void DetailsView::open(const std::filesystem::path& directory) {
-    show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_));
+    show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
+}
+
+void DetailsView::set_show_hidden(bool show) {
+    show_hidden_ = show;
+    if (folder_) {
+        folder_->set_show_hidden(show);
+    }
 }
 
 bool DetailsView::loading() const {
@@ -468,10 +475,6 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             redraw_();
             break;
         case Kind::press: {
-            if (event.button == ui::PointerButton::back) {
-                go_up();
-                break;
-            }
             if (event.button == ui::PointerButton::right) {
                 right_click(event.x, event.y);
                 break;

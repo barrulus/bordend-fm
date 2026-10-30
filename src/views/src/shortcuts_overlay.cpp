@@ -61,7 +61,7 @@ float column_height(const Column& groups) {
         height += (first ? 0.0F : kGroupGap) + kGroupHeight;
         first = false;
         for (const Shortcut& shortcut : shortcuts()) {
-            if (shortcut.group == group) {
+            if (shortcut.group == group && !shortcut.keys.empty()) {
                 height += kRowHeight;
             }
         }
@@ -147,7 +147,7 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                                palette.on_surface_variant);
             y += kGroupHeight;
             for (const Shortcut& shortcut : shortcuts()) {
-                if (shortcut.group != group) {
+                if (shortcut.group != group || shortcut.keys.empty()) {
                     continue;
                 }
                 renderer.draw_text(shortcut.keys, left, y, kTextSize, palette.primary,

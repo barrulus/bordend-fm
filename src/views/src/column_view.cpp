@@ -36,7 +36,15 @@ ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::Direct
 ColumnView::~ColumnView() = default;
 
 std::unique_ptr<Column> ColumnView::make_column(const std::filesystem::path& directory) {
-    return make_column(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_));
+    return make_column(
+        std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
+}
+
+void ColumnView::set_show_hidden(bool show) {
+    show_hidden_ = show;
+    for (std::size_t i = 0; i < columns_.size(); ++i) {
+        columns_[i].column->folder().set_show_hidden(show, i < focus_);
+    }
 }
 
 std::unique_ptr<Column> ColumnView::make_column(std::shared_ptr<Folder> folder) {
@@ -170,6 +178,7 @@ void ColumnView::sync_after(std::size_t index) {
         focus_ = index;
     }
     if (entry == nullptr || !entry->is_directory()) {
+        reveal_.clear();  // arrived above, or the way is lost
         truncate(index + 1);
         reveal_focus_ = true;
         redraw_();
@@ -450,11 +459,6 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             }
             break;
         case Kind::press:
-            if (event.button == ui::PointerButton::back) {
-                reveal_.clear();
-                go_left();
-                break;
-            }
             if (event.button == ui::PointerButton::right) {
                 if (event.y >= area_.y && event.y < area_.bottom()) {
                     right_click(event.x, event.y);

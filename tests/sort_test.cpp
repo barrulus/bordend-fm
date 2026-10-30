@@ -129,3 +129,34 @@ TEST_CASE("Listing: chunks in any order give the fully sorted list") {
     listing.set_order({.descending = true});
     CHECK(listing.entries()[1].name == "IMG_999.ORF");
 }
+
+TEST_CASE("Listing: hidden entries left out and back, in order, kept up to date") {
+    using Names = std::vector<std::string>;
+    Listing listing;
+    listing.add({file("b.txt"), file(".profile"), dir(".config"), file("a.txt")});
+    CHECK(names(listing.entries()) == Names{".config", ".profile", "a.txt", "b.txt"});
+
+    Listing::Moved moved = listing.set_filter(false, {});
+    CHECK(names(listing.entries()) == Names{"a.txt", "b.txt"});
+    CHECK(listing.hidden().size() == 2);
+    std::ranges::sort(moved.hidden);
+    CHECK(moved.hidden == Names{".config", ".profile"});
+    CHECK(moved.shown.empty());
+
+    // Arriving while left out; replaced and removed while left out.
+    listing.add({file(".bashrc"), file("c.txt")});
+    CHECK(names(listing.entries()) == Names{"a.txt", "b.txt", "c.txt"});
+    listing.replace({".profile"}, {file(".bashrc", 10)});
+    CHECK(listing.hidden().size() == 2);
+
+    // One kept in sight: the way to a hidden folder opened further on.
+    moved = listing.set_filter(false, ".config");
+    CHECK(names(listing.entries()) == Names{".config", "a.txt", "b.txt", "c.txt"});
+    CHECK(moved.shown == Names{".config"});
+
+    moved = listing.set_filter(true, {});
+    CHECK(names(listing.entries()) == Names{".config", ".bashrc", "a.txt", "b.txt", "c.txt"});
+    CHECK(moved.shown == Names{".bashrc"});
+    CHECK(listing.hidden().empty());
+    CHECK(listing.entries()[1].size == 10);
+}

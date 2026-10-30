@@ -109,12 +109,23 @@ bool SortOrder::operator()(const Entry& a, const Entry& b) const noexcept {
     return descending ? result > 0 : result < 0;
 }
 
-void Listing::add(std::vector<Entry> chunk) {
+void Listing::merge(std::vector<Entry> chunk) {
     std::ranges::sort(chunk, order_);
     const auto middle = static_cast<std::ptrdiff_t>(entries_.size());
     entries_.insert(entries_.end(), std::make_move_iterator(chunk.begin()),
                     std::make_move_iterator(chunk.end()));
     std::ranges::inplace_merge(entries_, entries_.begin() + middle, order_);
+}
+
+void Listing::add(std::vector<Entry> chunk) {
+    if (!show_hidden_) {
+        const auto out = std::ranges::stable_partition(
+            chunk, [this](const Entry& entry) { return !left_out(entry); });
+        hidden_.insert(hidden_.end(), std::make_move_iterator(out.begin()),
+                       std::make_move_iterator(out.end()));
+        chunk.erase(out.begin(), out.end());
+    }
+    merge(std::move(chunk));
 }
 
 void Listing::replace(const std::unordered_set<std::string>& remove, std::vector<Entry> insert) {
@@ -123,15 +134,40 @@ void Listing::replace(const std::unordered_set<std::string>& remove, std::vector
     for (const Entry& entry : insert) {
         replaced.insert(entry.name);
     }
-    std::erase_if(entries_, [&](const Entry& entry) {
+    const auto gone = [&](const Entry& entry) {
         return remove.contains(entry.name) || replaced.contains(entry.name);
-    });
+    };
+    std::erase_if(entries_, gone);
+    std::erase_if(hidden_, gone);
     add(std::move(insert));
 }
 
 void Listing::set_order(SortOrder order) {
     order_ = order;
     std::ranges::sort(entries_, order_);
+}
+
+Listing::Moved Listing::set_filter(bool show_hidden, std::string keep) {
+    show_hidden_ = show_hidden;
+    keep_ = std::move(keep);
+    Moved moved;
+    const auto back =
+        std::ranges::partition(hidden_, [this](const Entry& entry) { return left_out(entry); });
+    std::vector<Entry> shown(std::make_move_iterator(back.begin()),
+                             std::make_move_iterator(back.end()));
+    hidden_.erase(back.begin(), back.end());
+    const auto out = std::ranges::stable_partition(
+        entries_, [this](const Entry& entry) { return !left_out(entry); });
+    for (Entry& entry : out) {
+        moved.hidden.push_back(entry.name);
+        hidden_.push_back(std::move(entry));
+    }
+    entries_.erase(out.begin(), out.end());
+    for (const Entry& entry : shown) {
+        moved.shown.push_back(entry.name);
+    }
+    merge(std::move(shown));
+    return moved;
 }
 
 }  // namespace nordend::fs

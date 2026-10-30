@@ -34,6 +34,13 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   and quick turns add up. The arrows and Page Up/Down glide; Home and End jump.
 - **Keyboard first:** arrows, Page Up/Down, Home and End; Enter, Right or Alt+Down to go in;
   Backspace, Left or Alt+Up to go back. The cursor lands on the folder you came from.
+- **History:** Alt+Left and Alt+Right, or the mouse's back and forward buttons, go through the
+  folders opened (the last 100), each with the cursor where it was left. Opening a folder after
+  going back drops the ones ahead; a folder deleted meanwhile is skipped, with a message.
+- **Hidden files out of the way:** dotfiles are hidden at start; Ctrl+H shows them (dimmed) in
+  every view and hides them again. Hidden, they are never selected, so Ctrl+A and Delete touch
+  only what you see, and the status bar says how many there are ("12 items, 3 hidden"). A hidden
+  folder you open (from a bookmark, say) stays in sight on the way to it.
 - **Selection as you expect it:** click, Ctrl+click and Shift+click; Shift+arrows for a range,
   Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all, Escape for one again.
 - **The selection follows its files:** cursor and selection are kept by name, so they stay on a
@@ -249,5 +256,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Copy and paste of files with other apps, and drag and drop. Then settings, remembered state, and the MVP. See the
+Drag and drop, favourites in the sidebar, removable disks, then settings, remembered state, and
+the MVP. See the
 [roadmap](ROADMAP.md).

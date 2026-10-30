@@ -65,7 +65,9 @@ namespace nordend::views {
 // same thread; the cursor goes on to the entry after it. Shift+Delete (Delete in the trash folder)
 // deletes it for good and "Empty Trash" empties every trash, after a card that says how much goes.
 // A right click (or the Menu key, Shift+F10)
-// opens a context menu with the same actions, "Open With" and "New File".
+// opens a context menu with the same actions, "Open With" and "New File". Alt+Left and Alt+Right
+// (the mouse's back and forward buttons) go through the folders opened, Ctrl+H shows the hidden
+// files.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
@@ -97,6 +99,33 @@ public:
     void reveal(const std::filesystem::path& root, const std::filesystem::path& target);
 
     void set_mode(Mode mode);
+
+    // A folder opened, as the history keeps it: where the cursor was when it was left.
+    struct Step {
+        std::filesystem::path folder;
+        std::string cursor;
+    };
+
+    static constexpr std::size_t kHistorySize = 100;
+
+    // Alt+Left, Alt+Right and the mouse's side buttons: the folder opened before this one, or
+    // after it, with the cursor where it was. Every folder the keyboard goes into is a step
+    // (in the columns, the focused column's); opening one after going back drops the steps
+    // ahead. A folder that no longer exists is left out of the history, with a message.
+    void back();
+    void forward();
+
+    [[nodiscard]] const std::vector<Step>& history() const noexcept { return history_; }
+
+    // Where history() is now.
+    [[nodiscard]] std::size_t history_index() const noexcept { return here_; }
+
+    // Ctrl+H: dotfiles listed in every view, or left out (at start). Left out, they leave the
+    // selection, so nothing acts on what is not seen, and the cursor moves off them; the hidden
+    // folders on the way to the one shown stay.
+    void set_show_hidden(bool show);
+
+    [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
 
     [[nodiscard]] Mode mode() const noexcept { return mode_; }
 
@@ -266,6 +295,10 @@ public:
     [[nodiscard]] std::vector<std::string> memory_lines() const;
 
 private:
+    // The folder shown into the history: a new step when it changed, else its cursor.
+    void note_location();
+    // Goes through the history by direction (-1 back, 1 forward).
+    void travel(int direction);
     void trash_done(const fs::TransferResult& result);
     void restore_done(const fs::TransferResult& result);
     // Pastes files read from the system clipboard (at generation) into destination.
@@ -314,6 +347,8 @@ private:
                            const fs::TransferProgress& progress);
     void transfer_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     void ask(const fs::Conflict& conflict, std::function<void(fs::Resolution)> answer);
+    bool take_key(const ui::KeyEvent& event, Clock::time_point now);
+    void take_pointer(const ui::PointerEvent& event, Clock::time_point now);
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
@@ -360,6 +395,9 @@ private:
     Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};
+    bool show_hidden_{false};
+    std::vector<Step> history_;
+    std::size_t here_{0};
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};
     bool button_held_{false};  // since a press: the pointer stays with its target

@@ -69,6 +69,11 @@ public:
 
     void set_order(SortOrder order);
 
+    // Shows or leaves out the hidden entries, keep shown either way (Listing::set_filter): what
+    // leaves the listing is notified as removed, what comes back as added. Entries left out are
+    // still watched and kept up to date.
+    void set_filter(bool show_hidden, std::string keep);
+
     [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 
     [[nodiscard]] const Listing& listing() const noexcept { return listing_; }

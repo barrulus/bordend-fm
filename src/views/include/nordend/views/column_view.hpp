@@ -32,8 +32,8 @@ namespace nordend::views {
 //
 // Keys: Up/Down, Page Up/Down, Home/End move the cursor in the focused column; Right or Enter
 // enter the folder under the cursor; Left goes back one column, and from the first column opens
-// the parent folder as a new first column (Backspace, Alt+Up and the mouse back button do the
-// same). A click puts the cursor on a row. Columns are resized by dragging their right edge.
+// the parent folder as a new first column (Backspace and Alt+Up do the same). A click puts the
+// cursor on a row. Columns are resized by dragging their right edge.
 //
 // Selection (in the focused column): a click or an arrow selects one entry; Shift+click and
 // Shift+arrows/Page/Home/End select a range from the anchor; Ctrl+click adds or removes one
@@ -80,6 +80,10 @@ public:
     // Focuses the column showing directory, if one does (true then), and goes back there: the
     // folder under its cursor shows again without a cursor, the columns after it close.
     bool focus_folder(const std::filesystem::path& directory);
+
+    // Dotfiles listed in every column, or left out (hidden at first). Left out, the columns
+    // before the focused one keep the hidden entry that leads on, the others move their cursor.
+    void set_show_hidden(bool show);
 
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
@@ -128,6 +132,9 @@ public:
     }
 
     [[nodiscard]] std::size_t focus() const noexcept { return focus_; }
+
+    // reveal() or show() is still unfolding the columns: the focused one is not the last word.
+    [[nodiscard]] bool revealing() const noexcept { return !reveal_.empty(); }
 
     // Every column has loaded (snapshots, tests).
     [[nodiscard]] bool loading() const;
@@ -179,6 +186,7 @@ private:
     std::filesystem::path reveal_;   // where reveal() is heading; empty when done
     std::shared_ptr<Folder> adopt_;  // the folder show() unfolds to, used as its column
     bool suspended_{false};
+    bool show_hidden_{false};
     ui::Scroller scroller_;     // horizontal
     bool reveal_focus_{false};  // glide to show the focused column at the next draw
     float shift_{0.0F};         // added to the offset at the next draw (a column prepended)

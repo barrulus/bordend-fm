@@ -106,6 +106,7 @@ TEST_CASE("preview: information on files, directories and links") {
     const preview::Info folder = preview::read_info(dir.path / "sub", token);
     CHECK(folder.permissions == "drwx-----T");
     CHECK(folder.items == std::optional<std::uint64_t>{3});
+    CHECK(folder.hidden_items == 1);
 
     fs::create_symlink("sub", dir.path / "link");
     const preview::Info link = preview::read_info(dir.path / "link", token);

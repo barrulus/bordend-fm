@@ -57,10 +57,10 @@ public:
         jump,   // landed or asked for by name: centered, at once
     };
 
-    // redraw runs when anything shown changes.
+    // redraw runs when anything shown changes. show_hidden: dotfiles are listed.
     Folder(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
            std::shared_ptr<const fs::MimeDatabase> mime, std::filesystem::path directory,
-           std::function<void()> redraw);
+           std::function<void()> redraw, bool show_hidden = true);
 
     ~Folder();
 
@@ -123,6 +123,19 @@ public:
     void expect_names(const std::vector<std::string>& names);
 
     void select_all();
+
+    // Lists the hidden entries (dotfiles) or leaves them out; left out, they leave the selection.
+    // A cursor on one moves to the nearest entry shown (after it, else before), unless
+    // keep_cursor: then that entry stays (the way to a folder opened further on). An entry the
+    // cursor is put on by name (select_name, expect_name) is shown even when hidden.
+    void set_show_hidden(bool show, bool keep_cursor = false);
+
+    [[nodiscard]] bool shows_hidden() const noexcept { return model_.listing().shows_hidden(); }
+
+    // The entries left out.
+    [[nodiscard]] std::size_t hidden_count() const noexcept {
+        return model_.listing().hidden().size();
+    }
 
     // Back to the cursor's entry alone (Escape).
     void collapse_selection();

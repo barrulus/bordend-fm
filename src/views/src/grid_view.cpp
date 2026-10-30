@@ -56,7 +56,14 @@ void GridView::show(std::shared_ptr<Folder> folder) {
 }
 
 void GridView::open(const std::filesystem::path& directory) {
-    show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_));
+    show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
+}
+
+void GridView::set_show_hidden(bool show) {
+    show_hidden_ = show;
+    if (folder_) {
+        folder_->set_show_hidden(show);
+    }
 }
 
 bool GridView::loading() const {
@@ -386,10 +393,6 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             redraw_();
             break;
         case Kind::press: {
-            if (event.button == ui::PointerButton::back) {
-                go_up();
-                break;
-            }
             if (event.button == ui::PointerButton::right) {
                 if (event.y >= area_.y && event.y < area_.bottom()) {
                     right_click(event.x, event.y);

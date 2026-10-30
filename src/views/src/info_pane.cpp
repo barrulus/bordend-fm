@@ -333,8 +333,12 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     if (single == nullptr) {
         out.row("Items", std::format("{}", folder.entries().size()));
     } else if (single->is_directory()) {
+        // As many as the folder will show when opened.
         out.row("Items",
-                info != nullptr && info->items ? std::format("{}", *info->items) : std::string{});
+                info != nullptr && info->items
+                    ? std::format("{}", folder.shows_hidden() ? *info->items
+                                                              : *info->items - info->hidden_items)
+                    : std::string{});
     } else {
         out.row("Size", format_size(single->size));
     }

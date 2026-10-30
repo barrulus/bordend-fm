@@ -4,6 +4,68 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Navigation history and hidden files (ROADMAP 7.0)
+
+First step of phase 7; the "Fatto quando" proposed and approved by the author the same day.
+
+**Done**
+- `fs::Listing` leaves hidden entries (dotfiles) out on request: kept aside unsorted
+  (`hidden()`), still updated by additions, replacements and removals, merged back in order when
+  shown again; one name (`keep`) stays shown either way. `set_filter` returns the names that left
+  and came. `DirectoryModel::set_filter` notifies them as removed and added, so the views and the
+  selection follow with no new path; its trash diff and its known names count the hidden too.
+- `Folder(…, show_hidden)` and `Folder::set_show_hidden(show, keep_cursor)`: left out, hidden
+  names leave the selection (Ctrl+A then Delete never touches what is not seen); a cursor on one
+  moves to the next entry shown, else the one before, the rest of the selection kept; with
+  keep_cursor the entry stays (the columns before the focused one keep the way). `select_name`
+  and `expect_name` keep a hidden name in sight: Backspace from `.config` opened from a bookmark,
+  a reveal through it, a rename (F2) to ".name".
+- The three views create their folders with the setting and apply it (`set_show_hidden`); the
+  browser's Ctrl+H toggles it for all, with a message. Hidden by default; dotfiles shown are
+  still dimmed. Status bar: "6 items, 5 hidden". The info pane counts a folder's items as it will
+  show them (`preview::Info::hidden_items`).
+- History in the browser: `note_location()` after every key, button press/release and
+  open/go_to/reveal (and before every key and button, so the step left keeps its cursor); a new
+  folder is a step (in the columns, the focused column's; not while a reveal is still unfolding),
+  otherwise the step's cursor is updated. Alt+Left/Alt+Right and the mouse's side buttons
+  (`travel`) go to the step with `go_to` and put the cursor back by name; a new step after going
+  back drops the ones ahead; at most 100. A folder gone is found at once (opening it fails to
+  watch: ENOENT), dropped from the history, the next one tried; nothing left: back where it was;
+  "a no longer exists" / "2 folders no longer exist". The side buttons no longer go to the parent
+  in the views (Backspace and Alt+Up still do).
+- `ColumnView::sync_after` now drops a reveal whose way is lost (an entry not found), which
+  otherwise stayed pending forever; `revealing()` tells the browser.
+- Shortcuts: Ctrl+H "Hidden files" (General); "Alt+←  Alt+→" "Back, forward (mouse too)"
+  (Moving), the second chord a line without keys (the overlay skips those).
+- Tests (225): back and forward with the cursor in all three views, ends of the history; side
+  buttons; steps ahead dropped; folders gone, skipped and none left; 100 steps; Ctrl+H in all
+  views with status and selection; the cursor's nearest entry after and before; the way to a
+  hidden folder kept in the columns; a rename to a hidden name; `Listing` filtering; the info
+  count.
+
+**Measured**
+- Snapshots (columns, grid, details, hidden off and on; the overlay at 1400×800 and 1000×800)
+  looked at. ASan and TSan: tests and a snapshot clean.
+
+**Decisions**
+- The filter lives in `fs::Listing`, not in the views: every view, count and selection reads the
+  same `entries()`, so nothing can act on an entry it does not show.
+- Existence is not checked on a worker before going back: opening a missing folder fails at once
+  on the loop thread (the watch), the same syscall any open makes.
+
+**Open**
+- The two-column overlay (window narrower than 1200 px) now cuts Quick Look's lines at 800 px
+  of height: two lines more than before (already an open point).
+- Renaming the cursor's entry to a hidden name from another program loses the cursor (only F2
+  keeps it).
+
+**Tested by the author**: hidden files off at start with the count, Ctrl+H both ways, the
+cursor moving off a dotfile, Ctrl+A leaving dotfiles out, `.config` kept in the column before;
+back and forward with keys and the mouse's side buttons in all three views, cursor restored; a
+folder deleted meanwhile skipped with its message; the overlay's new lines.
+
+---
+
 ## 2026-10-30 — The README, ready to go public
 
 Asked for by the author ("rendi il readme carino", the repository goes public soon).

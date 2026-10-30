@@ -46,12 +46,15 @@ enum class Command : std::uint8_t {
     undo,
     redo,
     context_menu,
+    back,
+    forward,
+    toggle_hidden,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.
 struct Shortcut {
     std::string_view group;  // the overlay's section
-    std::string_view keys;   // as shown ("Ctrl+1", "Shift+arrows")
+    std::string_view keys;   // as shown ("Ctrl+1", "Shift+arrows"); empty: on the line before
     std::string_view action;
     std::uint16_t scope{0};
     ui::Modifiers modifiers{};

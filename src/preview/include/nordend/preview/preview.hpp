@@ -31,6 +31,7 @@ struct Info {
     std::string group;
     std::string link_target;                 // for a symbolic link, where it points; else empty
     std::optional<std::uint64_t> items;      // a directory's entries, hidden ones included
+    std::uint64_t hidden_items{0};           // of items, the hidden ones (dotfiles)
     std::optional<std::int64_t> created_ns;  // birth time, where the file system keeps it
     std::string error;                       // the file could not be examined
 };

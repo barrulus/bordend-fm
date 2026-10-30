@@ -1,6 +1,7 @@
 #include "nordend/fs/directory_model.hpp"
 
 #include <algorithm>
+#include <initializer_list>
 #include <optional>
 #include <string_view>
 #include <unordered_set>
@@ -64,6 +65,17 @@ void DirectoryModel::open(std::filesystem::path path) {
 void DirectoryModel::set_order(SortOrder order) {
     listing_.set_order(order);
     notify(reset_change());
+}
+
+void DirectoryModel::set_filter(bool show_hidden, std::string keep) {
+    Listing::Moved moved = listing_.set_filter(show_hidden, std::move(keep));
+    if (moved.hidden.empty() && moved.shown.empty()) {
+        return;
+    }
+    ModelChange change;
+    change.removed = std::move(moved.hidden);
+    change.added = std::move(moved.shown);
+    notify(change);
 }
 
 void DirectoryModel::start_load() {
@@ -202,9 +214,11 @@ void DirectoryModel::apply_trash(TrashListing listing) {
 
     // What changed, by name.
     std::unordered_map<std::string_view, const Entry*> listed;
-    listed.reserve(listing_.entries().size());
-    for (const Entry& entry : listing_.entries()) {
-        listed.emplace(entry.name, &entry);
+    listed.reserve(listing_.entries().size() + listing_.hidden().size());
+    for (const auto* list : {&listing_.entries(), &listing_.hidden()}) {
+        for (const Entry& entry : *list) {
+            listed.emplace(entry.name, &entry);
+        }
     }
     std::unordered_map<std::string, TrashedItem> items;
     ModelChange change;
@@ -227,17 +241,21 @@ void DirectoryModel::apply_trash(TrashListing listing) {
         items.emplace(name, std::move(listing.items[i]));
     }
     std::unordered_set<std::string> gone;
-    for (const Entry& entry : listing_.entries()) {
-        if (!items.contains(entry.name)) {
-            gone.insert(entry.name);
-            change.removed.push_back(entry.name);
+    for (const auto* list : {&listing_.entries(), &listing_.hidden()}) {
+        for (const Entry& entry : *list) {
+            if (!items.contains(entry.name)) {
+                gone.insert(entry.name);
+                change.removed.push_back(entry.name);
+            }
         }
     }
     listing_.replace(gone, std::move(present));
     trashed_ = std::move(items);
     names_.clear();
-    for (const Entry& entry : listing_.entries()) {
-        names_.insert(entry.name);
+    for (const auto* list : {&listing_.entries(), &listing_.hidden()}) {
+        for (const Entry& entry : *list) {
+            names_.insert(entry.name);
+        }
     }
     const bool first = loading_;
     loading_ = false;

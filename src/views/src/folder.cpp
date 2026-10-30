@@ -1,6 +1,7 @@
 #include "nordend/views/folder.hpp"
 
 #include <algorithm>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -10,16 +11,19 @@ namespace {
 // Sniffing batches stay small so a fast scroll does not queue minutes of reads.
 constexpr std::size_t kMaxSniffBatch = 64;
 
+bool hidden_name(const std::string& name) { return !name.empty() && name.front() == '.'; }
+
 }  // namespace
 
 Folder::Folder(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
                std::shared_ptr<const fs::MimeDatabase> mime, std::filesystem::path directory,
-               std::function<void()> redraw)
+               std::function<void()> redraw, bool show_hidden)
     : pool_{pool},
       mime_{std::move(mime)},
       redraw_{std::move(redraw)},
       model_{loop, pool, watcher, mime_} {
     model_.set_change_handler([this](const fs::ModelChange& change) { on_change(change); });
+    model_.set_filter(show_hidden, {});
     model_.open(std::move(directory));
 }
 
@@ -233,6 +237,9 @@ void Folder::expect_names(const std::vector<std::string>& names) {
 }
 
 void Folder::select_name(std::string name) {
+    if (!shows_hidden() && hidden_name(name)) {
+        model_.set_filter(false, name);  // asked for by name: shown all the same
+    }
     cursor_expected_ = false;
     cursor_name_ = std::move(name);
     cursor_index_.reset();
@@ -266,6 +273,39 @@ void Folder::select_all() {
         anchor_ = cursor_name_;
     }
     selection_changed();
+}
+
+void Folder::set_show_hidden(bool show, bool keep_cursor) {
+    if (show == shows_hidden()) {
+        return;
+    }
+    std::string keep;
+    std::string next;  // where the cursor goes when its entry is left out
+    if (const fs::Entry* const entry = cursor_entry();
+        !show && entry != nullptr && entry->hidden()) {
+        if (keep_cursor) {
+            keep = entry->name;
+        } else {
+            const std::vector<fs::Entry>& list = entries();
+            const auto shown = [](const fs::Entry& candidate) { return !candidate.hidden(); };
+            const auto at = list.begin() + (entry - list.data());
+            if (const auto after = std::find_if(at, list.end(), shown); after != list.end()) {
+                next = after->name;
+            } else if (const auto before =
+                           std::find_if(std::make_reverse_iterator(at), list.rend(), shown);
+                       before != list.rend()) {
+                next = before->name;
+            }
+        }
+    }
+    model_.set_filter(show, std::move(keep));
+    if (!next.empty()) {
+        // The rest of the selection stays; alone, the cursor's entry is selected.
+        const std::vector<fs::Entry>& list = entries();
+        const auto it = std::ranges::find(list, next, &fs::Entry::name);
+        set_cursor(static_cast<std::size_t>(it - list.begin()),
+                   selected_.empty() ? SelectMode::replace : SelectMode::keep);
+    }
 }
 
 void Folder::collapse_selection() {

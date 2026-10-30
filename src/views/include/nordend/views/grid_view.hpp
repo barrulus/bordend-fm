@@ -33,8 +33,8 @@ namespace nordend::views {
 //
 // Keys: arrows move the cursor (Up/Down by a row), Page Up/Down by a screenful, Home/End to the
 // ends; Shift, Ctrl, Ctrl+Space, Ctrl+A and Escape select as in the column view. Enter (or
-// Alt+Down, or a double click) opens the folder under the cursor; Backspace, Alt+Up and the mouse
-// back button open the parent, with the cursor on where we were.
+// Alt+Down, or a double click) opens the folder under the cursor; Backspace and Alt+Up open the
+// parent, with the cursor on where we were.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class GridView {
@@ -58,6 +58,9 @@ public:
 
     // The folder shown; nullptr before show() or open().
     [[nodiscard]] const std::shared_ptr<Folder>& folder() const noexcept { return folder_; }
+
+    // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
+    void set_show_hidden(bool show);
 
     // Lays out and draws into bounds at time now (advancing the scroll animation).
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -143,6 +146,7 @@ private:
     float pane_edge_{-1.0F};  // x of the info pane's edge as last drawn; < 0 without a pane
 
     std::shared_ptr<Folder> folder_;
+    bool show_hidden_{false};
     ui::Scroller scroller_;
     std::size_t size_{kDefaultSize};
     std::size_t columns_{1};

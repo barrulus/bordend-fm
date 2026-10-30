@@ -31,7 +31,8 @@ struct SortOrder {
     [[nodiscard]] bool operator()(const Entry& a, const Entry& b) const noexcept;
 };
 
-// A directory's entries kept sorted while they arrive in chunks.
+// A directory's entries kept sorted while they arrive in chunks. Hidden entries (dotfiles) can be
+// left out: they are kept aside, unsorted, and come back when they are shown again.
 class Listing {
 public:
     explicit Listing(SortOrder order = {}) : order_{order} {}
@@ -46,15 +47,42 @@ public:
     // Re-sorts everything with a new order.
     void set_order(SortOrder order);
 
-    void clear() { entries_.clear(); }
+    // Shows or leaves out the hidden entries (shown at first); keep stays shown either way
+    // (empty: none). Returns the names that left entries() and the names that came into it.
+    struct Moved {
+        std::vector<std::string> hidden;
+        std::vector<std::string> shown;
+    };
+
+    Moved set_filter(bool show_hidden, std::string keep);
+
+    [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
+
+    void clear() {
+        entries_.clear();
+        hidden_.clear();
+    }
 
     [[nodiscard]] const SortOrder& order() const noexcept { return order_; }
 
+    // What is shown, sorted.
     [[nodiscard]] const std::vector<Entry>& entries() const noexcept { return entries_; }
 
+    // What is left out, in no order.
+    [[nodiscard]] const std::vector<Entry>& hidden() const noexcept { return hidden_; }
+
 private:
+    [[nodiscard]] bool left_out(const Entry& entry) const noexcept {
+        return !show_hidden_ && entry.hidden() && entry.name != keep_;
+    }
+
+    void merge(std::vector<Entry> chunk);
+
     SortOrder order_;
     std::vector<Entry> entries_;
+    std::vector<Entry> hidden_;
+    bool show_hidden_{true};
+    std::string keep_;
 };
 
 }  // namespace nordend::fs

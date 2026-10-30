@@ -45,7 +45,11 @@ std::string status_of(const Folder& folder) {
     if (model.loading()) {
         return std::format("{} items, loading…", count);
     }
-    return std::format("{} {}", count, count == 1 ? "item" : "items");
+    std::string status = std::format("{} {}", count, count == 1 ? "item" : "items");
+    if (const std::size_t hidden = folder.hidden_count(); hidden > 0) {
+        status += std::format(", {} hidden", hidden);
+    }
+    return status;
 }
 
 StatusBar::StatusBar(core::EventLoop& loop, core::WorkerPool& pool, std::function<void()> redraw,

@@ -44,7 +44,7 @@ Ordine concordato con l'autore il 2026-10-30: prima ciò che si usa ogni giorno,
 grossi, alla fine compatibilità e rilascio. Il "Fatto quando" di ogni passo si propone
 all'autore quando ci si arriva.
 
-- [ ] **7.0 Navigazione**
+- [x] **7.0 Navigazione**
   Cronologia: Alt+← indietro, Alt+→ avanti, i tasti laterali del mouse (Backspace resta la
   cartella superiore). File nascosti: Ctrl+H li mostra o nasconde, nascosti di default.
   Fatto quando: ogni cambio della cartella aperta (nelle colonne: quella a fuoco) è un passo;

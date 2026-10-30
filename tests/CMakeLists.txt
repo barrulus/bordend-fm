@@ -15,6 +15,7 @@ add_executable(nordend-tests
     image_test.cpp
     memory_test.cpp
     mime_test.cpp
+    navigation_test.cpp
     palette_test.cpp
     paste_test.cpp
     places_test.cpp

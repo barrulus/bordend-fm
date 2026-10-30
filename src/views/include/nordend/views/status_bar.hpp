@@ -38,7 +38,8 @@ struct TransferStatus {
     float fraction{-1.0F};  // done, 0 to 1; negative: not known yet
 };
 
-// "12 items", "3 of 12 selected", "12 items, loading…", or the folder's error.
+// "12 items", "12 items, 3 hidden", "3 of 12 selected", "12 items, loading…", or the folder's
+// error.
 [[nodiscard]] std::string status_of(const Folder& folder);
 
 // The bar under the view: at the left the folder's status and the free space of its file system
