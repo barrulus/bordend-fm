@@ -69,6 +69,22 @@ std::uint32_t to_wp_shape(CursorShape shape) {
             return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_EW_RESIZE;
         case CursorShape::ns_resize:
             return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NS_RESIZE;
+        case CursorShape::n_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_N_RESIZE;
+        case CursorShape::s_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_S_RESIZE;
+        case CursorShape::e_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_E_RESIZE;
+        case CursorShape::w_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_W_RESIZE;
+        case CursorShape::ne_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NE_RESIZE;
+        case CursorShape::nw_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_NW_RESIZE;
+        case CursorShape::se_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SE_RESIZE;
+        case CursorShape::sw_resize:
+            return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_SW_RESIZE;
     }
     return WP_CURSOR_SHAPE_DEVICE_V1_SHAPE_DEFAULT;
 }

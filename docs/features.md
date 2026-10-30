@@ -9,7 +9,8 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 - A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
   boxes, text, icons and images. **No GTK, no Qt, no GLib.**
 - Part of the Noctalia family (Noctalia Shell, the Umbriel compositor): it wears the Noctalia
-  theme and the same line icons, and Umbriel draws its title bar.
+  theme and the same line icons, and Umbriel draws its title bar. Elsewhere (GNOME, weston)
+  Nordend draws its own.
 - One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
   nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
 
@@ -245,6 +246,12 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 - Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
 - Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
   monospace font come from `config.toml`.
+- **Its own title bar where the compositor draws none** (GNOME, weston): the title in the middle,
+  minimize, maximize (restore when maximized) and close at the right, in the theme's colors;
+  drag it to move the window, double-click to maximize, right-click for the compositor's window
+  menu; the window's edges and corners resize it, with the matching arrows (not when maximized,
+  nor on an edge tiled against the screen). Buttons the compositor cannot honour are left out.
+  `NORDEND_FORCE_CSD=1` asks any compositor for it (the compositor may still decorate).
 - Pointer shapes from the compositor's cursor theme (cursor-shape-v1), with a resize arrow on
   every draggable edge. Where the compositor has no cursor-shape-v1 (GNOME, weston), Nordend
   draws them itself from the xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, sharp at any

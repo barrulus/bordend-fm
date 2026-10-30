@@ -41,6 +41,7 @@
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -156,6 +157,12 @@ std::filesystem::path start_folder(const std::filesystem::path& given) {
     return error ? folder : absolute;
 }
 
+// NORDEND_FORCE_CSD set and not "0": Nordend's own title bar even where the compositor draws one.
+bool client_decorations_forced() {
+    const char* value = std::getenv("NORDEND_FORCE_CSD");  // NOLINT(concurrency-mt-unsafe): startup
+    return value != nullptr && *value != '\0' && std::string_view{value} != "0";
+}
+
 // --check-config: every problem on stderr, a one-line verdict on stdout.
 int check_config(const std::filesystem::path& path, const core::ConfigResult& result) {
     for (const std::string& problem : result.problems) {
@@ -254,11 +261,13 @@ int main(int argc, char** argv) {
         ui::FontSystem fonts{config.font.family, config.font.monospace};
         theme::Theme theme{theme::default_colors_path()};
         theme.watch(loop);
-        ui::Window window{
-            display,
-            egl,
-            fonts,
-            {.title = "Nordend", .app_id = "nordend", .background = theme.palette().surface}};
+        ui::Window window{display,
+                          egl,
+                          fonts,
+                          {.title = "Nordend",
+                           .app_id = "nordend",
+                           .background = theme.palette().surface,
+                           .force_client_decorations = client_decorations_forced()}};
         theme.set_change_handler([&] { window.set_background(theme.palette().surface); });
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -410,6 +419,23 @@ int main(int argc, char** argv) {
             columns->set_places_reload([&places] { places->reload(); });
         }
 
+        // Nordend's own title bar where the compositor draws none (ROADMAP 7.4).
+        views::TitleBar title_bar{
+            {.move = [&] { window.move(display.seat(), seat.input_serial()); },
+             .resize =
+                 [&](ui::Edge edge) { window.resize(display.seat(), seat.input_serial(), edge); },
+             .minimize = [&] { window.minimize(); },
+             .toggle_maximized = [&] { window.toggle_maximized(); },
+             .window_menu =
+                 [&](float x, float y) {
+                     window.show_window_menu(display.seat(), seat.input_serial(), x, y);
+                 },
+             .close = [&] { window.close(); }},
+            [&] { window.request_redraw(); },
+            [&](ui::CursorShape shape) { seat.set_cursor(shape); }};
+        bool bar_has_pointer = false;  // the content heard a leave when the bar took the pointer
+        bool content_pressed = false;  // a press in the content keeps the pointer there
+
         std::string last_key = "Press a key (Ctrl+Q quits)";
         seat.set_key_handler([&](const ui::KeyEvent& event) {
             if (event.modifiers.ctrl && (event.keysym == XKB_KEY_q || event.keysym == XKB_KEY_Q)) {
@@ -431,11 +457,25 @@ int main(int argc, char** argv) {
         int clicks = 0;
         std::string last_pointer = "Move the pointer, click the button, scroll";
         seat.set_pointer_handler([&](const ui::PointerEvent& event) {
+            using Kind = ui::PointerEvent::Kind;
+            if (window.client_decorations() && !content_pressed) {
+                if (title_bar.pointer(event)) {
+                    if (!std::exchange(bar_has_pointer, true) && columns) {
+                        columns->pointer({.kind = Kind::leave}, views::Browser::Clock::now());
+                    }
+                    return;
+                }
+                bar_has_pointer = false;
+            }
+            if (event.kind == Kind::press) {
+                content_pressed = true;
+            } else if (event.kind == Kind::release || event.kind == Kind::leave) {
+                content_pressed = false;
+            }
             if (columns) {
                 columns->pointer(event, views::Browser::Clock::now());
                 return;
             }
-            using Kind = ui::PointerEvent::Kind;
             const bool inside = event.kind != Kind::leave && event.x >= target.x &&
                                 event.x < target.right() && event.y >= target.y &&
                                 event.y < target.bottom();
@@ -473,14 +513,20 @@ int main(int argc, char** argv) {
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
             seat.set_cursor_scale(window.scale());  // the xcursor fallback's images follow it
             const theme::Palette& palette = theme.palette();
+            ui::Rect content = bounds;
+            if (window.client_decorations()) {
+                title_bar.set_state(window.state());
+                title_bar.draw(renderer, bounds, palette, icons, window.title());
+                content = title_bar.content(bounds);
+            }
             if (columns) {
-                columns->draw(renderer, bounds, palette, icons, views::Browser::Clock::now());
+                columns->draw(renderer, content, palette, icons, views::Browser::Clock::now());
                 if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }
                 return;
             }
-            nordend::app::draw_test_scene(renderer, bounds, palette);
+            nordend::app::draw_test_scene(renderer, content, palette);
             renderer.draw_box(target,
                               {.fill = hovered ? palette.primary : palette.surface_container_high,
                                .radius = ui::Corners::all(10)});

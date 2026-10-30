@@ -4,6 +4,64 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — A title bar of its own where the compositor draws none (ROADMAP 7.4, third part)
+
+**Done**
+- `ui::Window`: client-side decorations when the compositor has no xdg-decoration, when it
+  configures client-side mode, or with `NORDEND_FORCE_CSD=1` (then no decoration object is made,
+  which tells the compositor the client decorates). `client_decorations()`, `state()` (maximized,
+  fullscreen, activated, tiled per edge from configure; minimize, maximize and window menu from
+  `wm_capabilities`, all assumed without it), and `move`, `resize(Edge)`, `minimize`,
+  `toggle_maximized`, `show_window_menu`, `close`.
+- `views::TitleBar`: the bar (36 px, `surface_container_low` like the sidebar, a hairline under
+  it), the title centered on the window and never under the buttons, minimize / maximize
+  (restore, `squares`, when maximized) / close at the right, close red under the pointer;
+  buttons act on release over them; a press on the title moves the window, a double click
+  maximizes, a right click opens the compositor's window menu; a 5 px band inside the window's
+  edges (16 px at the corners) resizes it, not when maximized or fullscreen nor on a tiled edge.
+  The actions go through `WindowControls`, a struct of functions wired by main (faked in tests).
+  Fullscreen: no bar.
+- `CursorShape` gains the eight edge and corner arrows (cursor-shape-v1 and xcursor names).
+- main: the bar is drawn above the Browser, which gets the rest; the bar sees the pointer first,
+  except while a press that started in the content is held; the Browser hears a leave when the
+  bar takes the pointer.
+- Snapshot: `--csd STATE` (`normal`, `maximized`, `inactive`, `no-minimize`, `hover-close`,
+  `hover-maximize`, `press-close`).
+- `docs/compatibility.md`: what depends on the compositor, what each desktop should give, the
+  checklist for the author's sessions, and a results table.
+- Tests (250): what is where (title, buttons, every edge and corner, content), maximized, tiled,
+  fullscreen and no minimize; buttons act on release over them only, holding the pointer while
+  pressed; drag, double click, right click, resize; the edges' cursors and back to the arrow.
+
+**Measured**
+- Headless weston 15 (`--renderer=pixman --debug`), screenshot by `weston-screenshooter`: the
+  window with Nordend's bar, the title dimmed (weston activates no window without a seat), the
+  three buttons, the Browser below unchanged. Snapshots in every state at scale 1 and 1.5 sharp.
+- Binary 3.34 MB, 2.78 MB stripped.
+
+**Decisions**
+- The resize band is inside the window: GTK puts it outside, in an invisible margin, which needs
+  extra surfaces (or a transparent margin around the buffer) and an offset window geometry.
+  Inside, 5 px of the window's edge resize instead of reaching what is there.
+- The move starts on the press (as weston's own clients do), not after a few pixels of drag.
+
+**Tested by the author** (2026-10-30, Umbriel, `NORDEND_FORCE_CSD=1`, also with
+`NORDEND_FORCE_XCURSOR=1`): move, double click, the buttons, the window menu, the edges and
+their arrows, the clicks under the bar, and nothing changed without the variables. But Umbriel
+drew its own title bar too (two bars): `NORDEND_FORCE_CSD` then made no decoration object, and
+Umbriel decorates such windows anyway, although the protocol says that without a negotiation
+"clients continue to self-decorate as they see fit" (a candidate for `buglog.md`, *to be
+verified* in Umbriel's code, upstream only with the author's OK). Fixed on our side the same
+day: the variable now asks for client-side mode through xdg-decoration and the compositor's
+answer decides, so there can never be two bars; *not yet tried by the author*.
+
+**Open**
+- No rounded corners, no shadow.
+- The title is always "Nordend" (the folder shown could go in it).
+- Umbriel decorates windows that make no decoration object (see above).
+
+---
+
 ## 2026-10-30 — A cursor of its own without cursor-shape-v1 (ROADMAP 7.4, second part)
 
 **Done**

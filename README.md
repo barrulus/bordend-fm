@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-245%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="245 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-250%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="250 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
@@ -66,9 +66,9 @@ It is made for people who browse a lot of files, photos above all:
 
 | | |
 |---|---|
-| Binary | **3.32 MB** (2.76 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **3.34 MB** (2.78 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 32 100 lines of C++20, plus 9 300 lines of tests (245 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 32 800 lines of C++20, plus 9 400 lines of tests (250 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -255,9 +255,11 @@ cmake --build build
 Needs a Wayland compositor with xdg-shell (developed on
 [Umbriel](https://github.com/noctalia-dev)). The icons (a 13 KB subset of
 [Tabler Icons](https://tabler.io/icons)) are compiled into the program, so nothing else needs
-to be installed for them. Where the compositor has no cursor-shape-v1 (GNOME, weston) Nordend
-draws the pointer from your xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`);
-`NORDEND_FORCE_XCURSOR=1` does so everywhere, to try it. `NORDEND_LOG=debug` (or
+to be installed for them. Where the compositor draws no title bar (GNOME, weston) Nordend draws
+its own, with minimize, maximize and close, and resizes from its edges; where it has no
+cursor-shape-v1 Nordend draws the pointer from your xcursor theme (`XCURSOR_THEME`,
+`XCURSOR_SIZE`). `NORDEND_FORCE_CSD=1` asks any compositor for client-side decorations and
+`NORDEND_FORCE_XCURSOR=1` draws the cursor everywhere, to try them. `NORDEND_LOG=debug` (or
 `trace`) shows more detail; `nordend --check-config` checks `~/.config/nordend/config.toml`
 ([example](docs/config.example.toml)).
 

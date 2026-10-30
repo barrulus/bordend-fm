@@ -45,6 +45,15 @@ enum class CursorShape : std::uint8_t {
     not_allowed,
     ew_resize,  // column dividers
     ns_resize,
+    // The window's edges and corners (client-side decorations).
+    n_resize,
+    s_resize,
+    e_resize,
+    w_resize,
+    ne_resize,
+    nw_resize,
+    se_resize,
+    sw_resize,
 };
 
 struct PointerEvent {

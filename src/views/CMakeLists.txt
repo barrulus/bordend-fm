@@ -18,6 +18,7 @@ add_library(nordend_views
     src/shortcuts_overlay.cpp
     src/sidebar.cpp
     src/status_bar.cpp
+    src/title_bar.cpp
     src/quick_look.cpp
     src/thumbnails.cpp
     src/undo.cpp)

@@ -29,6 +29,14 @@ constexpr std::array kGrabbing{"grabbing"sv, "closedhand"sv, "fleur"sv};
 constexpr std::array kNotAllowed{"not-allowed"sv, "crossed_circle"sv};
 constexpr std::array kEwResize{"ew-resize"sv, "col-resize"sv, "sb_h_double_arrow"sv};
 constexpr std::array kNsResize{"ns-resize"sv, "row-resize"sv, "sb_v_double_arrow"sv};
+constexpr std::array kNResize{"n-resize"sv, "top_side"sv};
+constexpr std::array kSResize{"s-resize"sv, "bottom_side"sv};
+constexpr std::array kEResize{"e-resize"sv, "right_side"sv};
+constexpr std::array kWResize{"w-resize"sv, "left_side"sv};
+constexpr std::array kNeResize{"ne-resize"sv, "top_right_corner"sv};
+constexpr std::array kNwResize{"nw-resize"sv, "top_left_corner"sv};
+constexpr std::array kSeResize{"se-resize"sv, "bottom_right_corner"sv};
+constexpr std::array kSwResize{"sw-resize"sv, "bottom_left_corner"sv};
 // NOLINTEND(cert-err58-cpp)
 
 }  // namespace
@@ -55,6 +63,22 @@ std::span<const std::string_view> xcursor_names(CursorShape shape) {
             return kEwResize;
         case CursorShape::ns_resize:
             return kNsResize;
+        case CursorShape::n_resize:
+            return kNResize;
+        case CursorShape::s_resize:
+            return kSResize;
+        case CursorShape::e_resize:
+            return kEResize;
+        case CursorShape::w_resize:
+            return kWResize;
+        case CursorShape::ne_resize:
+            return kNeResize;
+        case CursorShape::nw_resize:
+            return kNwResize;
+        case CursorShape::se_resize:
+            return kSeResize;
+        case CursorShape::sw_resize:
+            return kSwResize;
     }
     return kStandard;
 }

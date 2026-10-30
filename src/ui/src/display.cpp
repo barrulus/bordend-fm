@@ -55,7 +55,7 @@ Display::Display() : display_{wl_display_connect(nullptr)} {
         throw std::runtime_error{"compositor does not offer xdg_wm_base (xdg-shell)"};
     }
     if (!decoration_manager_) {
-        log::warn("compositor does not offer xdg-decoration: the window will have no decorations");
+        log::info("compositor does not offer xdg-decoration: Nordend draws its own title bar");
     }
     if (!viewporter_ || !fractional_scale_manager_) {
         log::warn("compositor does not offer fractional-scale + viewporter: rendering at scale 1");

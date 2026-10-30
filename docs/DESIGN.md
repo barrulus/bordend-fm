@@ -34,7 +34,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | Linguaggio | C++20, GCC 14 | |
 | Build | CMake | come `quark++` |
 | Finestra | `wayland-client`, `xdg-shell`; `wayland-cursor` per il cursore di riserva senza cursor-shape-v1 | niente Qt/GTK/SDL |
-| Decorazioni | server-side (`xdg-decoration`, disegnate da Umbriel) | **deciso** |
+| Decorazioni | server-side quando il compositor le offre (`xdg-decoration`: Umbriel, Plasma); altrimenti una barra di Nordend (client-side, ROADMAP 7.4) | **deciso** (aggiornato il 2026-10-30 con l'OK dell'autore) |
 | Input | `xkbcommon` | |
 | Rendering | EGL + OpenGL ES 3.0 (libGLESv2) | ES 3.0 per instancing e texture R8 (atlas glifi) |
 | Testo | harfbuzz + freetype + fontconfig | shaping, fallback e atlas dei glifi nostri; niente pango/cairo |

@@ -29,10 +29,44 @@ struct WindowOptions {
     std::int32_t min_width{480};
     std::int32_t min_height{320};
     Color background{Color::rgb(0x000000)};  // behind the content; the app passes the theme's
+    // Ask for client-side decorations even where the compositor offers server-side ones
+    // (NORDEND_FORCE_CSD, to try them); the compositor may still answer server-side.
+    bool force_client_decorations{false};
+};
+
+// A window edge or corner, grabbed to resize the window.
+enum class Edge : std::uint8_t {
+    top,
+    bottom,
+    left,
+    right,
+    top_left,
+    top_right,
+    bottom_left,
+    bottom_right
+};
+
+// What the compositor says about the window (xdg_toplevel configure and wm_capabilities).
+struct WindowState {
+    bool maximized{false};
+    bool fullscreen{false};
+    bool activated{true};
+    // Tiled against a screen edge or another window: that edge does not resize.
+    bool tiled_left{false};
+    bool tiled_right{false};
+    bool tiled_top{false};
+    bool tiled_bottom{false};
+    // What the compositor can do; all of it unless it says otherwise.
+    bool can_minimize{true};
+    bool can_maximize{true};
+    bool has_window_menu{true};
+
+    bool operator==(const WindowState&) const = default;
 };
 
 // A top-level xdg-shell window rendered with OpenGL ES, with server-side decorations when the
-// compositor offers them.
+// compositor offers them; otherwise the app draws its own (client_decorations()) and moves,
+// resizes, minimizes and maximizes the window through the methods below.
 //
 // Frame pacing: at most one frame in flight. A frame is drawn only when something changed
 // (configure, request_redraw) and, while a frame is pending, the next one waits for the
@@ -65,6 +99,23 @@ public:
 
     // Called when the user asks to close the window (title-bar button, compositor keybinding).
     void set_close_handler(std::function<void()> handler) { close_handler_ = std::move(handler); }
+
+    // True when the compositor draws no title bar: the app draws one.
+    [[nodiscard]] bool client_decorations() const noexcept { return client_decorations_; }
+
+    [[nodiscard]] const WindowState& state() const noexcept { return state_; }
+
+    [[nodiscard]] const std::string& title() const noexcept { return title_; }
+
+    // Interactive move and resize, started by the pointer press of serial on seat.
+    void move(wl_seat* seat, std::uint32_t serial);
+    void resize(wl_seat* seat, std::uint32_t serial, Edge edge);
+    void minimize();
+    void toggle_maximized();
+    // The compositor's window menu at (x, y), logical pixels in the window.
+    void show_window_menu(wl_seat* seat, std::uint32_t serial, float x, float y);
+    // The close button: what the compositor's close request does.
+    void close();
 
     [[nodiscard]] std::int32_t width() const noexcept { return width_; }
 
@@ -118,6 +169,10 @@ private:
     std::int32_t pending_height_{0};
     bool configured_{false};
     bool dirty_{false};
+    bool client_decorations_{false};
+    WindowState state_;
+    WindowState pending_state_;  // from configure, applied with its ack
+    std::string title_;
     Color background_;
     DrawHandler draw_handler_;
     std::function<void()> close_handler_;

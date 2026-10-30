@@ -114,7 +114,10 @@ all'autore quando ci si arriva.
     il 2026-10-30;
   - decorazioni client-side quando il compositor non le disegna (senza xdg-decoration o se chiede
     client-side): titolo al centro, riduci/ingrandisci/chiudi a destra, trascinare sposta, doppio
-    clic ingrandisce, i bordi ridimensionano; colori della palette; su Umbriel nulla cambia;
+    clic ingrandisce, i bordi ridimensionano; colori della palette; su Umbriel nulla cambia.
+    Scritte il 2026-10-30 (screenshot di weston headless guardato), provate dall'autore su
+    Umbriel con `NORDEND_FORCE_CSD=1` lo stesso giorno; ora la variabile chiede la modalità
+    client-side tramite xdg-decoration (Umbriel disegnava anche la sua barra: da riprovare);
   - sviluppo verificato su weston headless (niente xdg-decoration né cursor-shape), senza finestre
     sullo schermo dell'autore; weston headless non ha un `wl_seat` (niente puntatore né
     tastiera): lì si vedono la barra e le icone negli screenshot, il cursore e i clic si provano
@@ -133,6 +136,11 @@ all'autore quando ci si arriva.
   i commenti); lo stato ricordato tra un avvio e l'altro (vista, larghezze, barra laterale,
   ordinamento, file nascosti, pannello info); una sezione "Informazioni" (Nordend, distro,
   Noctalia, Umbriel, GPU).
+  Forme del puntatore (proposta del 2026-10-30, approvata dall'autore): la manina sulle cose
+  cliccabili (pulsanti della barra di stato, eject, × dei trasferimenti, pezzi del percorso,
+  "More details") e il cursore di testo nei campi (rinomina, nuova cartella). Fatto quando: su
+  Umbriel e con il cursore di riserva le forme cambiano lì e tornano freccia fuori; un test
+  verifica che ogni zona chieda la sua forma.
 
 - [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:

@@ -3,6 +3,7 @@
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <format>
+#include <span>
 #include <stdexcept>
 #include <utility>
 
@@ -19,6 +20,36 @@ std::int32_t to_physical(std::int32_t logical, std::int32_t scale_120) {
     return ((logical * scale_120) + (kScaleDenominator / 2)) / kScaleDenominator;
 }
 
+// The uint32_t values of a wl_array (configure's states, wm_capabilities).
+std::span<const std::uint32_t> values_of(const wl_array* array) {
+    if (array == nullptr || array->data == nullptr) {
+        return {};
+    }
+    return {static_cast<const std::uint32_t*>(array->data), array->size / sizeof(std::uint32_t)};
+}
+
+std::uint32_t to_xdg_edge(Edge edge) {
+    switch (edge) {
+        case Edge::top:
+            return XDG_TOPLEVEL_RESIZE_EDGE_TOP;
+        case Edge::bottom:
+            return XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
+        case Edge::left:
+            return XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
+        case Edge::right:
+            return XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
+        case Edge::top_left:
+            return XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT;
+        case Edge::top_right:
+            return XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT;
+        case Edge::bottom_left:
+            return XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT;
+        case Edge::bottom_right:
+            return XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT;
+    }
+    return XDG_TOPLEVEL_RESIZE_EDGE_NONE;
+}
+
 }  // namespace
 
 Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const WindowOptions& options)
@@ -26,6 +57,7 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
       egl_{egl},
       width_{options.width},
       height_{options.height},
+      title_{options.title},
       background_{options.background} {
     surface_.reset(wl_compositor_create_surface(display_.compositor()));
 
@@ -47,7 +79,13 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
     xdg_toplevel_set_app_id(toplevel_.get(), options.app_id.c_str());
     xdg_toplevel_set_min_size(toplevel_.get(), options.min_width, options.min_height);
 
-    if (auto* manager = display_.decoration_manager()) {
+    // Server-side asked for, or client-side when forced; the compositor's configure has the
+    // last word, so the window never gets two title bars.
+    auto* manager = display_.decoration_manager();
+    client_decorations_ = manager == nullptr || options.force_client_decorations;
+    if (manager == nullptr) {
+        log::info("decorations: client-side, the compositor draws none");
+    } else {
         static constexpr zxdg_toplevel_decoration_v1_listener kDecorationListener{
             .configure = &Window::on_decoration_configure,
         };
@@ -55,7 +93,12 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
             zxdg_decoration_manager_v1_get_toplevel_decoration(manager, toplevel_.get()));
         zxdg_toplevel_decoration_v1_add_listener(decoration_.get(), &kDecorationListener, this);
         zxdg_toplevel_decoration_v1_set_mode(decoration_.get(),
-                                             ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+                                             options.force_client_decorations
+                                                 ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE
+                                                 : ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+        if (options.force_client_decorations) {
+            log::info("decorations: client-side asked for (NORDEND_FORCE_CSD)");
+        }
     }
 
     if (display_.viewporter() != nullptr && display_.fractional_scale_manager() != nullptr) {
@@ -194,6 +237,7 @@ void Window::on_surface_configure(void* data, xdg_surface* surface, std::uint32_
     auto& self = *static_cast<Window*>(data);
     xdg_surface_ack_configure(surface, serial);
     self.configured_ = true;
+    self.state_ = self.pending_state_;
     if (self.pending_width_ > 0 && self.pending_height_ > 0 &&
         (self.pending_width_ != self.width_ || self.pending_height_ != self.height_)) {
         self.width_ = self.pending_width_;
@@ -206,10 +250,40 @@ void Window::on_surface_configure(void* data, xdg_surface* surface, std::uint32_
 }
 
 void Window::on_toplevel_configure(void* data, xdg_toplevel* /*toplevel*/, std::int32_t width,
-                                   std::int32_t height, wl_array* /*states*/) {
+                                   std::int32_t height, wl_array* states) {
     auto& self = *static_cast<Window*>(data);
     self.pending_width_ = width;
     self.pending_height_ = height;
+    WindowState& state = self.pending_state_;
+    state.maximized = state.fullscreen = state.activated = false;
+    state.tiled_left = state.tiled_right = state.tiled_top = state.tiled_bottom = false;
+    for (const std::uint32_t value : values_of(states)) {
+        switch (value) {
+            case XDG_TOPLEVEL_STATE_MAXIMIZED:
+                state.maximized = true;
+                break;
+            case XDG_TOPLEVEL_STATE_FULLSCREEN:
+                state.fullscreen = true;
+                break;
+            case XDG_TOPLEVEL_STATE_ACTIVATED:
+                state.activated = true;
+                break;
+            case XDG_TOPLEVEL_STATE_TILED_LEFT:
+                state.tiled_left = true;
+                break;
+            case XDG_TOPLEVEL_STATE_TILED_RIGHT:
+                state.tiled_right = true;
+                break;
+            case XDG_TOPLEVEL_STATE_TILED_TOP:
+                state.tiled_top = true;
+                break;
+            case XDG_TOPLEVEL_STATE_TILED_BOTTOM:
+                state.tiled_bottom = true;
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 void Window::on_toplevel_close(void* data, xdg_toplevel* /*toplevel*/) {
@@ -224,16 +298,65 @@ void Window::on_toplevel_configure_bounds(void* /*data*/, xdg_toplevel* /*toplev
     log::debug("configure bounds {}x{}", width, height);
 }
 
-void Window::on_toplevel_wm_capabilities(void* /*data*/, xdg_toplevel* /*toplevel*/,
-                                         wl_array* /*capabilities*/) {}
+void Window::on_toplevel_wm_capabilities(void* data, xdg_toplevel* /*toplevel*/,
+                                         wl_array* capabilities) {
+    // Sent before a configure; replaces the "everything" assumed without it.
+    auto& self = *static_cast<Window*>(data);
+    WindowState& state = self.pending_state_;
+    state.can_minimize = state.can_maximize = state.has_window_menu = false;
+    for (const std::uint32_t value : values_of(capabilities)) {
+        state.can_minimize = state.can_minimize || value == XDG_TOPLEVEL_WM_CAPABILITIES_MINIMIZE;
+        state.can_maximize = state.can_maximize || value == XDG_TOPLEVEL_WM_CAPABILITIES_MAXIMIZE;
+        state.has_window_menu =
+            state.has_window_menu || value == XDG_TOPLEVEL_WM_CAPABILITIES_WINDOW_MENU;
+    }
+}
 
-void Window::on_decoration_configure(void* /*data*/, zxdg_toplevel_decoration_v1* /*decoration*/,
+void Window::move(wl_seat* seat, std::uint32_t serial) {
+    if (seat != nullptr) {
+        xdg_toplevel_move(toplevel_.get(), seat, serial);
+    }
+}
+
+void Window::resize(wl_seat* seat, std::uint32_t serial, Edge edge) {
+    if (seat != nullptr) {
+        xdg_toplevel_resize(toplevel_.get(), seat, serial, to_xdg_edge(edge));
+    }
+}
+
+void Window::minimize() { xdg_toplevel_set_minimized(toplevel_.get()); }
+
+void Window::toggle_maximized() {
+    if (state_.maximized) {
+        xdg_toplevel_unset_maximized(toplevel_.get());
+    } else {
+        xdg_toplevel_set_maximized(toplevel_.get());
+    }
+}
+
+void Window::show_window_menu(wl_seat* seat, std::uint32_t serial, float x, float y) {
+    if (seat != nullptr) {
+        xdg_toplevel_show_window_menu(toplevel_.get(), seat, serial, static_cast<std::int32_t>(x),
+                                      static_cast<std::int32_t>(y));
+    }
+}
+
+void Window::close() {
+    if (close_handler_) {
+        close_handler_();
+    }
+}
+
+void Window::on_decoration_configure(void* data, zxdg_toplevel_decoration_v1* /*decoration*/,
                                      std::uint32_t mode) {
+    auto& self = *static_cast<Window*>(data);
     if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE) {
         log::debug("decorations: server-side");
     } else {
-        log::warn("compositor asked for client-side decorations: the window will have none");
+        log::info("decorations: client-side, as the compositor asks");
     }
+    self.client_decorations_ = mode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+    self.request_redraw();
 }
 
 void Window::on_preferred_scale(void* data, wp_fractional_scale_v1* /*scale*/,

@@ -14,9 +14,12 @@ using nordend::ui::xcursor_size;
 namespace {
 
 constexpr std::array kShapes{
-    CursorShape::standard,  CursorShape::pointer,  CursorShape::text,     CursorShape::wait,
-    CursorShape::progress,  CursorShape::grab,     CursorShape::grabbing, CursorShape::not_allowed,
-    CursorShape::ew_resize, CursorShape::ns_resize};
+    CursorShape::standard,  CursorShape::pointer,     CursorShape::text,
+    CursorShape::wait,      CursorShape::progress,    CursorShape::grab,
+    CursorShape::grabbing,  CursorShape::not_allowed, CursorShape::ew_resize,
+    CursorShape::ns_resize, CursorShape::n_resize,    CursorShape::s_resize,
+    CursorShape::e_resize,  CursorShape::w_resize,    CursorShape::ne_resize,
+    CursorShape::nw_resize, CursorShape::se_resize,   CursorShape::sw_resize};
 
 }  // namespace
 

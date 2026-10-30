@@ -4,7 +4,7 @@
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
 //                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]
-//                    [--memory [--trim] [--default-malloc]]]
+//                    [--memory [--trim] [--default-malloc]]] [--csd STATE]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -26,6 +26,9 @@
 // paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
 // results are in; with --trim, after malloc_trim(0) and the time it took. --default-malloc leaves
 // glibc's mmap threshold as it is (the app sets it: core::give_back_large_blocks), to compare.
+// --csd draws Nordend's own title bar above, as where the compositor draws none; STATE is
+// comma-separated words: "normal", "maximized", "inactive", "no-minimize", and "hover-close",
+// "hover-maximize", "press-close" for the pointer over a button.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -74,6 +77,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
 
 namespace {
@@ -221,6 +225,7 @@ int main(int argc, char** argv) {
     std::string conflict;
     std::string drag;
     std::optional<std::pair<float, float>> drop_over;
+    std::optional<std::string> csd;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -276,6 +281,8 @@ int main(int argc, char** argv) {
             const std::size_t comma = point.find(',');
             drop_over = std::pair{std::stof(std::string{point.substr(0, comma)}),
                                   std::stof(std::string{point.substr(comma + 1)})};
+        } else if (option == "--csd") {
+            csd = args[2];
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -291,7 +298,7 @@ int main(int argc, char** argv) {
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--fake-disks] [--memory [--trim] "
-            "[--default-malloc]]] "
+            "[--default-malloc]]] [--csd STATE] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -327,10 +334,48 @@ int main(int argc, char** argv) {
             nordend::fs::DirectoryWatcher watcher{loop};
             std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches
             std::unique_ptr<views::Browser> columns;
-            const ui::Rect bounds{0.0F, 0.0F, width, height};
+            const ui::Rect window_bounds{0.0F, 0.0F, width, height};
+            views::TitleBar title_bar{{.move = [] {},
+                                       .resize = [](ui::Edge /*edge*/) {},
+                                       .minimize = [] {},
+                                       .toggle_maximized = [] {},
+                                       .window_menu = [](float /*x*/, float /*y*/) {},
+                                       .close = [] {}},
+                                      [] {},
+                                      [](ui::CursorShape /*shape*/) {}};
+            if (csd) {
+                const auto has = [&](std::string_view word) {
+                    return csd->find(word) != std::string::npos;
+                };
+                title_bar.set_state({.maximized = has("maximized"),
+                                     .activated = !has("inactive"),
+                                     .can_minimize = !has("no-minimize")});
+                title_bar.layout(window_bounds);
+                const float button_y = views::TitleBar::kHeight / 2.0F;
+                const float close_x = width - 8.0F - 12.0F;
+                if (has("hover-close") || has("press-close")) {
+                    title_bar.pointer(
+                        {.kind = ui::PointerEvent::Kind::motion, .x = close_x, .y = button_y});
+                }
+                if (has("press-close")) {
+                    title_bar.pointer({.kind = ui::PointerEvent::Kind::press,
+                                       .x = close_x,
+                                       .y = button_y,
+                                       .button = ui::PointerButton::left});
+                }
+                if (has("hover-maximize")) {
+                    title_bar.pointer({.kind = ui::PointerEvent::Kind::motion,
+                                       .x = close_x - 30.0F,
+                                       .y = button_y});
+                }
+            }
+            const ui::Rect bounds = csd ? title_bar.content(window_bounds) : window_bounds;
             std::optional<std::pair<float, float>> drag_image;  // where the pointer drags
             const auto frame = [&] {
                 renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
+                if (csd) {
+                    title_bar.draw(renderer, window_bounds, palette.palette, icons, "Nordend");
+                }
                 if (columns) {
                     columns->draw(renderer, bounds, palette.palette, icons,
                                   views::Browser::Clock::now());
