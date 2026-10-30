@@ -53,12 +53,14 @@ Umbriel decorates such windows anyway, although the protocol says that without a
 "clients continue to self-decorate as they see fit" (a candidate for `buglog.md`, *to be
 verified* in Umbriel's code, upstream only with the author's OK). Fixed on our side the same
 day: the variable now asks for client-side mode through xdg-decoration and the compositor's
-answer decides, so there can never be two bars; *not yet tried by the author*.
+answer decides, so there can never be two bars. Tried again by the author: Umbriel answers
+client-side and only Nordend's bar shows; without the variable, only Umbriel's. Umbriel's
+behaviour is NB-003 in `buglog.md`.
 
 **Open**
 - No rounded corners, no shadow.
 - The title is always "Nordend" (the folder shown could go in it).
-- Umbriel decorates windows that make no decoration object (see above).
+- Umbriel decorates windows that make no decoration object (NB-003, suspected).
 
 ---
 

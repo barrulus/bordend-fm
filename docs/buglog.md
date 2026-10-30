@@ -23,6 +23,26 @@ Status: `suspected` → `confirmed` → `reported` → `pr-open` → `fixed` (or
 
 ## Entries
 
+### NB-003 — A window without a decoration object still gets Umbriel's title bar
+- Project: umbriel
+- Version: commit d9497f3 (pinned in `void-noctalia/packages/srcpkgs/umbriel`)
+- Status: suspected
+- Found: 2026-10-30, while working on ROADMAP 7.4
+- Repro:
+  1. A client that binds `zxdg_decoration_manager_v1` but makes no toplevel decoration object
+     for its window and draws its own title bar (Nordend at `0390fde`..`a4d34e9` with
+     `NORDEND_FORCE_CSD=1` did; clients that do not know xdg-decoration do too).
+  2. Look at the window.
+- Expected: no server-side title bar: the protocol says "If compositor and client do not
+  negotiate the use of a server-side decoration using this protocol, clients continue to
+  self-decorate as they see fit."
+- Actual: Umbriel draws its title bar above the client's own (two bars; screenshot by the author).
+  Asking for client-side mode through the protocol works: Umbriel answers client-side and draws
+  none.
+- Notes / suspected cause: *to be verified* in Umbriel's source whether undecorated toplevels
+  default to server-side (it may be a deliberate choice, for clients like Xwayland's).
+- Upstream: none yet (only with the author's OK)
+
 ### NB-002 — Escape does not cancel a drag and drop
 - Project: umbriel
 - Version: commit d9497f3 (pinned in `void-noctalia/packages/srcpkgs/umbriel`)

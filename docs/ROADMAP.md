@@ -117,7 +117,8 @@ all'autore quando ci si arriva.
     clic ingrandisce, i bordi ridimensionano; colori della palette; su Umbriel nulla cambia.
     Scritte il 2026-10-30 (screenshot di weston headless guardato), provate dall'autore su
     Umbriel con `NORDEND_FORCE_CSD=1` lo stesso giorno; ora la variabile chiede la modalità
-    client-side tramite xdg-decoration (Umbriel disegnava anche la sua barra: da riprovare);
+    client-side tramite xdg-decoration (Umbriel disegnava anche la sua barra); riprovato
+    dall'autore: ora una sola barra, quella di Nordend, e senza variabili quella di Umbriel;
   - sviluppo verificato su weston headless (niente xdg-decoration né cursor-shape), senza finestre
     sullo schermo dell'autore; weston headless non ha un `wl_seat` (niente puntatore né
     tastiera): lì si vedono la barra e le icone negli screenshot, il cursore e i clic si provano
