@@ -549,7 +549,7 @@ against `cp -a SRC/. DEST/` (GNU coreutils 9.4) timed with `date +%s%N`.
 
 ### 2026-10-29: a photo folder into tmpfs, warm cache
 
-`/run/media/pankaspe/DATA/fotografia/vero` (the SATA SSD, ext4: 342 files, 3 087.8 MB, ORF
+A folder of the author's photos on the SATA SSD (ext4: 342 files, 3 087.8 MB, ORF
 files, their sidecars and a folder of exports) into an empty folder in `/tmp` (tmpfs), read
 once first so the page cache holds it; the destination emptied between runs.
 
@@ -608,7 +608,7 @@ mount namespace, `unshare -rm`): idle, poll() times out with no events; a mount 
 **Target** (ROADMAP 5.8): walking a folder of ORF files with the arrows, the thumbnail appears
 without slowing the walk.
 
-`/run/media/pankaspe/DATA/fotografia/vero` (163 OM-1 ORF, with sidecars and JPEGs), at
+A folder of the author's photos (163 OM-1 ORF, with sidecars and JPEGs), at
 2880x1620 (`nordend-snapshot --columns DIR --reveal FIRST.ORF [--keys Ctrl+2|Ctrl+3]
 --thumbnails CACHE --walk 120 out.ppm 1440 810 2`): Down once per frame, the event loop run
 for about 1 ms between frames so that the pane's summaries and thumbnails arrive, frames

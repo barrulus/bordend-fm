@@ -4,6 +4,22 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — The README, ready to go public
+
+Asked for by the author ("rendi il readme carino", the repository goes public soon).
+
+**Done**
+- The README opens with the name, a one-line pitch, the badges and a screenshot of the column
+  view (the author's, `docs/images/screenshot-columns.png`), then "Why Nordend" (photos first,
+  three views, measured speed, natural scrolling, care with files, keyboard), the status as a
+  note, and the sections as before. The tests badge counts 215 under ASan and TSan. "Building"
+  says plainly that the icons come from Noctalia's font for now.
+- The screenshot showed people's names among the author's folders: three rows are blurred in the
+  committed copy (`magick`, `-blur 0x7` over each row); the original was never committed.
+- `docs/benchmarks.md` no longer names the author's photo folders by path.
+
+---
+
 ## 2026-10-30 — Undo the last operation on files (ROADMAP 6.7)
 
 Proposed after 6.6 and approved by the author, with two choices of theirs: an undone copy goes

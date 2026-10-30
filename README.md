@@ -1,48 +1,66 @@
-# Nordend
+<h1 align="center">Nordend</h1>
 
-**A native file manager for Wayland, made for the [Noctalia](https://github.com/noctalia-dev)
-desktop.**
+<p align="center">
+  <b>A fast, native file manager for Wayland, made for photographers and the
+  <a href="https://github.com/noctalia-dev">Noctalia</a> desktop.</b><br>
+  No GTK, no Qt: C++20 straight on Wayland and OpenGL ES.
+</p>
 
-![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/next-MVP-3DA639)
-![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
-![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
-![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
-![OpenGL ES](https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white)
-![doctest](https://img.shields.io/badge/tests-doctest-4B32C3)
-![code license](https://img.shields.io/badge/code-MIT-3DA639)
-![platform](https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black)
+<p align="center">
+  <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="status: pre-alpha">
+  <img src="https://img.shields.io/badge/next-MVP-3DA639" alt="next: MVP">
+  <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
+  <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
+  <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
+  <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
+  <img src="https://img.shields.io/badge/tests-215%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="215 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
+  <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
+</p>
 
-Nordend is a file manager written from scratch in C++20 that talks to the compositor directly:
-Wayland and OpenGL ES, **no GTK, no Qt**, no toolkit at all. Text, icons, scrolling and
-animations come from its own renderer, so it does exactly what it is designed to do and nothing
-gets in the way. It belongs to the Noctalia family (Noctalia Shell, the Umbriel compositor) and
-wears your Noctalia theme, live.
+<p align="center">
+  <img src="docs/images/screenshot-columns.png" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right" width="100%">
+  <br>
+  <sub>The column view on a folder of OM System raw files: the camera's own preview, the shot's
+  EXIF and the darktable sidecars, in the Noctalia theme.</sub>
+</p>
+
+## Why Nordend
+
+Nordend talks to the compositor directly: Wayland and OpenGL ES, **no toolkit at all**. Text,
+icons, scrolling and animations come from its own renderer, so it does exactly what it is
+designed to do and nothing gets in the way. It belongs to the Noctalia family (Noctalia Shell,
+the Umbriel compositor) and wears your Noctalia theme, live.
 
 It is made for people who browse a lot of files, photos above all:
 
-- **Three views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to
+- **📷 Photos first.** Thumbnails, the preview pane and Quick Look (<kbd>Space</kbd>) read the
+  previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm,
+  Panasonic, Hasselblad), upright and in the shape they were shot, with the shot's EXIF and your
+  darktable rating. darktable sidecars travel with their photo through every rename, copy, move
+  and trip to the trash.
+- **🗂️ Three views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to
   walk a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder
   of photos, a details table (<kbd>Ctrl</kbd>+<kbd>3</kbd>) to compare sizes and dates;
   switching keeps your place and your selection.
-- **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
+- **⚡ Small and fast, and measured.** A 2.6 MB binary; a 10 000-file folder shows its first
+  entries in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens
+  in Quick Look in about 50 ms; copies run as fast as `cp`; and when nothing moves Nordend uses
+  no CPU at all. See [Benchmarks](#benchmarks).
+- **🖐️ Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
   when they lift; wheel and keyboard glide too. Nothing jumps.
-- **Small and fast, and measured.** A 2.6 MB binary; a 10 000-file folder shows its first entries
-  in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens in
-  Quick Look in about 50 ms; and when nothing moves Nordend uses no CPU at all.
-  See [Benchmarks](#benchmarks).
-- **Photos first.** Thumbnails, the preview pane and Quick Look (<kbd>Space</kbd>) read the
-  previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm,
-  Panasonic, Hasselblad), upright and in the shape they were shot, with the shot's EXIF and your
-  darktable rating.
-- **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and a
-  click.
+- **🛡️ Careful with your files.** Nothing is ever overwritten without asking, nothing
+  half-copied ever carries a real name, a real freedesktop trash, a card before anything is
+  deleted for good, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> for the last operation.
+- **⌨️ Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and
+  a click.
 
-**Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work, and so do
-opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
-the trash, restoring from it and deleting for good, and copy and paste with other programs; the
-MVP's last steps (other compositors, settings) come next. There are no packages yet: see [Building](#building). What happens step by step is in the
-[devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
+> **Status: pre-alpha.** Browsing, selection, thumbnails, previews and Quick Look work, and so do
+> opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
+> the trash (restore and permanent delete included), undo, and copy and paste with other
+> programs. The MVP's last steps come next: other compositors and shells, removable disks,
+> settings. There are no packages yet: see [Building](#building). What happens step by step is in
+> the [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
 ## At a glance
 
@@ -223,8 +241,10 @@ cmake --build build
 ```
 
 Needs a Wayland compositor with xdg-shell (developed on
-[Umbriel](https://github.com/noctalia-dev)). `NORDEND_LOG=debug` (or `trace`) shows more detail;
-`nordend --check-config` checks `~/.config/nordend/config.toml`
+[Umbriel](https://github.com/noctalia-dev)). For now the icons come from Noctalia's Tabler icon
+font (`noctalia-tabler.ttf`): without Noctalia installed Nordend works, but shows no icons; a
+font of its own is the next step on the [roadmap](docs/ROADMAP.md). `NORDEND_LOG=debug` (or
+`trace`) shows more detail; `nordend --check-config` checks `~/.config/nordend/config.toml`
 ([example](docs/config.example.toml)).
 
 <details>
