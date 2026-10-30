@@ -24,16 +24,6 @@ namespace {
 
 constexpr std::string_view kUriKey = "Thumb::URI";
 constexpr std::string_view kMtimeKey = "Thumb::MTime";
-constexpr std::string_view kHex = "0123456789ABCDEF";
-
-// GLib leaves these unescaped in the path of a file URI (g_filename_to_uri, checked with gio).
-bool unescaped(unsigned char c) {
-    if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) {
-        return true;
-    }
-    return std::string_view{"!&'()*+,=:@$~_-./"}.find(static_cast<char>(c)) !=
-           std::string_view::npos;
-}
 
 std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
     std::error_code error;
@@ -203,21 +193,6 @@ std::string_view source_name(Source source) noexcept {
             break;
     }
     return "failed";
-}
-
-std::string file_uri(const std::filesystem::path& absolute) {
-    std::string uri = "file://";
-    for (const char ch : absolute.native()) {
-        const auto c = static_cast<unsigned char>(ch);
-        if (unescaped(c)) {
-            uri.push_back(ch);
-        } else {
-            uri.push_back('%');
-            uri.push_back(kHex[c >> 4]);
-            uri.push_back(kHex[c & 0x0F]);
-        }
-    }
-    return uri;
 }
 
 std::filesystem::path default_root() {

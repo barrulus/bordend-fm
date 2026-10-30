@@ -194,6 +194,18 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
                            std::max(1.0F, bounds.width - kTextLeft - kInset - 4.0F),
                            ui::Ellipsis::middle);
     }
+    if (bookmark_drop_) {
+        // After the last bookmark, or where the first one would go: after the places.
+        float line = kTop;
+        for (const Row& row : rows_) {
+            if (row.place && row.section != fs::Place::Section::devices) {
+                line = row.top + kRowHeight;
+            }
+        }
+        renderer.draw_box({bounds.x + kInset, bounds.y + line - offset - 1.0F,
+                           bounds.width - (2.0F * kInset), 2.0F},
+                          {.fill = palette.primary, .radius = ui::Corners::all(1.0F)});
+    }
     renderer.pop_clip();
 
     const bool grabbed = drag_ || over_edge_;
@@ -211,6 +223,28 @@ const fs::Place* Sidebar::place_under(float x, float y) const {
 void Sidebar::set_drop_target(std::optional<std::filesystem::path> path) {
     if (path != drop_target_) {
         drop_target_ = std::move(path);
+        redraw_();
+    }
+}
+
+bool Sidebar::in_bookmark_zone(float x, float y) const {
+    if (bounds_.empty() || x < bounds_.x || x >= bounds_.right() - kEdgeGrab || y < bounds_.y ||
+        y >= bounds_.bottom()) {
+        return false;
+    }
+    const float content_y = y - bounds_.y + scroller_.offset();
+    if (content_y >= content_height_ - kTop) {
+        return true;  // below the last place
+    }
+    return std::ranges::any_of(rows_, [content_y](const Row& row) {
+        return !row.place && row.section == fs::Place::Section::bookmarks && content_y >= row.top &&
+               content_y < row.top + kSectionHeight;
+    });
+}
+
+void Sidebar::set_bookmark_drop(bool shown) {
+    if (shown != bookmark_drop_) {
+        bookmark_drop_ = shown;
         redraw_();
     }
 }

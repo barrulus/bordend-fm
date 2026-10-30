@@ -13,6 +13,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
+#include "nordend/core/file.hpp"
 #include "nordend/fs/erase.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/fs/operations.hpp"
@@ -611,8 +612,20 @@ void Browser::submit_erase() {
 }
 
 void Browser::place_menu(const fs::Place& place, float x, float y) {
+    if (place.section == fs::Place::Section::bookmarks) {
+        ++menu_generation_;
+        menu_loaders_.clear();
+        MenuItem remove;
+        remove.id = "remove_bookmark";
+        remove.label = "Remove from Sidebar";
+        remove.action = [this, path = place.path] { remove_from_sidebar(path); };
+        std::vector<MenuItem> items;
+        items.push_back(std::move(remove));
+        menu_.open(x, y, std::move(items), false);
+        return;
+    }
     if (!fs::is_trash(place.path)) {
-        return;  // only the trash has one, for now
+        return;  // the others have none
     }
     ++menu_generation_;
     menu_loaders_.clear();
@@ -1260,6 +1273,16 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         });
     }
     const std::size_t count = names.size();
+    std::vector<std::filesystem::path> folders;
+    for (const fs::Entry& entry : folder->entries()) {
+        if (entry.is_directory() && std::ranges::find(names, entry.name) != names.end()) {
+            folders.push_back(folder->path() / entry.name);
+        }
+    }
+    if (!folders.empty() && folders.size() == count) {
+        add("add_bookmark", "Add to Sidebar", count == 1 ? keys_for(Command::add_bookmark) : "",
+            [this, folders] { add_to_sidebar(folders); });
+    }
     add("copy", "Copy", keys_for(Command::copy), [this] { take_selection(false); }, true);
     add("cut", "Cut", keys_for(Command::cut), [this] { take_selection(true); });
     add(
@@ -1337,6 +1360,16 @@ std::vector<MenuItem> Browser::folder_menu() {
     paste_here.enabled = !clipboard_.names.empty();
     paste_here.action = [this] { paste(); };
     items.push_back(std::move(paste_here));
+
+    if (const std::shared_ptr<Folder> shown = current_folder()) {
+        MenuItem bookmark;
+        bookmark.id = "add_bookmark";
+        bookmark.label = "Add to Sidebar";
+        bookmark.keys = keys_for(Command::add_bookmark);
+        bookmark.separator = true;
+        bookmark.action = [this, path = shown->path()] { add_to_sidebar({path}); };
+        items.push_back(std::move(bookmark));
+    }
     return items;
 }
 
@@ -1884,9 +1917,16 @@ void Browser::start_drag(Press press) {
     for (const std::string& name : names) {
         paths.push_back(folder.path() / name);
     }
+    bool folders_only = true;
+    for (const fs::Entry& listed : folder.entries()) {
+        if (!listed.is_directory() && std::ranges::find(names, listed.name) != names.end()) {
+            folders_only = false;
+        }
+    }
     drag_ = Drag{.directory = folder.path(),
                  .names = std::move(names),
-                 .icon = std::string{fs::icon_name(folder.mime(), typed)}};
+                 .icon = std::string{fs::icon_name(folder.mime(), typed)},
+                 .folders_only = folders_only};
     // The view lets go of the press: the drag has the pointer now.
     send_pointer(Target::view, {.kind = ui::PointerEvent::Kind::leave}, Clock::now());
     button_held_ = false;
@@ -1927,6 +1967,9 @@ void Browser::draw_drag_icon(ui::Renderer& renderer, const ui::Rect& bounds,
 
 std::optional<Browser::DropTarget> Browser::drop_target_at(float x, float y) const {
     if (sidebar_drawn_) {
+        if (sidebar_.in_bookmark_zone(x, y)) {
+            return DropTarget{.folder = {}, .mark = {}, .place = {}, .crumb = {}, .bookmark = true};
+        }
         if (const fs::Place* const place = sidebar_.place_under(x, y)) {
             return DropTarget{.folder = place->path, .mark = {}, .place = place->path, .crumb = {}};
         }
@@ -1982,6 +2025,7 @@ void Browser::show_drop_target(const std::optional<DropTarget>& target) {
         redraw_();
     }
     sidebar_.set_drop_target(target ? target->place : std::nullopt);
+    sidebar_.set_bookmark_drop(target && target->bookmark);
     breadcrumb_.set_drop_target(target ? target->crumb : std::nullopt);
 }
 
@@ -2002,7 +2046,8 @@ void Browser::drop_event(const ui::DropEvent& event) {
         for (const std::string& name : drag_->names) {
             own.push_back(drag_->directory / name);
         }
-        if (target && !refusal(target->folder, own).empty()) {
+        if (target &&
+            (target->bookmark ? !drag_->folders_only : !refusal(target->folder, own).empty())) {
             target.reset();  // not there: nothing would happen, or it cannot be
         }
     } else if (!files) {
@@ -2015,7 +2060,9 @@ void Browser::drop_event(const ui::DropEvent& event) {
             if (dnd_.finish) {
                 dnd_.finish();
             }
-            if (target) {
+            if (target && target->bookmark) {
+                add_to_sidebar(std::move(own));
+            } else if (target) {
                 drop_paths(target->folder, std::move(own), true, false);
             }
             return;
@@ -2025,21 +2072,26 @@ void Browser::drop_event(const ui::DropEvent& event) {
         }
         const bool move = dnd_.action && dnd_.action() == ui::kDndMove;
         ++operations_;
-        dnd_.read(std::string{kUriList}, [this, alive = alive_, folder = target->folder,
-                                          move](const std::optional<std::string>& data) {
-            if (!*alive) {
-                return;
-            }
-            --operations_;
-            ClipboardFiles dropped = data ? parse_uri_list(*data) : ClipboardFiles{};
-            if (dropped.paths.empty()) {
-                show_message(dropped.refused > 0 ? "Only files can be dropped"
-                                                 : "Nothing could be read from the drop",
-                             false);
-                return;
-            }
-            drop_paths(folder, std::move(dropped.paths), false, move);
-        });
+        dnd_.read(std::string{kUriList},
+                  [this, alive = alive_, folder = target->folder, bookmark = target->bookmark,
+                   move](const std::optional<std::string>& data) {
+                      if (!*alive) {
+                          return;
+                      }
+                      --operations_;
+                      ClipboardFiles dropped = data ? parse_uri_list(*data) : ClipboardFiles{};
+                      if (dropped.paths.empty()) {
+                          show_message(dropped.refused > 0 ? "Only files can be dropped"
+                                                           : "Nothing could be read from the drop",
+                                       false);
+                          return;
+                      }
+                      if (bookmark) {
+                          add_to_sidebar(std::move(dropped.paths));
+                      } else {
+                          drop_paths(folder, std::move(dropped.paths), false, move);
+                      }
+                  });
         return;
     }
     show_drop_target(target);
@@ -2129,6 +2181,112 @@ void Browser::drop_paths(const std::filesystem::path& folder,
             }
             --operations_;
             transfer_paths(folder, paths, same_disk, std::nullopt);
+        });
+}
+
+void Browser::add_to_sidebar(std::vector<std::filesystem::path> folders) {
+    std::erase_if(folders, [](const std::filesystem::path& path) { return fs::is_trash(path); });
+    if (folders.empty()) {
+        show_message("Already in the sidebar", false);
+        return;
+    }
+    bookmark_changes_.push_back({.add = std::move(folders), .remove = std::nullopt});
+    next_bookmark_change();
+}
+
+void Browser::remove_from_sidebar(const std::filesystem::path& folder) {
+    bookmark_changes_.push_back({.add = {}, .remove = folder});
+    next_bookmark_change();
+}
+
+void Browser::next_bookmark_change() {
+    if (bookmark_busy_ || bookmark_changes_.empty()) {
+        return;
+    }
+    BookmarkChange change = std::move(bookmark_changes_.front());
+    bookmark_changes_.pop_front();
+    bookmark_busy_ = true;
+    ++operations_;
+
+    // What the change did, for the message.
+    struct Outcome {
+        std::vector<std::string> added;
+        std::size_t present{0};
+        std::size_t not_folders{0};
+        std::string removed;
+        std::string error;
+    };
+
+    pool_.submit(
+        core::Priority::visible,
+        [file = bookmarks_file_.value_or(fs::bookmarks_file(place_sources_)),
+         change = std::move(change)](const core::CancelToken& /*token*/) {
+            Outcome outcome;
+            core::TextFile read = core::read_text_file(file);
+            if (!read.error.empty()) {
+                outcome.error = read.error;
+                return outcome;
+            }
+            std::string text = std::move(read.text);
+            bool changed = false;
+            for (const std::filesystem::path& folder : change.add) {
+                std::error_code ignored;
+                if (!std::filesystem::is_directory(folder, ignored)) {
+                    ++outcome.not_folders;
+                } else if (std::optional<std::string> more = fs::add_bookmark(text, folder)) {
+                    text = std::move(*more);
+                    changed = true;
+                    std::filesystem::path normal = folder.lexically_normal();
+                    if (!normal.has_filename()) {
+                        normal = normal.parent_path();  // a trailing slash
+                    }
+                    outcome.added.push_back(normal.filename().string());
+                } else {
+                    ++outcome.present;
+                }
+            }
+            if (change.remove) {
+                if (std::optional<std::string> less = fs::remove_bookmark(text, *change.remove)) {
+                    text = std::move(*less);
+                    changed = true;
+                    outcome.removed = change.remove->filename().string();
+                }
+            }
+            if (changed) {
+                if (const std::error_code error = core::write_file_atomically(file, text)) {
+                    outcome.error = error.message();
+                    outcome.added.clear();
+                    outcome.removed.clear();
+                }
+            }
+            return outcome;
+        },
+        [this, alive = alive_](const Outcome& outcome) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            bookmark_busy_ = false;
+            if (!outcome.error.empty()) {
+                show_message(std::format("The sidebar could not be changed: {}", outcome.error),
+                             true);
+            } else if (outcome.added.size() == 1) {
+                show_message(std::format("“{}” added to the sidebar", outcome.added.front()),
+                             false);
+            } else if (!outcome.added.empty()) {
+                show_message(std::format("{} folders added to the sidebar", outcome.added.size()),
+                             false);
+            } else if (!outcome.removed.empty()) {
+                show_message(std::format("“{}” removed from the sidebar", outcome.removed), false);
+            } else if (outcome.present > 0) {
+                show_message("Already in the sidebar", false);
+            } else if (outcome.not_folders > 0) {
+                show_message("Only folders go in the sidebar", false);
+            }
+            if ((!outcome.added.empty() || !outcome.removed.empty()) && places_reload_) {
+                places_reload_();
+            }
+            next_bookmark_change();
         });
 }
 
@@ -2328,6 +2486,11 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::toggle_hidden:
             set_show_hidden(!show_hidden_);
+            break;
+        case Command::add_bookmark:
+            if (const std::shared_ptr<Folder> shown = current_folder()) {
+                add_to_sidebar({shown->path()});
+            }
             break;
     }
 }

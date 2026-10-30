@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <optional>
 #include <poll.h>
 #include <string_view>
 #include <system_error>
@@ -191,6 +192,78 @@ std::vector<Place> parse_bookmarks(std::string_view text) {
     return places;
 }
 
+namespace {
+
+// The local folder a bookmarks line names; nullopt for anything else.
+std::optional<std::filesystem::path> bookmark_folder(std::string_view line) {
+    line = trim(line);
+    if (!line.starts_with("file://")) {
+        return std::nullopt;
+    }
+    const std::string path = percent_decode(line.substr(7, line.find(' ') - 7));
+    if (path.empty() || path.front() != '/') {
+        return std::nullopt;
+    }
+    return std::filesystem::path{path}.lexically_normal();
+}
+
+// path normalized, without a trailing slash ("/a/b/" is "/a/b"; "/" stays).
+std::filesystem::path plain_folder(const std::filesystem::path& path) {
+    std::filesystem::path normal = path.lexically_normal();
+    return normal.has_filename() || normal == normal.root_path() ? normal : normal.parent_path();
+}
+
+bool same_folder(const std::filesystem::path& a, const std::filesystem::path& b) {
+    return plain_folder(a) == plain_folder(b);
+}
+
+}  // namespace
+
+std::filesystem::path bookmarks_file(const PlaceSources& sources) {
+    return sources.config_home / "gtk-3.0" / "bookmarks";
+}
+
+std::optional<std::string> add_bookmark(std::string_view text,
+                                        const std::filesystem::path& folder) {
+    bool present = false;
+    for_each_line(text, [&](std::string_view line) {
+        if (const std::optional<std::filesystem::path> path = bookmark_folder(line)) {
+            present = present || same_folder(*path, folder);
+        }
+    });
+    if (present) {
+        return std::nullopt;
+    }
+    std::string out{text};
+    if (!out.empty() && out.back() != '\n') {
+        out += '\n';
+    }
+    out += core::file_uri(plain_folder(folder));
+    out += '\n';
+    return out;
+}
+
+std::optional<std::string> remove_bookmark(std::string_view text,
+                                           const std::filesystem::path& folder) {
+    std::string out;
+    bool removed = false;
+    while (!text.empty()) {
+        const std::size_t end = std::min(text.find('\n'), text.size());
+        const std::string_view line = text.substr(0, std::min(end + 1, text.size()));
+        const std::optional<std::filesystem::path> path = bookmark_folder(text.substr(0, end));
+        if (path && same_folder(*path, folder)) {
+            removed = true;
+        } else {
+            out += line;
+        }
+        text.remove_prefix(line.size());
+    }
+    if (!removed) {
+        return std::nullopt;
+    }
+    return out;
+}
+
 std::vector<Place> parse_mounts(std::string_view text) {
     std::vector<Place> places;
     for_each_line(text, [&](std::string_view line) {
@@ -311,10 +384,15 @@ PlacesWatcher::PlacesWatcher(core::EventLoop& loop, PlaceSources sources,
         log::warn("places: cannot open {}: {}", sources_.mountinfo.string(),
                   std::strerror(errno));  // NOLINT(concurrency-mt-unsafe)
     }
+    watch_files();
+}
+
+void PlacesWatcher::watch_files() {
     // Only folders that exist: the file watcher would create them.
-    for (const std::filesystem::path& file : {sources_.config_home / "user-dirs.dirs",
-                                              sources_.config_home / "gtk-3.0" / "bookmarks"}) {
-        if (is_folder(file.parent_path())) {
+    for (const std::filesystem::path& file :
+         {sources_.config_home / "user-dirs.dirs", bookmarks_file(sources_)}) {
+        if (!watched_.contains(file) && is_folder(file.parent_path())) {
+            watched_.insert(file);
             files_.push_back(
                 std::make_unique<core::FileWatcher>(loop_, file, [this] { reload(); }));
         }
@@ -329,6 +407,7 @@ PlacesWatcher::~PlacesWatcher() {
 }
 
 void PlacesWatcher::reload() {
+    watch_files();
     std::vector<Place> places = load_places(sources_);
     if (places == places_) {
         return;  // a mount elsewhere (a container, a bind mount)

@@ -72,10 +72,18 @@ all'autore quando ci si arriva.
   snapshot; provato dall'autore dentro Nordend (Ctrl/Shift, Ctrl+Z), con Firefox e un
   terminale. Lo spring-loading (aprire una cartella tenendoci sopra il puntatore) dopo l'MVP.
 
-- [ ] **7.2 Preferiti nella barra laterale**
+- [x] **7.2 Preferiti nella barra laterale**
   Una cartella trascinata nella barra laterale, Ctrl+D o "Add to Sidebar" dal menu la aggiunge;
   il clic destro la toglie. Scritti nel file dei segnalibri GTK (`gtk-3.0/bookmarks`), così si
   vedono anche nelle finestre "Apri file" delle altre app.
+  Fatto quando: Ctrl+D aggiunge la cartella mostrata; "Add to Sidebar" nel menu di una cartella
+  e dello spazio vuoto; trascinare cartelle sull'intestazione "Bookmarks" o nello spazio vuoto
+  sotto i luoghi le aggiunge (linea di inserimento; con dei file in mezzo è rifiutato), mentre
+  rilasciare su un luogo continua a spostare dentro; un doppione dà "Already in the sidebar";
+  "Remove from Sidebar" sul clic destro di un preferito. Il file si scrive su un worker in modo
+  atomico, senza toccare le altre righe (`sftp://`, etichette, ordine), con i nomi codificati come
+  GTK, creando `gtk-3.0` se manca; un errore dà un messaggio. Test, snapshot, provato dall'autore
+  anche nella finestra "Apri file" di un'app GTK. Riordino e rinomina dopo l'MVP.
 
 - [ ] **7.3 Dischi rimovibili** (udisks2, installato)
   I dischi non montati nella barra laterale, un clic li monta; un'icona li espelle (smonta e

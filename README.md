@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-231%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="231 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-235%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="235 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
@@ -68,7 +68,7 @@ It is made for people who browse a lot of files, photos above all:
 |---|---|
 | Binary | **3.05 MB** (2.56 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 30 500 lines of C++20, plus 8 600 lines of tests (231 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 30 900 lines of C++20, plus 8 800 lines of tests (235 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -143,7 +143,8 @@ status bar cost nothing measurable.
 - **Your places, one click away.** A sidebar lists your home and its folders (Downloads,
   Pictures...), the file system, your GTK bookmarks and the mounted disks; a disk appears as
   soon as it is mounted and goes when it is unmounted. Ctrl+B hides it, F6 takes the keyboard
-  there and back.
+  there and back. Ctrl+D, "Add to Sidebar" or a folder dragged there makes a favourite, shared
+  with the file choosers of other apps (Firefox's too).
 - **Back and forward.** Alt+← and Alt+→, or the mouse's side buttons, go through the folders
   you opened, the cursor where you left it. Hidden files stay out of the way until Ctrl+H.
 - **The path, one step at a time.** Above every view the folder's path is a row of steps,
@@ -209,6 +210,7 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+<kbd>I</kbd> | Info pane (grid, details) |
 | <kbd>Ctrl</kbd>+<kbd>B</kbd> | Sidebar |
 | <kbd>Ctrl</kbd>+<kbd>H</kbd> | Hidden files (hidden at start) |
+| <kbd>Ctrl</kbd>+<kbd>D</kbd> | Add the folder to the sidebar |
 | <kbd>F6</kbd> | Keyboard into the sidebar and out |
 | <kbd>F1</kbd>, <kbd>?</kbd> | Every shortcut |
 | <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Quit |

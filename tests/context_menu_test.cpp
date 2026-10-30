@@ -260,7 +260,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "copy", "cut", "-paste", "rename", "trash", "erase"});
+          Names{"open", "add_bookmark", "copy", "cut", "-paste", "rename", "trash", "erase"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -268,7 +268,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.browser.status_bar().message() == "Ctrl+V copies “sub” where you want them");
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));
-    CHECK(ids(f.menu().items()) == Names{"new_folder", "new_file", "paste"});
+    CHECK(ids(f.menu().items()) == Names{"new_folder", "new_file", "paste", "add_bookmark"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
 }

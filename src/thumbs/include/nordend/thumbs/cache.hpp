@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 
+#include "nordend/core/file.hpp"
 #include "nordend/image/decode.hpp"
 
 namespace nordend::thumbs {
@@ -25,9 +26,9 @@ enum class Size : std::uint8_t { normal, large, x_large, xx_large };
 // and remembered as failed.
 [[nodiscard]] bool can_make(std::string_view mime) noexcept;
 
-// The file:// URI of an absolute path, escaped exactly as GLib's g_filename_to_uri does: other
-// apps find the thumbnail by the MD5 of this string, so it must match byte for byte.
-[[nodiscard]] std::string file_uri(const std::filesystem::path& absolute);
+// The file:// URI of a path as GLib writes it: other apps find the thumbnail by the MD5 of this
+// string, so it must match byte for byte.
+using core::file_uri;
 
 // $XDG_CACHE_HOME/thumbnails, or ~/.cache/thumbnails. Reads the environment: call it at startup.
 [[nodiscard]] std::filesystem::path default_root();

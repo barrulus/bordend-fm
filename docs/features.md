@@ -210,6 +210,13 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
   the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.
   Ctrl+B hides the sidebar, and F6 moves the keyboard into it and back.
+- **Favourites:** Ctrl+D adds the folder shown, "Add to Sidebar" the folders selected (or the
+  folder, from its empty part), and folders dragged onto the "BOOKMARKS" title or below the last
+  place are added at the end, a line showing where; dropping onto a place still moves into it.
+  A right click on a favourite removes it. They are the GTK bookmarks: other file managers and
+  the Open dialogs of other apps (Firefox's) show them too. The file is written all at once on a
+  worker, keeping what Nordend does not touch (remote bookmarks, labels, order); a folder already
+  there is not added twice. Reordering and renaming come after the first release.
 - **Breadcrumb:** the folder's path as a row of clickable steps, starting from your home. A long
   path is shortened from the left.
 - **Status bar:** item count, selection, free space on the disk (updated after a copy into the
@@ -266,6 +273,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Favourites in the sidebar, removable disks, then settings, remembered state, and
+Removable disks, then settings, remembered state, and
 the MVP. See the
 [roadmap](ROADMAP.md).

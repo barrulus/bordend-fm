@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -60,6 +62,18 @@ struct UserDir {
 // (sftp://, smb://) are left out. Without a label, the folder's name.
 [[nodiscard]] std::vector<Place> parse_bookmarks(std::string_view text);
 
+// The GTK bookmarks file: gtk-3.0/bookmarks in config_home (GTK 4 reads the same one).
+[[nodiscard]] std::filesystem::path bookmarks_file(const PlaceSources& sources);
+
+// A bookmarks file's text with folder added at the end, its URI as GLib writes it; nullopt when
+// it is there already. The other lines stay as they are.
+[[nodiscard]] std::optional<std::string> add_bookmark(std::string_view text,
+                                                      const std::filesystem::path& folder);
+
+// The text without folder's lines; nullopt when it has none. The other lines stay as they are.
+[[nodiscard]] std::optional<std::string> remove_bookmark(std::string_view text,
+                                                         const std::filesystem::path& folder);
+
 // The mount points in /proc/self/mountinfo's text under /run/media, /media and /mnt: where
 // removable and data disks land. Octal escapes (\040 for a space) decoded.
 [[nodiscard]] std::vector<Place> parse_mounts(std::string_view text);
@@ -85,8 +99,12 @@ public:
 
     [[nodiscard]] const std::vector<Place>& places() const noexcept { return places_; }
 
-private:
+    // Reads the places again now (Nordend wrote the bookmarks), and starts watching a file whose
+    // folder was made meanwhile.
     void reload();
+
+private:
+    void watch_files();
 
     core::EventLoop& loop_;
     PlaceSources sources_;
@@ -95,6 +113,7 @@ private:
     int mountinfo_fd_{-1};
     core::EventLoop::SourceId mountinfo_source_{0};
     std::vector<std::unique_ptr<core::FileWatcher>> files_;
+    std::set<std::filesystem::path> watched_;  // the files in files_
 };
 
 }  // namespace nordend::fs

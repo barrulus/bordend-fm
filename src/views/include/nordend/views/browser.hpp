@@ -290,6 +290,20 @@ public:
     void draw_drag_icon(ui::Renderer& renderer, const ui::Rect& bounds,
                         const theme::Palette& palette, ui::IconSet& icons) const;
 
+    // Ctrl+D, "Add to Sidebar" and folders dropped by the bookmarks: added to the GTK bookmarks
+    // (the sidebar's, and other programs' file choosers), on a worker, one change at a time.
+    // Folders already there and anything not a folder are left out, with a message.
+    void add_to_sidebar(std::vector<std::filesystem::path> folders);
+
+    // "Remove from Sidebar" on a bookmark.
+    void remove_from_sidebar(const std::filesystem::path& folder);
+
+    // The bookmarks file: fs::bookmarks_file() unless set (tests).
+    void set_bookmarks_file(std::filesystem::path file) { bookmarks_file_ = std::move(file); }
+
+    // Runs once the bookmarks file was written: the app reads the places again.
+    void set_places_reload(std::function<void()> reload) { places_reload_ = std::move(reload); }
+
     // Where a drop would go now, as the views mark it.
     [[nodiscard]] const DropMark& drop_mark() const noexcept { return drop_mark_; }
 
@@ -359,7 +373,16 @@ private:
         DropMark mark;                               // in a view
         std::optional<std::filesystem::path> place;  // in the sidebar
         std::optional<std::filesystem::path> crumb;  // in the breadcrumb
+        bool bookmark{false};  // the sidebar's bookmarks: added there, nothing moves
     };
+
+    // A change to the bookmarks file, waiting its turn.
+    struct BookmarkChange {
+        std::vector<std::filesystem::path> add;
+        std::optional<std::filesystem::path> remove;
+    };
+
+    void next_bookmark_change();
 
     [[nodiscard]] std::optional<DropTarget> drop_target_at(float x, float y) const;
     // What the view shown has at (x, y).
@@ -508,6 +531,10 @@ private:
     SystemClipboard system_;
 
     DragAndDrop dnd_;
+    std::optional<std::filesystem::path> bookmarks_file_;
+    std::function<void()> places_reload_;
+    std::deque<BookmarkChange> bookmark_changes_;
+    bool bookmark_busy_{false};
 
     // A press on an entry, which may become a drag.
     struct Press {
@@ -522,7 +549,8 @@ private:
     struct Drag {
         std::filesystem::path directory;
         std::vector<std::string> names;
-        std::string icon;  // the first entry's
+        std::string icon;          // the first entry's
+        bool folders_only{false};  // every entry is a folder
     };
 
     std::optional<Drag> drag_;

@@ -96,6 +96,12 @@ public:
     // marked.
     void set_drop_target(std::optional<std::filesystem::path> path);
 
+    // Where a drop adds bookmarks: the "BOOKMARKS" title, or the free space below the places.
+    [[nodiscard]] bool in_bookmark_zone(float x, float y) const;
+
+    // A drag over that zone: a line shows where the bookmarks would go (after the last one).
+    void set_bookmark_drop(bool shown);
+
 private:
     struct Row {
         float top{0.0F};                   // content coordinates
@@ -120,6 +126,7 @@ private:
     std::optional<std::size_t> cursor_;   // while focused
     std::optional<std::size_t> hovered_;
     std::optional<std::filesystem::path> drop_target_;
+    bool bookmark_drop_{false};
     bool focused_{false};
     float width_{kWidth};
     ui::Rect bounds_{};  // as last drawn; empty when not drawn

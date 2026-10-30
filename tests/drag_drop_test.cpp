@@ -14,6 +14,7 @@
 #include <doctest/doctest.h>
 
 #include "nordend/core/event_loop.hpp"
+#include "nordend/core/file.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
@@ -112,6 +113,8 @@ struct Fixture {
     fs::path photos = root / "photos";
     fs::path album = root / "album";
     fs::path trash = dir.path / "Trash";
+    fs::path bookmarks = dir.path / "config" / "gtk-3.0" / "bookmarks";
+    int reloads = 0;  // the places read again after the bookmarks changed
     std::unique_ptr<nordend::ui::Offscreen> gl = offscreen();
     std::unique_ptr<nordend::ui::FontSystem> fonts;
     std::unique_ptr<nordend::ui::Renderer> renderer;
@@ -132,6 +135,19 @@ struct Fixture {
             std::ofstream{photos / name} << name;
         }
         browser.set_home_trash(trash);
+        browser.set_bookmarks_file(bookmarks);
+        browser.set_places_reload([this] {
+            ++reloads;
+            std::vector<nordend::fs::Place> places = browser.sidebar().places();
+            std::erase_if(places, [](const nordend::fs::Place& place) {
+                return place.section == nordend::fs::Place::Section::bookmarks;
+            });
+            for (nordend::fs::Place& place :
+                 nordend::fs::parse_bookmarks(nordend::core::read_text_file(bookmarks).text)) {
+                places.push_back(std::move(place));
+            }
+            browser.set_places(std::move(places));
+        });
         browser.set_places({{.section = nordend::fs::Place::Section::places,
                              .label = "Album",
                              .path = album,
@@ -427,4 +443,111 @@ TEST_CASE("drop: onto a step of the breadcrumb and a place of the sidebar; the t
     f.drag(f.root, "P2.ORF");
     f.drop_at(place(nordend::fs::trash_path()));
     CHECK(listing(f.trash / "files") == Names{"P2.ORF"});
+}
+
+TEST_CASE("sidebar bookmarks: Ctrl+D and the menus add folders once; removed again") {
+    Fixture f;
+    f.browser.open(f.root);
+    f.browser.set_mode(Browser::Mode::details);
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.browser.key(key(XKB_KEY_d, {.ctrl = true}), Browser::Clock::now()));
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(nordend::core::read_text_file(f.bookmarks).text ==
+          nordend::core::file_uri(f.root) + "\n");
+    CHECK(f.browser.status_bar().message() == "“root” added to the sidebar");
+    CHECK(f.reloads == 1);
+    CHECK(f.browser.sidebar().places().back().path == f.root);
+
+    CHECK(f.browser.key(key(XKB_KEY_d, {.ctrl = true}), Browser::Clock::now()));
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.browser.status_bar().message() == "Already in the sidebar");
+    CHECK(f.reloads == 1);
+
+    // "Add to Sidebar" on two folders selected; files have none.
+    const auto run_item = [&f](const std::string& id) {
+        const auto& items = f.browser.context_menu().items();
+        const auto item = std::ranges::find(items, id, &nordend::views::MenuItem::id);
+        REQUIRE(item != items.end());
+        const std::function<void()> action = item->action;
+        f.browser.context_menu().close();
+        action();
+        REQUIRE(run_until(f.loop, [&f] { return !f.browser.loading(); }));
+    };
+    std::shared_ptr<nordend::views::Folder> shown = f.browser.details().folder();
+    shown->select_name("album");
+    shown->set_cursor(1, nordend::views::SelectMode::toggle);  // album, photos, sub
+    REQUIRE(shown->selected_names() == Names{"album", "photos"});
+    f.browser.open_menu_from_keyboard();
+    run_item("add_bookmark");
+    CHECK(f.browser.status_bar().message() == "2 folders added to the sidebar");
+
+    f.browser.remove_from_sidebar(f.album);
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.browser.status_bar().message() == "“album” removed from the sidebar");
+    CHECK(nordend::fs::parse_bookmarks(nordend::core::read_text_file(f.bookmarks).text).size() ==
+          2);
+
+    // The folder's own menu, from its empty part.
+    f.browser.open(f.album);
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    f.browser.open_menu(500.0F, 500.0F, false);
+    run_item("add_bookmark");
+    CHECK(f.browser.status_bar().message() == "“album” added to the sidebar");
+
+    // A file where the file should be: a message, nothing else.
+    f.browser.set_bookmarks_file(f.root);
+    f.browser.add_to_sidebar({f.photos});
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.browser.status_bar().message().starts_with("The sidebar could not be changed: "));
+}
+
+TEST_CASE("sidebar bookmarks: folders dropped below the places are added; files are not") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    f.show(f.root, Browser::Mode::details);
+    const std::pair<float, float> below{60.0F, 600.0F};  // the sidebar, under its last place
+    REQUIRE(f.browser.sidebar().in_bookmark_zone(below.first, below.second));
+
+    f.drag(f.photos.parent_path(), "photos");
+    f.browser.drop_event({.kind = DropEvent::Kind::enter, .x = below.first, .y = below.second});
+    CHECK(f.dnd.accepted);
+    f.drop_at(below);
+    CHECK(f.browser.status_bar().message() == "“photos” added to the sidebar");
+    CHECK(listing(f.root) == Names{"album", "photos", "sub"});  // nothing moved
+    // Now there is a "BOOKMARKS" title above the bookmark: it takes them too.
+    bool title = false;
+    for (float y = 0.0F; y < 400.0F && !title; y += 3.0F) {
+        title = f.browser.sidebar().in_bookmark_zone(60.0F, y) &&
+                f.browser.sidebar().place_under(60.0F, y) == nullptr;
+    }
+    CHECK(title);
+
+    // A file is no bookmark.
+    f.show(f.photos, Browser::Mode::details);
+    f.drag(f.photos, "P2.ORF");
+    f.browser.drop_event({.kind = DropEvent::Kind::enter, .x = below.first, .y = below.second});
+    CHECK_FALSE(f.dnd.accepted);  // a file
+    f.drop_at(below);
+    CHECK(listing(f.photos) == Names{"P1.ORF", "P1.ORF.xmp", "P2.ORF"});
+
+    // Right click on the bookmark: its menu removes it.
+    for (float y = 0.0F; y < kHeight; y += 3.0F) {
+        const nordend::fs::Place* place = f.browser.sidebar().place_under(40.0F, y);
+        if (place != nullptr && place->section == nordend::fs::Place::Section::bookmarks) {
+            f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = 40.0F, .y = y},
+                              Browser::Clock::now());
+            f.browser.pointer({.kind = PointerEvent::Kind::press,
+                               .x = 40.0F,
+                               .y = y,
+                               .button = PointerButton::right,
+                               .click_count = 1},
+                              Browser::Clock::now());
+            break;
+        }
+    }
+    REQUIRE(f.browser.context_menu().is_open());
+    REQUIRE(f.browser.context_menu().items().size() == 1);
+    CHECK(f.browser.context_menu().items().front().id == "remove_bookmark");
 }

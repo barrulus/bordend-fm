@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Sidebar favourites (ROADMAP 7.2)
+
+"Fatto quando" proposed and approved by the author the same day (a separate drop zone for
+bookmarks; reordering and renaming after the MVP).
+
+**Done**
+- `core::write_file_atomically` (hidden temporary beside the file, fsync, rename; the folder
+  made, the permissions kept, 0644 for a new file) and `core::file_uri`, moved from `thumbs`
+  (`thumbs::file_uri` is now an alias) so `fs` writes URIs exactly as GLib does.
+- `fs::bookmarks_file`, `fs::add_bookmark`, `fs::remove_bookmark`: text in, text out; the other
+  lines (`sftp://`, labels, order, a missing final newline) stay; the same folder with or without
+  a trailing slash is one bookmark. `PlacesWatcher::reload()` is public and starts watching a
+  file whose folder appeared since (`gtk-3.0` made by the first bookmark).
+- Browser: `add_to_sidebar`, `remove_from_sidebar`, applied one at a time on a worker (read,
+  change, write), then the places are read again; messages "“Foto” added to the sidebar", "2
+  folders added", "Already in the sidebar", "Only folders go in the sidebar", "“Foto” removed",
+  "The sidebar could not be changed: …". Ctrl+D (the folder shown), "Add to Sidebar" in the menu
+  of selected folders and of a folder's empty part, "Remove from Sidebar" on a bookmark's right
+  click.
+- Sidebar: `in_bookmark_zone` (the "BOOKMARKS" title, or the space below the last place) and a
+  line where the bookmarks would go; dropping folders there adds them (Nordend's own drag only
+  when every entry is a folder; another program's: whatever is not a folder is left out), and
+  nothing moves. Dropping onto a place still moves into it.
+- Tests (235): the text functions (GLib escaping with a space and "ï", duplicates, removal, other
+  lines kept); the atomic write (folder made, permissions, nothing left beside it, an error);
+  Ctrl+D twice, the menus, removal, a write error; folders dropped below the places and on the
+  title, a file refused, the bookmark's menu.
+
+**Measured**
+- Snapshots: the insertion line in the sidebar, the menu with "Add to Sidebar  Ctrl+D", the
+  three-column overlay with the new line. ASan and TSan clean.
+
+**Decisions**
+- Bookmarks are written by Nordend, not through GLib: the file format is a line per bookmark,
+  and the URIs match GLib's byte for byte (`core::file_uri`, checked against gio in 5.x).
+
+**Tested by the author**: Ctrl+D and "Already in the sidebar", "Add to Sidebar" on two folders,
+folders dragged onto the "BOOKMARKS" title (the line after the last bookmark), a file refused
+there and moved when dropped onto a bookmark, "Remove from Sidebar", the file's escaped name,
+and the bookmarks in Firefox's Open dialog (Ctrl+O).
+
+**My slip**
+- The first full test run after adding Ctrl+D wrote three bookmarks of temporary test folders
+  into the author's real `~/.config/gtk-3.0/bookmarks` (the test that presses every key pressed
+  Ctrl+D, and tests read `$XDG_CONFIG_HOME`). The file did not exist before (the sidebar showed no
+  bookmarks); removing it was left to the author. Fixed for good: the test runner points
+  `XDG_CONFIG_HOME`, `XDG_DATA_HOME` and `XDG_CACHE_HOME` at its own temporary root before any
+  test runs; a full run now leaves the real file byte for byte as it was (checked with `cmp`).
+
+---
+
 ## 2026-10-30 — Drag and drop (ROADMAP 7.1)
 
 "Fatto quando" proposed and approved by the author the same day (copy only towards other apps;

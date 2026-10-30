@@ -381,6 +381,7 @@ int main(int argc, char** argv) {
                 std::make_unique<fs::PlacesWatcher>(loop, fs::PlaceSources::from_environment(),
                                                     [&] { columns->set_places(places->places()); });
             columns->set_places(places->places());
+            columns->set_places_reload([&places] { places->reload(); });
         }
 
         std::string last_key = "Press a key (Ctrl+Q quits)";

@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -11,6 +12,7 @@
 #include <doctest/doctest.h>
 
 #include "nordend/core/event_loop.hpp"
+#include "nordend/core/file.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
@@ -113,6 +115,56 @@ TEST_CASE("places: GTK bookmarks") {
     CHECK(places[1].label == "with space");
     CHECK(places[1].path == "/tmp/with space");
     CHECK(places[2].path == "/bad%zzescape");
+}
+
+TEST_CASE("bookmarks: added at the end as GLib writes them, removed, the rest kept") {
+    const std::string text =
+        "sftp://host/home/me Remote\n"
+        "file:///run/media/me/DATA/fotografia Photos\n"
+        "file:///tmp/with%20space";  // no newline at the end
+    const std::optional<std::string> added =
+        nordend::fs::add_bookmark(text, "/home/me/Viaggi/naïve 2026/");
+    REQUIRE(added);
+    CHECK(added.value_or("") == text + "\nfile:///home/me/Viaggi/na%C3%AFve%202026\n");
+    // Already there, with or without the slash, as written or decoded.
+    CHECK_FALSE(nordend::fs::add_bookmark(text, "/tmp/with space"));
+    CHECK_FALSE(nordend::fs::add_bookmark(text, "/run/media/me/DATA/fotografia/"));
+    CHECK(nordend::fs::parse_bookmarks(added.value_or("")).back().path ==
+          "/home/me/Viaggi/naïve 2026");
+
+    const std::optional<std::string> removed =
+        nordend::fs::remove_bookmark(added.value_or(""), "/run/media/me/DATA/fotografia");
+    CHECK(removed.value_or("") ==
+          "sftp://host/home/me Remote\n"
+          "file:///tmp/with%20space\n"
+          "file:///home/me/Viaggi/na%C3%AFve%202026\n");
+    CHECK_FALSE(nordend::fs::remove_bookmark(text, "/elsewhere"));
+    CHECK(nordend::fs::add_bookmark("", "/a") == std::optional<std::string>{"file:///a\n"});
+}
+
+TEST_CASE("bookmarks: written all at once, the folder made, the permissions kept") {
+    const TempDir dir;
+    const std::filesystem::path file = dir.path / "config" / "gtk-3.0" / "bookmarks";
+    CHECK_FALSE(nordend::core::write_file_atomically(file, "file:///a\n"));
+    CHECK(nordend::core::read_text_file(file).text == "file:///a\n");
+    CHECK((std::filesystem::status(file).permissions() & std::filesystem::perms::all) ==
+          (std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+           std::filesystem::perms::group_read | std::filesystem::perms::others_read));
+    std::filesystem::permissions(
+        file, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+    CHECK_FALSE(nordend::core::write_file_atomically(file, "file:///b\n"));
+    CHECK(nordend::core::read_text_file(file).text == "file:///b\n");
+    CHECK((std::filesystem::status(file).permissions() & std::filesystem::perms::all) ==
+          (std::filesystem::perms::owner_read | std::filesystem::perms::owner_write));
+    // Nothing left beside it.
+    std::size_t files = 0;
+    for ([[maybe_unused]] const auto& entry :
+         std::filesystem::directory_iterator{file.parent_path()}) {
+        ++files;
+    }
+    CHECK(files == 1);
+    // A folder where the file should be: an error, nothing else.
+    CHECK(nordend::core::write_file_atomically(dir.path / "config", "x"));
 }
 
 TEST_CASE("places: mounts") {
