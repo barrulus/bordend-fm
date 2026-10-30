@@ -210,6 +210,12 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
   the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.
   Ctrl+B hides the sidebar, and F6 moves the keyboard into it and back.
+- **Disks:** through udisks2, a disk plugged in appears among the devices, quieter, without
+  mounting itself (encrypted ones come later); a click mounts it and opens it, and a disk that
+  mounts read-only says why (an NTFS disk not closed properly) and what fixes it. The eject icon of
+  an external disk unmounts every partition on it and powers it off, taking the view home first if
+  it shows that disk; "in use" says to close what is open there. The right click mounts, unmounts
+  and ejects. The list follows disks coming and going; nothing waits on udisks2.
 - **Favourites:** Ctrl+D adds the folder shown, "Add to Sidebar" the folders selected (or the
   folder, from its empty part), and folders dragged onto the "BOOKMARKS" title or below the last
   place are added at the end, a line showing where; dropping onto a place still moves into it.
@@ -273,6 +279,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Removable disks, then settings, remembered state, and
+Compatibility outside Noctalia and Umbriel, then settings, remembered state, and
 the MVP. See the
 [roadmap](ROADMAP.md).

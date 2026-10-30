@@ -44,7 +44,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | Ricerca fuzzy | fzy | come Noctalia |
 | Icone UI | Tabler | come Noctalia |
 | Tipi MIME | database `shared-mime-info` (glob + magic) | parser nostro di globs2 e magic, ordine di riconoscimento di GLib (deciso 2026-10-26) |
-| D-Bus (MVP: udisks2, ROADMAP 7.3) | da scegliere a quel passo (sdbus-c++ era l'ipotesi) | udisks2, portal |
+| D-Bus (MVP: udisks2, ROADMAP 7.3) | sdbus-c++ 2.3 (libreria di sistema, scelta con l'autore il 2026-10-30) | udisks2, portal |
 | Scripting (post-MVP) | Luau | sandbox; *da verificare* come Noctalia espone le sue API |
 
 Protocolli Wayland: `xdg-shell`, `xdg-decoration`, `fractional-scale-v1`, `viewporter`,

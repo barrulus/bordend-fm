@@ -19,6 +19,8 @@
 // --drag NAME presses on the entry NAME of the folder shown and drags it a little (the drag image
 // drawn under the pointer); --drop-over X,Y then moves that drag (or, alone, another program's
 // drag of files) over the point X,Y, which shows where it would drop.
+// --fake-disks adds two disks to the sidebar as udisks2 would: "kinetic", external and not mounted,
+// and "SD card", external and mounted on the folder shown (its eject icon).
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
 // --transfer shows TEXT as a transfer's progress, 40 % done; --conflict asks about NAME as a
 // paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
@@ -210,6 +212,7 @@ int main(int argc, char** argv) {
     int walk_frames = 0;  // --walk N: Down once per frame, N frames, workers' results between
     bool info_expanded = false;
     bool memory = false;
+    bool fake_disks = false;
     bool trim = false;
     bool default_malloc = false;
     float info_width = 0.0F;  // the info pane as if dragged to this width
@@ -222,6 +225,11 @@ int main(int argc, char** argv) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
             info_expanded = true;
+            args = args.subspan(1);
+            continue;
+        }
+        if (option == "--fake-disks") {
+            fake_disks = true;
             args = args.subspan(1);
             continue;
         }
@@ -282,7 +290,7 @@ int main(int argc, char** argv) {
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
-            "[--drop-over X,Y] [--memory [--trim] "
+            "[--drop-over X,Y] [--fake-disks] [--memory [--trim] "
             "[--default-malloc]]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
@@ -345,8 +353,23 @@ int main(int argc, char** argv) {
                     thumbnails.empty()
                         ? nullptr
                         : std::make_shared<nordend::thumbs::Cache>(thumbnails, "nordend-dev"));
-                columns->set_places(
-                    nordend::fs::load_places(nordend::fs::PlaceSources::from_environment()));
+                std::vector<nordend::fs::Place> places =
+                    nordend::fs::load_places(nordend::fs::PlaceSources::from_environment());
+                if (fake_disks) {
+                    places.push_back(
+                        {.section = nordend::fs::Place::Section::devices,
+                         .label = "kinetic",
+                         .path = {},
+                         .icon = "usb",
+                         .disk = {.volume = "sdb1", .mounted = false, .ejectable = true}});
+                    places.push_back(
+                        {.section = nordend::fs::Place::Section::devices,
+                         .label = "SD card",
+                         .path = columns_dir,
+                         .icon = "usb",
+                         .disk = {.volume = "sdc1", .mounted = true, .ejectable = true}});
+                }
+                columns->set_places(std::move(places));
                 opener = std::make_unique<nordend::platform::Opener>(
                     loop, pool, mime, nordend::platform::Environment::from_environment(),
                     [](const std::string& /*message*/, bool /*error*/) {});

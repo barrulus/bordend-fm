@@ -29,6 +29,7 @@
 #include "nordend/fs/places.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/opener.hpp"
+#include "nordend/platform/udisks.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/activation.hpp"
@@ -374,13 +375,38 @@ int main(int argc, char** argv) {
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
-        // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9).
+        // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9),
+        // with the disks udisks2 knows, mounted or not (ROADMAP 7.3).
         std::unique_ptr<fs::PlacesWatcher> places;
+        std::unique_ptr<platform::Udisks> udisks;
         if (columns) {
-            places =
-                std::make_unique<fs::PlacesWatcher>(loop, fs::PlaceSources::from_environment(),
-                                                    [&] { columns->set_places(places->places()); });
-            columns->set_places(places->places());
+            const auto show_places = [&] {
+                if (places) {
+                    columns->set_places(
+                        udisks ? platform::with_volumes(places->places(), udisks->volumes())
+                               : places->places());
+                }
+            };
+            places = std::make_unique<fs::PlacesWatcher>(loop, fs::PlaceSources::from_environment(),
+                                                         show_places);
+            udisks = std::make_unique<platform::Udisks>(loop, show_places);
+            if (udisks->available()) {
+                columns->set_devices({
+                    .mount =
+                        [&](const std::string& volume, views::Devices::Mounted done) {
+                            udisks->mount(volume, std::move(done));
+                        },
+                    .unmount =
+                        [&](const std::string& volume, views::Devices::Done done) {
+                            udisks->unmount(volume, std::move(done));
+                        },
+                    .eject =
+                        [&](const std::string& volume, views::Devices::Done done) {
+                            udisks->eject(volume, std::move(done));
+                        },
+                });
+            }
+            show_places();
             columns->set_places_reload([&places] { places->reload(); });
         }
 

@@ -21,8 +21,19 @@ struct Place {
 
     Section section{Section::places};
     std::string label;
-    std::filesystem::path path;
-    std::string_view icon;  // a Tabler icon name
+    std::filesystem::path path;  // empty for a disk not mounted
+    std::string_view icon;       // a Tabler icon name
+
+    // A disk (Section::devices) as udisks2 knows it; empty without udisks2.
+    struct Disk {
+        std::string volume;     // its object
+        bool mounted{true};     // false: listed by udisks2, not mounted (path empty)
+        bool ejectable{false};  // an external drive, which can be powered off
+
+        bool operator==(const Disk&) const = default;
+    };
+
+    Disk disk{};
 
     bool operator==(const Place&) const = default;
 };

@@ -7,6 +7,7 @@
 #include <format>
 #include <string>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <system_error>
 #include <unordered_set>
 #include <utility>
@@ -45,7 +46,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       details_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
       quick_look_{pool, mime, std::move(thumbnails), redraw},
       sidebar_{redraw, std::move(set_cursor),
-               [this](const std::filesystem::path& place) { open(place); }},
+               [this](const fs::Place& place) { open_place(place); }},
       breadcrumb_{redraw,
                   [this](const std::filesystem::path& folder, const std::string& child) {
                       go_to(folder, child);
@@ -82,6 +83,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     columns_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     grid_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     details_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
+    sidebar_.set_eject_handler([this](const fs::Place& place) { eject_place(place); });
     columns_.set_cut_marks(&cut_marks_);
     columns_.set_drop_mark(&drop_mark_);
     grid_.set_drop_mark(&drop_mark_);
@@ -612,6 +614,34 @@ void Browser::submit_erase() {
 }
 
 void Browser::place_menu(const fs::Place& place, float x, float y) {
+    if (place.section == fs::Place::Section::devices && !place.disk.volume.empty() &&
+        devices_.mount) {
+        ++menu_generation_;
+        menu_loaders_.clear();
+        std::vector<MenuItem> items;
+        MenuItem mount;
+        mount.id = "mount";
+        mount.label = "Mount";
+        mount.enabled = !place.disk.mounted;
+        mount.action = [this, place] { mount_place(place, false); };
+        items.push_back(std::move(mount));
+        MenuItem unmount;
+        unmount.id = "unmount";
+        unmount.label = "Unmount";
+        unmount.enabled = place.disk.mounted;
+        unmount.action = [this, place] { unmount_place(place); };
+        items.push_back(std::move(unmount));
+        if (place.disk.ejectable) {
+            MenuItem eject;
+            eject.id = "eject";
+            eject.label = "Eject";
+            eject.separator = true;
+            eject.action = [this, place] { eject_place(place); };
+            items.push_back(std::move(eject));
+        }
+        menu_.open(x, y, std::move(items), false);
+        return;
+    }
     if (place.section == fs::Place::Section::bookmarks) {
         ++menu_generation_;
         menu_loaders_.clear();
@@ -1737,6 +1767,13 @@ void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
 }
 
 void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    if (event.kind == ui::PointerEvent::Kind::release &&
+        (conflict_.is_open() || confirm_.is_open() || menu_.is_open() || shortcuts_.is_open() ||
+         quick_look_.is_open())) {
+        // Taken by what the press opened (a menu from a right click): the button is up all the
+        // same, and the next press finds its target again.
+        button_held_ = false;
+    }
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
         return;
@@ -1971,6 +2008,9 @@ std::optional<Browser::DropTarget> Browser::drop_target_at(float x, float y) con
             return DropTarget{.folder = {}, .mark = {}, .place = {}, .crumb = {}, .bookmark = true};
         }
         if (const fs::Place* const place = sidebar_.place_under(x, y)) {
+            if (place->path.empty()) {
+                return std::nullopt;  // a disk not mounted: nowhere to put anything yet
+            }
             return DropTarget{.folder = place->path, .mark = {}, .place = place->path, .crumb = {}};
         }
         if (sidebar_.claims(x, y)) {
@@ -2288,6 +2328,114 @@ void Browser::next_bookmark_change() {
             }
             next_bookmark_change();
         });
+}
+
+void Browser::open_place(const fs::Place& place) {
+    if (!place.disk.mounted) {
+        mount_place(place, true);
+        return;
+    }
+    open(place.path);
+}
+
+void Browser::mount_place(const fs::Place& place, bool open) {
+    if (!devices_.mount || place.disk.volume.empty()) {
+        return;
+    }
+    show_message(std::format("Mounting “{}”…", place.label), false);
+    ++operations_;
+    devices_.mount(
+        place.disk.volume, [this, alive = alive_, name = place.label, open](
+                               const std::filesystem::path& where, const std::string& error) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (!error.empty()) {
+                show_message(std::format("“{}” could not be mounted: {}", name, error), true);
+                return;
+            }
+            if (open) {
+                this->open(where);
+            }
+            // A disk mounted read-only says why: NTFS left unclean by Windows or by a pull.
+            ++operations_;
+            pool_.submit(
+                core::Priority::visible,
+                [where](const core::CancelToken& /*token*/) {
+                    struct statvfs info{};
+                    return ::statvfs(where.c_str(), &info) == 0 && (info.f_flag & ST_RDONLY) != 0;
+                },
+                [this, alive, name](bool read_only) {
+                    if (!*alive) {
+                        return;
+                    }
+                    --operations_;
+                    show_message(read_only ? std::format("“{}” is read-only: it was not closed "
+                                                         "properly (Windows' chkdsk or ntfsfix -d "
+                                                         "fixes it)",
+                                                         name)
+                                           : std::format("“{}” mounted", name),
+                                 read_only);
+                });
+        });
+}
+
+void Browser::leave_disk(const std::filesystem::path& mount_point) {
+    const std::shared_ptr<Folder> shown = current_folder();
+    if (!shown || mount_point.empty()) {
+        return;
+    }
+    const std::filesystem::path inside = shown->path().lexically_relative(mount_point);
+    if (!inside.empty() && *inside.begin() != "..") {
+        const std::filesystem::path home = place_sources_.home;
+        open(home.empty() ? std::filesystem::path{"/"} : home);
+    }
+}
+
+void Browser::unmount_place(const fs::Place& place) {
+    if (!devices_.unmount || place.disk.volume.empty()) {
+        return;
+    }
+    leave_disk(place.path);
+    ++operations_;
+    devices_.unmount(place.disk.volume, [this, alive = alive_,
+                                         name = place.label](const std::string& error) {
+        if (!*alive) {
+            return;
+        }
+        --operations_;
+        if (error == "in use") {
+            show_message(std::format("“{}” is in use: close the files open from it", name), true);
+        } else if (!error.empty()) {
+            show_message(std::format("“{}” could not be unmounted: {}", name, error), true);
+        } else {
+            show_message(std::format("“{}” unmounted", name), false);
+        }
+    });
+}
+
+void Browser::eject_place(const fs::Place& place) {
+    if (!devices_.eject || place.disk.volume.empty()) {
+        return;
+    }
+    leave_disk(place.path);
+    show_message(std::format("Ejecting “{}”…", place.label), false);
+    ++operations_;
+    devices_.eject(place.disk.volume, [this, alive = alive_,
+                                       name = place.label](const std::string& error) {
+        if (!*alive) {
+            return;
+        }
+        --operations_;
+        if (error == "in use") {
+            show_message(std::format("“{}” is in use: close the files open from it", name), true);
+        } else if (!error.empty()) {
+            show_message(std::format("“{}” could not be ejected: {}", name, error), true);
+        } else {
+            show_message(std::format("“{}” can be unplugged now", name), false);
+        }
+    });
 }
 
 void Browser::view_pointer(const ui::PointerEvent& event, Clock::time_point now) {

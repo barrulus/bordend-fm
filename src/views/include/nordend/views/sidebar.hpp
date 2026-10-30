@@ -42,9 +42,18 @@ public:
     static constexpr float kEdgeGrab = 4.0F;  // either side of the edge, where the pointer grabs
     static constexpr float kRowHeight = 30.0F;
 
-    // open: a place was chosen (click or Enter).
+    // open: a place was chosen (click or Enter); a disk not mounted has no path yet.
     Sidebar(std::function<void()> redraw, std::function<void(ui::CursorShape)> set_cursor,
-            std::function<void(const std::filesystem::path&)> open);
+            std::function<void(const fs::Place&)> open);
+
+    // The eject icon of an external disk was clicked.
+    void set_eject_handler(std::function<void(const fs::Place&)> eject) {
+        eject_ = std::move(eject);
+    }
+
+    // Where the eject icon of the place at a window point is, as last drawn; nullopt when it
+    // has none (tests).
+    [[nodiscard]] std::optional<ui::Rect> eject_icon(const std::filesystem::path& path) const;
 
     void set_places(std::vector<fs::Place> places);
 
@@ -117,7 +126,11 @@ private:
 
     std::function<void()> redraw_;
     std::function<void(ui::CursorShape)> set_cursor_;
-    std::function<void(const std::filesystem::path&)> open_;
+    std::function<void(const fs::Place&)> open_;
+    std::function<void(const fs::Place&)> eject_;
+    // A place's eject icon, by place, as last drawn (empty for the others).
+    std::vector<ui::Rect> eject_rects_;
+    std::optional<std::size_t> hovered_eject_;
     MenuHandler menu_;
     std::vector<fs::Place> places_;
     std::vector<Row> rows_;

@@ -100,6 +100,19 @@ struct DragAndDrop {
     std::function<ui::Modifiers()> modifiers;
 };
 
+// Disks as the app connects them (udisks2); tests give a fake. Without it nothing is mounted,
+// unmounted or ejected from Nordend.
+struct Devices {
+    using Done = std::function<void(const std::string& error)>;  // empty: it worked
+    using Mounted =
+        std::function<void(const std::filesystem::path& where, const std::string& error)>;
+
+    std::function<void(const std::string& volume, Mounted done)> mount;
+    std::function<void(const std::string& volume, Done done)> unmount;
+    // Every file system on the volume's drive unmounted, then the drive powered off.
+    std::function<void(const std::string& volume, Done done)> eject;
+};
+
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
 public:
@@ -303,6 +316,17 @@ public:
 
     // Runs once the bookmarks file was written: the app reads the places again.
     void set_places_reload(std::function<void()> reload) { places_reload_ = std::move(reload); }
+
+    void set_devices(Devices devices) { devices_ = std::move(devices); }
+
+    // A place chosen in the sidebar: opened, after mounting a disk that is not mounted.
+    void open_place(const fs::Place& place);
+
+    // A disk's place: mounted (then opened, when open), unmounted, or ejected (unmounted and
+    // powered off, the view going home first when it shows that disk), with a message.
+    void mount_place(const fs::Place& place, bool open);
+    void unmount_place(const fs::Place& place);
+    void eject_place(const fs::Place& place);
 
     // Where a drop would go now, as the views mark it.
     [[nodiscard]] const DropMark& drop_mark() const noexcept { return drop_mark_; }
@@ -531,6 +555,9 @@ private:
     SystemClipboard system_;
 
     DragAndDrop dnd_;
+    Devices devices_;
+    // Leaves a folder on the disk at mount point before it goes: the view goes home.
+    void leave_disk(const std::filesystem::path& mount_point);
     std::optional<std::filesystem::path> bookmarks_file_;
     std::function<void()> places_reload_;
     std::deque<BookmarkChange> bookmark_changes_;

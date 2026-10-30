@@ -19,6 +19,7 @@ constexpr float kIconLeft = 18.0F;
 constexpr float kTextLeft = 46.0F;
 constexpr float kTextSize = 13.0F;
 constexpr float kSectionSize = 11.0F;
+constexpr float kEjectSize = 16.0F;
 
 std::string_view title_of(fs::Place::Section section) {
     switch (section) {
@@ -55,7 +56,7 @@ std::optional<std::size_t> place_holding(std::span<const fs::Place> places,
     std::size_t best_depth = 0;
     for (std::size_t i = 0; i < places.size(); ++i) {
         const std::filesystem::path folder = places[i].path.lexically_normal();
-        if (!inside(normal, folder)) {
+        if (folder.empty() || !inside(normal, folder)) {  // empty: a disk not mounted
             continue;
         }
         const auto depth = static_cast<std::size_t>(std::distance(folder.begin(), folder.end()));
@@ -68,7 +69,7 @@ std::optional<std::size_t> place_holding(std::span<const fs::Place> places,
 }
 
 Sidebar::Sidebar(std::function<void()> redraw, std::function<void(ui::CursorShape)> set_cursor,
-                 std::function<void(const std::filesystem::path&)> open)
+                 std::function<void(const fs::Place&)> open)
     : redraw_{std::move(redraw)}, set_cursor_{std::move(set_cursor)}, open_{std::move(open)} {}
 
 void Sidebar::set_places(std::vector<fs::Place> places) {
@@ -149,6 +150,7 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     const float offset = scroller_.offset();
 
     renderer.push_clip(bounds);
+    eject_rects_.assign(places_.size(), ui::Rect{});
     for (const Row& row : rows_) {
         const float y = bounds.y + row.top - offset;
         if (y + kRowHeight < bounds.y || y > bounds.bottom()) {
@@ -164,8 +166,9 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         const bool is_cursor = focused_ && cursor_ == i;
         const bool is_current = current_ == i;
         std::optional<ui::Color> fill;
-        ui::Color icon = palette.primary;
-        ui::Color text = palette.on_surface;
+        // A disk not mounted is quieter until a click mounts it.
+        ui::Color icon = place.disk.mounted ? palette.primary : palette.on_surface_variant;
+        ui::Color text = place.disk.mounted ? palette.on_surface : palette.on_surface_variant;
         if (drop_target_ == place.path) {
             fill = palette.primary_container;
             icon = palette.on_primary_container;
@@ -190,9 +193,17 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
         icons.draw(renderer, place.icon, bounds.x + kIconLeft,
                    y + ((kRowHeight - kIconSize) / 2.0F), kIconSize, icon);
+        float text_room = bounds.width - kTextLeft - kInset - 4.0F;
+        if (place.disk.ejectable) {
+            const ui::Rect eject{bounds.right() - kInset - 6.0F - kEjectSize,
+                                 y + ((kRowHeight - kEjectSize) / 2.0F), kEjectSize, kEjectSize};
+            eject_rects_[i] = eject;
+            icons.draw(renderer, "player-eject", eject.x, eject.y, kEjectSize,
+                       hovered_eject_ == i ? icon : text.with_alpha(0.7F));
+            text_room -= kEjectSize + 8.0F;
+        }
         renderer.draw_text(place.label, bounds.x + kTextLeft, y + 8.0F, kTextSize, text,
-                           std::max(1.0F, bounds.width - kTextLeft - kInset - 4.0F),
-                           ui::Ellipsis::middle);
+                           std::max(1.0F, text_room), ui::Ellipsis::middle);
     }
     if (bookmark_drop_) {
         // After the last bookmark, or where the first one would go: after the places.
@@ -287,6 +298,16 @@ void Sidebar::update_hover() {
         hovered_ = place;
         redraw_();
     }
+    std::optional<std::size_t> eject;
+    if (place && *place < eject_rects_.size() && !eject_rects_[*place].empty() &&
+        pointer_x_ >= eject_rects_[*place].x - 4.0F &&
+        pointer_x_ < eject_rects_[*place].right() + 4.0F) {
+        eject = place;
+    }
+    if (eject != hovered_eject_) {
+        hovered_eject_ = eject;
+        redraw_();
+    }
     const bool over = drag_ || (pointer_inside_ && on_edge(pointer_x_, pointer_y_));
     if (over != over_edge_) {
         over_edge_ = over;
@@ -296,12 +317,21 @@ void Sidebar::update_hover() {
 }
 
 void Sidebar::choose(std::size_t place) {
-    const std::filesystem::path path = places_[place].path;  // open_ may replace the places
+    const fs::Place chosen = places_[place];  // open_ may replace the places
     focused_ = false;
     redraw_();
     if (open_) {
-        open_(path);
+        open_(chosen);
     }
+}
+
+std::optional<ui::Rect> Sidebar::eject_icon(const std::filesystem::path& path) const {
+    for (std::size_t i = 0; i < places_.size() && i < eject_rects_.size(); ++i) {
+        if (places_[i].path == path && !eject_rects_[i].empty()) {
+            return eject_rects_[i];
+        }
+    }
+    return std::nullopt;
 }
 
 void Sidebar::pointer(const ui::PointerEvent& event, Clock::time_point now) {
@@ -354,7 +384,16 @@ void Sidebar::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 break;
             }
             if (const std::optional<std::size_t> place = place_at(event.x, event.y)) {
-                choose(*place);
+                const bool on_eject = *place < eject_rects_.size() &&
+                                      !eject_rects_[*place].empty() &&
+                                      event.x >= eject_rects_[*place].x - 4.0F &&
+                                      event.x < eject_rects_[*place].right() + 4.0F;
+                if (on_eject && eject_) {
+                    const fs::Place chosen = places_[*place];  // eject_ may replace the places
+                    eject_(chosen);
+                } else {
+                    choose(*place);
+                }
             }
             break;
         }

@@ -187,7 +187,8 @@ std::vector<Place> parse_bookmarks(std::string_view text) {
         places.push_back({.section = Place::Section::bookmarks,
                           .label = label.empty() ? label_of(path) : std::string{label},
                           .path = path,
-                          .icon = "bookmark"});
+                          .icon = "bookmark",
+                          .disk = {}});
     });
     return places;
 }
@@ -287,7 +288,8 @@ std::vector<Place> parse_mounts(std::string_view text) {
         Place place{.section = Place::Section::devices,
                     .label = label_of(point),
                     .path = point,
-                    .icon = "database"};
+                    .icon = "database",
+                    .disk = {}};
         if (std::ranges::find(places, place) == places.end()) {  // mounted twice: listed once
             places.push_back(std::move(place));
         }
@@ -332,8 +334,11 @@ std::filesystem::path templates_dir(const PlaceSources& sources) {
 
 std::vector<Place> load_places(const PlaceSources& sources) {
     std::vector<Place> places;
-    places.push_back(
-        {.section = Place::Section::places, .label = "Home", .path = sources.home, .icon = "home"});
+    places.push_back({.section = Place::Section::places,
+                      .label = "Home",
+                      .path = sources.home,
+                      .icon = "home",
+                      .disk = {}});
 
     const core::TextFile user_dirs = core::read_text_file(sources.config_home / "user-dirs.dirs");
     const std::vector<UserDir> dirs = parse_user_dirs(user_dirs.text, sources.home);
@@ -352,15 +357,20 @@ std::vector<Place> load_places(const PlaceSources& sources) {
             places.push_back({.section = Place::Section::places,
                               .label = label_of(path),
                               .path = path,
-                              .icon = kind.icon});
+                              .icon = kind.icon,
+                              .disk = {}});
         }
     }
-    places.push_back(
-        {.section = Place::Section::places, .label = "File system", .path = "/", .icon = "server"});
+    places.push_back({.section = Place::Section::places,
+                      .label = "File system",
+                      .path = "/",
+                      .icon = "server",
+                      .disk = {}});
     places.push_back({.section = Place::Section::places,
                       .label = "Trash",
                       .path = trash_path(),
-                      .icon = "trash"});
+                      .icon = "trash",
+                      .disk = {}});
 
     std::ranges::move(
         parse_bookmarks(core::read_text_file(sources.config_home / "gtk-3.0" / "bookmarks").text),

@@ -85,9 +85,21 @@ all'autore quando ci si arriva.
   GTK, creando `gtk-3.0` se manca; un errore dà un messaggio. Test, snapshot, provato dall'autore
   anche nella finestra "Apri file" di un'app GTK. Riordino e rinomina dopo l'MVP.
 
-- [ ] **7.3 Dischi rimovibili** (udisks2, installato)
+- [x] **7.3 Dischi rimovibili** (udisks2, installato)
   I dischi non montati nella barra laterale, un clic li monta; un'icona li espelle (smonta e
   spegne). La libreria D-Bus si sceglie a questo passo (librerie nuove: chiedere prima).
+  Fatto quando: i dischi collegati e non montati compaiono in "DEVICES" (attenuati, icona
+  diversa; partizioni con un filesystem che udisks non segna di sistema né da ignorare; nome =
+  etichetta, senza "466 GB Volume") e la lista segue collegamenti e distacchi; un clic monta e
+  apre (un errore dà un messaggio; un NTFS sporco montato in sola lettura lo dice); un'icona
+  "espelli" accanto ai dischi esterni smonta tutte le loro partizioni e spegne il disco
+  ("kinetic can be unplugged now"), dopo aver riportato la vista alla Home se mostrava quel
+  disco; occupato: "kinetic is in use: close the files open from it"; clic destro: Mount,
+  Unmount, Eject. Chiamate asincrone, il socket D-Bus nel loop; senza udisks2 la barra resta
+  com'è. Niente montaggio automatico; LUKS dopo l'MVP. Libreria: sdbus-c++ 2.3 (OK
+  dell'autore il 2026-10-30). Test sulla logica con dati finti, un test di sola lettura sul bus
+  reale (saltato senza udisks), snapshot; provato dall'autore con il Kinetic, anche con un file
+  aperto.
 
 - [ ] **7.4 Compatibilità**
   Fuori da Noctalia e Umbriel: il font di icone Tabler distribuito con Nordend (codice altrui:

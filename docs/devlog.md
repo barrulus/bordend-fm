@@ -4,6 +4,56 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Removable disks through udisks2 (ROADMAP 7.3)
+
+"Fatto quando" proposed and approved by the author the same day, with sdbus-c++ 2.3 as the
+D-Bus library (a system library: `sdbus-c++-devel`, recorded in DESIGN and README), no automount,
+LUKS after the MVP.
+
+**Done**
+- `platform/volumes`: plain data and pure functions. `UdisksObject` (Block, Filesystem, Drive
+  properties), `volumes_from` (a Block with a Filesystem, usage "filesystem", not HintIgnore;
+  the system's own only while mounted; external = removable, ejectable or on USB/SD/FireWire),
+  `size_name` ("466 GB Volume"), `with_volumes` (mounted devices learn their volume and become
+  ejectable with a USB icon; volumes not mounted are added without a path), `on_same_drive`.
+- `platform::Udisks`: a system bus connection whose socket, event fd and timeout are watched by
+  `core::EventLoop` (`getEventLoopPollData`/`processPendingEvent`, re-armed after every pump);
+  `GetManagedObjects` read at start and 150 ms after any burst of udisks2 signals; `mount`,
+  `unmount`, `eject` (every mounted file system of the drive unmounted in turn, then `PowerOff`,
+  else `Eject`), all asynchronous; errors made readable ("in use", "not allowed", the text after
+  udisks2's last ": "). Without a bus or udisks2: a warning, `available()` false.
+- `fs::Place::Disk` (volume, mounted, ejectable). Sidebar: disks not mounted drawn quieter, an
+  eject icon on external disks (its own click, hover), the place handed whole to the open
+  handler; a disk not mounted is never a drop target and holds no folder.
+- Browser: `set_devices`; a click on a disk not mounted mounts it, opens it, then checks on a
+  worker whether it came read-only ("“kinetic” is read-only: it was not closed properly
+  (Windows' chkdsk or ntfsfix -d fixes it)"); eject and unmount first take the view home when it
+  shows that disk; messages for in use, errors, "can be unplugged now"; a disk's right click:
+  Mount, Unmount, Eject.
+- Fixed on the way (since 6.x): a right click that opened a menu left `button_held_` set (the
+  release went to the menu), so the next click in the view still went to the sidebar.
+- Snapshot: `--fake-disks`.
+- Tests (242): which volumes show and their names, the author's machine as udisks2 describes it
+  (USB Kinetic, internal DATA, the other system's partition hidden, swap/crypto/ignored left
+  out); the places merged; the drive's file systems for eject; mount then open, a mount error;
+  eject and unmount leaving the disk first, in use, unplugged, not allowed; the eject icon and
+  the disk menu clicked for real (offscreen); a drop refused onto a disk not mounted; udisks2 on
+  the real system bus listing the disks, read only (/boot/efi, DATA, the root here).
+
+**Measured**
+- The sidebar snapshot with a disk not mounted and one mounted, both ejectable. ASan and TSan
+  clean, the real-bus test included.
+
+**Open**
+- LUKS volumes are not listed (after the MVP).
+
+**Tested by the author**: the Kinetic plugged in shows up quieter without mounting, a click
+mounts and opens it, eject from inside FOTOGRAFIA goes home and powers it off ("can be unplugged
+now"), unplugged and plugged in again, "in use" while a terminal stood in it, and Unmount, Mount,
+Eject from the right click.
+
+---
+
 ## 2026-10-30 — Sidebar favourites (ROADMAP 7.2)
 
 "Fatto quando" proposed and approved by the author the same day (a separate drop zone for

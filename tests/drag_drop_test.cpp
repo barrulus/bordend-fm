@@ -151,11 +151,13 @@ struct Fixture {
         browser.set_places({{.section = nordend::fs::Place::Section::places,
                              .label = "Album",
                              .path = album,
-                             .icon = "folder"},
+                             .icon = "folder",
+                             .disk = {}},
                             {.section = nordend::fs::Place::Section::places,
                              .label = "Trash",
                              .path = nordend::fs::trash_path(),
-                             .icon = "trash"}});
+                             .icon = "trash",
+                             .disk = {}}});
         if (gl) {
             fonts = std::make_unique<nordend::ui::FontSystem>();
             renderer = std::make_unique<nordend::ui::Renderer>(*fonts);
@@ -550,4 +552,80 @@ TEST_CASE("sidebar bookmarks: folders dropped below the places are added; files 
     REQUIRE(f.browser.context_menu().is_open());
     REQUIRE(f.browser.context_menu().items().size() == 1);
     CHECK(f.browser.context_menu().items().front().id == "remove_bookmark");
+}
+
+TEST_CASE("sidebar disks: a click on the eject icon ejects; the right click offers the rest") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    std::vector<std::string> calls;
+    f.browser.set_devices({
+        .mount =
+            [&calls](const std::string& volume, const nordend::views::Devices::Mounted& /*done*/) {
+                calls.push_back("mount " + volume);
+            },
+        .unmount =
+            [&calls](const std::string& volume, const nordend::views::Devices::Done& /*done*/) {
+                calls.push_back("unmount " + volume);
+            },
+        .eject =
+            [&calls](const std::string& volume, const nordend::views::Devices::Done& /*done*/) {
+                calls.push_back("eject " + volume);
+            },
+    });
+    std::vector<nordend::fs::Place> places = f.browser.sidebar().places();
+    places.push_back({.section = nordend::fs::Place::Section::devices,
+                      .label = "kinetic",
+                      .path = f.album,
+                      .icon = "usb",
+                      .disk = {.volume = "sdb1", .mounted = true, .ejectable = true}});
+    places.push_back({.section = nordend::fs::Place::Section::devices,
+                      .label = "spare",
+                      .path = {},
+                      .icon = "database-off",
+                      .disk = {.volume = "sdc1", .mounted = false, .ejectable = false}});
+    f.browser.set_places(places);
+    f.show(f.root, Browser::Mode::details);
+
+    const std::optional<nordend::ui::Rect> eject = f.browser.sidebar().eject_icon(f.album);
+    REQUIRE(eject);
+    const nordend::ui::Rect icon = eject.value_or(nordend::ui::Rect{});
+    const auto click = [&f](float x, float y, PointerButton button) {
+        f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = x, .y = y},
+                          Browser::Clock::now());
+        f.browser.pointer(
+            {.kind = PointerEvent::Kind::press, .x = x, .y = y, .button = button, .click_count = 1},
+            Browser::Clock::now());
+        f.browser.pointer({.kind = PointerEvent::Kind::release, .x = x, .y = y, .button = button},
+                          Browser::Clock::now());
+    };
+    click(icon.x + (icon.width / 2.0F), icon.y + (icon.height / 2.0F), PointerButton::left);
+    CHECK(calls == std::vector<std::string>{"eject sdb1"});
+
+    // The disk not mounted: a click mounts it; its menu can only mount it.
+    float spare = -1.0F;
+    for (float y = 0.0F; y < kHeight && spare < 0.0F; y += 3.0F) {
+        const nordend::fs::Place* const place = f.browser.sidebar().place_under(40.0F, y);
+        if (place != nullptr && place->label == "spare") {
+            spare = y;
+        }
+    }
+    REQUIRE(spare >= 0.0F);
+    click(40.0F, spare, PointerButton::left);
+    CHECK(calls.back() == "mount sdc1");
+    click(40.0F, spare, PointerButton::right);
+    REQUIRE(f.browser.context_menu().is_open());
+    const auto& items = f.browser.context_menu().items();
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].id == "mount");
+    CHECK(items[0].enabled);
+    CHECK(items[1].id == "unmount");
+    CHECK_FALSE(items[1].enabled);
+    f.browser.context_menu().close();
+
+    // Nothing can be dropped onto a disk not mounted.
+    f.drag(f.root, "sub");
+    f.browser.drop_event({.kind = DropEvent::Kind::enter, .x = 40.0F, .y = spare});
+    CHECK_FALSE(f.dnd.accepted);
 }
