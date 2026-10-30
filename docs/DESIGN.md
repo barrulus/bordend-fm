@@ -44,7 +44,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 | Ricerca fuzzy | fzy | come Noctalia |
 | Icone UI | Tabler | come Noctalia |
 | Tipi MIME | database `shared-mime-info` (glob + magic) | parser nostro di globs2 e magic, ordine di riconoscimento di GLib (deciso 2026-10-26) |
-| D-Bus (post-MVP) | sdbus-c++ | udisks2, portal |
+| D-Bus (MVP: udisks2, ROADMAP 7.3) | da scegliere a quel passo (sdbus-c++ era l'ipotesi) | udisks2, portal |
 | Scripting (post-MVP) | Luau | sandbox; *da verificare* come Noctalia espone le sue API |
 
 Protocolli Wayland: `xdg-shell`, `xdg-decoration`, `fractional-scale-v1`, `viewporter`,
@@ -102,8 +102,9 @@ un tipo non tocca il resto. È anche il punto d'aggancio futuro per gli script L
 - **Barra laterale dei luoghi (Ctrl+B).** A sinistra in tutte e tre le viste: Home, le cartelle
   XDG (`user-dirs.dirs`; senza il file, quelle con il nome standard che esistono), il file system,
   i segnalibri GTK (`~/.config/gtk-3.0/bookmarks`, condivisi con gli altri file manager) e le unità
-  montate (`/proc/self/mountinfo`, aggiornate quando si monta o si smonta). Montare e smontare
-  restano a udisks2, dopo l'MVP. Aggiunta il 2026-10-27 con l'OK dell'autore.
+  montate (`/proc/self/mountinfo`, aggiornate quando si monta o si smonta). Aggiunta il 2026-10-27
+  con l'OK dell'autore. Montare ed espellere via udisks2 e i preferiti scritti nei segnalibri GTK
+  entrano nell'MVP (ROADMAP 7.2, 7.3; deciso con l'autore il 2026-10-30).
 - **Breadcrumb e barra di stato.** In alto il percorso della cartella come segmenti cliccabili; in
   basso elementi, selezione e spazio libero a sinistra, i pulsanti delle tre viste e "?" (overlay
   delle scorciatoie, anche F1) a destra. Le informazioni di sistema (distro, Noctalia, Umbriel)
@@ -128,8 +129,13 @@ Dentro:
 - menu contestuale (tasto destro, tasto Menu, Shift+F10) con le stesse azioni e "Apri con", disegnato
   da Nordend dentro la finestra (aggiunto il 2026-10-29 con l'OK dell'autore)
 
-Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal, udisks2,
-evidenziazione della sintassi, DnD verso altre app, editor esterno.
+Dentro anche, decisi con l'autore il 2026-10-30 (ROADMAP fase 7): cronologia di navigazione
+(Alt+←/→, tasti del mouse) e file nascosti (Ctrl+H, nascosti di default); drag and drop dentro
+Nordend e con le altre app; preferiti nella barra laterale; dischi rimovibili via udisks2;
+impostazioni (Ctrl+,) e stato ricordato.
+
+Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal,
+evidenziazione della sintassi, editor esterno.
 
 ## Dopo l'MVP (in ordine)
 
@@ -137,7 +143,7 @@ evidenziazione della sintassi, DnD verso altre app, editor esterno.
 2. Schede e doppio pannello; coda operazioni con annulla; rinomina multipla con anteprima
 3. **Culling fotografico**: stelle 1–5 ed etichette colore nei sidecar XMP di darktable, confronto
    affiancato, EXIF in overlay, istogramma
-4. Dischi rimovibili via udisks2
+4. (Dischi rimovibili via udisks2: anticipati nell'MVP, ROADMAP 7.3)
 5. Scripting Luau (comandi, preview provider, azioni sui file)
 6. Backend `xdg-desktop-portal` FileChooser: Nordend come selettore file di sistema
 7. Editor esterno (helix), vedi sotto
