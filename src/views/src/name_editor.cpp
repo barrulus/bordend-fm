@@ -68,6 +68,20 @@ bool NameEditor::pointer(const ui::PointerEvent& event) {
     return false;
 }
 
+void NameEditor::paste(std::string_view text) {
+    if (!active() || busy_) {
+        return;
+    }
+    std::string line;
+    for (const char c : text.substr(0, text.find_first_of("\r\n"))) {
+        if (static_cast<unsigned char>(c) >= 0x20U && c != 0x7F) {
+            line.push_back(c);
+        }
+    }
+    field_.insert(line);
+    redraw_();
+}
+
 void NameEditor::confirm() {
     if (!active() || busy_) {
         return;

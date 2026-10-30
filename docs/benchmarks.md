@@ -17,6 +17,11 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-30: after 6.5
+
+3 046 656 bytes; 2 558 296 after `strip`; 18 direct libraries (the clipboard is libwayland's
+core protocol: nothing new).
+
 ### 2026-10-30: after 6.4d
 
 2 966 072 bytes; 2 496 792 after `strip`; 18 direct libraries.

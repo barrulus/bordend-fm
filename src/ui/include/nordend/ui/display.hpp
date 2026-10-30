@@ -55,6 +55,11 @@ public:
         return fractional_scale_manager_.get();
     }
 
+    // Optional: without it, copy and paste stay inside Nordend.
+    [[nodiscard]] wl_data_device_manager* data_device_manager() const noexcept {
+        return data_device_manager_.get();
+    }
+
     // Optional: without it, applications Nordend starts may open without the focus.
     [[nodiscard]] xdg_activation_v1* activation() const noexcept { return activation_.get(); }
 
@@ -74,6 +79,7 @@ private:
     WlPtr<wp_fractional_scale_manager_v1> fractional_scale_manager_;
     WlPtr<wp_cursor_shape_manager_v1> cursor_shape_manager_;
     WlPtr<xdg_activation_v1> activation_;
+    WlPtr<wl_data_device_manager> data_device_manager_;
     WlPtr<wl_seat> seat_;
 };
 

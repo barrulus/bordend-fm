@@ -48,6 +48,7 @@ target_link_libraries(nordend_wayland_protocols PUBLIC PkgConfig::WAYLAND)
 # ---------------------------------------------------------------------------
 add_library(nordend_ui
     src/activation.cpp
+    src/clipboard.cpp
     src/display.cpp
     src/egl_context.cpp
     src/renderer.cpp

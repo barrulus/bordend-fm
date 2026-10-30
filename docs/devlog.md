@@ -4,6 +4,70 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — The system clipboard (ROADMAP 6.5)
+
+Proposed to the author with its "Fatto quando" and approved; Firefox is the other program to try.
+
+**Done**
+- `ui::Clipboard` on `wl_data_device` (manager bound up to v3): offers a `wl_data_source` with
+  several types and writes each request to its pipe from the loop (non-blocking, `POLLOUT`, a
+  slow reader never blocks the window); reads the selection's offer through a non-blocking pipe
+  the loop watches, up to 64 MB, given up after 3 s; keeps every offer's types; drag offers are
+  dropped when the drag leaves (drag and drop is not taken yet); `cancelled` on Nordend's source
+  = another program copied: `set_lost_handler`. SIGPIPE is blocked with the other signals and
+  ignored when it arrives (a reader that went away: the write fails with EPIPE); applications
+  started from Nordend get an empty mask as before.
+- `views/file_clipboard`: `uri_list` (CRLF, URIs from `thumbs::file_uri`, GLib's escaping),
+  `gnome_copied_files`, `path_lines`; `path_from_uri` (file://, empty host or localhost,
+  case-insensitive scheme, `%XX` undone, `?#` cut, a NUL refused, a trailing slash dropped),
+  `parse_uri_list` (comments, CRLF or LF), `parse_gnome_copied_files`. `SystemClipboard`: the
+  browser's view of it as functions (offer, clear, owned, types, read); the app wires the real
+  one, tests a fake.
+- Browser: Ctrl+C / Ctrl+X offer `x-special/gnome-copied-files`, `text/uri-list`,
+  `text/plain;charset=utf-8`, `UTF8_STRING`, `text/plain` (paths), and
+  `application/x-kde-cutselection` "1" for a cut. Ctrl+V: Nordend's own offer → the internal
+  clipboard as before (a cut pasted once now also empties the system clipboard); another
+  program's → its files (`gnome-copied-files` first, else `text/uri-list`, with KDE's cut type
+  read first when there), one transfer per source folder, cut = move; text only → "The clipboard holds no files"; other hosts or schemes → "Only files
+  on this computer can be pasted". Losing the clipboard forgets what Ctrl+C/X took and the cut
+  marks. Ctrl+V in the name's field reads the first text type offered and inserts its first line
+  without control characters (`NameEditor::paste`); listed in the shortcuts (`kEditor`).
+- Another program's cut empties the clipboard only once something arrived, and only if the
+  clipboard still holds it (`Clipboard::generation()`, changed by every new selection): every
+  transfer goes through `Browser::submit`, which keeps, in the queue's order, the generation to
+  empty after it. Found in the author's test: a cut of files that did not exist (a fish variable
+  unset in the second terminal) had emptied the clipboard anyway.
+- Tests (207 with the raw samples): URIs and lists both ways with odd names; what a list
+  refuses; Ctrl+C/X offering the formats; Nordend's own cut pasted once and the clipboard
+  emptied; losing it; another program's URI list from two folders (copied), GNOME's and KDE's
+  cut (moved, sidecar along); a web URL refused; a cut that moved nothing, or a clipboard that
+  changed meanwhile, not emptied; Ctrl+V in the name's field.
+
+**Tested by the author** (the Wayland side: no headless compositor here): `wl-paste
+--list-types` showed the five types, `wl-paste -t text/uri-list` the URIs of `a b%#?.txt` and
+`caffè.txt` as written above, plain `wl-paste` the paths; Firefox pasted a file copied in
+Nordend; a `wl-copy -t text/uri-list` of `P1.ORF` and `x.txt` was copied with the sidecar; a
+GNOME cut of `z.txt` moved it; `wl-copy hello` ended the cut fading; Ctrl+V in the name's field;
+0 CPU ticks in 30 s idle. After the GNOME cut, `wl-paste --list-types` listed text types
+(`TEXT`, `STRING`, ...) that Nordend does not offer: likely a clipboard manager putting back its
+last text entry (*to be verified*); there were no files on it. After the fix: a cut of a missing
+file left `x-special/gnome-copied-files` on the clipboard; a cut of `w.txt` moved it and took it
+off.
+
+**Decisions**
+- When Nordend owns the clipboard, Ctrl+V uses its own copy of what was taken, not a read
+  through the compositor: no round trip, and "a cut is pasted once" stays exact.
+- After pasting another program's cut, Nordend empties the clipboard, as GNOME's file manager
+  does: the files are no longer where its URIs say.
+- Text is offered as full paths, one per line (what a terminal wants), not names.
+
+**Open**
+- Images on the clipboard (`image/png`, a screenshot) are not pasted as new files yet.
+- The clipboard dies with Nordend unless a clipboard manager keeps it (Wayland's way).
+- Ctrl+C in the name's field does not copy text yet.
+
+---
+
 ## 2026-10-30 — Empty Trash and Delete Permanently (ROADMAP 6.4d)
 
 The half of 6.4c that deletes, as split with the author's OK.

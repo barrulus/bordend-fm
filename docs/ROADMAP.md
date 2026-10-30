@@ -238,7 +238,19 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   definitivamente con la stessa card.
   Fatto quando: "Empty Trash" svuota home e DATA e `trash-list` non mostra più nulla; Escape sulla
   card non cancella niente; test sulla conferma e sullo svuotamento (anche di `directorysizes`).
-- [ ] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
+- [x] **6.5 Clipboard** (`wl_data_device`): copia/incolla di file tra Nordend e altre app
+  Ctrl+C / Ctrl+X mettono la selezione anche negli appunti di Wayland: `text/uri-list` (URI come
+  li scrive GLib), `x-special/gnome-copied-files` ("copy"/"cut"), testo (i percorsi). Ctrl+V,
+  quando gli appunti sono di un'altra app, legge `gnome-copied-files` (cut = sposta) o
+  `text/uri-list` (copia), solo file locali, da una pipe nel loop senza bloccare, poi il motore
+  della 6.3. Se un'altra app copia, i file tagliati non sono più attenuati. Ctrl+V nel campo del
+  nome incolla il testo. Fuori: incollare immagini come file, drag and drop, appunti che
+  sopravvivono alla chiusura.
+  Fatto quando: dopo Ctrl+C `wl-paste --list-types` mostra i tre formati e `wl-paste -t
+  text/uri-list` dà gli URI giusti (spazi, `%`, accenti); `wl-copy -t text/uri-list` di due file
+  e Ctrl+V in Nordend li copia (sidecar compresi); un `cut` in `gnome-copied-files` li sposta;
+  file copiati in Nordend si incollano in Firefox; Ctrl+V nel campo del nome incolla il testo;
+  CPU a riposo 0; test su codifica/lettura delle liste e sulla scelta copia/sposta.
 
 ## Fase 7 — MVP
 

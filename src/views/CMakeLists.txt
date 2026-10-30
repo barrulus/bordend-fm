@@ -7,6 +7,7 @@ add_library(nordend_views
     src/conflict_dialog.cpp
     src/context_menu.cpp
     src/details_view.cpp
+    src/file_clipboard.cpp
     src/draw_helpers.cpp
     src/folder.cpp
     src/format.cpp

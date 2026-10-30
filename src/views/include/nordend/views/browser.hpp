@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -30,6 +31,7 @@
 #include "nordend/views/context_menu.hpp"
 #include "nordend/views/cut_marks.hpp"
 #include "nordend/views/details_view.hpp"
+#include "nordend/views/file_clipboard.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/name_editor.hpp"
@@ -191,8 +193,16 @@ public:
     // move.
     void take_selection(bool cut);
 
-    // Ctrl+V: copies or moves what was taken into the folder shown.
+    // Ctrl+V: copies or moves what was taken into the folder shown; when another program holds
+    // the clipboard, the files it offers (x-special/gnome-copied-files, else text/uri-list).
     void paste();
+
+    // The system clipboard: Ctrl+C and Ctrl+X offer the files there too, Ctrl+V reads it, and
+    // Ctrl+V in a name's field pastes its text.
+    void set_system_clipboard(SystemClipboard clipboard) { system_ = std::move(clipboard); }
+
+    // Another program took the clipboard: what Ctrl+C or Ctrl+X took is forgotten.
+    void clipboard_lost();
 
     // Delete: moves the selection (or the entry under the cursor) to the trash, and the cursor to
     // the entry after it.
@@ -241,6 +251,15 @@ public:
 private:
     void trash_done(const fs::TransferResult& result);
     void restore_done(const fs::TransferResult& result);
+    // Pastes files read from the system clipboard (at generation) into destination.
+    void paste_files(const std::filesystem::path& destination, const ClipboardFiles& files,
+                     std::uint64_t generation);
+    // Every transfer goes through here. empty_clipboard: another program's cut, read from the
+    // clipboard at that generation: emptied once something arrived, unless it changed meanwhile.
+    void submit(fs::TransferRequest request,
+                std::optional<std::uint64_t> empty_clipboard = std::nullopt);
+    // Ctrl+V in the name's field: the clipboard's text.
+    void paste_text();
     void erase_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     // Opens the card for request (erase or empty_trash), adds up what it removes on a worker and
     // submits it once confirmed and added up; after runs when it is confirmed.
@@ -331,6 +350,10 @@ private:
     };
 
     Clipboard clipboard_;
+    SystemClipboard system_;
+    // For each transfer submitted and not done, in order (the queue's): the clipboard
+    // generation to empty after it (submit()).
+    std::deque<std::optional<std::uint64_t>> submitted_;
     std::filesystem::path home_trash_;
     std::vector<fs::Place> places_;
     fs::DirectoryModel trash_model_;  // every trash, for the sidebar's icon

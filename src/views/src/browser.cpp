@@ -150,6 +150,25 @@ void Browser::take_selection(bool cut) {
         cut_marks_ = {.directory = clipboard_.directory,
                       .names = {clipboard_.names.begin(), clipboard_.names.end()}};
     }
+    if (system_.offer) {
+        // Other programs paste them too: file managers, browsers, terminals.
+        std::vector<std::filesystem::path> paths;
+        paths.reserve(clipboard_.names.size());
+        for (const std::string& name : clipboard_.names) {
+            paths.push_back(clipboard_.directory / name);
+        }
+        const std::string lines = path_lines(paths);
+        std::vector<SystemClipboard::Format> formats{
+            {std::string{kGnomeFiles}, gnome_copied_files(cut, paths)},
+            {std::string{kUriList}, uri_list(paths)},
+            {std::string{kText}, lines},
+            {"UTF8_STRING", lines},
+            {"text/plain", lines}};
+        if (cut) {
+            formats.emplace_back(std::string{kKdeCut}, "1");
+        }
+        system_.offer(std::move(formats));
+    }
     const std::string items =
         count == 1 ? std::format("“{}”", clipboard_.names.front()) : std::format("{} items", count);
     show_message(cut ? std::format("Ctrl+V moves {} where you want them", items)
@@ -162,25 +181,156 @@ void Browser::paste() {
     if (!folder) {
         return;
     }
+    if (system_.owned && system_.types && system_.read && !system_.owned()) {
+        // Another program's: the files it offers, if any.
+        const std::vector<std::string> types = system_.types();
+        const auto has = [&types](std::string_view type) {
+            return std::ranges::find(types, type) != types.end();
+        };
+        const bool gnome = has(kGnomeFiles);
+        if (gnome || has(kUriList)) {
+            const std::uint64_t generation = system_.generation ? system_.generation() : 0;
+            const auto read_files = [this, gnome, generation,
+                                     destination = folder->path()](bool kde_cut) {
+                ++operations_;
+                system_.read(std::string{gnome ? kGnomeFiles : kUriList},
+                             [this, alive = alive_, gnome, kde_cut, generation,
+                              destination](const std::optional<std::string>& data) {
+                                 if (!*alive) {
+                                     return;
+                                 }
+                                 --operations_;
+                                 std::optional<ClipboardFiles> files;
+                                 if (data) {
+                                     files = gnome ? parse_gnome_copied_files(*data)
+                                                   : parse_uri_list(*data);
+                                 }
+                                 if (!files) {
+                                     show_message("The clipboard could not be read", true);
+                                     return;
+                                 }
+                                 files->cut = files->cut || kde_cut;
+                                 paste_files(destination, *files, generation);
+                             });
+            };
+            if (!gnome && has(kKdeCut)) {
+                // KDE says "cut" in a type of its own.
+                ++operations_;
+                system_.read(std::string{kKdeCut}, [this, alive = alive_, read_files](
+                                                       const std::optional<std::string>& data) {
+                    if (!*alive) {
+                        return;
+                    }
+                    --operations_;
+                    read_files(data && data->starts_with('1'));
+                });
+            } else {
+                read_files(false);
+            }
+            return;
+        }
+        if (!types.empty()) {
+            show_message("The clipboard holds no files", false);
+            return;
+        }
+    }
     if (clipboard_.names.empty()) {
         show_message("Nothing to paste: Ctrl+C or Ctrl+X first", false);
         return;
     }
     const bool cut = clipboard_.cut;
-    transfers_.submit({.kind = cut ? fs::TransferKind::move : fs::TransferKind::copy,
-                       .source = clipboard_.directory,
-                       .names = clipboard_.names,
-                       .destination = folder->path(),
-                       .force_copy = false});
+    submit({.kind = cut ? fs::TransferKind::move : fs::TransferKind::copy,
+            .source = clipboard_.directory,
+            .names = clipboard_.names,
+            .destination = folder->path(),
+            .force_copy = false});
     if (cut) {
         clipboard_ = {};  // moved once: there is nothing left to move
         cut_marks_ = {};
+        if (system_.clear) {
+            system_.clear();
+        }
     }
     if (!status_bar_.transfer()) {
         status_bar_.set_transfer(TransferStatus{
             .text = cut ? "Getting ready to move…" : "Getting ready to copy…", .fraction = -1.0F});
     }
     redraw_();
+}
+
+void Browser::submit(fs::TransferRequest request, std::optional<std::uint64_t> empty_clipboard) {
+    submitted_.push_back(empty_clipboard);
+    transfers_.submit(std::move(request));
+}
+
+void Browser::paste_files(const std::filesystem::path& destination, const ClipboardFiles& files,
+                          std::uint64_t generation) {
+    if (fs::is_trash(destination)) {
+        return;
+    }
+    if (files.paths.empty()) {
+        show_message(files.refused > 0 ? "Only files on this computer can be pasted"
+                                       : "The clipboard holds no files",
+                     false);
+        return;
+    }
+    // One transfer per folder the files are in.
+    std::vector<std::pair<std::filesystem::path, std::vector<std::string>>> folders;
+    for (const std::filesystem::path& path : files.paths) {
+        const std::filesystem::path parent = path.parent_path();
+        auto it = std::ranges::find(folders, parent, [](const auto& f) { return f.first; });
+        if (it == folders.end()) {
+            folders.emplace_back(parent, std::vector<std::string>{});
+            it = std::prev(folders.end());
+        }
+        it->second.push_back(path.filename().string());
+    }
+    for (auto& [source, names] : folders) {
+        submit({.kind = files.cut ? fs::TransferKind::move : fs::TransferKind::copy,
+                .source = source,
+                .names = std::move(names),
+                .destination = destination,
+                .force_copy = false},
+               files.cut ? std::optional{generation} : std::nullopt);
+    }
+    if (!status_bar_.transfer()) {
+        status_bar_.set_transfer(
+            TransferStatus{.text = files.cut ? "Getting ready to move…" : "Getting ready to copy…",
+                           .fraction = -1.0F});
+    }
+    redraw_();
+}
+
+void Browser::paste_text() {
+    if (!system_.types || !system_.read) {
+        return;
+    }
+    const std::vector<std::string> types = system_.types();
+    for (const std::string_view type : kTextTypes) {
+        if (std::ranges::find(types, type) == types.end()) {
+            continue;
+        }
+        ++operations_;
+        system_.read(std::string{type},
+                     [this, alive = alive_](const std::optional<std::string>& text) {
+                         if (!*alive) {
+                             return;
+                         }
+                         --operations_;
+                         if (text) {
+                             editor_.paste(*text);
+                         }
+                     });
+        return;
+    }
+}
+
+void Browser::clipboard_lost() {
+    clipboard_ = {};
+    if (!cut_marks_.names.empty()) {
+        cut_marks_ = {};
+        redraw_();
+    }
 }
 
 namespace {
@@ -242,11 +392,11 @@ void Browser::trash() {
     // The cursor goes on to the first entry after the last one trashed that stays (else the one
     // before them): their darktable sidecars go too.
     const std::unordered_set<std::string> going = going_with_sidecars(*folder, names);
-    transfers_.submit({.kind = fs::TransferKind::trash,
-                       .source = folder->path(),
-                       .names = std::move(names),
-                       .destination = home_trash_,
-                       .force_copy = false});
+    submit({.kind = fs::TransferKind::trash,
+            .source = folder->path(),
+            .names = std::move(names),
+            .destination = home_trash_,
+            .force_copy = false});
     cursor_after(*folder, going);
     redraw_();
 }
@@ -267,11 +417,11 @@ void Browser::restore() {
             paths.push_back(folder->path_of(entry).string());
         }
     }
-    transfers_.submit({.kind = fs::TransferKind::restore,
-                       .source = folder->path(),
-                       .names = std::move(paths),
-                       .destination = {},
-                       .force_copy = false});
+    submit({.kind = fs::TransferKind::restore,
+            .source = folder->path(),
+            .names = std::move(paths),
+            .destination = {},
+            .force_copy = false});
     cursor_after(*folder, going_with_sidecars(*folder, names));
     redraw_();
 }
@@ -419,7 +569,7 @@ void Browser::submit_erase() {
         return;
     }
     const bool emptying = erase_->request.kind == fs::TransferKind::empty_trash;
-    transfers_.submit(std::move(erase_->request));
+    submit(std::move(erase_->request));
     erase_.reset();
     if (!status_bar_.transfer()) {
         status_bar_.set_transfer(TransferStatus{
@@ -567,6 +717,17 @@ void Browser::transfer_progress(const fs::TransferRequest& request,
 }
 
 void Browser::transfer_done(const fs::TransferRequest& request, const fs::TransferResult& result) {
+    std::optional<std::uint64_t> empty_clipboard;
+    if (!submitted_.empty()) {
+        empty_clipboard = submitted_.front();
+        submitted_.pop_front();
+    }
+    // Another program's cut that moved something: nobody should move those files again. Unless
+    // the clipboard holds something else by now.
+    if (empty_clipboard && !result.placed.empty() && system_.clear && system_.generation &&
+        system_.generation() == *empty_clipboard) {
+        system_.clear();
+    }
     for_the_rest_.reset();
     copy_started_.reset();
     conflict_.close();
@@ -1330,6 +1491,11 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
         return menu_.key(event);  // every key is the menu's meanwhile
     }
     if (editor_.active()) {
+        if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+            (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
+            paste_text();
+            return true;
+        }
         return editor_.key(event);  // every key is the name's meanwhile
     }
     const Command command = command_for(event);

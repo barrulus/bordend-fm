@@ -58,6 +58,18 @@ void destroy(xdg_activation_v1* activation) noexcept { xdg_activation_v1_destroy
 
 void destroy(xdg_activation_token_v1* token) noexcept { xdg_activation_token_v1_destroy(token); }
 
+void destroy(wl_data_device_manager* manager) noexcept { wl_data_device_manager_destroy(manager); }
+
+void destroy(wl_data_device* device) noexcept {
+    if (wl_data_device_get_version(device) >= WL_DATA_DEVICE_RELEASE_SINCE_VERSION) {
+        wl_data_device_release(device);
+    } else {
+        wl_data_device_destroy(device);
+    }
+}
+
+void destroy(wl_data_source* source) noexcept { wl_data_source_destroy(source); }
+
 void destroy(wl_pointer* pointer) noexcept {
     if (wl_pointer_get_version(pointer) >= WL_POINTER_RELEASE_SINCE_VERSION) {
         wl_pointer_release(pointer);

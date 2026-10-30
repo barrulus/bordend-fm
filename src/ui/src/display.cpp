@@ -20,6 +20,7 @@ constexpr std::uint32_t kFractionalScaleManagerVersion = 1;
 constexpr std::uint32_t kSeatVersion = 8;  // wl_pointer.axis_value120 (high-resolution wheels)
 constexpr std::uint32_t kCursorShapeManagerVersion = 1;
 constexpr std::uint32_t kActivationVersion = 1;
+constexpr std::uint32_t kDataDeviceManagerVersion = 3;  // wl_data_device.release
 
 template <class T>
 T* bind(wl_registry* registry, std::uint32_t name, const wl_interface& interface,
@@ -119,6 +120,9 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
     } else if (iface == xdg_activation_v1_interface.name) {
         self.activation_.reset(bind<xdg_activation_v1>(registry, name, xdg_activation_v1_interface,
                                                        version, kActivationVersion));
+    } else if (iface == wl_data_device_manager_interface.name) {
+        self.data_device_manager_.reset(bind<wl_data_device_manager>(
+            registry, name, wl_data_device_manager_interface, version, kDataDeviceManagerVersion));
     } else if (iface == wp_viewporter_interface.name) {
         self.viewporter_.reset(bind<wp_viewporter>(registry, name, wp_viewporter_interface, version,
                                                    kViewporterVersion));

@@ -32,6 +32,7 @@
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/activation.hpp"
+#include "nordend/ui/clipboard.hpp"
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/icons.hpp"
@@ -82,6 +83,9 @@ private:
         sigaddset(&mask, SIGINT);
         sigaddset(&mask, SIGTERM);
         sigaddset(&mask, SIGUSR1);
+        // Writing to a program that stopped reading the clipboard: EPIPE, not death. Started
+        // applications get an empty mask (Launcher).
+        sigaddset(&mask, SIGPIPE);
         sigprocmask(SIG_BLOCK, &mask, nullptr);
         return mask;
     }
@@ -226,6 +230,9 @@ int main(int argc, char** argv) {
             if (read(signals.fd(), &info, sizeof info) != sizeof info) {
                 return;
             }
+            if (info.ssi_signo == SIGPIPE) {
+                return;  // a clipboard reader went away: the write already failed with EPIPE
+            }
             if (info.ssi_signo == SIGUSR1) {
                 // A development report (ROADMAP 6.3b): pkill -USR1 nordend.
                 for (const std::string& line : core::describe(core::read_memory_report())) {
@@ -266,6 +273,7 @@ int main(int argc, char** argv) {
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
         ui::Activation activation{display, loop};
+        ui::Clipboard clipboard{display, loop};  // before the browser that uses it
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
@@ -311,6 +319,23 @@ int main(int argc, char** argv) {
                     std::string app_id) {
                     opener->open(directory, std::move(files), std::move(app_id));
                 });
+            if (clipboard.available()) {
+                columns->set_system_clipboard({
+                    .offer =
+                        [&](std::vector<views::SystemClipboard::Format> formats) {
+                            clipboard.offer(std::move(formats), seat.input_serial());
+                        },
+                    .clear = [&] { clipboard.clear(seat.input_serial()); },
+                    .owned = [&] { return clipboard.owned(); },
+                    .generation = [&] { return clipboard.generation(); },
+                    .types = [&] { return clipboard.types(); },
+                    .read =
+                        [&](const std::string& type, views::SystemClipboard::Done done) {
+                            clipboard.read(type, std::move(done));
+                        },
+                });
+                clipboard.set_lost_handler([&] { columns->clipboard_lost(); });
+            }
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }

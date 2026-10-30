@@ -38,6 +38,9 @@ void destroy(wp_fractional_scale_manager_v1* manager) noexcept;
 void destroy(wp_fractional_scale_v1* scale) noexcept;
 void destroy(xdg_activation_v1* activation) noexcept;
 void destroy(xdg_activation_token_v1* token) noexcept;
+void destroy(wl_data_device_manager* manager) noexcept;
+void destroy(wl_data_device* device) noexcept;
+void destroy(wl_data_source* source) noexcept;
 
 struct WlDeleter {
     template <class T>

@@ -82,7 +82,8 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 - **Rename in place** (F2): the name becomes a field where it is, in all three views, with the
   name selected but not its extension. Typing works with accents and compose. Enter keeps the
   name, Escape gives up, and a click elsewhere keeps it. The usual editing keys work, including
-  words with Ctrl+arrows and selection with Shift.
+  words with Ctrl+arrows and selection with Shift; Ctrl+V pastes the clipboard's text (its first
+  line).
 - **New folder** (Ctrl+Shift+N): "New Folder" (or "New Folder 2"...), ready to be named.
 - **Never overwrites:** renames use `RENAME_NOREPLACE`, so an existing file is never replaced,
   even one that appears in the meantime. A taken or invalid name is refused with a message and
@@ -107,6 +108,18 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
     the rest; pasting into the same folder keeps both by itself;
   - refused before anything moves: a folder into itself, or more than the free space.
+- **The system clipboard**, with other programs:
+  - files copied or cut in Nordend paste in other programs: a file manager, Firefox (an upload, a
+    message), a terminal or an editor (their paths); Nordend offers them as
+    `x-special/gnome-copied-files`, `text/uri-list` (each file URI as GLib writes it) and text,
+    and says "cut" the GNOME and the KDE way;
+  - files copied or cut in another program paste in Nordend with Ctrl+V: copied, or moved when
+    the other program cut them, through the same engine (sidecars, conflicts, progress); only
+    files on this computer are taken;
+  - read and written through pipes the window's loop watches: a program that does not answer
+    never freezes Nordend (it is given up after 3 s);
+  - when another program copies something, the files Nordend cut stop fading: Ctrl+V pastes what
+    is on the clipboard now. A cut pasted once empties the clipboard.
 - **The Trash** in the sidebar (its icon full or empty):
   - every trash as one folder: the home's and each disk's (`.Trash-1000` on a data disk), by
     original name; the same name trashed twice shows as "a.txt" and "a.2.txt";

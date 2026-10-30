@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "nordend/fs/entry.hpp"
 #include "nordend/theme/palette.hpp"
@@ -49,6 +50,9 @@ public:
     // A press inside the field moves the caret (true); elsewhere it confirms and returns false,
     // so the press goes on to what is under it.
     bool pointer(const ui::PointerEvent& event);
+
+    // Text pasted into the field (its first line, control characters left out).
+    void paste(std::string_view text);
 
     void confirm();
     void cancel();
