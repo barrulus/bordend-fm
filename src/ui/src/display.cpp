@@ -17,6 +17,7 @@ constexpr std::uint32_t kWmBaseVersion = 5;      // xdg_toplevel.wm_capabilities
 constexpr std::uint32_t kDecorationManagerVersion = 1;
 constexpr std::uint32_t kViewporterVersion = 1;
 constexpr std::uint32_t kFractionalScaleManagerVersion = 1;
+constexpr std::uint32_t kShmVersion = 1;
 constexpr std::uint32_t kSeatVersion = 8;  // wl_pointer.axis_value120 (high-resolution wheels)
 constexpr std::uint32_t kCursorShapeManagerVersion = 1;
 constexpr std::uint32_t kActivationVersion = 1;
@@ -110,6 +111,8 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
         self.decoration_manager_.reset(
             bind<zxdg_decoration_manager_v1>(registry, name, zxdg_decoration_manager_v1_interface,
                                              version, kDecorationManagerVersion));
+    } else if (iface == wl_shm_interface.name) {
+        self.shm_.reset(bind<wl_shm>(registry, name, wl_shm_interface, version, kShmVersion));
     } else if (iface == wl_seat_interface.name && !self.seat_) {
         // One seat is all a desktop file manager needs.
         self.seat_.reset(bind<wl_seat>(registry, name, wl_seat_interface, version, kSeatVersion));

@@ -14,6 +14,8 @@
 
 namespace nordend::ui {
 
+class XcursorFallback;
+
 struct Modifiers {
     bool ctrl{false};
     bool shift{false};
@@ -80,7 +82,9 @@ using XkbPtr = std::unique_ptr<T, XkbDeleter<T, Unref>>;
 //
 // Pointer: clicks are counted (double, triple click) when presses of the same button land within
 // the double-click time and a few pixels of each other; scroll axes are gathered per wl_pointer
-// frame. The cursor shape is set through cursor-shape-v1 when the compositor offers it.
+// frame. The cursor shape is set through cursor-shape-v1 when the compositor offers it, else drawn
+// from the xcursor theme (XcursorFallback); NORDEND_FORCE_XCURSOR=1 forces the latter, to try it
+// on a compositor that has cursor-shape-v1.
 //
 // Must not outlive the Display. Not copyable or movable: listeners keep a pointer to it.
 class Seat {
@@ -109,6 +113,9 @@ public:
 
     // Cursor over Nordend surfaces; applied at once if the pointer is inside one.
     void set_cursor(CursorShape shape);
+
+    // The window's scale, for the xcursor fallback's images (cursor-shape-v1 needs none).
+    void set_cursor_scale(double scale);
 
     // Hooks key repeat into the loop.
     void attach(core::EventLoop& loop);
@@ -207,6 +214,8 @@ private:
     LastPress last_press_;
     std::uint32_t multi_click_ms_{400};
     float multi_click_slop_{4.0F};
+    double cursor_scale_{1.0};
+    std::unique_ptr<XcursorFallback> xcursor_;  // without cursor-shape-v1
 
     // Reverse order = teardown order: cursor device before the pointer it belongs to.
     WlPtr<wl_keyboard> keyboard_;  // the wl_seat itself belongs to the Display

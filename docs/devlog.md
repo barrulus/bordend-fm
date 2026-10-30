@@ -4,6 +4,49 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — A cursor of its own without cursor-shape-v1 (ROADMAP 7.4, second part)
+
+**Done**
+- `ui::XcursorFallback` (`ui/xcursor.hpp`): when the compositor has no cursor-shape-v1 (GNOME,
+  weston), the pointer's image comes from the xcursor theme through `libwayland-cursor`:
+  `XCURSOR_THEME` (its "default" without it), `XCURSOR_SIZE` (24 unless a number from 1 to 256),
+  loaded at the window's scale rounded up and reloaded when it changes, on a surface of
+  Nordend's own set with `wl_pointer.set_cursor` on every enter and every shape change.
+- Size: with viewporter the surface gets the image's logical size whatever size the theme has
+  (Adwaita has no 72 px cursor for 24 px at scale 3); without it the buffer scale is used only
+  when it divides the image, else the image shows at scale 1 (too large, but no protocol error).
+- Names: each shape tries the cursor spec's CSS name first, then the X11 names older themes use
+  (`pointer`, `hand2`, `hand1`...). Animated cursors (`wait`, `progress`) show their first frame.
+- `Display` binds `wl_shm`; `Seat` picks cursor-shape-v1 or the fallback when the pointer
+  appears, and takes the window's scale from main's draw handler (`set_cursor_scale`).
+  `NORDEND_FORCE_XCURSOR=1` uses the fallback even with cursor-shape-v1, to try it on Umbriel.
+- Links `wayland-cursor` (part of `wayland-devel`, same package as `wayland-client`).
+- Tests (245): every shape has a CSS name then an X11 one, `XCURSOR_SIZE` parsing, every
+  shape's first name present in the installed Adwaita theme.
+
+**Measured**
+- Binary 3.32 MB, 2.76 MB stripped (+15 KB); 21 direct libraries (+ `libwayland-cursor`).
+- Headless weston (`--backend=headless`) offers no `wl_seat`: no pointer, so the fallback cannot
+  be exercised there. Verified by the build, the tests and, for the author, on Umbriel with
+  `NORDEND_FORCE_XCURSOR=1`.
+
+- Under headless weston the ASan build reports a 128-byte leak in an unloaded module (no
+  symbols; most likely Mesa's software driver, as EGL finds no device there). The commit before
+  this step, built the same way, leaks the same 128 bytes: not ours, not on Umbriel.
+
+**Tested by the author** (2026-10-30, Umbriel with `NORDEND_FORCE_XCURSOR=1`): Adwaita at 24 px
+and scale 1 in the log, the arrow, the double arrow on the column dividers, 48 px with
+`XCURSOR_SIZE=48`, and the normal path unchanged without the variable. The test plan also asked
+for a hand over buttons and a text cursor while renaming: a slip of the copilot's, Nordend never
+asks for those shapes (only `standard` and `ew_resize`, with cursor-shape-v1 too).
+
+**Open**
+- The hand and text shapes exist in `CursorShape` but no view uses them (to propose).
+- The busy cursors are not animated (first frame only).
+- On integer scale without viewporter a theme without the exact size shows a larger cursor.
+
+---
+
 ## 2026-10-30 — Nordend's own icon font (ROADMAP 7.4, first part)
 
 The author approved vendoring a subset of the official Tabler Icons font and Arch as the VM

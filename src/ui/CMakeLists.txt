@@ -79,7 +79,8 @@ add_library(nordend_ui
     src/text_field.cpp
     src/texture.cpp
     src/window.cpp
-    src/wl_ptr.cpp)
+    src/wl_ptr.cpp
+    src/xcursor.cpp)
 add_library(nordend::ui ALIAS nordend_ui)
 
 target_include_directories(nordend_ui PUBLIC include PRIVATE src)

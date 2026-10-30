@@ -47,7 +47,7 @@ endif()
 # wayland-scanner and wayland-protocols are looked up by src/ui.
 # ---------------------------------------------------------------------------
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client wayland-egl)
+pkg_check_modules(WAYLAND REQUIRED IMPORTED_TARGET wayland-client wayland-egl wayland-cursor)
 pkg_check_modules(EGL REQUIRED IMPORTED_TARGET egl)
 pkg_check_modules(GLESV2 REQUIRED IMPORTED_TARGET glesv2)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)

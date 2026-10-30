@@ -246,7 +246,9 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 - Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
   monospace font come from `config.toml`.
 - Pointer shapes from the compositor's cursor theme (cursor-shape-v1), with a resize arrow on
-  every draggable edge.
+  every draggable edge. Where the compositor has no cursor-shape-v1 (GNOME, weston), Nordend
+  draws them itself from the xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, sharp at any
+  scale); `NORDEND_FORCE_XCURSOR=1` does so on any compositor.
 
 ## Fast, and measured
 

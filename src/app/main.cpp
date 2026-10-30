@@ -471,6 +471,7 @@ int main(int argc, char** argv) {
         });
 
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
+            seat.set_cursor_scale(window.scale());  // the xcursor fallback's images follow it
             const theme::Palette& palette = theme.palette();
             if (columns) {
                 columns->draw(renderer, bounds, palette, icons, views::Browser::Clock::now());

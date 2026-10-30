@@ -33,7 +33,7 @@ Allineato a Noctalia per le librerie di sistema; il codice di Nordend lo scrivia
 |---|---|---|
 | Linguaggio | C++20, GCC 14 | |
 | Build | CMake | come `quark++` |
-| Finestra | `wayland-client`, `xdg-shell` | niente Qt/GTK/SDL |
+| Finestra | `wayland-client`, `xdg-shell`; `wayland-cursor` per il cursore di riserva senza cursor-shape-v1 | niente Qt/GTK/SDL |
 | Decorazioni | server-side (`xdg-decoration`, disegnate da Umbriel) | **deciso** |
 | Input | `xkbcommon` | |
 | Rendering | EGL + OpenGL ES 3.0 (libGLESv2) | ES 3.0 per instancing e texture R8 (atlas glifi) |

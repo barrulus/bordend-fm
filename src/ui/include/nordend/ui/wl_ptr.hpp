@@ -19,6 +19,7 @@ namespace nordend::ui {
 void destroy(wl_display* display) noexcept;
 void destroy(wl_registry* registry) noexcept;
 void destroy(wl_compositor* compositor) noexcept;
+void destroy(wl_shm* shm) noexcept;
 void destroy(wl_surface* surface) noexcept;
 void destroy(wl_callback* callback) noexcept;
 void destroy(wl_seat* seat) noexcept;

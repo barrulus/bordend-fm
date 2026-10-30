@@ -40,6 +40,9 @@ public:
         return decoration_manager_.get();
     }
 
+    // Shared memory buffers: the fallback cursor's images. Every compositor offers it.
+    [[nodiscard]] wl_shm* shm() const noexcept { return shm_.get(); }
+
     // Optional: nullptr on a compositor without input devices.
     [[nodiscard]] wl_seat* seat() const noexcept { return seat_.get(); }
 
@@ -73,6 +76,7 @@ private:
     WlPtr<wl_display> display_;
     WlPtr<wl_registry> registry_;
     WlPtr<wl_compositor> compositor_;
+    WlPtr<wl_shm> shm_;
     WlPtr<xdg_wm_base> wm_base_;
     WlPtr<zxdg_decoration_manager_v1> decoration_manager_;
     WlPtr<wp_viewporter> viewporter_;

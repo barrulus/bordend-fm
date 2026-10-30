@@ -109,12 +109,16 @@ all'autore quando ci si arriva.
     2026-10-30). Scritto il 2026-10-30: compilato dentro il programma (13 KB), quindi c'è sempre
     e il font di Noctalia non serve più nemmeno come riserva; provato dall'autore il 2026-10-30;
   - cursore di riserva senza cursor-shape-v1: `libwayland-cursor` e il tema xcursor
-    (`XCURSOR_THEME`/`XCURSOR_SIZE`, altrimenti "default" 24), alla scala giusta;
+    (`XCURSOR_THEME`/`XCURSOR_SIZE`, altrimenti "default" 24), alla scala giusta. Scritto il
+    2026-10-30; `NORDEND_FORCE_XCURSOR=1` lo usa anche su Umbriel, per provarlo; provato dall'autore
+    il 2026-10-30;
   - decorazioni client-side quando il compositor non le disegna (senza xdg-decoration o se chiede
     client-side): titolo al centro, riduci/ingrandisci/chiudi a destra, trascinare sposta, doppio
     clic ingrandisce, i bordi ridimensionano; colori della palette; su Umbriel nulla cambia;
   - sviluppo verificato su weston headless (niente xdg-decoration né cursor-shape), senza finestre
-    sullo schermo dell'autore;
+    sullo schermo dell'autore; weston headless non ha un `wl_seat` (niente puntatore né
+    tastiera): lì si vedono la barra e le icone negli screenshot, il cursore e i clic si provano
+    su Umbriel con le variabili che forzano il percorso di riserva, e nella VM;
   - prove dell'autore: Umbriel, più una VM Arch con tre sessioni (GNOME, Plasma, niri) e SSH per
     compilare e lanciare i test dentro (Arch confermata dall'autore il 2026-10-30; Ubuntu già
     tolto, la VM da preparare prima di queste prove); checklist e risultati in

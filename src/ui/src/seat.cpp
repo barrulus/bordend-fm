@@ -7,15 +7,18 @@
 #include <cstdlib>
 #include <cstring>
 #include <linux/input-event-codes.h>
+#include <memory>
 #include <poll.h>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <sys/mman.h>
 #include <sys/timerfd.h>
 #include <unistd.h>
 #include <utility>
 
 #include "nordend/core/log.hpp"
+#include "nordend/ui/xcursor.hpp"
 
 namespace nordend::ui {
 namespace {
@@ -81,6 +84,12 @@ const char* compose_locale() {
     return "C";
 }
 
+// NORDEND_FORCE_XCURSOR set and not "0": the xcursor fallback even with cursor-shape-v1.
+bool xcursor_forced() {
+    const char* value = std::getenv("NORDEND_FORCE_XCURSOR");  // NOLINT(concurrency-mt-unsafe)
+    return value != nullptr && *value != '\0' && std::string_view{value} != "0";
+}
+
 itimerspec milliseconds_to_timer(std::int32_t first, std::int32_t interval) {
     const auto to_timespec = [](std::int32_t ms) {
         return timespec{.tv_sec = ms / 1000, .tv_nsec = static_cast<long>(ms % 1000) * 1'000'000L};
@@ -122,6 +131,7 @@ Seat::Seat(Display& display)
 }
 
 Seat::~Seat() {
+    xcursor_.reset();
     cursor_device_.reset();
     pointer_.reset();
     keyboard_.reset();
@@ -172,11 +182,19 @@ void Seat::on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities
         };
         self.pointer_.reset(wl_seat_get_pointer(seat));
         wl_pointer_add_listener(self.pointer_.get(), &kPointerListener, &self);
-        if (auto* manager = self.display_.cursor_shape_manager()) {
+        auto* manager = self.display_.cursor_shape_manager();
+        if (manager != nullptr && !xcursor_forced()) {
             self.cursor_device_.reset(
                 wp_cursor_shape_manager_v1_get_pointer(manager, self.pointer_.get()));
+        } else if (self.display_.shm() != nullptr) {
+            if (!self.xcursor_) {
+                log::info("cursor: {}, drawn from the xcursor theme",
+                          manager != nullptr ? "NORDEND_FORCE_XCURSOR" : "no cursor-shape-v1");
+                self.xcursor_ = std::make_unique<XcursorFallback>(
+                    self.display_.compositor(), self.display_.shm(), self.display_.viewporter());
+            }
         } else {
-            log::warn("compositor offers no cursor-shape-v1: cursor shapes unavailable");
+            log::warn("compositor offers neither cursor-shape-v1 nor wl_shm: no cursor shapes");
         }
     } else if (!has_pointer && self.pointer_) {
         self.cursor_device_.reset();
@@ -193,10 +211,25 @@ void Seat::set_cursor(CursorShape shape) {
     apply_cursor();
 }
 
+void Seat::set_cursor_scale(double scale) {
+    if (scale == cursor_scale_) {
+        return;
+    }
+    cursor_scale_ = scale;
+    if (xcursor_) {
+        apply_cursor();
+    }
+}
+
 void Seat::apply_cursor() {
-    if (cursor_device_ && pointer_inside_) {
+    if (!pointer_inside_) {
+        return;
+    }
+    if (cursor_device_) {
         wp_cursor_shape_device_v1_set_shape(cursor_device_.get(), pointer_enter_serial_,
                                             to_wp_shape(cursor_));
+    } else if (xcursor_ && pointer_) {
+        xcursor_->show(pointer_.get(), pointer_enter_serial_, cursor_, cursor_scale_);
     }
 }
 

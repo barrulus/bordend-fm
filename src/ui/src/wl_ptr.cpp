@@ -8,6 +8,8 @@ void destroy(wl_registry* registry) noexcept { wl_registry_destroy(registry); }
 
 void destroy(wl_compositor* compositor) noexcept { wl_compositor_destroy(compositor); }
 
+void destroy(wl_shm* shm) noexcept { wl_shm_destroy(shm); }
+
 void destroy(wl_surface* surface) noexcept { wl_surface_destroy(surface); }
 
 void destroy(wl_callback* callback) noexcept { wl_callback_destroy(callback); }
