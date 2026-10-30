@@ -59,8 +59,10 @@ It is made for people who browse a lot of files, photos above all:
 > opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
 > the trash (restore and permanent delete included), undo, copy and paste and drag and drop
 > with other programs, back and forward, hidden files, favourites in the sidebar and removable
-> disks. The MVP's last steps come next: other compositors and desktops, settings. There are no packages yet: see [Building](#building). What happens step by step is in
-> the [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
+> disks. Nordend now carries its own icons, title bar and cursor for desktops that do not
+> provide them; trying it on GNOME, Plasma and niri comes next, then settings. There are no
+> packages yet: see [Building](#building). What happens step by step is in the
+> [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
 ## At a glance
 
@@ -197,6 +199,10 @@ status bar cost nothing measurable.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
   camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
 - **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly.
+- **Not only on Noctalia.** The icons are compiled in; where the compositor draws no title bar
+  (GNOME, weston) Nordend draws its own, and where it offers no cursor shapes Nordend draws them
+  from your cursor theme. What each desktop gives is tracked in
+  [compatibility](docs/compatibility.md).
 - **Sharp at any scale.** Fractional scaling (1, 1.25, 1.5, 2...), text shaped by HarfBuzz
   with font fallback for accents, emoji and CJK.
 
