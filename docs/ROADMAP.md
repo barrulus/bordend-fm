@@ -105,8 +105,9 @@ all'autore quando ci si arriva.
   Fuori da Noctalia e Umbriel. Proposta del 2026-10-30, discussa con l'autore:
   - font di icone di Nordend: un sottoinsieme del font ufficiale Tabler Icons (MIT) con le sole
     icone usate, generato da `scripts/make-icon-font.sh` (fonttools) dalla release ufficiale, in
-    `third_party/tabler-icons/` con versione e sha256 in `THIRD_PARTY.md`; usato per primo
-    (**OK dell'autore da confermare**: codice altrui);
+    `third_party/tabler-icons/` con versione e sha256 in `THIRD_PARTY.md` (OK dell'autore il
+    2026-10-30). Scritto il 2026-10-30: compilato dentro il programma (13 KB), quindi c'è sempre
+    e il font di Noctalia non serve più nemmeno come riserva; provato dall'autore il 2026-10-30;
   - cursore di riserva senza cursor-shape-v1: `libwayland-cursor` e il tema xcursor
     (`XCURSOR_THEME`/`XCURSOR_SIZE`, altrimenti "default" 24), alla scala giusta;
   - decorazioni client-side quando il compositor non le disegna (senza xdg-decoration o se chiede
@@ -115,8 +116,9 @@ all'autore quando ci si arriva.
   - sviluppo verificato su weston headless (niente xdg-decoration né cursor-shape), senza finestre
     sullo schermo dell'autore;
   - prove dell'autore: Umbriel, più una VM Arch con tre sessioni (GNOME, Plasma, niri) e SSH per
-    compilare e lanciare i test dentro (**scelta di Arch da confermare**; l'autore toglie Ubuntu e
-    prepara la VM prima di queste prove); checklist e risultati in `docs/compatibility.md`.
+    compilare e lanciare i test dentro (Arch confermata dall'autore il 2026-10-30; Ubuntu già
+    tolto, la VM da preparare prima di queste prove); checklist e risultati in
+    `docs/compatibility.md`.
   Fatto quando: su Umbriel, GNOME, Plasma e niri Nordend si avvia con le icone, la finestra si
   sposta, si ridimensiona e si chiude, il cursore si vede e cambia forma, clipboard e drag and drop
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
@@ -129,7 +131,10 @@ all'autore quando ci si arriva.
   Noctalia, Umbriel, GPU).
 
 - [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
-- [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi
+- [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:
+  scaricare ed elaborare foto, spostare documenti). Con un registro della memoria per tutta la
+  settimana (chiesto dall'autore il 2026-10-30): ora e RSS di `nordend` ogni 10 minuti in un
+  file, letti insieme alla fine; se la curva sale e non scende, il report di `pkill -USR1`.
 - [ ] **7.8 Rilascio 0.1.0** (con il pacchetto xbps-src)
 
 ---

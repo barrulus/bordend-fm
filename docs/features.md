@@ -9,7 +9,7 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 - A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
   boxes, text, icons and images. **No GTK, no Qt, no GLib.**
 - Part of the Noctalia family (Noctalia Shell, the Umbriel compositor): it wears the Noctalia
-  theme and its icons, and Umbriel draws its title bar.
+  theme and the same line icons, and Umbriel draws its title bar.
 - One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
   nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
 
@@ -239,8 +239,9 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 
 ## Looks
 
-- Noctalia's colors and Noctalia's own line icons (Tabler), tinted by the theme; camera raw
-  files and darktable sidecars have their own icons.
+- Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
+  raw files and darktable sidecars have their own icons. The icons are compiled into the
+  program (a 13 KB subset of the official Tabler font), so they show on any desktop.
 - Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
 - Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
   monospace font come from `config.toml`.

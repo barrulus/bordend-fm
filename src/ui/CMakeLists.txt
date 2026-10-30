@@ -44,9 +44,28 @@ target_include_directories(nordend_wayland_protocols SYSTEM PUBLIC ${NORDEND_PRO
 target_link_libraries(nordend_wayland_protocols PUBLIC PkgConfig::WAYLAND)
 
 # ---------------------------------------------------------------------------
+# The icon fonts (third_party/tabler-icons, ROADMAP 7.4), compiled into the program.
+# ---------------------------------------------------------------------------
+set(NORDEND_EMBEDDED_SOURCES "")
+function(nordend_embed input symbol)
+    set(output ${CMAKE_CURRENT_BINARY_DIR}/embedded/${symbol}.cpp)
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${CMAKE_COMMAND} -DINPUT=${input} -DOUTPUT=${output} -DSYMBOL=${symbol}
+                -P ${PROJECT_SOURCE_DIR}/cmake/embed.cmake
+        DEPENDS ${input} ${PROJECT_SOURCE_DIR}/cmake/embed.cmake VERBATIM)
+    set(NORDEND_EMBEDDED_SOURCES ${NORDEND_EMBEDDED_SOURCES} ${output} PARENT_SCOPE)
+endfunction()
+
+nordend_embed(${PROJECT_SOURCE_DIR}/third_party/tabler-icons/tabler-icons.ttf tabler_icons)
+nordend_embed(${PROJECT_SOURCE_DIR}/third_party/tabler-icons/tabler-icons-filled.ttf
+              tabler_icons_filled)
+
+# ---------------------------------------------------------------------------
 # ui: Wayland connection, windows and (from ROADMAP 1.2) rendering.
 # ---------------------------------------------------------------------------
 add_library(nordend_ui
+    ${NORDEND_EMBEDDED_SOURCES}
     src/activation.cpp
     src/clipboard.cpp
     src/display.cpp

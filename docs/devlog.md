@@ -4,6 +4,56 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Nordend's own icon font (ROADMAP 7.4, first part)
+
+The author approved vendoring a subset of the official Tabler Icons font and Arch as the VM
+distro for the compatibility tests.
+
+**Done**
+- `third_party/tabler-icons/`: the official webfont (npm `@tabler/icons-webfont` 3.50.0, the
+  same files as the GitHub release `v3.50.0`, which ships no font asset) cut down by
+  `scripts/make-icon-font.sh` with `pyftsubset` to the glyphs in `icons.txt` (47 outline) and
+  `icons-filled.txt` (1 filled: `trash`), glyph names kept, layout features dropped; the
+  upstream `LICENSE` beside them. The script checks the tarball's sha256 and gives the same
+  bytes on every run (checked twice).
+- `cmake/embed.cmake` turns each font into a C++ array at build time (`nordend::embedded`), so
+  the fonts are inside the program: no install path, no lookup, and dev runs, tests and the
+  snapshot tool all use the same font.
+- `FontSystem::add_font_data` loads a font from memory (`FT_New_Memory_Face`, a read-only
+  harfbuzz blob); `add_font_file` goes through it.
+- `IconSet` uses the two embedded fonts; a name ending in `-filled` is looked up in the filled
+  font without the suffix (upstream calls it `trash`, Noctalia's merged font `trash-filled`). The
+  XDG search and Noctalia's `noctalia-tabler.ttf` are gone: the embedded font is always there,
+  so a fallback would only hide a missing name. An unknown name still draws `file` and is now
+  logged once.
+- Also kept for the title bar to come: `minus`, `square`, `squares`, `x`.
+- Tests (242): the icon tests no longer skip without Noctalia; every name of the MIME table, the
+  places and the views' own (sidebar, breadcrumb, status bar, info pane, title bar) is in the
+  font, `trash-filled` too; `folder-filled` and `-filled` are not.
+
+**Measured**
+- Font: 13 432 bytes (outline) + 1 072 (filled), against Noctalia's 2 413 312.
+- Binary: 3.30 MB, 2.75 MB stripped (+5 KB unstripped: the README's figures do not change).
+- Snapshots of the columns, grid and details views (offscreen, also under ASan): the same icons
+  as before, no warning about a missing name.
+
+**Decisions**
+- Embedded rather than installed under `share/nordend/fonts`: 14 KB is nothing, and the
+  program then needs no data files at all.
+- No fallback to Noctalia's font, as explained above (the plan said "ours first, Noctalia's
+  as fallback"; the author is told).
+
+**Tested by the author** (2026-10-30, on Umbriel): the icons everywhere as before, the full
+Trash icon, `loaded font tabler-icons.ttf` in the log, no `no icon named`, and Noctalia's font
+not open among the process's file descriptors.
+
+**Open**
+- A new icon means: add its name to `icons.txt`, run `scripts/make-icon-font.sh`, update the
+  sha256 in `THIRD_PARTY.md`.
+- Next in 7.4: the fallback cursor, then client-side decorations.
+
+---
+
 ## 2026-10-30 — Removable disks through udisks2 (ROADMAP 7.3)
 
 "Fatto quando" proposed and approved by the author the same day, with sdbus-c++ 2.3 as the

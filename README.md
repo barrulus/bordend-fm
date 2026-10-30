@@ -253,9 +253,9 @@ cmake --build build
 ```
 
 Needs a Wayland compositor with xdg-shell (developed on
-[Umbriel](https://github.com/noctalia-dev)). For now the icons come from Noctalia's Tabler icon
-font (`noctalia-tabler.ttf`): without Noctalia installed Nordend works, but shows no icons; a
-font of its own is the next step on the [roadmap](docs/ROADMAP.md). `NORDEND_LOG=debug` (or
+[Umbriel](https://github.com/noctalia-dev)). The icons (a 13 KB subset of
+[Tabler Icons](https://tabler.io/icons)) are compiled into the program, so nothing else needs
+to be installed for them. `NORDEND_LOG=debug` (or
 `trace`) shows more detail; `nordend --check-config` checks `~/.config/nordend/config.toml`
 ([example](docs/config.example.toml)).
 

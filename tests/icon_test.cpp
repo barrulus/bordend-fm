@@ -29,14 +29,20 @@ std::string_view icon_of(const MimeDatabase& db, std::string name) {
 TEST_CASE("icons: every name exists in the icon font") {
     nordend::ui::FontSystem fonts;
     nordend::ui::IconSet icons{fonts};
-    if (!icons.available()) {
-        MESSAGE("no Tabler icon font on this system: skipped");
-        return;
-    }
+    REQUIRE(icons.available());  // compiled into the program
     for (const std::string_view name : nordend::fs::icon_names_in_use()) {
         CHECK_MESSAGE(icons.has(name), name);
     }
+    // The views' own: sidebar, breadcrumb, status bar, info pane, details header, title bar.
+    for (const std::string_view name :
+         {"player-eject", "chevron-right", "chevron-up", "chevron-down", "x", "layout-columns",
+          "layout-grid", "list-details", "help", "files", "home", "server", "trash", "trash-filled",
+          "usb", "database-off", "minus", "square", "squares"}) {
+        CHECK_MESSAGE(icons.has(name), name);
+    }
     CHECK_FALSE(icons.has("no-such-icon"));
+    CHECK_FALSE(icons.has("folder-filled"));  // only the filled icons listed are kept
+    CHECK_FALSE(icons.has("-filled"));
 }
 
 TEST_CASE("icons: kinds") {

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -81,6 +82,11 @@ public:
     // Loads a font file outside the fontconfig fallback chain (an icon font): text never falls
     // back to it. Returns its font id, or nullopt when the file cannot be loaded.
     std::optional<std::uint32_t> add_font_file(const std::string& path);
+
+    // The same for a font in memory (compiled into the program), named name in the log. data
+    // must outlive the FontSystem.
+    std::optional<std::uint32_t> add_font_data(std::span<const unsigned char> data,
+                                               const std::string& name);
 
     // Index of a named glyph (TrueType post table names, e.g. Tabler's "folder"); 0 if absent.
     [[nodiscard]] std::uint32_t glyph_by_name(std::uint32_t font, std::string_view name);

@@ -222,10 +222,7 @@ TEST_CASE("places: the watcher follows the bookmarks") {
 TEST_CASE("places: icons exist in the icon font") {
     nordend::ui::FontSystem fonts;
     nordend::ui::IconSet icons{fonts};
-    if (!icons.available()) {
-        MESSAGE("no Tabler icon font on this system: skipped");
-        return;
-    }
+    REQUIRE(icons.available());
     Home home;
     std::ofstream{home.sources.mountinfo} << "38 27 8:0 / /mnt/x rw - ext4 /dev/sda rw\n";
     std::ofstream{home.sources.config_home / "user-dirs.dirs"}

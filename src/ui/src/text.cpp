@@ -146,6 +146,9 @@ std::vector<std::uint8_t> downscale_rgba(std::span<const std::uint8_t> src, std:
 struct FontSystem::Impl {
     struct Font {
         std::string path;
+        // A font in memory: path is only its name. The {} keeps GCC's
+        // -Wmissing-field-initializers quiet.
+        std::span<const unsigned char> data{};  // NOLINT(readability-redundant-member-init)
         int index{0};
         FcCharSet* charset{nullptr};
         FT_Face face{nullptr};
@@ -264,13 +267,25 @@ struct FontSystem::Impl {
         if (font.loaded || font.failed) {
             return font.loaded;
         }
-        if (FT_New_Face(library, font.path.c_str(), font.index, &font.face) != 0) {
+        const bool in_memory = !font.data.empty();
+        const FT_Error error =
+            in_memory
+                ? FT_New_Memory_Face(library, font.data.data(),
+                                     static_cast<FT_Long>(font.data.size()), font.index, &font.face)
+                : FT_New_Face(library, font.path.c_str(), font.index, &font.face);
+        if (error != 0) {
             log::warn("cannot load font {}", font.path);
             font.failed = true;
             return false;
         }
         font.color = FT_HAS_COLOR(font.face);
-        hb_blob_t* blob = hb_blob_create_from_file(font.path.c_str());
+        // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast): harfbuzz takes char bytes
+        hb_blob_t* blob = in_memory
+                              ? hb_blob_create(reinterpret_cast<const char*>(font.data.data()),
+                                               static_cast<unsigned>(font.data.size()),
+                                               HB_MEMORY_MODE_READONLY, nullptr, nullptr)
+                              : hb_blob_create_from_file(font.path.c_str());
+        // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
         hb_face_t* face = hb_face_create(blob, static_cast<unsigned>(font.index));
         font.hb = hb_font_create(face);
         hb_face_destroy(face);
@@ -449,9 +464,14 @@ const TextLayout& FontSystem::layout(std::string_view utf8, float size, float sc
 }
 
 std::optional<std::uint32_t> FontSystem::add_font_file(const std::string& path) {
+    return add_font_data({}, path);
+}
+
+std::optional<std::uint32_t> FontSystem::add_font_data(std::span<const unsigned char> data,
+                                                       const std::string& name) {
     auto& fonts = impl_->fonts;
     // An empty charset keeps the font out of text fallback.
-    fonts.push_back({.path = path, .index = 0, .charset = FcCharSetCreate()});
+    fonts.push_back({.path = name, .data = data, .index = 0, .charset = FcCharSetCreate()});
     const std::size_t id = fonts.size() - 1;
     if (!impl_->load(id)) {
         FcCharSetDestroy(fonts.back().charset);
