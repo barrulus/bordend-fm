@@ -11,6 +11,7 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
+#include "nordend/fs/erase.hpp"
 #include "nordend/fs/operations.hpp"
 #include "nordend/fs/places.hpp"
 #include "nordend/fs/trash.hpp"
@@ -54,6 +55,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                      const std::string& to) { rename(folder, from, to); },
               [this](std::string problem) { show_message(std::move(problem), true); }},
       conflict_{redraw},
+      confirm_{redraw},
       menu_{std::move(redraw)},
       trash_model_{loop, pool, watcher, std::move(mime)},
       transfers_{loop,
@@ -79,6 +81,8 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     grid_.set_cut_marks(&cut_marks_);
     details_.set_cut_marks(&cut_marks_);
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
+    sidebar_.set_menu_handler(
+        [this](const fs::Place& place, float x, float y) { place_menu(place, x, y); });
     home_trash_ = fs::home_trash();
     trash_model_.set_change_handler([this](const fs::ModelChange& /*change*/) {
         const bool full = !trash_model_.listing().entries().empty();
@@ -272,6 +276,175 @@ void Browser::restore() {
     redraw_();
 }
 
+namespace {
+
+// What the card says will go: "With its darktable sidecar · 21.3 MB", "12 items · 412 MB · 1203
+// files and folders in all".
+std::string erase_detail(const fs::ErasePlan& plan, bool emptying) {
+    std::vector<std::string> parts;
+    const std::size_t items = plan.names.size();
+    if (emptying) {
+        parts.push_back(std::format("{} {}", items, items == 1 ? "item" : "items"));
+    } else if (plan.sidecars == 1) {
+        parts.emplace_back(items == 1 ? "With its darktable sidecar" : "With 1 darktable sidecar");
+    } else if (plan.sidecars > 1) {
+        parts.push_back(std::format("With {} darktable sidecars", plan.sidecars));
+    }
+    parts.push_back(format_size(plan.bytes));
+    if (plan.entries > plan.items.size()) {
+        parts.push_back(std::format("{} files and folders in all", plan.entries));
+    }
+    std::string text;
+    for (const std::string& part : parts) {
+        text += text.empty() ? part : " · " + part;
+    }
+    return text;
+}
+
+}  // namespace
+
+void Browser::erase() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    std::vector<std::string> names = targets(*folder);
+    if (names.empty()) {
+        return;
+    }
+    std::string title = names.size() == 1
+                            ? std::format("Delete “{}” permanently?", names.front())
+                            : std::format("Delete {} items permanently?", names.size());
+    fs::TransferRequest request{.kind = fs::TransferKind::erase,
+                                .source = folder->path(),
+                                .names = {},
+                                .destination = {},
+                                .force_copy = false};
+    if (folder->is_trash()) {
+        // Where the items are; the engine finds their sidecars itself.
+        for (const fs::Entry& entry : folder->entries()) {
+            if (std::ranges::find(names, entry.name) != names.end()) {
+                request.names.push_back(folder->path_of(entry).string());
+            }
+        }
+    } else {
+        request.names = names;
+    }
+    ask_erase(
+        std::move(request), std::move(title),
+        [folder, going = going_with_sidecars(*folder, names)] { cursor_after(*folder, going); });
+}
+
+void Browser::empty_trash() {
+    ask_erase({.kind = fs::TransferKind::empty_trash,
+               .source = fs::trash_path(),
+               .names = {},
+               .destination = {},
+               .force_copy = false},
+              "Empty the trash?", nullptr);
+}
+
+void Browser::ask_erase(fs::TransferRequest request, std::string title,
+                        std::function<void()> after) {
+    const std::uint64_t id = ++erase_ids_;
+    const bool emptying = request.kind == fs::TransferKind::empty_trash;
+    erase_ = PendingErase{.id = id, .request = request, .planned = false, .confirmed = false};
+    confirm_.open(std::move(title), "Adding up the size…", emptying ? "Empty" : "Delete",
+                  [this, id, after = std::move(after)](bool confirmed) {
+                      if (!erase_ || erase_->id != id) {
+                          return;
+                      }
+                      if (!confirmed) {
+                          erase_.reset();  // Escape: nothing goes
+                          return;
+                      }
+                      erase_->confirmed = true;
+                      if (after) {
+                          after();
+                      }
+                      if (erase_->planned) {
+                          submit_erase();
+                      }
+                  });
+    // The trashes are found on the worker: a disk that does not answer does not stop the loop.
+    std::optional<fs::TrashSources> sources;
+    if (emptying) {
+        sources = fs::trash_sources();
+    }
+    ++operations_;
+    pool_.submit(
+        core::Priority::visible,
+        [request = std::move(request), sources](const core::CancelToken& token) mutable {
+            if (sources) {
+                for (const fs::TrashDir& trash : fs::existing_trashes(*sources)) {
+                    request.names.push_back(trash.path.string());
+                }
+            }
+            fs::ErasePlan plan = fs::plan_erase(request, token);
+            return std::pair{std::move(request), std::move(plan)};
+        },
+        [this, alive = alive_, id,
+         emptying](const std::pair<fs::TransferRequest, fs::ErasePlan>& planned) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (!erase_ || erase_->id != id) {
+                return;  // given up, or another one asked since
+            }
+            const auto& [complete, plan] = planned;
+            if (plan.names.empty()) {
+                confirm_.close();
+                erase_.reset();
+                if (emptying) {
+                    show_message("The trash is empty already", false);
+                } else {
+                    show_message(plan.errors.empty() ? std::string{"Nothing to delete"}
+                                                     : plan.errors.front(),
+                                 !plan.errors.empty());
+                }
+                return;
+            }
+            erase_->request = complete;
+            erase_->planned = true;
+            confirm_.set_detail(erase_detail(plan, emptying));
+            if (erase_->confirmed) {
+                submit_erase();
+            }
+        });
+}
+
+void Browser::submit_erase() {
+    if (!erase_) {
+        return;
+    }
+    const bool emptying = erase_->request.kind == fs::TransferKind::empty_trash;
+    transfers_.submit(std::move(erase_->request));
+    erase_.reset();
+    if (!status_bar_.transfer()) {
+        status_bar_.set_transfer(TransferStatus{
+            .text = emptying ? "Getting ready to empty the trash…" : "Getting ready to delete…",
+            .fraction = -1.0F});
+    }
+    redraw_();
+}
+
+void Browser::place_menu(const fs::Place& place, float x, float y) {
+    if (!fs::is_trash(place.path)) {
+        return;  // only the trash has one, for now
+    }
+    ++menu_generation_;
+    menu_loaders_.clear();
+    MenuItem empty;
+    empty.id = "empty_trash";
+    empty.label = "Empty Trash…";
+    empty.enabled = trash_full_;
+    empty.action = [this] { empty_trash(); };
+    std::vector<MenuItem> items;
+    items.push_back(std::move(empty));
+    menu_.open(x, y, std::move(items), false);
+}
+
 void Browser::set_places(std::vector<fs::Place> places) {
     places_ = std::move(places);
     show_places();
@@ -342,6 +515,21 @@ void Browser::transfer_progress(const fs::TransferRequest& request,
                                                    : -1.0F;
         status.text = std::format("Moving {} of {} items to the trash", progress.files_done,
                                   progress.files_total);
+    } else if (request.kind == fs::TransferKind::erase ||
+               request.kind == fs::TransferKind::empty_trash) {
+        const bool emptying = request.kind == fs::TransferKind::empty_trash;
+        if (progress.preparing) {
+            status.text =
+                emptying ? "Getting ready to empty the trash…" : "Getting ready to delete…";
+        } else {
+            status.fraction = progress.files_total > 0
+                                  ? static_cast<float>(progress.files_done) /
+                                        static_cast<float>(progress.files_total)
+                                  : -1.0F;
+            status.text = std::format("{} {} of {} files and folders",
+                                      emptying ? "Emptying the trash:" : "Deleting",
+                                      progress.files_done, progress.files_total);
+        }
     } else if (progress.preparing) {
         status.text = std::format("Getting ready to {} {} {}…", copy ? "copy" : "move", items,
                                   items == 1 ? "item" : "items");
@@ -391,6 +579,10 @@ void Browser::transfer_done(const fs::TransferRequest& request, const fs::Transf
     }
     if (request.kind == fs::TransferKind::restore) {
         restore_done(result);
+        return;
+    }
+    if (request.kind == fs::TransferKind::erase || request.kind == fs::TransferKind::empty_trash) {
+        erase_done(request, result);
         return;
     }
     const bool copy = request.kind == fs::TransferKind::copy;
@@ -458,6 +650,25 @@ void Browser::restore_done(const fs::TransferResult& result) {
         show_message("Nothing restored: every name was skipped", false);
     } else {
         show_message(std::format("Restored {}", what), false);
+    }
+}
+
+void Browser::erase_done(const fs::TransferRequest& request, const fs::TransferResult& result) {
+    const std::size_t items = result.placed.size();
+    const std::string what =
+        items == 1 ? std::format("“{}”", result.placed.front()) : std::format("{} items", items);
+    const std::string size =
+        result.bytes_done > 0 ? std::format(" ({})", format_size(result.bytes_done)) : "";
+    if (result.cancelled) {
+        show_message(std::format("Stopped: {} deleted so far", what), false);
+    } else if (!result.errors.empty()) {
+        show_message(std::format("Deleted {}; {} could not be: {}", what, result.errors.size(),
+                                 result.errors.front()),
+                     true);
+    } else if (request.kind == fs::TransferKind::empty_trash) {
+        show_message(std::format("Emptied the trash: {} deleted{}", what, size), false);
+    } else {
+        show_message(std::format("Deleted {} permanently{}", what, size), false);
     }
 }
 
@@ -540,6 +751,13 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         back.label = "Restore";
         back.action = [this] { restore(); };
         items.push_back(std::move(back));
+        MenuItem gone;
+        gone.id = "erase";
+        gone.label = "Delete Permanently…";
+        gone.keys = keys_for(Command::trash);
+        gone.separator = true;
+        gone.action = [this] { erase(); };
+        items.push_back(std::move(gone));
         return items;
     }
     const auto add = [&items](std::string id, std::string label, std::string keys,
@@ -620,6 +838,7 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         "rename", "Rename…", keys_for(Command::rename), [this] { start_rename(); }, true,
         count == 1);
     add("trash", "Move to Trash", keys_for(Command::trash), [this] { trash(); });
+    add("erase", "Delete Permanently…", keys_for(Command::erase), [this] { erase(); });
     return items;
 }
 
@@ -704,7 +923,14 @@ void Browser::open_menu(float x, float y, bool keyboard) {
     if (!targets(*folder).empty()) {
         items = entry_menu(folder);
     } else if (!folder->is_trash()) {
-        items = folder_menu();  // nothing is made in the trash
+        items = folder_menu();
+    } else {
+        MenuItem empty;  // nothing is made in the trash
+        empty.id = "empty_trash";
+        empty.label = "Empty Trash…";
+        empty.enabled = !folder->entries().empty();
+        empty.action = [this] { empty_trash(); };
+        items.push_back(std::move(empty));
     }
     if (items.empty()) {
         menu_loaders_.clear();
@@ -890,6 +1116,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     shortcuts_.draw(renderer, bounds, palette);
     menu_.draw(renderer, bounds, palette);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
+    confirm_.draw(renderer, bounds, palette);
     if (thumbnails_) {
         thumbnails_->end_frame();
     }
@@ -946,6 +1173,10 @@ bool Browser::loading() const {
 void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
+        return;
+    }
+    if (confirm_.is_open()) {
+        confirm_.pointer(event);
         return;
     }
     if (menu_.is_open()) {
@@ -1092,6 +1323,9 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
     if (conflict_.is_open()) {
         return conflict_.key(event);  // a copy waits for the answer: every key is the card's
     }
+    if (confirm_.is_open()) {
+        return confirm_.key(event);
+    }
     if (menu_.is_open()) {
         return menu_.key(event);  // every key is the menu's meanwhile
     }
@@ -1155,7 +1389,7 @@ void Browser::run(Command command, Clock::time_point now) {
                 show_message("The trash only gives back: right click, Restore", false);
                 return;
             case Command::trash:
-                show_message("Already in the trash: right click, Restore puts it back", false);
+                erase();  // from the trash, only for good
                 return;
             default:
                 break;
@@ -1215,6 +1449,9 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::trash:
             trash();
+            break;
+        case Command::erase:
+            erase();
             break;
         case Command::context_menu:
             open_menu_from_keyboard();

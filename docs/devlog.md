@@ -4,6 +4,65 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Empty Trash and Delete Permanently (ROADMAP 6.4d)
+
+The half of 6.4c that deletes, as split with the author's OK.
+
+**Done**
+- `fs/erase` (`plan_erase`, `run_erase`; `TransferKind::erase` and `empty_trash`, run by the
+  transfer queue): deletes for good, what a folder holds first, through folder descriptors
+  (`openat` + `fstatat` + `unlinkat`), links never followed; a folder of the user's without
+  u+rwx is opened up first (it is going anyway). A regular file takes its darktable sidecars; a
+  photo that stays keeps them. Errors per entry ("Trip/x.txt: Permission denied"), cancellation
+  between entries. Progress counts entries: a first walk adds them up.
+- From the trash folder (`source` = `trash_path()`, names = paths in files/): each item's
+  `.trashinfo` goes once the item is gone, the sidecars are those Restore would take along
+  (`trashed_groups`, sharing `trashed_sidecars` with Restore), and `directorysizes` loses the
+  folder's line (`prune_directory_sizes`; the file goes when empty). Empty Trash: every
+  existing trash (home and disks, `existing_trashes`, found on the worker), everything in files/,
+  then every `.trashinfo` whose item is gone (orphans too), then `directorysizes`.
+- `views::ConfirmDialog`: a card like the conflict one: title, what goes, "Nothing goes to the
+  trash: this cannot be undone.", Cancel (Escape) and a red Delete / Empty (Enter); it takes every
+  key and click while open. It opens at once with "Adding up the size…"; `plan_erase` runs on a
+  worker and fills in "With its darktable sidecar · 21.0 MB · 55 files and folders in all". Enter
+  before the count arrives works: the delete is submitted when it does.
+- Shift+Delete (views and Quick Look; `Command::erase`), Delete in the trash folder; menus:
+  "Delete Permanently…" on entries (and on trashed ones, under Restore), "Empty Trash…" on the
+  trash's empty space and on a right click on Trash in the sidebar (`Sidebar::set_menu_handler`,
+  the sidebar's first menu; disabled while the trash is empty). Status bar: "Deleting 30 of 120
+  files and folders", then "Deleted “P1.ORF” permanently (21.0 MB)" / "Emptied the trash: 12
+  items deleted (412 MB)".
+- Shortcut scopes are 16 bits now (`kConfirm` was the ninth); the overlay lists Shift+Delete and
+  the card's keys. `nordend-transfer --erase` for measuring.
+- Tests (201 with the raw samples): the engine (sidecars, a read-only folder, a hard link counted
+  once, a link not followed, cancel, from the trash with `directorysizes`, Empty Trash over two
+  trashes with an orphan `.trashinfo` and an item without one); the browser: Escape keeps
+  everything, Enter before the count, the cursor goes on, every key listed for the card, Delete
+  and Empty Trash in the trash folder, the icon back to empty, "The trash is empty already".
+
+**Tested by the author**: on screen with the real trash (home, DATA and /tmp's): Shift+Delete
+on a photo and on a folder holding a read-only one, Delete and Empty Trash in the trash folder,
+Empty Trash from the sidebar's menu; afterwards `trash-list` showed nothing and the home's files/
+and info/ and DATA's files/ were empty.
+
+**Measured** (benchmarks): 10 101 entries in 0.20 s on ext4, `rm -rf` 0.17 s; on tmpfs 80 ms
+against 54 ms. The difference is the counting walk.
+
+**Decisions**
+- Enter confirms (the Delete button is the default): the user already pressed Shift+Delete or
+  chose the menu item on purpose; Escape and Cancel are the way out. Proposed to the author.
+- Sizes are the files' sizes (`st_size`, what the views show), not blocks as in
+  `directorysizes`.
+- A sidecar selected along with its photo is counted as an item, not again as "with its
+  sidecar".
+
+**Open**
+- No undo, by definition: the card is the only guard.
+- The sidebar's menu has only the trash's item; other places have none yet.
+- The progress bar counts entries, not bytes: one huge file is one step.
+
+---
+
 ## 2026-10-29 — The trash in the sidebar, and Restore (ROADMAP 6.4c)
 
 Asked for by the author after 6.4b ("manca l'icona del cestino?"); split in two with the author's

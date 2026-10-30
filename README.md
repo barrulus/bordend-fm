@@ -4,7 +4,7 @@
 desktop.**
 
 ![status](https://img.shields.io/badge/status-pre--alpha-orange)
-![phase](https://img.shields.io/badge/next-trash%20and%20clipboard-3DA639)
+![phase](https://img.shields.io/badge/next-clipboard-3DA639)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white)
 ![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white)
 ![Wayland](https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black)
@@ -27,7 +27,7 @@ It is made for people who browse a lot of files, photos above all:
   switching keeps your place and your selection.
 - **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
   when they lift; wheel and keyboard glide too. Nothing jumps.
-- **Small and fast, and measured.** A 2 MB binary; a 10 000-file folder shows its first entries
+- **Small and fast, and measured.** A 2.5 MB binary; a 10 000-file folder shows its first entries
   in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens in
   Quick Look in about 50 ms; and when nothing moves Nordend uses no CPU at all.
   See [Benchmarks](#benchmarks).
@@ -39,19 +39,17 @@ It is made for people who browse a lot of files, photos above all:
   click.
 
 **Status:** pre-alpha. Browsing, selection, thumbnails, previews and Quick Look work, and so do
-opening files in their apps, a context menu, renaming, new folders and files, copying, moving
-and the trash; copy and
-paste with other apps comes next. There are no
-packages yet: see [Building](#building). What happens step by step is in the
+opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
+the trash, restoring from it and deleting for good; copy and paste with other apps comes next. There are no packages yet: see [Building](#building). What happens step by step is in the
 [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
 ## At a glance
 
 | | |
 |---|---|
-| Binary | **2.85 MB** (2.40 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **2.97 MB** (2.50 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 26 600 lines of C++20, plus 6 800 lines of tests (194 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 27 700 lines of C++20, plus 7 200 lines of tests (201 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -91,6 +89,14 @@ status bar cost nothing measurable.
 | Quick Look of a Sony ARW (small embedded preview) | **17 ms** |
 | A 20 MP JPEG decoded whole (wuffs) | **149 ms** |
 | Sorting 10 000 entries by size, date or type | **1-3 ms** |
+
+**Files**, warm cache:
+
+| What | Nordend | For comparison |
+|------|--------:|---------------:|
+| Copying a folder of 342 photos, 3.1 GB, into tmpfs | **1.39 s** | `cp -a`: 1.38-1.40 s |
+| Moving 1 001 items to the trash | **25 ms** | `gio trash`: 70 ms |
+| Default app and Open With list, all 1 232 file types | **0 differences** | from `gio mime` |
 
 <details>
 <summary><b>Features</b>: what works today (the full list: <a href="docs/features.md">docs/features.md</a>)</summary>
@@ -148,7 +154,8 @@ status bar cost nothing measurable.
 - **A real trash.** Delete moves files to the freedesktop trash, on their own disk (no copies),
   where any other trash program finds and restores them; darktable sidecars go with their photo.
   The Trash in the sidebar shows every disk's trash as one folder, by original name, and Restore
-  puts things back where they were, folder and sidecars included.
+  puts things back where they were, folder and sidecars included. Shift+Delete and Empty Trash
+  delete for good, only after a card that says how many items and how many MB go.
 - **A context menu.** A right click, a two-finger tap or the Menu key: Open With lists the same
   applications GTK apps would offer (0 differences from `gio` on 1 232 types), New File makes an
   empty file or one from your templates, and every action shows its shortcut.
@@ -184,7 +191,8 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Select or unselect |
 | <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
 | <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> | Copy / cut (<kbd>Escape</kbd> keeps them) / paste |
-| <kbd>Delete</kbd> | Move to the trash |
+| <kbd>Delete</kbd> | Move to the trash (in the Trash: delete permanently, after asking) |
+| <kbd>Shift</kbd>+<kbd>Delete</kbd> | Delete permanently, after asking |
 | <kbd>Menu</kbd>, <kbd>Shift</kbd>+<kbd>F10</kbd>, right click | Context menu |
 | <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up) |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |

@@ -3,6 +3,7 @@
 #include <ctime>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <sys/types.h>
@@ -111,6 +112,26 @@ struct TrashedItem {
 [[nodiscard]] TransferResult run_restore(const TransferRequest& request,
                                          const core::CancelToken& token,
                                          const TransferCallbacks& callbacks);
+
+// A trashed item as a permanent delete finds it: its .trashinfo and the sidecars Restore would
+// take along with it (paths in files/).
+struct TrashedGroup {
+    std::filesystem::path item;  // in files/
+    TrashInfo info;
+    std::vector<std::filesystem::path> sidecars;
+};
+
+// items (paths in trashes' files/) with their info and sidecars, each trash read once; nullopt
+// for an item that is not in a trash any more (or has no .trashinfo).
+[[nodiscard]] std::vector<std::optional<TrashedGroup>> trashed_groups(
+    std::span<const std::filesystem::path> items);
+
+// The .trashinfo of an item in a trash's files/.
+[[nodiscard]] std::filesystem::path info_file_of(const std::filesystem::path& item);
+
+// Drops the lines of trash's directorysizes whose folder is gone from files/ (the file goes
+// when none is left).
+void prune_directory_sizes(const std::filesystem::path& trash);
 
 // Moves request.names from request.source to the trash; request.destination is the home trash
 // (home_trash(), or a test's). Each item goes to the trash of its file system: the home trash on

@@ -279,6 +279,14 @@ void Sidebar::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             redraw_();
             break;
         case Kind::press: {
+            if (event.button == ui::PointerButton::right) {
+                if (const std::optional<std::size_t> place = place_at(event.x, event.y);
+                    place && menu_) {
+                    const fs::Place chosen = places_[*place];  // menu_ may replace the places
+                    menu_(chosen, event.x, event.y);
+                }
+                break;
+            }
             if (event.button != ui::PointerButton::left) {
                 break;
             }

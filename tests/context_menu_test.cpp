@@ -245,7 +245,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.press(key(XKB_KEY_Menu)));
     REQUIRE(f.menu().is_open());
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase"});
     CHECK(f.menu().items()[2].keys == "Ctrl+C");  // from the shortcuts table
     CHECK(f.menu().items()[6].keys == "Delete");
     CHECK(f.press(key(XKB_KEY_Escape)));
@@ -255,11 +255,12 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase"});
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
-    CHECK(ids(f.menu().items()) == Names{"open", "copy", "cut", "-paste", "rename", "trash"});
+    CHECK(ids(f.menu().items()) ==
+          Names{"open", "copy", "cut", "-paste", "rename", "trash", "erase"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");

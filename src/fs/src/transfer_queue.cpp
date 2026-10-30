@@ -7,6 +7,7 @@
 #include <optional>
 #include <utility>
 
+#include "nordend/fs/erase.hpp"
 #include "nordend/fs/trash.hpp"
 
 namespace nordend::fs {
@@ -136,6 +137,10 @@ void TransferQueue::work() {
                 break;
             case TransferKind::restore:
                 result = run_restore(*request, token, callbacks);
+                break;
+            case TransferKind::erase:
+            case TransferKind::empty_trash:
+                result = run_erase(*request, token, callbacks);
                 break;
             case TransferKind::copy:
             case TransferKind::move:

@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include "nordend/fs/places.hpp"
@@ -25,7 +26,8 @@ namespace nordend::views {
 // The places at the left of the window, in sections (places, bookmarks, devices), the one that
 // holds the current folder marked. A click opens a place; so does Enter when the keyboard is in
 // the sidebar (the browser moves it there and back), where Up/Down, Home/End move a cursor and
-// Escape leaves. Its right edge drags to resize it; a double click there restores the width.
+// Escape leaves; a right click asks for a place's menu. Its right edge drags to resize it; a double
+// click there restores the width.
 //
 // Loop thread only.
 class Sidebar {
@@ -45,6 +47,11 @@ public:
             std::function<void(const std::filesystem::path&)> open);
 
     void set_places(std::vector<fs::Place> places);
+
+    // A right click on a place: menu(place, x, y).
+    using MenuHandler = std::function<void(const fs::Place& place, float x, float y)>;
+
+    void set_menu_handler(MenuHandler menu) { menu_ = std::move(menu); }
 
     [[nodiscard]] const std::vector<fs::Place>& places() const noexcept { return places_; }
 
@@ -98,6 +105,7 @@ private:
     std::function<void()> redraw_;
     std::function<void(ui::CursorShape)> set_cursor_;
     std::function<void(const std::filesystem::path&)> open_;
+    MenuHandler menu_;
     std::vector<fs::Place> places_;
     std::vector<Row> rows_;
     float content_height_{0.0F};

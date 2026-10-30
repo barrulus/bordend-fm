@@ -25,6 +25,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/breadcrumb.hpp"
 #include "nordend/views/column_view.hpp"
+#include "nordend/views/confirm_dialog.hpp"
 #include "nordend/views/conflict_dialog.hpp"
 #include "nordend/views/context_menu.hpp"
 #include "nordend/views/cut_marks.hpp"
@@ -57,7 +58,9 @@ namespace nordend::views {
 // the selection (cut entries fade until pasted; Escape keeps them), Ctrl+V copies or moves it
 // into the folder shown, on the transfer thread, with progress in the status bar and a question
 // on a card for every name taken. Delete moves the selection to the trash (freedesktop), on the
-// same thread; the cursor goes on to the entry after it. A right click (or the Menu key, Shift+F10)
+// same thread; the cursor goes on to the entry after it. Shift+Delete (Delete in the trash folder)
+// deletes it for good and "Empty Trash" empties every trash, after a card that says how much goes.
+// A right click (or the Menu key, Shift+F10)
 // opens a context menu with the same actions, "Open With" and "New File".
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
@@ -209,6 +212,16 @@ public:
     // cursor on it and edits its name.
     void new_file(const std::string& name, const std::filesystem::path& from);
 
+    // Shift+Delete, and Delete in the trash folder: asks on a card (how many items, how many MB),
+    // then deletes the selection (or the entry under the cursor) for good with its darktable
+    // sidecars, on the transfer thread; the cursor goes on to the entry after it.
+    void erase();
+
+    // "Empty Trash": asks on a card, then deletes everything in every trash for good.
+    void empty_trash();
+
+    [[nodiscard]] ConfirmDialog& confirm_dialog() noexcept { return confirm_; }
+
     // In the trash folder: puts the selection (or the entry under the cursor) back where it was,
     // with its darktable sidecars, and the cursor on the entry after it.
     void restore();
@@ -228,6 +241,14 @@ public:
 private:
     void trash_done(const fs::TransferResult& result);
     void restore_done(const fs::TransferResult& result);
+    void erase_done(const fs::TransferRequest& request, const fs::TransferResult& result);
+    // Opens the card for request (erase or empty_trash), adds up what it removes on a worker and
+    // submits it once confirmed and added up; after runs when it is confirmed.
+    void ask_erase(fs::TransferRequest request, std::string title, std::function<void()> after);
+    // The delete confirmed and added up goes to the transfer thread.
+    void submit_erase();
+    // The sidebar's menu on a place: the trash's has "Empty Trash".
+    void place_menu(const fs::Place& place, float x, float y);
     // The sidebar's places, the trash's icon full or empty.
     void show_places();
     // Puts the cursor on the entry after the last one of going that stays (else the one before).
@@ -281,6 +302,7 @@ private:
     ShortcutsOverlay shortcuts_;
     NameEditor editor_;
     ConflictDialog conflict_;
+    ConfirmDialog confirm_;
     ContextMenu menu_;
     std::uint64_t menu_generation_{0};  // a submenu found late fills only the menu it was for
     std::size_t menu_loads_{0};         // applications and templates being looked for
@@ -314,7 +336,18 @@ private:
     fs::DirectoryModel trash_model_;  // every trash, for the sidebar's icon
     bool trash_full_{false};
     CutMarks cut_marks_;
-    std::optional<fs::Resolution> for_the_rest_;  // the running transfer's "the same for the rest"
+    std::optional<fs::Resolution> for_the_rest_;
+
+    // The delete the card asks about.
+    struct PendingErase {
+        std::uint64_t id{0};
+        fs::TransferRequest request;
+        bool planned{false};    // added up: request is complete (empty_trash: its trashes)
+        bool confirmed{false};  // submitted once planned
+    };
+
+    std::optional<PendingErase> erase_;
+    std::uint64_t erase_ids_{0};  // the running transfer's "the same for the rest"
 
     // Where the rate is measured from: a time and the bytes copied by then (after a question the
     // rate starts again).

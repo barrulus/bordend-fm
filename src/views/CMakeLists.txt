@@ -3,6 +3,7 @@ add_library(nordend_views
     src/browser.cpp
     src/column.cpp
     src/column_view.cpp
+    src/confirm_dialog.cpp
     src/conflict_dialog.cpp
     src/context_menu.cpp
     src/details_view.cpp

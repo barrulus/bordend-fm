@@ -313,25 +313,35 @@ TEST_CASE("trash folder: in the browser, Restore from the menu; nothing else is 
         return event;
     };
 
-    // Nothing is made, renamed, pasted or trashed again; files are not opened from here.
+    // Nothing is made, renamed, pasted or trashed again; files are not opened from here. Delete
+    // asks to delete for good; Escape keeps it.
     folder->select_name("a.txt");
     CHECK(browser.key(key(XKB_KEY_Delete), Browser::Clock::now()));
-    CHECK(browser.status_bar().message() ==
-          "Already in the trash: right click, Restore puts it back");
+    REQUIRE(browser.confirm_dialog().is_open());
+    CHECK(browser.confirm_dialog().title() == "Delete “a.txt” permanently?");
+    REQUIRE(settle());
+    CHECK(browser.key(key(XKB_KEY_Escape), Browser::Clock::now()));
+    CHECK_FALSE(browser.confirm_dialog().is_open());
+    REQUIRE(settle());
+    CHECK(folder->entries().size() == 4);
     CHECK(browser.key(key(XKB_KEY_F2), Browser::Clock::now()));
     CHECK_FALSE(browser.name_editor().active());
     CHECK(browser.key(key(XKB_KEY_Return), Browser::Clock::now()));
     CHECK(browser.status_bar().message() == "Restore it first to open it");
     folder->set_cursor(std::nullopt);
     CHECK(browser.key(key(XKB_KEY_Menu), Browser::Clock::now()));
-    CHECK_FALSE(browser.context_menu().is_open());  // no menu on empty space
+    REQUIRE(browser.context_menu().is_open());  // on empty space: only Empty Trash
+    REQUIRE(browser.context_menu().items().size() == 1);
+    CHECK(browser.context_menu().items()[0].id == "empty_trash");
+    CHECK(browser.key(key(XKB_KEY_Escape), Browser::Clock::now()));
 
     // The menu on an item: Restore. The photo comes back with its sidecar; the cursor goes on.
     folder->select_name("P1.ORF");
     CHECK(browser.key(key(XKB_KEY_Menu), Browser::Clock::now()));
     REQUIRE(browser.context_menu().is_open());
-    REQUIRE(browser.context_menu().items().size() == 1);
+    REQUIRE(browser.context_menu().items().size() == 2);
     CHECK(browser.context_menu().items()[0].id == "restore");
+    CHECK(browser.context_menu().items()[1].id == "erase");
     CHECK(browser.key(key(XKB_KEY_Return), Browser::Clock::now()));
     REQUIRE(settle());
     CHECK(listing(t.photos) == Names{"P1.ORF", "P1.ORF.xmp"});

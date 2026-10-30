@@ -213,6 +213,13 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_Delete, XKB_KEY_KP_Delete},
              .command = Command::trash},
     Shortcut{.group = "Files",
+             .keys = "Shift+Delete",
+             .action = "Delete permanently",
+             .scope = scope::kViews | scope::kQuickLook,
+             .modifiers = kShift,
+             .keysyms = {XKB_KEY_Delete, XKB_KEY_KP_Delete},
+             .command = Command::erase},
+    Shortcut{.group = "Files",
              .keys = "Enter  Escape",
              .action = "Renaming: keep, give up",
              .scope = scope::kEditor,
@@ -233,6 +240,11 @@ constexpr std::array kShortcuts{
              .action = "Name taken: for the rest, stop",
              .scope = scope::kConflict,
              .keysyms = {XKB_KEY_a, XKB_KEY_Escape}},
+    Shortcut{.group = "Files",
+             .keys = "Enter  Escape",
+             .action = "Delete permanently? Yes, no",
+             .scope = scope::kConfirm,
+             .keysyms = {XKB_KEY_Return, XKB_KEY_KP_Enter, XKB_KEY_Escape}},
 
     // Grid
     Shortcut{.group = "Grid",
@@ -307,7 +319,7 @@ Command command_for(const ui::KeyEvent& event) {
     return Command::none;
 }
 
-bool listed(const ui::KeyEvent& event, std::uint8_t where) {
+bool listed(const ui::KeyEvent& event, std::uint16_t where) {
     return std::ranges::any_of(kShortcuts, [&](const Shortcut& shortcut) {
         return (shortcut.scope & where) != 0U && shortcut.matches(event);
     });

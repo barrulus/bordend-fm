@@ -11,6 +11,7 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <span>
 #include <sys/stat.h>
 #include <tuple>
 #include <unistd.h>
@@ -540,6 +541,35 @@ std::vector<Found> read_trash(const std::filesystem::path& trash) {
     return found;
 }
 
+// The darktable sidecars that go with item (a regular file) when it leaves the trash: trashed
+// from the same folder; the newest of each name.
+std::vector<Found> trashed_sidecars(const std::vector<Found>& trash, const Found& item) {
+    std::vector<Found> sidecars;
+    if (!item.regular) {
+        return sidecars;
+    }
+    const std::filesystem::path folder = item.info.original.parent_path();
+    std::vector<std::string> names;
+    for (const Found& other : trash) {
+        if (other.info.original.parent_path() == folder) {
+            names.push_back(other.info.original.filename().string());
+        }
+    }
+    for (const std::string& sidecar : sidecars_of(names, item.info.original.filename().string())) {
+        const Found* newest = nullptr;
+        for (const Found& other : trash) {
+            if (other.info.original == folder / sidecar &&
+                (newest == nullptr || other.info.deleted > newest->info.deleted)) {
+                newest = &other;
+            }
+        }
+        if (newest != nullptr) {
+            sidecars.push_back(*newest);
+        }
+    }
+    return sidecars;
+}
+
 class Restorer {
 public:
     Restorer(const TransferRequest& request, const core::CancelToken& token,
@@ -621,31 +651,7 @@ TransferResult Restorer::run() {
                 std::format("{}: not in the trash any more", item.filename().string()));
             continue;
         }
-        Group group{.item = *it, .sidecars = {}};
-        if (it->regular) {
-            // Its sidecars: trashed from the same folder; the newest of each name.
-            const std::filesystem::path folder = it->info.original.parent_path();
-            std::vector<std::string> names;
-            for (const Found& other : trash) {
-                if (other.info.original.parent_path() == folder) {
-                    names.push_back(other.info.original.filename().string());
-                }
-            }
-            for (const std::string& sidecar :
-                 sidecars_of(names, it->info.original.filename().string())) {
-                const Found* newest = nullptr;
-                for (const Found& other : trash) {
-                    if (other.info.original == folder / sidecar &&
-                        (newest == nullptr || other.info.deleted > newest->info.deleted)) {
-                        newest = &other;
-                    }
-                }
-                if (newest != nullptr) {
-                    group.sidecars.push_back(*newest);
-                }
-            }
-        }
-        groups.push_back(std::move(group));
+        groups.push_back({.item = *it, .sidecars = trashed_sidecars(trash, *it)});
     }
     // A sidecar picked along with its photo goes with it.
     std::erase_if(groups, [&groups](const Group& group) {
@@ -1003,6 +1009,47 @@ std::vector<TrashedItem> list_trash(const TrashSources& sources) {
 TransferResult run_restore(const TransferRequest& request, const core::CancelToken& token,
                            const TransferCallbacks& callbacks) {
     return Restorer{request, token, callbacks}.run();
+}
+
+std::filesystem::path info_file_of(const std::filesystem::path& item) {
+    return item.parent_path().parent_path() / "info" /
+           (item.filename().string() + std::string{kInfoSuffix});
+}
+
+std::vector<std::optional<TrashedGroup>> trashed_groups(
+    std::span<const std::filesystem::path> items) {
+    std::map<std::filesystem::path, std::vector<Found>> trashes;
+    std::vector<std::optional<TrashedGroup>> groups;
+    groups.reserve(items.size());
+    for (const std::filesystem::path& item : items) {
+        const std::filesystem::path trash = item.parent_path().parent_path();
+        auto it = trashes.find(trash);
+        if (it == trashes.end()) {
+            it = trashes.emplace(trash, read_trash(trash)).first;
+        }
+        const auto found = std::ranges::find(it->second, item, &Found::item);
+        if (found == it->second.end()) {
+            groups.emplace_back();
+            continue;
+        }
+        TrashedGroup group{.item = found->item, .info = found->info, .sidecars = {}};
+        for (const Found& sidecar : trashed_sidecars(it->second, *found)) {
+            group.sidecars.push_back(sidecar.item);
+        }
+        groups.emplace_back(std::move(group));
+    }
+    return groups;
+}
+
+void prune_directory_sizes(const std::filesystem::path& trash) {
+    const std::filesystem::path sizes = trash / kSizes;
+    if (!status_of(sizes)) {
+        return;
+    }
+    add_directory_sizes(trash, {});
+    if (const std::optional<struct stat> left = status_of(sizes); left && left->st_size == 0) {
+        unlink(sizes.c_str());
+    }
 }
 
 }  // namespace nordend::fs

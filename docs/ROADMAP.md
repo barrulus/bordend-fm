@@ -231,7 +231,7 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   trash-cli); Restore rimette gli elementi dove li rimetterebbe `trash-restore`, e `trash-list`
   non li elenca più; test sul modello unito, sul ripristino (nome preso, cartella mancante,
   sidecar) e sull'icona vuota/piena.
-- [ ] **6.4d Svuota cestino ed elimina definitivamente**
+- [x] **6.4d Svuota cestino ed elimina definitivamente**
   Nel cestino "Delete Permanently" (anche Canc) ed "Empty Trash", dal menu dello spazio vuoto e
   dal clic destro sulla voce "Trash"; sempre con una card di conferma (quanti elementi, quanti
   MB), sul thread dei trasferimenti con l'avanzamento. Fuori dal cestino Shift+Canc elimina

@@ -124,6 +124,7 @@ struct Fixture {
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
         browser.context_menu().close();
+        browser.confirm_dialog().close();
         browser.sidebar().set_focused(false);
         make_files();
         browser.open(root);
@@ -138,7 +139,7 @@ struct Fixture {
 constexpr std::array<Browser::Mode, 3> kModes{Browser::Mode::columns, Browser::Mode::grid,
                                               Browser::Mode::details};
 
-std::uint8_t scope_of(Browser::Mode mode) {
+std::uint16_t scope_of(Browser::Mode mode) {
     switch (mode) {
         case Browser::Mode::grid:
             return scope::kGrid;

@@ -115,10 +115,15 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   - Restore (right click) puts things back where they were, makes their folder again if it is
     gone, asks on the card when the name is taken (a folder is never merged), and brings a
     photo's darktable sidecars back with it;
+  - Delete (or "Delete Permanently…" in the menu) deletes the selection for good, a photo with
+    its trashed darktable sidecars; "Empty Trash…" (on the trash's empty space, or a right click
+    on Trash in the sidebar) empties every trash at once, orphaned `.trashinfo` files and
+    `directorysizes` included; both after the confirmation card;
   - nothing is made, renamed or pasted there, and files are not opened from the trash.
 - **Context menu**: a right click (or a two-finger tap on the touchpad) in any of the three views
   or on the info pane, the Menu key or Shift+F10:
-  - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash;
+  - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash,
+    Delete Permanently;
     on a folder's empty space: New Folder, New File, Paste; what cannot be done now is dimmed,
     and each item shows its shortcut;
   - a right click on an entry selects it first, unless it is part of the selection already;
@@ -145,6 +150,16 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     darktable sidecar moved to the trash") or what could not;
   - trashed folders are listed in `directorysizes` with their size, so trash tools need not
     measure them again.
+- **Delete permanently** (Shift+Delete, in any view and in Quick Look; Delete in the Trash):
+  - first a card says what goes: "Delete “P1.ORF” permanently?", "With its darktable sidecar ·
+    21.0 MB", and for folders how many files and folders they hold in all; the size is added up
+    on a worker, the card is there at once; Enter (or the red Delete) deletes, Escape (or Cancel)
+    keeps everything;
+  - on the transfer thread, with progress in the status bar and its × to stop; links are never
+    followed, read-only folders of yours are opened up to be emptied; darktable sidecars go with
+    their photo, and a photo that stays keeps them;
+  - 10 101 files and folders in 0.20 s on ext4 (`rm -rf` 0.17 s: the difference is the first
+    pass that counts them for the progress bar).
 - **Clear errors:** a read-only folder, permission denied or a missing file shows a message in the
   status bar, never a crash.
 

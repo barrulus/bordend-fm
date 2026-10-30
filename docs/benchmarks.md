@@ -17,6 +17,10 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-30: after 6.4d
+
+2 966 072 bytes; 2 496 792 after `strip`; 18 direct libraries.
+
 ### 2026-10-29: after 6.3
 
 2 475 360 bytes; 2 095 192 after `strip`; 18 direct libraries.
@@ -403,6 +407,32 @@ trashed twice (`a b%#?.2.ORF`).
 set -x HOME $S/home   # fish; files in $S/home/n and $S/home/g
 cd $S/home/n; env XDG_DATA_HOME=$S/home/dn build/nordend-transfer --trash . (ls)
 cd $S/home/g; env XDG_DATA_HOME=$S/home/dg gio trash (ls)
+```
+
+## Deleting permanently (ROADMAP 6.4d)
+
+**Tool:** `nordend-transfer --erase SOURCE_DIR NAME...` (the engine behind Shift+Delete and Empty
+Trash), against `rm -rf` (GNU coreutils 9.4), bash's `time`.
+
+### 2026-10-30
+
+A tree of 100 folders of 100 small files (10 101 entries, 5.0 MB), made again before each run
+(3 runs each, `sync` before):
+
+| Where | Nordend | `rm -rf` |
+|-------|--------:|---------:|
+| tmpfs | 79-80 ms | 53-55 ms |
+| ext4 (SATA SSD, the DATA disk) | 195-198 ms | 170-171 ms |
+
+Nordend walks the tree twice: once to count the entries and bytes (the progress bar's total),
+then to delete (an `fstatat` and an `unlinkat` per entry, through folder descriptors, links never
+followed). The first walk is the 25 ms difference; the card's own count (`plan_erase`, on a
+worker before asking) is the same walk.
+
+```sh
+# a tree in $D/tree: 100 folders x 100 files, then
+build/nordend-transfer --erase $D tree
+time rm -rf $D/tree
 ```
 
 ## Giving decoded photos back (ROADMAP 6.3c)

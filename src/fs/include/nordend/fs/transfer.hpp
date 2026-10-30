@@ -16,8 +16,10 @@ namespace nordend::fs {
 enum class TransferKind : std::uint8_t {
     copy,
     move,
-    trash,    // run_trash (trash.hpp): destination is the home trash
-    restore,  // run_restore (trash.hpp): names are paths in a trash's files/
+    trash,        // run_trash (trash.hpp): destination is the home trash
+    restore,      // run_restore (trash.hpp): names are paths in a trash's files/
+    erase,        // run_erase (erase.hpp): deleted for good; destination unused
+    empty_trash,  // run_erase: names are trashes, everything in them goes
 };
 
 struct TransferRequest {
