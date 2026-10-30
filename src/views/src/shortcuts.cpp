@@ -231,6 +231,13 @@ constexpr std::array kShortcuts{
              .modifiers = kCtrl,
              .keysyms = {XKB_KEY_Left, XKB_KEY_Right}},
     Shortcut{.group = "Files",
+             .keys = "Ctrl+Z",
+             .action = "Renaming: undo (Shift: redo)",
+             .scope = scope::kEditor,
+             .modifiers = kCtrl,
+             .any_shift = true,  // with Shift it redoes
+             .keysyms = {XKB_KEY_z, XKB_KEY_Z}},
+    Shortcut{.group = "Files",
              .keys = "Ctrl+V",
              .action = "Renaming: paste text",
              .scope = scope::kEditor,

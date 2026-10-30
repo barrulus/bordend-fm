@@ -50,7 +50,7 @@ MVP's last steps (other compositors, settings) come next. There are no packages 
 |---|---|
 | Binary | **3.05 MB** (2.56 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 28 500 lines of C++20, plus 7 500 lines of tests (207 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 28 500 lines of C++20, plus 7 500 lines of tests (208 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -198,7 +198,7 @@ status bar cost nothing measurable.
 | <kbd>Delete</kbd> | Move to the trash (in the Trash: delete permanently, after asking) |
 | <kbd>Shift</kbd>+<kbd>Delete</kbd> | Delete permanently, after asking |
 | <kbd>Menu</kbd>, <kbd>Shift</kbd>+<kbd>F10</kbd>, right click | Context menu |
-| <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up, <kbd>Ctrl</kbd>+<kbd>V</kbd> pastes text) |
+| <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up, <kbd>Ctrl</kbd>+<kbd>V</kbd> pastes text, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes) |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |
 | <kbd>Escape</kbd> | Back to one entry |
 | <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> | Grid: larger, smaller, usual size |

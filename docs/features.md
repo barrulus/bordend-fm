@@ -83,7 +83,8 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   name selected but not its extension. Typing works with accents and compose. Enter keeps the
   name, Escape gives up, and a click elsewhere keeps it. The usual editing keys work, including
   words with Ctrl+arrows and selection with Shift; Ctrl+V pastes the clipboard's text (its first
-  line).
+  line); Ctrl+Z undoes and Ctrl+Shift+Z redoes (a word typed, characters deleted one after
+  another, or a paste is one step; up to 100).
 - **New folder** (Ctrl+Shift+N): "New Folder" (or "New Folder 2"...), ready to be named.
 - **Never overwrites:** renames use `RENAME_NOREPLACE`, so an existing file is never replaced,
   even one that appears in the meantime. A taken or invalid name is refused with a message and

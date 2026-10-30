@@ -325,5 +325,8 @@ TEST_CASE("clipboard: Ctrl+V in a name's field pastes the text's first line") {
     REQUIRE(f.settle());
     // F2 selects the name without its extension: the pasted text takes its place.
     CHECK(f.browser.name_editor().field().text() == "LakeComo.ORF");
+    // Ctrl+Z gives the name back as it was.
+    CHECK(f.press(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(f.browser.name_editor().field().text() == "P2.ORF");
     CHECK(f.press(key(XKB_KEY_Escape)));
 }

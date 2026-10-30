@@ -251,6 +251,13 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   e Ctrl+V in Nordend li copia (sidecar compresi); un `cut` in `gnome-copied-files` li sposta;
   file copiati in Nordend si incollano in Firefox; Ctrl+V nel campo del nome incolla il testo;
   CPU a riposo 0; test su codifica/lettura delle liste e sulla scelta copia/sposta.
+- [x] **6.6 Annulla nel campo del nome** (chiesto dall'autore dopo la 6.5)
+  Ctrl+Z annulla l'ultima modifica al testo, Ctrl+Shift+Z la rifà: lettere scritte una dopo
+  l'altra (anche sopra la selezione) o cancellate una dopo l'altra sono una modifica sola, un
+  incolla è una, spostare il cursore ne chiude una; fino a 100 passi, azzerati a ogni nuovo
+  nome. L'overlay delle scorciatoie passa a tre colonne quando la finestra è larga.
+  Fatto quando: F2, Ctrl+V di un testo, Ctrl+Z ridà il nome di prima e Ctrl+Shift+Z di nuovo
+  il testo; test sui raggruppamenti e sul rifare dopo una modifica nuova.
 
 ## Fase 7 — MVP
 

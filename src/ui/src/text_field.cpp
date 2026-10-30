@@ -37,6 +37,49 @@ void TextField::set_text(std::string text) {
     caret_ = text_.size();
     anchor_ = caret_;
     scroll_ = 0.0F;
+    undo_.clear();
+    redo_.clear();
+    last_edit_ = Edit::other;
+}
+
+void TextField::remember(Edit kind) {
+    if (kind == Edit::other || kind != last_edit_) {
+        undo_.push_back({.text = text_, .caret = caret_, .anchor = anchor_});
+        if (undo_.size() > kHistory) {
+            undo_.erase(undo_.begin());
+        }
+    }
+    redo_.clear();
+    last_edit_ = kind;
+}
+
+void TextField::restore(State state) {
+    text_ = std::move(state.text);
+    caret_ = std::min(state.caret, text_.size());
+    anchor_ = std::min(state.anchor, text_.size());
+    last_edit_ = Edit::other;
+}
+
+bool TextField::undo() {
+    if (undo_.empty()) {
+        return false;
+    }
+    redo_.push_back({.text = text_, .caret = caret_, .anchor = anchor_});
+    State state = std::move(undo_.back());
+    undo_.pop_back();
+    restore(std::move(state));
+    return true;
+}
+
+bool TextField::redo() {
+    if (redo_.empty()) {
+        return false;
+    }
+    undo_.push_back({.text = text_, .caret = caret_, .anchor = anchor_});
+    State state = std::move(redo_.back());
+    redo_.pop_back();
+    restore(std::move(state));
+    return true;
 }
 
 std::size_t TextField::previous(std::size_t at) const noexcept {
@@ -91,6 +134,7 @@ void TextField::select(std::size_t begin, std::size_t end) {
     };
     anchor_ = boundary(begin);
     caret_ = boundary(end);
+    last_edit_ = Edit::other;
 }
 
 std::pair<std::size_t, std::size_t> TextField::selection() const noexcept {
@@ -98,6 +142,7 @@ std::pair<std::size_t, std::size_t> TextField::selection() const noexcept {
 }
 
 void TextField::move_to(std::size_t at, bool extend) {
+    last_edit_ = Edit::other;  // typing after a move is a new edit
     caret_ = at;
     if (!extend) {
         anchor_ = at;
@@ -111,6 +156,7 @@ void TextField::erase(std::size_t first, std::size_t last) {
 }
 
 void TextField::insert(std::string_view text) {
+    remember(Edit::other);
     const auto [first, last] = selection();
     text_.replace(first, last - first, text);
     caret_ = first + text.size();
@@ -146,19 +192,20 @@ bool TextField::key(const KeyEvent& event) {
             move_to(text_.size(), shift);
             return true;
         case XKB_KEY_BackSpace:
-            if (selected) {
-                erase(first, last);
-            } else {
-                erase(ctrl ? previous_word(caret_) : previous(caret_), caret_);
+        case XKB_KEY_Delete: {
+            std::pair<std::size_t, std::size_t> gone{first, last};
+            if (!selected) {
+                gone = event.keysym == XKB_KEY_BackSpace
+                           ? std::pair{ctrl ? previous_word(caret_) : previous(caret_), caret_}
+                           : std::pair{caret_, ctrl ? next_word(caret_) : next(caret_)};
+            }
+            if (gone.first != gone.second) {
+                // A selection removed, or a word, is an edit of its own; characters go on.
+                remember(selected || ctrl ? Edit::other : Edit::removing);
+                erase(gone.first, gone.second);
             }
             return true;
-        case XKB_KEY_Delete:
-            if (selected) {
-                erase(first, last);
-            } else {
-                erase(caret_, ctrl ? next_word(caret_) : next(caret_));
-            }
-            return true;
+        }
         default:
             break;
     }
@@ -166,8 +213,21 @@ bool TextField::key(const KeyEvent& event) {
         select_all();
         return true;
     }
+    if (ctrl && !event.modifiers.alt && (event.keysym == XKB_KEY_z || event.keysym == XKB_KEY_Z)) {
+        if (shift) {
+            redo();
+        } else {
+            undo();
+        }
+        return true;
+    }
     if (!ctrl && !event.modifiers.alt && typable(event.text)) {
-        insert(event.text);
+        // Characters typed one after another are one edit, the selection they replaced included.
+        remember(Edit::typing);
+        const auto [from, to] = selection();
+        text_.replace(from, to - from, event.text);
+        caret_ = from + event.text.size();
+        anchor_ = caret_;
         return true;
     }
     return false;

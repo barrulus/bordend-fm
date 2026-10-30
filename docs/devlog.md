@@ -4,6 +4,37 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Undo in the name's field (ROADMAP 6.6)
+
+Asked for by the author after 6.5 ("premo Ctrl+Z e non torna indietro"); the order 6.6 (the
+field), 6.7 (the last file operation), then phase 7 agreed with them.
+
+**Done**
+- `ui::TextField` keeps the states before each edit (text, caret, selection; up to 100) and
+  those undone: Ctrl+Z restores the last, Ctrl+Shift+Z gives it back; any new edit forgets what
+  could be redone, `set_text` forgets everything. Grouping: characters typed one after another
+  are one edit, the selection they replaced included (F2, "Lake", one Ctrl+Z: the old name);
+  characters removed one after another (Backspace, Delete) are one; a selection or a word
+  removed (Ctrl+Backspace) is one; `insert` (a paste) is one; moving the caret or selecting ends
+  the edit going on.
+- The shortcuts list "Ctrl+Z — Renaming: undo (Shift: redo)" (`any_shift`).
+- The shortcuts overlay had outgrown two columns: at 800 px of height Quick Look's lines were
+  cut off since 6.5's Ctrl+V line (a slip of mine: I did not look at the overlay then). It now
+  shows three columns when the window has 1 200 px for the card (General, Grid, Quick Look |
+  Moving, Selecting, Sidebar | Files), two otherwise as before. Checked at 1280x800 and
+  1100x900.
+- Tests (208): grouping, the selection given back, redo, redo forgotten after a new edit, a
+  paste undone; in the browser, F2, Ctrl+V of a text, Ctrl+Z gives the name back.
+
+**Tested by the author**: F2 and "Lake" undone and redone, a pasted "Lago di Como" undone,
+three Backspaces undone at once, the overlay in three columns and back to two when narrowed.
+
+**Open**
+- In a narrow, short window (two columns, under ~850 px of height) the overlay still cuts its
+  last lines: it does not scroll.
+
+---
+
 ## 2026-10-30 — The system clipboard (ROADMAP 6.5)
 
 Proposed to the author with its "Fatto quando" and approved; Firefox is the other program to try.

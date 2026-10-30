@@ -1,9 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/geometry.hpp"
@@ -24,14 +26,19 @@ struct FieldColors {
 // One line of editable UTF-8 text: a caret, a selection, the usual editing keys, drawn into a
 // rectangle and scrolled sideways to keep the caret in sight. Positions are byte offsets, always
 // on character (code point) boundaries. The caret does not blink: a blinking one would need a
-// frame every half second, and an idle Nordend draws nothing.
+// frame every half second, and an idle Nordend draws nothing. Ctrl+Z undoes the last edit and
+// Ctrl+Shift+Z redoes it: characters typed one after another, or removed one after another, are
+// one edit; a paste is one; moving the caret ends one.
 //
 // Loop thread only.
 class TextField {
 public:
     explicit TextField(std::string text = {});
 
-    // Replaces the text; the caret goes to its end, nothing selected.
+    // How many edits Ctrl+Z can undo; older ones are forgotten.
+    static constexpr std::size_t kHistory = 100;
+
+    // Replaces the text; the caret goes to its end, nothing selected, no edits to undo.
     void set_text(std::string text);
 
     [[nodiscard]] const std::string& text() const noexcept { return text_; }
@@ -46,11 +53,16 @@ public:
     // The selection as [first, last); empty (first == last == caret) when there is none.
     [[nodiscard]] std::pair<std::size_t, std::size_t> selection() const noexcept;
 
-    // Replaces the selection (or inserts at the caret) with text.
+    // Replaces the selection (or inserts at the caret) with text: one edit (a paste).
     void insert(std::string_view text);
 
+    // Ctrl+Z, Ctrl+Shift+Z: false when there is nothing to undo or redo.
+    bool undo();
+    bool redo();
+
     // Typing (event.text without Ctrl or Alt), Backspace, Delete, Left, Right, Home, End, Up
-    // (Home), Down (End), with Shift to select and Ctrl to go by words; Ctrl+A selects all.
+    // (Home), Down (End), with Shift to select and Ctrl to go by words; Ctrl+A selects all;
+    // Ctrl+Z undoes, Ctrl+Shift+Z redoes.
     // false for keys it does not use (Enter, Escape, Tab, function keys).
     bool key(const KeyEvent& event);
 
@@ -67,6 +79,19 @@ public:
     static constexpr float kPadding = 4.0F;
 
 private:
+    // What an edit does: typing and removing go on as one edit while repeated.
+    enum class Edit : std::uint8_t { other, typing, removing };
+
+    struct State {
+        std::string text;
+        std::size_t caret{0};
+        std::size_t anchor{0};
+    };
+
+    // Before an edit of kind: keeps what is there for Ctrl+Z, unless it goes on the last edit.
+    void remember(Edit kind);
+    void restore(State state);
+
     [[nodiscard]] std::size_t previous(std::size_t at) const noexcept;
     [[nodiscard]] std::size_t next(std::size_t at) const noexcept;
     [[nodiscard]] std::size_t previous_word(std::size_t at) const noexcept;
@@ -85,6 +110,9 @@ private:
     float size_{14.0F};
     float scale_{1.0F};
     FontSystem* fonts_{nullptr};  // from the last draw: click() measures with it
+    std::vector<State> undo_;     // oldest first
+    std::vector<State> redo_;
+    Edit last_edit_{Edit::other};  // other: the next edit starts a new one
 };
 
 }  // namespace nordend::ui

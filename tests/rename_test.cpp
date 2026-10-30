@@ -273,6 +273,52 @@ struct BrowserFixture {
 
 }  // namespace
 
+TEST_CASE("text field: Ctrl+Z undoes edits, Ctrl+Shift+Z redoes them") {
+    TextField field{"P1.ORF"};
+    field.select(0, 2);
+    CHECK_FALSE(field.undo());  // nothing done yet
+    // Typed over the selection, one character after another: one edit.
+    for (const char* c : {"L", "a", "k", "e"}) {
+        CHECK(field.key(typed(c)));
+    }
+    CHECK(field.text() == "Lake.ORF");
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(field.text() == "P1.ORF");
+    CHECK(selected(field) == "P1");  // the selection as it was
+    CHECK(field.key(key(XKB_KEY_Z, {.ctrl = true, .shift = true})));
+    CHECK(field.text() == "Lake.ORF");
+    CHECK(field.caret() == 4);
+
+    // Removing characters one after another: one edit; moving the caret starts another.
+    CHECK(field.key(key(XKB_KEY_BackSpace)));
+    CHECK(field.key(key(XKB_KEY_BackSpace)));
+    CHECK(field.text() == "La.ORF");
+    CHECK(field.key(key(XKB_KEY_End)));
+    CHECK(field.key(typed("x")));
+    CHECK(field.text() == "La.ORFx");
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(field.text() == "La.ORF");
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(field.text() == "Lake.ORF");
+
+    // A paste is one edit; a new edit forgets what could be redone.
+    field.select(0, 4);
+    field.insert("Lago di Como");
+    CHECK(field.text() == "Lago di Como.ORF");
+    CHECK(field.undo());
+    CHECK(field.text() == "Lake.ORF");
+    CHECK(field.key(typed("y")));
+    CHECK_FALSE(field.redo());
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));  // nothing left is still a key it uses
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(field.key(key(XKB_KEY_z, {.ctrl = true})));
+    CHECK(field.text() == "P1.ORF");
+
+    // A new text: nothing to undo.
+    field.set_text("other");
+    CHECK_FALSE(field.undo());
+}
+
 TEST_CASE("browser: F2 renames in place, the extension left out, sidecars along") {
     for (const Browser::Mode mode :
          {Browser::Mode::columns, Browser::Mode::grid, Browser::Mode::details}) {

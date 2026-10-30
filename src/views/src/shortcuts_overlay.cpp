@@ -14,9 +14,10 @@ namespace nordend::views {
 namespace {
 
 constexpr float kMaxCardWidth = 820.0F;
-constexpr float kMargin = 32.0F;     // around the card, at least
-constexpr float kPadding = 28.0F;    // inside the card
-constexpr float kColumnGap = 40.0F;  // between the two columns
+constexpr float kWideCardWidth = 1200.0F;  // three columns, when the window has room
+constexpr float kMargin = 32.0F;           // around the card, at least
+constexpr float kPadding = 28.0F;          // inside the card
+constexpr float kColumnGap = 40.0F;        // between the columns
 constexpr float kTitleSize = 16.0F;
 constexpr float kHeadHeight = 44.0F;
 constexpr float kGroupSize = 11.0F;
@@ -26,10 +27,20 @@ constexpr float kRowHeight = 22.0F;
 constexpr float kTextSize = 13.0F;
 constexpr float kKeysShare = 0.38F;  // of a column, for the keys
 
-// The groups in each column of the card.
-constexpr std::array<std::array<std::string_view, 5>, 2> kColumns{{
+using Column = std::array<std::string_view, 5>;
+using Layout = std::array<Column, 3>;
+
+// The groups in each column of the card: two columns, or three in a wide window. Both hold every
+// group.
+constexpr Layout kTwoColumns{{
     {"General", "Moving", "Grid", "", ""},
     {"Selecting", "Files", "Sidebar", "Quick Look", ""},
+    {"", "", "", "", ""},
+}};
+constexpr Layout kThreeColumns{{
+    {"General", "Grid", "Quick Look", "", ""},
+    {"Moving", "Selecting", "Sidebar", "", ""},
+    {"Files", "", "", "", ""},
 }};
 
 std::string upper(std::string_view text) {
@@ -40,7 +51,7 @@ std::string upper(std::string_view text) {
 }
 
 // The height of a column of groups.
-float column_height(const std::array<std::string_view, 5>& groups) {
+float column_height(const Column& groups) {
     float height = 0.0F;
     bool first = true;
     for (const std::string_view group : groups) {
@@ -62,7 +73,7 @@ float column_height(const std::array<std::string_view, 5>& groups) {
 
 std::vector<std::string_view> overlay_groups() {
     std::vector<std::string_view> groups;
-    for (const auto& column : kColumns) {
+    for (const Column& column : kTwoColumns) {
         for (const std::string_view group : column) {
             if (!group.empty()) {
                 groups.push_back(group);
@@ -94,8 +105,15 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         return;
     }
     renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
-    const float width = std::min(kMaxCardWidth, bounds.width - (2.0F * kMargin));
-    const float content = std::max(column_height(kColumns[0]), column_height(kColumns[1]));
+    const bool wide = bounds.width - (2.0F * kMargin) >= kWideCardWidth;
+    const Layout& layout = wide ? kThreeColumns : kTwoColumns;
+    const std::size_t columns = wide ? 3 : 2;
+    const float width =
+        std::min(wide ? kWideCardWidth : kMaxCardWidth, bounds.width - (2.0F * kMargin));
+    float content = 0.0F;
+    for (const Column& column : layout) {
+        content = std::max(content, column_height(column));
+    }
     const float height =
         std::min(bounds.height - (2.0F * kMargin), kHeadHeight + content + (2.0F * kPadding));
     const ui::Rect card{bounds.x + ((bounds.width - width) / 2.0F),
@@ -108,14 +126,16 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     renderer.draw_text("Keyboard shortcuts", card.x + kPadding, card.y + kPadding, kTitleSize,
                        palette.on_surface);
 
-    const float column_width = (width - (2.0F * kPadding) - kColumnGap) / 2.0F;
+    const float column_width =
+        (width - (2.0F * kPadding) - (kColumnGap * static_cast<float>(columns - 1))) /
+        static_cast<float>(columns);
     const float keys_width = column_width * kKeysShare;
-    for (std::size_t c = 0; c < kColumns.size(); ++c) {
+    for (std::size_t c = 0; c < columns; ++c) {
         const float left =
             card.x + kPadding + (static_cast<float>(c) * (column_width + kColumnGap));
         float y = card.y + kPadding + kHeadHeight;
         bool first = true;
-        for (const std::string_view group : kColumns.at(c)) {
+        for (const std::string_view group : layout.at(c)) {
             if (group.empty()) {
                 continue;
             }
