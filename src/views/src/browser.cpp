@@ -243,7 +243,8 @@ void Browser::paste() {
             .source = clipboard_.directory,
             .names = clipboard_.names,
             .destination = folder->path(),
-            .force_copy = false});
+            .force_copy = false},
+           open_batch(Purpose::user, cut ? FileOperation::Kind::move : FileOperation::Kind::copy));
     if (cut) {
         clipboard_ = {};  // moved once: there is nothing left to move
         cut_marks_ = {};
@@ -258,8 +259,19 @@ void Browser::paste() {
     redraw_();
 }
 
-void Browser::submit(fs::TransferRequest request, std::optional<std::uint64_t> empty_clipboard) {
-    submitted_.push_back(empty_clipboard);
+std::uint64_t Browser::open_batch(Purpose purpose, FileOperation::Kind kind) {
+    const std::uint64_t id = ++batch_ids_;
+    batches_.emplace(
+        id, Batch{.purpose = purpose, .kind = kind, .pending = 0, .items = {}, .failed = false});
+    return id;
+}
+
+void Browser::submit(fs::TransferRequest request, std::uint64_t batch,
+                     std::optional<std::uint64_t> empty_clipboard) {
+    if (const auto it = batches_.find(batch); it != batches_.end()) {
+        ++it->second.pending;
+    }
+    submitted_.push_back({.batch = batch, .empty_clipboard = empty_clipboard});
     transfers_.submit(std::move(request));
 }
 
@@ -274,7 +286,9 @@ void Browser::paste_files(const std::filesystem::path& destination, const Clipbo
                      false);
         return;
     }
-    // One transfer per folder the files are in.
+    // One transfer per folder the files are in, one operation for Ctrl+Z.
+    const std::uint64_t batch = open_batch(
+        Purpose::user, files.cut ? FileOperation::Kind::move : FileOperation::Kind::copy);
     std::vector<std::pair<std::filesystem::path, std::vector<std::string>>> folders;
     for (const std::filesystem::path& path : files.paths) {
         const std::filesystem::path parent = path.parent_path();
@@ -291,7 +305,7 @@ void Browser::paste_files(const std::filesystem::path& destination, const Clipbo
                 .names = std::move(names),
                 .destination = destination,
                 .force_copy = false},
-               files.cut ? std::optional{generation} : std::nullopt);
+               batch, files.cut ? std::optional{generation} : std::nullopt);
     }
     if (!status_bar_.transfer()) {
         status_bar_.set_transfer(
@@ -396,7 +410,8 @@ void Browser::trash() {
             .source = folder->path(),
             .names = std::move(names),
             .destination = home_trash_,
-            .force_copy = false});
+            .force_copy = false},
+           open_batch(Purpose::user, FileOperation::Kind::trash));
     cursor_after(*folder, going);
     redraw_();
 }
@@ -421,7 +436,8 @@ void Browser::restore() {
             .source = folder->path(),
             .names = std::move(paths),
             .destination = {},
-            .force_copy = false});
+            .force_copy = false},
+           open_batch(Purpose::user, FileOperation::Kind::restore));
     cursor_after(*folder, going_with_sidecars(*folder, names));
     redraw_();
 }
@@ -569,8 +585,10 @@ void Browser::submit_erase() {
         return;
     }
     const bool emptying = erase_->request.kind == fs::TransferKind::empty_trash;
-    submit(std::move(erase_->request));
+    submit(std::move(erase_->request), 0);
     erase_.reset();
+    undo_ = FileOperation{.kind = FileOperation::Kind::erase, .items = {}};  // no way back
+    redo_.reset();
     if (!status_bar_.transfer()) {
         status_bar_.set_transfer(TransferStatus{
             .text = emptying ? "Getting ready to empty the trash…" : "Getting ready to delete…",
@@ -717,17 +735,35 @@ void Browser::transfer_progress(const fs::TransferRequest& request,
 }
 
 void Browser::transfer_done(const fs::TransferRequest& request, const fs::TransferResult& result) {
-    std::optional<std::uint64_t> empty_clipboard;
+    Submitted submitted;
     if (!submitted_.empty()) {
-        empty_clipboard = submitted_.front();
+        submitted = submitted_.front();
         submitted_.pop_front();
     }
     // Another program's cut that moved something: nobody should move those files again. Unless
     // the clipboard holds something else by now.
-    if (empty_clipboard && !result.placed.empty() && system_.clear && system_.generation &&
-        system_.generation() == *empty_clipboard) {
+    if (submitted.empty_clipboard && !result.placed.empty() && system_.clear &&
+        system_.generation && system_.generation() == *submitted.empty_clipboard) {
         system_.clear();
     }
+    report_done(request, result);
+    const auto batch = batches_.find(submitted.batch);
+    if (batch == batches_.end()) {
+        return;
+    }
+    Batch& done = batch->second;
+    done.items.insert(done.items.end(), result.items.begin(), result.items.end());
+    done.failed =
+        done.failed || result.cancelled || !result.errors.empty() || !result.refused.empty();
+    if (--done.pending == 0) {
+        Batch finished = std::move(done);
+        batches_.erase(batch);
+        record({.kind = finished.kind, .items = std::move(finished.items)}, finished.purpose,
+               finished.failed);
+    }
+}
+
+void Browser::report_done(const fs::TransferRequest& request, const fs::TransferResult& result) {
     for_the_rest_.reset();
     copy_started_.reset();
     conflict_.close();
@@ -833,6 +869,216 @@ void Browser::erase_done(const fs::TransferRequest& request, const fs::TransferR
     }
 }
 
+namespace {
+
+// A new folder or file as it was made: an empty folder, or a file as long as its template (or
+// empty). Only then does Ctrl+Z take it away.
+bool unchanged_since_made(const fs::PlacedItem& item) {
+    std::error_code error;
+    const std::filesystem::file_status status = std::filesystem::symlink_status(item.to, error);
+    if (error) {
+        return false;
+    }
+    if (std::filesystem::is_directory(status)) {
+        return std::filesystem::is_empty(item.to, error) && !error;
+    }
+    if (!std::filesystem::is_regular_file(status)) {
+        return false;
+    }
+    const std::uintmax_t size = std::filesystem::file_size(item.to, error);
+    if (error) {
+        return false;
+    }
+    if (item.from.empty()) {
+        return size == 0;
+    }
+    const std::uintmax_t made_from = std::filesystem::file_size(item.from, error);
+    return !error && size == made_from;
+}
+
+}  // namespace
+
+void Browser::record(FileOperation operation, Purpose purpose, bool failed) {
+    if (purpose != Purpose::user) {
+        undoing_ = false;
+    }
+    if (operation.items.empty()) {
+        return;  // nothing was done: what Ctrl+Z undoes stays
+    }
+    const std::string what = describe(operation);
+    switch (purpose) {
+        case Purpose::user:
+            undo_ = std::move(operation);
+            redo_.reset();
+            return;
+        case Purpose::undo:
+            redo_ = std::move(operation);
+            undo_.reset();
+            break;
+        case Purpose::redo:
+            undo_ = std::move(operation);
+            redo_.reset();
+            break;
+    }
+    if (!failed) {  // otherwise the transfer's own message says what went wrong
+        show_message(std::format("{}: {}", purpose == Purpose::undo ? "Undone" : "Redone", what),
+                     false);
+    }
+}
+
+void Browser::undo() {
+    if (undoing_) {
+        show_message("Still undoing the last one", false);
+    } else if (!undo_) {
+        show_message("Nothing to undo", false);
+    } else {
+        start_inverse(*undo_, Purpose::undo);
+    }
+}
+
+void Browser::redo() {
+    if (undoing_) {
+        show_message("Still undoing the last one", false);
+    } else if (!redo_) {
+        show_message("Nothing to redo", false);
+    } else {
+        start_inverse(*redo_, Purpose::redo);
+    }
+}
+
+void Browser::trash_paths(const std::vector<std::filesystem::path>& paths, Purpose purpose) {
+    const std::uint64_t batch = open_batch(purpose, FileOperation::Kind::trash);
+    std::vector<std::pair<std::filesystem::path, std::vector<std::string>>> folders;
+    for (const std::filesystem::path& path : paths) {
+        auto it = std::ranges::find(folders, path.parent_path(),
+                                    [](const auto& folder) { return folder.first; });
+        if (it == folders.end()) {
+            folders.emplace_back(path.parent_path(), std::vector<std::string>{});
+            it = std::prev(folders.end());
+        }
+        it->second.push_back(path.filename().string());
+    }
+    undoing_ = true;
+    for (auto& [source, names] : folders) {
+        submit({.kind = fs::TransferKind::trash,
+                .source = source,
+                .names = std::move(names),
+                .destination = home_trash_,
+                .force_copy = false},
+               batch);
+    }
+}
+
+void Browser::start_inverse(const FileOperation& operation, Purpose purpose) {
+    std::vector<std::filesystem::path> placed;
+    placed.reserve(operation.items.size());
+    for (const fs::PlacedItem& item : operation.items) {
+        placed.push_back(item.to);
+    }
+    switch (operation.kind) {
+        case FileOperation::Kind::erase:
+            show_message("A permanent delete cannot be undone", false);
+            return;
+        case FileOperation::Kind::rename: {
+            const fs::PlacedItem item = operation.items.front();
+            undoing_ = true;
+            ++operations_;
+            pool_.submit(
+                core::Priority::visible,
+                [item](const core::CancelToken& /*token*/) {
+                    return fs::rename_entry(item.to.parent_path(), item.to.filename().string(),
+                                            item.from.filename().string());
+                },
+                [this, alive = alive_, item, purpose](const fs::Renamed& renamed) {
+                    if (!*alive) {
+                        return;
+                    }
+                    --operations_;
+                    if (renamed.error) {
+                        undoing_ = false;
+                        show_message(renamed.problem, true);
+                        return;
+                    }
+                    record({.kind = FileOperation::Kind::rename,
+                            .items = {{.from = item.to, .to = item.from}}},
+                           purpose, !renamed.problem.empty());
+                    if (!renamed.problem.empty()) {
+                        show_message(renamed.problem, true);
+                    }
+                });
+            return;
+        }
+        case FileOperation::Kind::create: {
+            const fs::PlacedItem item = operation.items.front();
+            undoing_ = true;
+            ++operations_;
+            pool_.submit(
+                core::Priority::visible,
+                [item](const core::CancelToken& /*token*/) { return unchanged_since_made(item); },
+                [this, alive = alive_, item, purpose](bool unchanged) {
+                    if (!*alive) {
+                        return;
+                    }
+                    --operations_;
+                    if (!unchanged) {
+                        undoing_ = false;
+                        show_message(std::format("“{}” has changed since it was made: not undone",
+                                                 item.to.filename().string()),
+                                     false);
+                        return;
+                    }
+                    trash_paths({item.to}, purpose);
+                });
+            return;
+        }
+        case FileOperation::Kind::copy:
+        case FileOperation::Kind::restore:
+            trash_paths(placed, purpose);  // copies go to the trash: an undo can be undone
+            return;
+        case FileOperation::Kind::trash: {
+            std::vector<std::string> paths;
+            paths.reserve(placed.size());
+            for (const std::filesystem::path& path : placed) {
+                paths.push_back(path.string());
+            }
+            undoing_ = true;
+            submit({.kind = fs::TransferKind::restore,
+                    .source = fs::trash_path(),
+                    .names = std::move(paths),
+                    .destination = {},
+                    .force_copy = false},
+                   open_batch(purpose, FileOperation::Kind::restore));
+            return;
+        }
+        case FileOperation::Kind::move: {
+            // Back where each came from, one transfer per pair of folders.
+            const std::uint64_t batch = open_batch(purpose, FileOperation::Kind::move);
+            std::vector<std::pair<std::pair<std::filesystem::path, std::filesystem::path>,
+                                  std::vector<std::string>>>
+                moves;
+            for (const fs::PlacedItem& item : operation.items) {
+                const std::pair folders{item.to.parent_path(), item.from.parent_path()};
+                auto it = std::ranges::find(moves, folders, [](const auto& m) { return m.first; });
+                if (it == moves.end()) {
+                    moves.emplace_back(folders, std::vector<std::string>{});
+                    it = std::prev(moves.end());
+                }
+                it->second.push_back(item.to.filename().string());
+            }
+            undoing_ = true;
+            for (auto& [folders, names] : moves) {
+                submit({.kind = fs::TransferKind::move,
+                        .source = folders.first,
+                        .names = std::move(names),
+                        .destination = folders.second,
+                        .force_copy = false},
+                       batch);
+            }
+            return;
+        }
+    }
+}
+
 Browser::~Browser() { *alive_ = false; }
 
 void Browser::start_rename() {
@@ -867,6 +1113,9 @@ void Browser::new_folder() {
                 return;
             }
             folder->expect_name(made.name);  // lands when the watcher reports it
+            record({.kind = FileOperation::Kind::create,
+                    .items = {{.from = {}, .to = folder->path() / made.name}}},
+                   Purpose::user, false);
             if (current_folder() == folder && !editor_.active()) {
                 editor_.start(folder, made.name, true);
             }
@@ -884,7 +1133,7 @@ void Browser::new_file(const std::string& name, const std::filesystem::path& fro
         [directory = folder->path(), name, from](const core::CancelToken& /*token*/) {
             return fs::make_file(directory, name, from);
         },
-        [this, alive = alive_, folder](const fs::MadeFile& made) {
+        [this, alive = alive_, folder, from](const fs::MadeFile& made) {
             if (!*alive) {
                 return;
             }
@@ -896,6 +1145,9 @@ void Browser::new_file(const std::string& name, const std::filesystem::path& fro
                 return;
             }
             folder->expect_name(made.name);  // lands when the watcher reports it
+            record({.kind = FileOperation::Kind::create,
+                    .items = {{.from = from, .to = folder->path() / made.name}}},
+                   Purpose::user, false);
             if (current_folder() == folder && !editor_.active()) {
                 editor_.start(folder, made.name, false);
             }
@@ -1131,7 +1383,7 @@ void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& f
         [directory = folder->path(), from, to](const core::CancelToken& /*token*/) {
             return fs::rename_entry(directory, from, to);
         },
-        [this, alive = alive_, folder, to](const fs::Renamed& renamed) {
+        [this, alive = alive_, folder, from, to](const fs::Renamed& renamed) {
             if (!*alive) {
                 return;
             }
@@ -1146,6 +1398,9 @@ void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& f
             if (folder->cursor_pending()) {
                 folder->expect_name(to);
             }
+            record({.kind = FileOperation::Kind::rename,
+                    .items = {{.from = folder->path() / from, .to = folder->path() / to}}},
+                   Purpose::user, false);
             if (!renamed.problem.empty()) {
                 show_message(renamed.problem, true);
             } else if (renamed.sidecars > 0) {
@@ -1618,6 +1873,12 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::erase:
             erase();
+            break;
+        case Command::undo:
+            undo();
+            break;
+        case Command::redo:
+            redo();
             break;
         case Command::context_menu:
             open_menu_from_keyboard();

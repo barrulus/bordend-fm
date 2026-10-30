@@ -109,6 +109,16 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
     the rest; pasting into the same folder keeps both by itself;
   - refused before anything moves: a folder into itself, or more than the free space.
+- **Undo** (Ctrl+Z, in any view and in Quick Look) the last operation on files, and redo it
+  (Ctrl+Shift+Z):
+  - a rename gets its old name back, darktable sidecars included; a move goes back where it came
+    from, across disks too; a Delete is restored; a restore goes back to the trash;
+  - copies and new folders or files go to the trash, never deleted, so even an undo can be
+    undone; a new folder only while it is empty, a new file only while it is as it was made;
+  - a permanent delete cannot be undone, and the status bar says so; what changed meanwhile
+    (a file another program moved) is skipped and said;
+  - the status bar says what happened: "Undone: “Lake.ORF” is “P1.ORF” again", "Undone: 3
+    items moved to the trash", "Redone: “P1.ORF” back in album".
 - **The system clipboard**, with other programs:
   - files copied or cut in Nordend paste in other programs: a file manager, Firefox (an upload, a
     message), a terminal or an editor (their paths); Nordend offers them as

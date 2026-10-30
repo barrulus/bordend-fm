@@ -43,6 +43,8 @@ enum class Command : std::uint8_t {
     paste,
     trash,
     erase,
+    undo,
+    redo,
     context_menu,
 };
 

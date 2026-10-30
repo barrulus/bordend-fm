@@ -5,6 +5,7 @@
 #include <deque>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,6 +42,7 @@
 #include "nordend/views/sidebar.hpp"
 #include "nordend/views/status_bar.hpp"
 #include "nordend/views/thumbnails.hpp"
+#include "nordend/views/undo.hpp"
 
 namespace nordend::views {
 
@@ -236,6 +238,21 @@ public:
     // with its darktable sidecars, and the cursor on the entry after it.
     void restore();
 
+    // Ctrl+Z: undoes the last operation on files (a rename, a new folder or file, a copy, a move,
+    // a trashing, a restore) by doing its inverse: copies and new entries go to the trash, never
+    // deleted. Ctrl+Shift+Z: undoes the undo. Only the last one, while Nordend runs.
+    void undo();
+    void redo();
+
+    // What Ctrl+Z would undo, and Ctrl+Shift+Z redo.
+    [[nodiscard]] const std::optional<FileOperation>& last_operation() const noexcept {
+        return undo_;
+    }
+
+    [[nodiscard]] const std::optional<FileOperation>& undone_operation() const noexcept {
+        return redo_;
+    }
+
     // Stops the transfer running (the status bar's ×).
     void cancel_transfer();
 
@@ -254,10 +271,23 @@ private:
     // Pastes files read from the system clipboard (at generation) into destination.
     void paste_files(const std::filesystem::path& destination, const ClipboardFiles& files,
                      std::uint64_t generation);
-    // Every transfer goes through here. empty_clipboard: another program's cut, read from the
-    // clipboard at that generation: emptied once something arrived, unless it changed meanwhile.
-    void submit(fs::TransferRequest request,
+    // Why an operation runs: the user's, or an undo or redo of one.
+    enum class Purpose : std::uint8_t { user, undo, redo };
+
+    // A new batch: the transfers of one operation, recorded as one when the last is done.
+    std::uint64_t open_batch(Purpose purpose, FileOperation::Kind kind);
+    // Every transfer goes through here; batch 0: not recorded (a permanent delete).
+    // empty_clipboard: another program's cut, read from the clipboard at that generation:
+    // emptied once something arrived, unless it changed meanwhile.
+    void submit(fs::TransferRequest request, std::uint64_t batch,
                 std::optional<std::uint64_t> empty_clipboard = std::nullopt);
+    // An operation done: what Ctrl+Z undoes now (or, for an undo, what Ctrl+Shift+Z redoes).
+    void record(FileOperation operation, Purpose purpose, bool failed);
+    // Starts the inverse of operation, for an undo or a redo.
+    void start_inverse(const FileOperation& operation, Purpose purpose);
+    // Moves paths to the trash as one operation of purpose.
+    void trash_paths(const std::vector<std::filesystem::path>& paths, Purpose purpose);
+    void report_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     // Ctrl+V in the name's field: the clipboard's text.
     void paste_text();
     void erase_done(const fs::TransferRequest& request, const fs::TransferResult& result);
@@ -351,9 +381,29 @@ private:
 
     Clipboard clipboard_;
     SystemClipboard system_;
-    // For each transfer submitted and not done, in order (the queue's): the clipboard
-    // generation to empty after it (submit()).
-    std::deque<std::optional<std::uint64_t>> submitted_;
+
+    // For each transfer submitted and not done, in order (the queue's): its batch and the
+    // clipboard generation to empty after it (submit()).
+    struct Submitted {
+        std::uint64_t batch{0};
+        std::optional<std::uint64_t> empty_clipboard;
+    };
+
+    std::deque<Submitted> submitted_;
+
+    struct Batch {
+        Purpose purpose{Purpose::user};
+        FileOperation::Kind kind{FileOperation::Kind::copy};
+        std::size_t pending{0};
+        std::vector<fs::PlacedItem> items;
+        bool failed{false};  // something could not be done, or it was stopped
+    };
+
+    std::map<std::uint64_t, Batch> batches_;
+    std::uint64_t batch_ids_{0};
+    std::optional<FileOperation> undo_;  // what Ctrl+Z undoes
+    std::optional<FileOperation> redo_;  // what Ctrl+Shift+Z undoes again
+    bool undoing_{false};                // an undo or redo on its way
     std::filesystem::path home_trash_;
     std::vector<fs::Place> places_;
     fs::DirectoryModel trash_model_;  // every trash, for the sidebar's icon

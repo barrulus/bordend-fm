@@ -33,8 +33,8 @@ using Layout = std::array<Column, 3>;
 // The groups in each column of the card: two columns, or three in a wide window. Both hold every
 // group.
 constexpr Layout kTwoColumns{{
-    {"General", "Moving", "Grid", "", ""},
-    {"Selecting", "Files", "Sidebar", "Quick Look", ""},
+    {"General", "Moving", "Grid", "Quick Look", ""},
+    {"Selecting", "Files", "Sidebar", "", ""},
     {"", "", "", "", ""},
 }};
 constexpr Layout kThreeColumns{{

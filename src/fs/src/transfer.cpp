@@ -603,6 +603,7 @@ TransferResult Engine::run() {
             continue;  // the photo did not arrive: its sidecars stay with it
         }
         result_.placed.push_back(name);
+        result_.items.push_back({.from = r.source / group.name, .to = r.destination / name});
         for (const std::string& sidecar : group.sidecars) {
             if (!place(r.source / sidecar, r.destination / sidecar_target(sidecar, name), sidecar,
                        replace) &&

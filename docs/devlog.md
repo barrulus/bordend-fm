@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Undo the last operation on files (ROADMAP 6.7)
+
+Proposed after 6.6 and approved by the author, with two choices of theirs: an undone copy goes
+to the trash (not deleted), and Ctrl+Shift+Z redoes.
+
+**Done**
+- `fs::TransferResult::items` (`PlacedItem{from, to}`): for each item placed, sidecars left out,
+  where it was and where it is now: copies and moves (`to` with the name kept, "P1 2.ORF"), the
+  trash (`to` in files/, `trash_item` now returns it), restores (`from` in files/).
+- `views::FileOperation` (`undo.hpp`): kind (rename, create, copy, move, trash, restore, erase)
+  and items; `describe()` for the status bar. Undoing one runs its inverse, and the inverse's
+  own result is recorded as what Ctrl+Shift+Z undoes: rename ↔ rename back; move ↔ move back;
+  trash ↔ restore; copy, create → trash (whose inverse, restore, is the redo). A permanent
+  delete (and Empty Trash) is recorded as `erase`: "A permanent delete cannot be undone".
+- Browser: every transfer goes through `submit(request, batch)`; a batch (`open_batch`) is one
+  operation, possibly several transfers (a paste from two folders, a move back to two folders);
+  when its last transfer is done, `record()` makes it what Ctrl+Z undoes (the user's: redo
+  forgotten; an undo's: what Ctrl+Shift+Z redoes; a redo's: what Ctrl+Z undoes again). Renames
+  (F2) and new folders/files are recorded when the worker answers. `undoing_` refuses another
+  Ctrl+Z while one is on its way ("Still undoing the last one"). A new folder or file is taken
+  away only if it is as it was made (an empty folder; a file as long as its template, or empty),
+  checked on a worker.
+- What changed meanwhile goes through the engines' own errors and messages ("Moved 0 files; 1
+  could not be: P2.ORF: ..."); nothing undone, nothing to redo, and Ctrl+Z answers again.
+- Shortcuts: Ctrl+Z "Undo the last operation", Ctrl+Shift+Z "Redo it" (views, Quick Look); the
+  name's field keeps its own Ctrl+Z while editing. The two-column overlay moved Quick Look to the
+  left column, the shorter one.
+- The shortcuts test's reset now cancels a conflict card: pressing every key undoes a Delete,
+  whose restore finds the name made again and asks.
+- Tests (215): rename with sidecars undone, redone, undone again, "Nothing to undo/redo"; a move
+  back and forth; a copy to the trash and restored by redo; Delete restored and trashed again; a
+  permanent delete refused; a new folder kept while it holds a file, then trashed; a moved file
+  removed meanwhile; the messages.
+
+**Tested by the author**: a rename with its sidecar undone, "Nothing to undo", redone; a move
+to DATA undone and redone; a copy undone into the trash (`trash-list` showed the copy and its
+sidecar) and redone; a Delete undone; a new folder undone; a permanent delete refused.
+
+**Decisions**
+- Only the last operation, in memory: a history with a list is ROADMAP 9.
+- An undo's undo is a redo by construction (the inverse of the inverse), so Ctrl+Shift+Z never
+  needs its own engine.
+
+**Open**
+- A moved item that took another name ("P1 2.ORF", keep both) comes back under that name.
+- An undone copy that had replaced a file (Replace on the card) cannot bring the replaced file
+  back: only the copy goes to the trash.
+- Ctrl+Z inside the trash folder works on the last operation, wherever it was.
+
+---
+
 ## 2026-10-30 — Undo in the name's field (ROADMAP 6.6)
 
 Asked for by the author after 6.5 ("premo Ctrl+Z e non torna indietro"); the order 6.6 (the

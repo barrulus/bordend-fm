@@ -59,11 +59,22 @@ struct TransferProgress {
     std::string current;  // the item being transferred
 };
 
+// An item a transfer placed: where it was and where it is now (undo needs both).
+struct PlacedItem {
+    std::filesystem::path from;
+    std::filesystem::path to;
+
+    bool operator==(const PlacedItem&) const = default;
+};
+
 struct TransferResult {
     // Set when nothing was done because the request cannot work: "Not enough space: ...",
     // "Cannot copy Trip into itself".
     std::string refused;
     std::vector<std::string> placed;  // the items' names in the destination, as given
+    // The same items, sidecars left out (they follow their photo): copied or moved from where to
+    // where; trashed from their place to the trash's files/; restored from files/ to their place.
+    std::vector<PlacedItem> items;
     std::size_t files_done{0};
     std::uint64_t bytes_done{0};
     std::vector<std::string> errors;  // "Trip/P1.ORF: Permission denied"

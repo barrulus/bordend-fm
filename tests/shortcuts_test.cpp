@@ -118,7 +118,13 @@ struct Fixture {
 
     // The root in mode, loaded, the cursor on cursor_on, nothing over the view.
     void reset(Browser::Mode mode, const std::string& cursor_on = "sub") {
-        REQUIRE(run_until(loop, [&] { return !browser.loading(); }));  // a new folder, say
+        // A new folder, say; an undone Delete may ask about a name made again meanwhile.
+        REQUIRE(run_until(loop, [&] {
+            if (browser.conflict_dialog().is_open()) {
+                browser.cancel_transfer();
+            }
+            return !browser.loading();
+        }));
         browser.name_editor().cancel();
         REQUIRE_FALSE(browser.name_editor().active());
         browser.quick_look().close();

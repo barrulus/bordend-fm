@@ -258,6 +258,17 @@ Legenda: `[ ]` da fare · `[~]` in corso · `[x]` fatto
   nome. L'overlay delle scorciatoie passa a tre colonne quando la finestra è larga.
   Fatto quando: F2, Ctrl+V di un testo, Ctrl+Z ridà il nome di prima e Ctrl+Shift+Z di nuovo
   il testo; test sui raggruppamenti e sul rifare dopo una modifica nuova.
+- [x] **6.7 Annulla l'ultima operazione sui file** (chiesto dall'autore dopo la 6.5)
+  Ctrl+Z nelle viste e in Quick Look annulla l'ultima operazione: rinomina (nomi di prima, sidecar
+  compresi), nuova cartella o nuovo file (nel cestino, solo se ancora come appena fatti), copia
+  (le copie nel cestino, mai cancellate), spostamento (indietro, anche tra dischi), Canc
+  (ripristino), ripristino (di nuovo nel cestino); l'eliminazione definitiva non si annulla e la
+  barra lo dice. Ctrl+Shift+Z rifà quello che è stato annullato. Solo l'ultima, finché Nordend
+  è aperto (la coda con la cronologia resta al 9). Quello che è cambiato nel frattempo viene
+  saltato e detto.
+  Fatto quando: rinomina con sidecar, spostamento su DATA, copia (`trash-list` mostra le copie),
+  Canc: ciascuno annullato e rifatto; un secondo Ctrl+Z dice "Nothing to undo"; test su ogni
+  tipo e sui casi cambiati nel frattempo.
 
 ## Fase 7 — MVP
 

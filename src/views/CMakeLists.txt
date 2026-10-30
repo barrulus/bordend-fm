@@ -19,7 +19,8 @@ add_library(nordend_views
     src/sidebar.cpp
     src/status_bar.cpp
     src/quick_look.cpp
-    src/thumbnails.cpp)
+    src/thumbnails.cpp
+    src/undo.cpp)
 add_library(nordend::views ALIAS nordend_views)
 
 target_include_directories(nordend_views PUBLIC include)

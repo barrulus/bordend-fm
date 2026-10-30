@@ -221,8 +221,8 @@ private:
         result_.errors.push_back(std::format("{}: {}", where, code.message()));
     }
 
-    // Trashes source/name; false when it stays.
-    bool trash_item(const std::string& name);
+    // Trashes source/name: where it went in files/; nullopt when it stays.
+    std::optional<std::filesystem::path> trash_item(const std::string& name);
 
     // The trash for the items of source, made if needed; nullopt and refused set when none.
     std::optional<TrashDir> find_trash();
@@ -272,12 +272,12 @@ std::optional<TrashDir> Trasher::find_trash() {
     return trash;
 }
 
-bool Trasher::trash_item(const std::string& name) {
+std::optional<std::filesystem::path> Trasher::trash_item(const std::string& name) {
     const std::filesystem::path item = source_ / name;
     const std::optional<struct stat> info = status_of(item);
     if (!info) {
         error(name, last_error());
-        return false;
+        return std::nullopt;
     }
     std::filesystem::path original = item;
     if (!trash_.relative_to.empty()) {
@@ -296,7 +296,7 @@ bool Trasher::trash_item(const std::string& name) {
             base = shorten_front(base, candidate.size() - base.size() + kInfoSuffix.size());
             if (base.empty()) {
                 error(name, std::make_error_code(std::errc::filename_too_long));
-                return false;
+                return std::nullopt;
             }
             id = 0;
             continue;
@@ -309,14 +309,14 @@ bool Trasher::trash_item(const std::string& name) {
                 continue;
             }
             error(name, last_error());
-            return false;
+            return std::nullopt;
         }
         // Complete before the item moves: nobody reads an empty one.
         const std::error_code written = write_all(fd, contents);
         if (close(fd) != 0 || written) {
             error(name, written ? written : last_error());
             unlink(info_file.c_str());
-            return false;
+            return std::nullopt;
         }
         const std::error_code moved = rename_new(item, trash_.path / "files" / candidate);
         if (moved == std::errc::file_exists) {
@@ -331,7 +331,7 @@ bool Trasher::trash_item(const std::string& name) {
             } else {
                 error(name, moved);
             }
-            return false;
+            return std::nullopt;
         }
         if (S_ISDIR(info->st_mode)) {
             struct stat written_info{};
@@ -343,7 +343,7 @@ bool Trasher::trash_item(const std::string& name) {
         ++progress_.files_done;
         ++result_.files_done;
         report();
-        return true;
+        return trash_.path / "files" / candidate;
     }
 }
 
@@ -416,12 +416,14 @@ TransferResult Trasher::run() {
             break;
         }
         progress_.current = group.name;
-        if (!trash_item(group.name)) {
+        const std::optional<std::filesystem::path> trashed = trash_item(group.name);
+        if (!trashed) {
             continue;  // the photo stays: its sidecars stay with it
         }
         result_.placed.push_back(group.name);
+        result_.items.push_back({.from = source_ / group.name, .to = *trashed});
         for (const std::string& sidecar : group.sidecars) {
-            trash_item(sidecar);
+            static_cast<void>(trash_item(sidecar));
         }
     }
     if (!folders_.empty()) {
@@ -720,6 +722,7 @@ TransferResult Restorer::run() {
             continue;  // the photo stays: its sidecars stay with it
         }
         result_.placed.push_back(name);
+        result_.items.push_back({.from = group.item.item, .to = directory / name});
         for (const Found& sidecar : group.sidecars) {
             const std::string to =
                 sidecar_name(sidecar.info.original.filename().string(), original, name);
