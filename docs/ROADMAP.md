@@ -102,12 +102,25 @@ all'autore quando ci si arriva.
   aperto.
 
 - [ ] **7.4 Compatibilità**
-  Fuori da Noctalia e Umbriel: il font di icone Tabler distribuito con Nordend (codice altrui:
-  chiedere prima, THIRD_PARTY); cursore di riserva (libwayland-cursor + tema xcursor) per i
-  compositor senza cursor-shape; decorazioni client-side nostre dove xdg-decoration manca
-  (GNOME/Mutter); checklist su Umbriel, niri (VM), KDE, GNOME (Ubuntu).
-  Fatto quando: Nordend è usabile, con icone, finestra spostabile/chiudibile e cursore visibile,
-  su tutti e quattro.
+  Fuori da Noctalia e Umbriel. Proposta del 2026-10-30, discussa con l'autore:
+  - font di icone di Nordend: un sottoinsieme del font ufficiale Tabler Icons (MIT) con le sole
+    icone usate, generato da `scripts/make-icon-font.sh` (fonttools) dalla release ufficiale, in
+    `third_party/tabler-icons/` con versione e sha256 in `THIRD_PARTY.md`; usato per primo
+    (**OK dell'autore da confermare**: codice altrui);
+  - cursore di riserva senza cursor-shape-v1: `libwayland-cursor` e il tema xcursor
+    (`XCURSOR_THEME`/`XCURSOR_SIZE`, altrimenti "default" 24), alla scala giusta;
+  - decorazioni client-side quando il compositor non le disegna (senza xdg-decoration o se chiede
+    client-side): titolo al centro, riduci/ingrandisci/chiudi a destra, trascinare sposta, doppio
+    clic ingrandisce, i bordi ridimensionano; colori della palette; su Umbriel nulla cambia;
+  - sviluppo verificato su weston headless (niente xdg-decoration né cursor-shape), senza finestre
+    sullo schermo dell'autore;
+  - prove dell'autore: Umbriel, più una VM Arch con tre sessioni (GNOME, Plasma, niri) e SSH per
+    compilare e lanciare i test dentro (**scelta di Arch da confermare**; l'autore toglie Ubuntu e
+    prepara la VM prima di queste prove); checklist e risultati in `docs/compatibility.md`.
+  Fatto quando: su Umbriel, GNOME, Plasma e niri Nordend si avvia con le icone, la finestra si
+  sposta, si ridimensiona e si chiude, il cursore si vede e cambia forma, clipboard e drag and drop
+  vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
+  screenshot di weston guardati.
 
 - [ ] **7.5 Impostazioni e stato ricordato** (Ctrl+,)
   Un pannello che mostra le impostazioni, poi modificabile (scrivendo `config.toml` senza perdere

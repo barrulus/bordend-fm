@@ -34,41 +34,41 @@ the Umbriel compositor) and wears your Noctalia theme, live.
 
 It is made for people who browse a lot of files, photos above all:
 
-- **📷 Photos first.** Thumbnails, the preview pane and Quick Look (<kbd>Space</kbd>) read the
+- **Photos first.** Thumbnails, the preview pane and Quick Look (<kbd>Space</kbd>) read the
   previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm,
   Panasonic, Hasselblad), upright and in the shape they were shot, with the shot's EXIF and your
   darktable rating. darktable sidecars travel with their photo through every rename, copy, move
   and trip to the trash.
-- **🗂️ Three views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to
+- **Three views of the same folder.** Finder-style columns (<kbd>Ctrl</kbd>+<kbd>1</kbd>) to
   walk a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder
   of photos, a details table (<kbd>Ctrl</kbd>+<kbd>3</kbd>) to compare sizes and dates;
   switching keeps your place and your selection.
-- **⚡ Small and fast, and measured.** A 2.6 MB binary; a 10 000-file folder shows its first
+- **Small and fast, and measured.** A 2.8 MB binary; a 10 000-file folder shows its first
   entries in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens
   in Quick Look in about 50 ms; copies run as fast as `cp`; and when nothing moves Nordend uses
   no CPU at all. See [Benchmarks](#benchmarks).
-- **🖐️ Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
+- **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
   when they lift; wheel and keyboard glide too. Nothing jumps.
-- **🛡️ Careful with your files.** Nothing is ever overwritten without asking, nothing
+- **Careful with your files.** Nothing is ever overwritten without asking, nothing
   half-copied ever carries a real name, a real freedesktop trash, a card before anything is
   deleted for good, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> for the last operation.
-- **⌨️ Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and
+- **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them all) and
   a click.
 
 > **Status: pre-alpha.** Browsing, selection, thumbnails, previews and Quick Look work, and so do
 > opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
-> the trash (restore and permanent delete included), undo, and copy and paste with other
-> programs. The MVP's last steps come next: other compositors and shells, removable disks,
-> settings. There are no packages yet: see [Building](#building). What happens step by step is in
+> the trash (restore and permanent delete included), undo, copy and paste and drag and drop
+> with other programs, back and forward, hidden files, favourites in the sidebar and removable
+> disks. The MVP's last steps come next: other compositors and desktops, settings. There are no packages yet: see [Building](#building). What happens step by step is in
 > the [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
 ## At a glance
 
 | | |
 |---|---|
-| Binary | **3.05 MB** (2.56 MB stripped), Release, x86-64, with the wuffs decoders built in |
-| Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 31 600 lines of C++20, plus 9 200 lines of tests (242 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Binary | **3.30 MB** (2.75 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Linked libraries | 20 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2, the C/C++ runtime. No GTK, no Qt, no GLib |
+| Code | about 31 800 lines of C++20, plus 9 200 lines of tests (242 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |

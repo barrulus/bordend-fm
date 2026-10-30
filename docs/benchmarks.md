@@ -17,6 +17,11 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-30: after 7.3
+
+3 457 608 bytes; 2 882 136 after `strip`; 20 direct libraries: libsdbus-c++ and libbasu (its
+sd-bus) for udisks2 are new.
+
 ### 2026-10-30: after 6.5
 
 3 046 656 bytes; 2 558 296 after `strip`; 18 direct libraries (the clipboard is libwayland's
