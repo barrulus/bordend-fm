@@ -91,6 +91,13 @@ void DetailsView::open(const std::filesystem::path& directory) {
     show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
 }
 
+std::optional<ViewHit> DetailsView::hit(float x, float y) const {
+    if (!folder_ || x < rows_.x || x >= rows_.right() || y < rows_.y || y >= rows_.bottom()) {
+        return std::nullopt;
+    }
+    return ViewHit{.folder = folder_, .entry = row_at(x, y)};
+}
+
 void DetailsView::set_show_hidden(bool show) {
     show_hidden_ = show;
     if (folder_) {
@@ -279,7 +286,8 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                         .ring = cursor_ring,
                         .focused = true,
                         .hovered = hovered_ == i,
-                        .cut = cut_ != nullptr && cut_->holds(folder_->path(), entry)});
+                        .cut = cut_ != nullptr && cut_->holds(folder_->path(), entry),
+                        .drop = drop_ != nullptr && drop_->holds(folder_->path(), entry)});
         if (style.fill || style.ring) {
             renderer.draw_box(
                 {table_left, y + kRowInset, table_width, kRowHeight - (2.0F * kRowInset)},
@@ -350,6 +358,13 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         renderer.draw_box({rows_.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
                           {.fill = palette.on_surface_variant.with_alpha(0.45F),
                            .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+    }
+    if (drop_ != nullptr && drop_->covers(folder_->path())) {
+        renderer.draw_box({rows_.x + 2.0F, rows_.y + 2.0F, rows_.width - 4.0F, rows_.height - 4.0F},
+                          {.fill = kTransparent,
+                           .radius = ui::Corners::all(8.0F),
+                           .border_width = 2.0F,
+                           .border = palette.primary});
     }
     renderer.pop_clip();
     if (pane) {
@@ -524,7 +539,7 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
                 break;
             }
             if (row || mode == SelectMode::replace) {
-                folder_->set_cursor(row, mode);  // a plain click on nothing clears
+                folder_->press(row, mode);  // a plain click on nothing clears
             }
             break;
         }

@@ -21,6 +21,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/column.hpp"
 #include "nordend/views/cut_marks.hpp"
+#include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/info_pane.hpp"
 
@@ -123,6 +124,13 @@ public:
     // The entries cut and not pasted yet, drawn faded (the browser's).
     void set_cut_marks(const CutMarks* cut) { cut_ = cut; }
 
+    // Where a drag over the window would drop (the browser's).
+    void set_drop_mark(const DropMark* drop) { drop_ = drop; }
+
+    // The column and row at a window point, as last drawn; nullopt off the columns (a divider,
+    // the info pane, outside).
+    [[nodiscard]] std::optional<ViewHit> hit(float x, float y) const;
+
     [[nodiscard]] std::size_t column_count() const noexcept { return columns_.size(); }
 
     [[nodiscard]] Column& column(std::size_t index) { return *columns_.at(index).column; }
@@ -177,6 +185,7 @@ private:
     std::function<void(float, float)> menu_;
     EditSlot* edit_{nullptr};
     const CutMarks* cut_{nullptr};
+    const DropMark* drop_{nullptr};
     std::function<void(ui::CursorShape)> set_cursor_;
     InfoPane* info_pane_;
     ui::Rect info_area_{};  // where the info pane was last drawn; empty when not shown

@@ -57,11 +57,20 @@ all'autore quando ci si arriva.
   `Browser::key()`, snapshot delle tre viste, scorciatoie aggiornate, provato dall'autore con il
   mouse.
 
-- [ ] **7.1 Drag and drop** (`wl_data_device`, come la clipboard)
+- [x] **7.1 Drag and drop** (`wl_data_device`, come la clipboard)
   Dentro Nordend e con le altre app (per esempio verso Firefox e da Firefox): si rilascia su una
   cartella in ogni vista, sulla breadcrumb o su un luogo della barra laterale. Stesso disco =
   sposta, disco diverso = copia; Ctrl forza la copia, Shift lo spostamento. Il motore della 6.3
   (sidecar, conflitti, avanzamento) e Ctrl+Z valgono anche qui.
+  Fatto quando: da ogni vista si trascina la selezione (o la voce sotto il puntatore) con
+  un'immagine (icona del primo, numero se più di uno), offerta come `text/uri-list` e
+  `text/plain`; verso le altre app solo copia. Si rilascia su una cartella (evidenziata), sullo
+  spazio vuoto di una vista, sulla breadcrumb, su un luogo della barra laterale (il Cestino
+  cestina). Rifiutati: una cartella in sé stessa o in una sua sottocartella, la cartella da cui
+  vengono (niente), gli URL non file ("Only files can be dropped"). Scorrimento automatico ai
+  bordi, Escape annulla. Test su azione, bersagli, rifiuti e `text/uri-list` (spazi, non ASCII);
+  snapshot; provato dall'autore dentro Nordend (Ctrl/Shift, Ctrl+Z), con Firefox e un
+  terminale. Lo spring-loading (aprire una cartella tenendoci sopra il puntatore) dopo l'MVP.
 
 - [ ] **7.2 Preferiti nella barra laterale**
   Una cartella trascinata nella barra laterale, Ctrl+D o "Add to Sidebar" dal menu la aggiunge;

@@ -20,6 +20,7 @@
 #include "nordend/fs/places.hpp"
 #include "nordend/fs/transfer_queue.hpp"
 #include "nordend/theme/palette.hpp"
+#include "nordend/ui/clipboard.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/icons.hpp"
 #include "nordend/ui/renderer.hpp"
@@ -32,6 +33,7 @@
 #include "nordend/views/context_menu.hpp"
 #include "nordend/views/cut_marks.hpp"
 #include "nordend/views/details_view.hpp"
+#include "nordend/views/drop_mark.hpp"
 #include "nordend/views/file_clipboard.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
@@ -67,8 +69,37 @@ namespace nordend::views {
 // A right click (or the Menu key, Shift+F10)
 // opens a context menu with the same actions, "Open With" and "New File". Alt+Left and Alt+Right
 // (the mouse's back and forward buttons) go through the folders opened, Ctrl+H shows the hidden
-// files.
+// files. Entries are dragged out of any view (to Nordend or another program, which only copies
+// them) and dropped onto a folder, a view, a step of the breadcrumb or a place of the sidebar.
 //
+// Drag and drop as the app connects it (Wayland's wl_data_device); tests give a fake. Without it
+// nothing is dragged out and nothing dropped in.
+struct DragAndDrop {
+    using Format = SystemClipboard::Format;
+    using Done = SystemClipboard::Done;
+
+    // Starts dragging these formats from the button press still held; the app shows
+    // Browser::draw_drag_icon() under the pointer.
+    std::function<void(std::vector<Format> formats)> start;
+    // Ends Nordend's drag without a drop (Escape).
+    std::function<void()> cancel;
+    // The drag over the window: its types, the actions its source allows (ui::kDndCopy,
+    // ui::kDndMove) and the one agreed for the drop.
+    std::function<std::vector<std::string>()> types;
+    std::function<std::uint32_t()> source_actions;
+    std::function<std::uint32_t()> action;
+    // Where the pointer is: type taken (nullopt: nothing), with actions, preferred first.
+    std::function<void(std::optional<std::string> type, std::uint32_t actions,
+                       std::uint32_t preferred)>
+        accept;
+    // After a drop: reads one type of it, then it is done.
+    std::function<void(std::string type, Done done)> read;
+    // After a drop of Nordend's own drag: done with it unread.
+    std::function<void()> finish;
+    // The modifiers held now (Ctrl copies, Shift moves).
+    std::function<ui::Modifiers()> modifiers;
+};
+
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
 public:
@@ -235,6 +266,33 @@ public:
     // Another program took the clipboard: what Ctrl+C or Ctrl+X took is forgotten.
     void clipboard_lost();
 
+    // Drag and drop: a press on an entry moved this far starts a drag of it (of the selection,
+    // when it is selected).
+    static constexpr float kDragThreshold = 6.0F;
+    // The image under the pointer while dragging, in logical pixels.
+    static constexpr std::int32_t kDragIconWidth = 220;
+    static constexpr std::int32_t kDragIconHeight = 40;
+    // How close to the top or bottom of a view a drag scrolls it.
+    static constexpr float kAutoScrollEdge = 40.0F;
+
+    void set_drag_and_drop(DragAndDrop dnd) { dnd_ = std::move(dnd); }
+
+    // A drag over the window, from Nordend or another program.
+    void drop_event(const ui::DropEvent& event);
+
+    // Nordend's drag ended (dropped somewhere or not).
+    void drag_ended();
+
+    // Nordend is dragging entries.
+    [[nodiscard]] bool dragging() const noexcept { return drag_.has_value(); }
+
+    // The image under the pointer: the first entry's icon and name, or how many there are.
+    void draw_drag_icon(ui::Renderer& renderer, const ui::Rect& bounds,
+                        const theme::Palette& palette, ui::IconSet& icons) const;
+
+    // Where a drop would go now, as the views mark it.
+    [[nodiscard]] const DropMark& drop_mark() const noexcept { return drop_mark_; }
+
     // Delete: moves the selection (or the entry under the cursor) to the trash, and the cursor to
     // the entry after it.
     void trash();
@@ -295,6 +353,34 @@ public:
     [[nodiscard]] std::vector<std::string> memory_lines() const;
 
 private:
+    // Where a drop at (x, y) goes: a folder, and how it is marked.
+    struct DropTarget {
+        std::filesystem::path folder;
+        DropMark mark;                               // in a view
+        std::optional<std::filesystem::path> place;  // in the sidebar
+        std::optional<std::filesystem::path> crumb;  // in the breadcrumb
+    };
+
+    [[nodiscard]] std::optional<DropTarget> drop_target_at(float x, float y) const;
+    // What the view shown has at (x, y).
+    [[nodiscard]] std::optional<ViewHit> view_hit(float x, float y) const;
+    // Why paths cannot go into folder; empty when they can (into the trash, always).
+    [[nodiscard]] static std::string refusal(const std::filesystem::path& folder,
+                                             const std::vector<std::filesystem::path>& paths);
+    void show_drop_target(const std::optional<DropTarget>& target);
+    struct Press;
+    // Starts Nordend's drag from press.
+    void start_drag(Press press);
+    // Drops paths into folder: own (Nordend's drag: Ctrl copies, Shift moves, else the same disk
+    // moves), or another program's with the action agreed.
+    void drop_paths(const std::filesystem::path& folder, std::vector<std::filesystem::path> paths,
+                    bool own, bool move);
+    // Copies or moves paths into destination as one operation.
+    void transfer_paths(const std::filesystem::path& destination,
+                        const std::vector<std::filesystem::path>& paths, bool move,
+                        std::optional<std::uint64_t> empty_clipboard);
+    void scroll_near_edge();
+    void stop_auto_scroll();
     // The folder shown into the history: a new step when it changed, else its cursor.
     void note_location();
     // Goes through the history by direction (-1 back, 1 forward).
@@ -365,6 +451,7 @@ private:
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
     [[nodiscard]] std::vector<MenuItem> folder_menu();
 
+    core::EventLoop& loop_;
     core::WorkerPool& pool_;
     std::function<void()> redraw_;
     OpenHandler open_;
@@ -419,6 +506,31 @@ private:
 
     Clipboard clipboard_;
     SystemClipboard system_;
+
+    DragAndDrop dnd_;
+
+    // A press on an entry, which may become a drag.
+    struct Press {
+        float x{0.0F};
+        float y{0.0F};
+        ViewHit hit;
+    };
+
+    std::optional<Press> press_;
+
+    // Nordend's drag.
+    struct Drag {
+        std::filesystem::path directory;
+        std::vector<std::string> names;
+        std::string icon;  // the first entry's
+    };
+
+    std::optional<Drag> drag_;
+    DropMark drop_mark_;
+    float drop_x_{0.0F};  // the drag over the window, last seen
+    float drop_y_{0.0F};
+    float auto_scroll_{0.0F};  // wheel notches per tick near an edge; 0: none
+    core::EventLoop::SourceId auto_scroll_timer_{0};
 
     // For each transfer submitted and not done, in order (the queue's): its batch and the
     // clipboard generation to empty after it (submit()).

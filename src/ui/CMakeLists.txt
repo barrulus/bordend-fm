@@ -54,6 +54,7 @@ add_library(nordend_ui
     src/renderer.cpp
     src/seat.cpp
     src/icons.cpp
+    src/offscreen.cpp
     src/scroller.cpp
     src/text.cpp
     src/text_field.cpp

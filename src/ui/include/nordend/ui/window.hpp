@@ -80,6 +80,13 @@ public:
 
     [[nodiscard]] wl_surface* surface() const noexcept { return surface_.get(); }
 
+    // A surface of width × height logical pixels drawn once by draw, at the window's scale: the
+    // image under the pointer in a drag. One at a time: a new one replaces the last.
+    wl_surface* make_drag_icon(std::int32_t width, std::int32_t height, const DrawHandler& draw);
+
+    // The drag ended: its image goes.
+    void drop_drag_icon();
+
 private:
     static void on_surface_configure(void* data, xdg_surface* surface, std::uint32_t serial);
     static void on_toplevel_configure(void* data, xdg_toplevel* toplevel, std::int32_t width,
@@ -127,6 +134,16 @@ private:
     WlPtr<xdg_toplevel> toplevel_;
     WlPtr<zxdg_toplevel_decoration_v1> decoration_;
     WlPtr<wl_callback> frame_callback_;  // non-null while a frame is in flight
+
+    // The drag image; its EGL surface is destroyed before the wl_egl_window and the surface.
+    struct DragIcon {
+        WlPtr<wl_surface> surface;
+        WlPtr<wp_viewport> viewport;
+        WlPtr<wl_egl_window> egl_window;
+        EGLSurface egl_surface{EGL_NO_SURFACE};
+    };
+
+    DragIcon drag_icon_;
 };
 
 }  // namespace nordend::ui

@@ -4,6 +4,72 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-30 — Drag and drop (ROADMAP 7.1)
+
+"Fatto quando" proposed and approved by the author the same day (copy only towards other apps;
+the sidebar's Trash trashes; a drag image; spring-loading after the MVP).
+
+**Done**
+- `ui::Clipboard` carries drag and drop on its `wl_data_device` (v3): `start_drag` (a second
+  `wl_data_source`, offered for copy only, its own formats; `dnd_finished`/`cancelled` end it),
+  `cancel_drag`; the drop side reports enter/motion/leave/drop (`DropEvent`), keeps the offer's
+  `source_actions` and agreed `action`, `accept_drop` (accept + set_actions), `read_drop` (then
+  `wl_data_offer_finish`) and `finish_drop` (Nordend's own drag, not read). A dropped offer
+  survives the leave that may follow the drop.
+- `ui::Window::make_drag_icon`: a second surface (viewport at fractional scales) drawn once with
+  the window's renderer into its own EGL surface; `ui::Seat::modifiers()`.
+- `ui::Offscreen` (surfaceless EGL + framebuffer), moved out of the snapshot tool, so tests can
+  draw: the drag and drop tests lay the browser out for real and point at what it shows.
+- Views: `hit(x, y)` (folder and entry under a point), a `DropMark` drawn as the target (an
+  entry: primary container with a ring; a whole column or view: an outline); sidebar
+  `place_under` and breadcrumb `path_at`, both with a marked drop target.
+- `Folder::press`/`release_press`: a plain click on an entry selected with others keeps the
+  selection until the button goes up, so the press can drag them all (as Finder and GTK do).
+- Browser: a press on an entry moved 6 px starts a drag (the selection when the entry is in it;
+  never from the trash); offered as `text/uri-list`, `text/plain;charset=utf-8` and `text/plain`
+  (paths). Escape cancels. Over the window: the target is a folder entry, the empty part of a
+  column or view (its folder), a breadcrumb step or a sidebar place; refused (not accepted, not
+  marked) when it is the dragged folder or inside it, or where the items already are; from
+  another program, only drags carrying `text/uri-list`. Drop: Nordend's own drag decides by
+  itself (Ctrl copies, Shift moves, else a `stat` on a worker: same device moves, another
+  copies); another program's follows the action agreed (copy unless the source allows move and
+  the compositor chose it); the Trash place trashes; non-file URLs: "Only files can be
+  dropped". Everything goes through `transfer_paths` (one batch: Ctrl+Z, sidecars, conflicts,
+  progress). Near the top or bottom edge of the view (40 px) a timer scrolls it while the drag
+  stays there.
+- Snapshot: `--drag NAME` (the drag image drawn by the pointer), `--drop-over X,Y`.
+- Tests (231): the drag of a selection (and a click that collapses it on release), the formats,
+  Escape; drops in the columns moving and Ctrl copying, then Ctrl+Z; Shift onto a column's empty
+  part; refusals into itself and where they are, leave clearing the mark; another program's file
+  with a space and "ï" copied, a web URL refused, a drag without files ignored; the breadcrumb, a
+  sidebar place, the trash.
+
+**Measured**
+- Snapshots with the author's palette: a folder row, a column, a breadcrumb step, the sidebar's
+  Trash as targets, the drag image. ASan and TSan: tests and a drag snapshot clean.
+
+**Decisions**
+- Towards other programs only copy (the source offers `copy`): Nordend never deletes its files
+  because another program says it took them. Inside Nordend the move is Nordend's own decision.
+- *To be verified on Umbriel*: whether the keyboard's modifiers and Escape still reach Nordend
+  during its drag (the compositor holds the pointer); whether the compositor applies Ctrl/Shift
+  to the action of another program's drag.
+- Fixed on the way: `drop_paths` read `paths.front()` in one lambda while another moved `paths`
+  in the same call (argument order is unspecified): a crash under the first test.
+
+**Open**
+- Spring-loading (hovering a folder opens it) after the MVP, as agreed.
+- Escape does not stop a drag on Umbriel: during the drag no key reaches Nordend, and Umbriel
+  does not cancel by itself (buglog NB-002, suspected). Ctrl and Shift do reach it.
+
+**Tested by the author**: moves and copies in the columns with Ctrl and Shift (sidecars along),
+Ctrl+Z, a whole selection dragged, refusals into itself and where they are, the breadcrumb, the
+sidebar and the Trash, a path dropped into a terminal, a photo into Firefox and a download from
+Firefox into Nordend, a web image refused, auto-scroll near the edges. Escape did not stop a drag
+(see Open).
+
+---
+
 ## 2026-10-30 — Navigation history and hidden files (ROADMAP 7.0)
 
 First step of phase 7; the "Fatto quando" proposed and approved by the author the same day.

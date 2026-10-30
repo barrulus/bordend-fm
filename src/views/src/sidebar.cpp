@@ -166,7 +166,11 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         std::optional<ui::Color> fill;
         ui::Color icon = palette.primary;
         ui::Color text = palette.on_surface;
-        if (is_cursor) {
+        if (drop_target_ == place.path) {
+            fill = palette.primary_container;
+            icon = palette.on_primary_container;
+            text = palette.on_primary_container;
+        } else if (is_cursor) {
             fill = palette.primary;
             icon = palette.on_primary;
             text = palette.on_primary;
@@ -176,9 +180,13 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
             fill = palette.surface_container_high;
         }
         if (fill) {
+            const bool drop = drop_target_ == place.path;
             renderer.draw_box(
                 {bounds.x + kInset, y + 1.0F, bounds.width - (2.0F * kInset), kRowHeight - 2.0F},
-                {.fill = *fill, .radius = ui::Corners::all(8.0F)});
+                {.fill = *fill,
+                 .radius = ui::Corners::all(8.0F),
+                 .border_width = drop ? 1.5F : 0.0F,
+                 .border = palette.primary});
         }
         icons.draw(renderer, place.icon, bounds.x + kIconLeft,
                    y + ((kRowHeight - kIconSize) / 2.0F), kIconSize, icon);
@@ -193,6 +201,18 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
                         grabbed ? 2.0F : 1.0F / renderer.scale(), bounds.height},
                        grabbed ? palette.primary : palette.outline_variant);
     update_hover();  // content may have moved under a still pointer
+}
+
+const fs::Place* Sidebar::place_under(float x, float y) const {
+    const std::optional<std::size_t> place = place_at(x, y);
+    return place ? &places_[*place] : nullptr;
+}
+
+void Sidebar::set_drop_target(std::optional<std::filesystem::path> path) {
+    if (path != drop_target_) {
+        drop_target_ = std::move(path);
+        redraw_();
+    }
 }
 
 std::optional<std::size_t> Sidebar::place_at(float x, float y) const {

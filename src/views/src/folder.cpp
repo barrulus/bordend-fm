@@ -199,6 +199,24 @@ void Folder::set_cursor(std::optional<std::size_t> index, SelectMode mode) {
     selection_changed();
 }
 
+void Folder::press(std::optional<std::size_t> index, SelectMode mode) {
+    press_pending_ = false;
+    if (index && *index < entries().size() && mode == SelectMode::replace && selected_.size() > 1 &&
+        selected_.contains(entries()[*index].name)) {
+        set_cursor(index, SelectMode::keep);
+        press_pending_ = true;
+        return;
+    }
+    set_cursor(index, mode);
+}
+
+void Folder::release_press() {
+    if (press_pending_) {
+        press_pending_ = false;
+        set_cursor(cursor_index_, SelectMode::replace);
+    }
+}
+
 void Folder::move_cursor(std::ptrdiff_t delta, SelectMode mode) {
     const std::size_t count = entries().size();
     if (count == 0) {

@@ -35,7 +35,8 @@ struct ItemState {
     bool ring{false};  // the cursor needs its own mark
     bool focused{false};
     bool hovered{false};
-    bool cut{false};  // cut with Ctrl+X, not pasted yet: faded
+    bool cut{false};   // cut with Ctrl+X, not pasted yet: faded
+    bool drop{false};  // a drag over it would drop into it
 };
 
 inline ItemStyle item_style(const theme::Palette& palette, const fs::Entry& entry,
@@ -57,6 +58,13 @@ inline ItemStyle item_style(const theme::Palette& palette, const fs::Entry& entr
     }
     if (item.cursor && item.ring && item.focused) {
         style.ring = item.selected ? palette.on_primary : palette.primary;
+    }
+    if (item.drop) {
+        style.fill = palette.primary_container;
+        style.ring = palette.primary;
+        style.icon = palette.on_primary_container;
+        style.chevron = palette.on_primary_container;
+        style.text = palette.on_primary_container;
     }
     if (item.cut) {
         style.icon.a *= kCutOpacity;

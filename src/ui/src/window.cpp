@@ -1,6 +1,7 @@
 #include "nordend/ui/window.hpp"
 
 #include <GLES3/gl3.h>
+#include <algorithm>
 #include <format>
 #include <stdexcept>
 #include <utility>
@@ -90,6 +91,7 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
 }
 
 Window::~Window() {
+    drop_drag_icon();
     // GL objects must be deleted with their context current.
     eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
     renderer_.reset();
@@ -134,6 +136,48 @@ void Window::draw() {
         log::error("eglSwapBuffers failed (0x{:04x})", eglGetError());
     }
     log::trace("frame {}x{} logical, {}x{} buffer", width_, height_, buffer_width_, buffer_height_);
+}
+
+wl_surface* Window::make_drag_icon(std::int32_t width, std::int32_t height,
+                                   const DrawHandler& draw) {
+    drop_drag_icon();
+    DragIcon icon;
+    icon.surface.reset(wl_compositor_create_surface(display_.compositor()));
+    // Sharp at a fractional scale through a viewport; else at scale 1.
+    const std::int32_t scale_120 =
+        display_.viewporter() != nullptr ? scale_120_ : kScaleDenominator;
+    const std::int32_t buffer_width = std::max(1, to_physical(width, scale_120));
+    const std::int32_t buffer_height = std::max(1, to_physical(height, scale_120));
+    if (display_.viewporter() != nullptr) {
+        icon.viewport.reset(wp_viewporter_get_viewport(display_.viewporter(), icon.surface.get()));
+        wp_viewport_set_destination(icon.viewport.get(), width, height);
+    }
+    icon.egl_window.reset(wl_egl_window_create(icon.surface.get(), buffer_width, buffer_height));
+    icon.egl_surface = eglCreatePlatformWindowSurface(egl_.display(), egl_.config(),
+                                                      icon.egl_window.get(), nullptr);
+    if (icon.egl_surface == EGL_NO_SURFACE) {
+        log::warn("drag image: eglCreatePlatformWindowSurface failed (0x{:04x})", eglGetError());
+        return nullptr;
+    }
+    eglMakeCurrent(egl_.display(), icon.egl_surface, icon.egl_surface, egl_.context());
+    eglSwapInterval(egl_.display(), 0);
+    renderer_->begin_frame(buffer_width, buffer_height,
+                           static_cast<float>(scale_120) / kScaleDenominator, background_);
+    draw(*renderer_, Rect{0.0F, 0.0F, static_cast<float>(width), static_cast<float>(height)});
+    renderer_->end_frame();
+    if (eglSwapBuffers(egl_.display(), icon.egl_surface) != EGL_TRUE) {
+        log::warn("drag image: eglSwapBuffers failed (0x{:04x})", eglGetError());
+    }
+    eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
+    drag_icon_ = std::move(icon);
+    return drag_icon_.surface.get();
+}
+
+void Window::drop_drag_icon() {
+    if (drag_icon_.egl_surface != EGL_NO_SURFACE) {
+        eglDestroySurface(egl_.display(), drag_icon_.egl_surface);
+    }
+    drag_icon_ = DragIcon{};
 }
 
 void Window::update_buffer_size() {

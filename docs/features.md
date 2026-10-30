@@ -126,6 +126,16 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
     (a file another program moved) is skipped and said;
   - the status bar says what happened: "Undone: “Lake.ORF” is “P1.ORF” again", "Undone: 3
     items moved to the trash", "Redone: “P1.ORF” back in album".
+- **Drag and drop:** a press on an entry moved a few pixels drags it (the whole selection when it
+  is in it), with its icon and name under the pointer. It drops onto a folder in any view (marked),
+  the empty part of a column or view (that folder), a step of the path above or a place in the
+  sidebar; the Trash trashes. On the same disk it moves, onto another it copies; Ctrl copies,
+  Shift moves. It goes through the same engine as a paste: sidecars, questions, progress, Ctrl+Z.
+  A folder never goes into itself, and dropping where the files already are does nothing. Other
+  programs receive the files as file URIs and paths (Firefox, terminals), only to copy: Nordend
+  never deletes its files because another program says it took them. Files dragged from another
+  program (Firefox's downloads) are copied; a web address is not a file. Near the top or bottom of
+  a list the drag scrolls it. Opening a folder by hovering over it comes after the first release.
 - **The system clipboard**, with other programs:
   - files copied or cut in Nordend paste in other programs: a file manager, Firefox (an upload, a
     message), a terminal or an editor (their paths); Nordend offers them as
@@ -256,6 +266,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Drag and drop, favourites in the sidebar, removable disks, then settings, remembered state, and
+Favourites in the sidebar, removable disks, then settings, remembered state, and
 the MVP. See the
 [roadmap](ROADMAP.md).

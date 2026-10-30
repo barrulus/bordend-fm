@@ -335,6 +335,41 @@ int main(int argc, char** argv) {
                         },
                 });
                 clipboard.set_lost_handler([&] { columns->clipboard_lost(); });
+                // Drag and drop (ROADMAP 7.1) on the same wl_data_device.
+                columns->set_drag_and_drop({
+                    .start =
+                        [&](std::vector<views::DragAndDrop::Format> formats) {
+                            wl_surface* const icon = window.make_drag_icon(
+                                views::Browser::kDragIconWidth, views::Browser::kDragIconHeight,
+                                [&](ui::Renderer& renderer, const ui::Rect& bounds) {
+                                    columns->draw_drag_icon(renderer, bounds, theme.palette(),
+                                                            icons);
+                                });
+                            clipboard.start_drag(std::move(formats), window.surface(), icon,
+                                                 seat.input_serial());
+                        },
+                    .cancel = [&] { clipboard.cancel_drag(); },
+                    .types = [&] { return clipboard.drop_types(); },
+                    .source_actions = [&] { return clipboard.drop_source_actions(); },
+                    .action = [&] { return clipboard.drop_action(); },
+                    .accept =
+                        [&](const std::optional<std::string>& type, std::uint32_t actions,
+                            std::uint32_t preferred) {
+                            clipboard.accept_drop(type, actions, preferred);
+                        },
+                    .read =
+                        [&](const std::string& type, views::DragAndDrop::Done done) {
+                            clipboard.read_drop(type, std::move(done));
+                        },
+                    .finish = [&] { clipboard.finish_drop(); },
+                    .modifiers = [&] { return seat.modifiers(); },
+                });
+                clipboard.set_drop_handler(
+                    [&](const ui::DropEvent& event) { columns->drop_event(event); });
+                clipboard.set_drag_end_handler([&](bool /*dropped*/) {
+                    window.drop_drag_icon();
+                    columns->drag_ended();
+                });
             }
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };

@@ -5,6 +5,7 @@
 #include <cerrno>
 #include <fcntl.h>
 #include <poll.h>
+#include <string_view>
 #include <unistd.h>
 
 #include "nordend/core/log.hpp"
@@ -39,9 +40,107 @@ Clipboard::~Clipboard() {
         loop_.remove(reader.timer);
         close(reader.fd);
     }
-    for (const auto& [offer, types] : offers_) {
+    for (const auto& [offer, state] : offers_) {
         wl_data_offer_destroy(offer);
     }
+}
+
+void Clipboard::start_drag(std::vector<Format> formats, wl_surface* origin, wl_surface* icon,
+                           std::uint32_t serial) {
+    if (!device_) {
+        return;
+    }
+    static constexpr wl_data_source_listener kDragListener{
+        .target = [](void*, wl_data_source*, const char*) {},
+        .send = &Clipboard::on_source_send,
+        .cancelled = &Clipboard::on_source_cancelled,
+        .dnd_drop_performed = [](void*, wl_data_source*) {},
+        .dnd_finished = &Clipboard::on_source_dnd_finished,
+        .action = [](void*, wl_data_source*, std::uint32_t) {},
+    };
+    drag_source_.reset(wl_data_device_manager_create_data_source(display_.data_device_manager()));
+    wl_data_source_add_listener(drag_source_.get(), &kDragListener, this);
+    for (const Format& format : formats) {
+        wl_data_source_offer(drag_source_.get(), format.first.c_str());
+    }
+    wl_data_source_set_actions(drag_source_.get(), kDndCopy);
+    drag_formats_ = std::move(formats);
+    wl_data_device_start_drag(device_.get(), drag_source_.get(), origin, icon, serial);
+}
+
+void Clipboard::cancel_drag() {
+    if (drag_source_) {
+        end_drag(false);  // a source destroyed mid-drag ends the drag
+    }
+}
+
+void Clipboard::end_drag(bool dropped) {
+    drag_source_.reset();
+    drag_formats_.clear();
+    if (drag_ended_) {
+        drag_ended_(dropped);
+    }
+}
+
+const Clipboard::Offer* Clipboard::drop_offer() const {
+    wl_data_offer* const offer = dragged_ != nullptr ? dragged_ : dropped_;
+    const auto it = offers_.find(offer);
+    return it == offers_.end() ? nullptr : &it->second;
+}
+
+std::vector<std::string> Clipboard::drop_types() const {
+    const Offer* const offer = drop_offer();
+    return offer != nullptr ? offer->types : std::vector<std::string>{};
+}
+
+std::uint32_t Clipboard::drop_source_actions() const {
+    const Offer* const offer = drop_offer();
+    return offer != nullptr ? offer->source_actions : 0;
+}
+
+std::uint32_t Clipboard::drop_action() const {
+    const Offer* const offer = drop_offer();
+    return offer != nullptr ? offer->action : 0;
+}
+
+void Clipboard::accept_drop(const std::optional<std::string>& type, std::uint32_t actions,
+                            std::uint32_t preferred) {
+    if (dragged_ == nullptr) {
+        return;
+    }
+    wl_data_offer_accept(dragged_, enter_serial_, type ? type->c_str() : nullptr);
+    if (!type || (preferred & actions) == 0) {
+        actions = 0;  // the preferred action must be one of them
+        preferred = 0;
+    }
+    wl_data_offer_set_actions(dragged_, actions, preferred);
+}
+
+void Clipboard::read_drop(const std::string& type, Done done) {
+    wl_data_offer* const offer = dropped_;
+    if (offer == nullptr) {
+        loop_.post([done = std::move(done)] { done(std::nullopt); });
+        return;
+    }
+    read_offer(offer, type, [this, offer, done = std::move(done)](std::optional<std::string> data) {
+        if (dropped_ == offer) {
+            finish_drop();
+        }
+        done(std::move(data));
+    });
+}
+
+void Clipboard::finish_drop() {
+    if (dropped_ == nullptr) {
+        return;
+    }
+    if (const auto it = offers_.find(dropped_); it != offers_.end() && it->second.action != 0) {
+        wl_data_offer_finish(dropped_);
+    }
+    if (dropped_ != selection_) {
+        forget_offer(dropped_);
+    }
+    dropped_ = nullptr;
 }
 
 void Clipboard::offer(std::vector<Format> formats, std::uint32_t serial) {
@@ -81,16 +180,20 @@ std::vector<std::string> Clipboard::types() const {
         return {};
     }
     const auto it = offers_.find(selection_);
-    return it == offers_.end() ? std::vector<std::string>{} : it->second;
+    return it == offers_.end() ? std::vector<std::string>{} : it->second.types;
 }
 
 void Clipboard::read(const std::string& type, Done done) {
+    read_offer(selection_, type, std::move(done));
+}
+
+void Clipboard::read_offer(wl_data_offer* offer, const std::string& type, Done done) {
     std::array<int, 2> fds{-1, -1};
-    if (selection_ == nullptr || pipe2(fds.data(), O_CLOEXEC | O_NONBLOCK) != 0) {
+    if (offer == nullptr || pipe2(fds.data(), O_CLOEXEC | O_NONBLOCK) != 0) {
         loop_.post([done = std::move(done)] { done(std::nullopt); });
         return;
     }
-    wl_data_offer_receive(selection_, type.c_str(), fds[1]);
+    wl_data_offer_receive(offer, type.c_str(), fds[1]);
     wl_display_flush(display_.native());
     close(fds[1]);
     readers_.push_back(
@@ -174,47 +277,93 @@ void Clipboard::on_data_offer(void* data, wl_data_device* /*device*/, wl_data_of
     auto& self = *static_cast<Clipboard*>(data);
     static constexpr wl_data_offer_listener kOfferListener{
         .offer = &Clipboard::on_offer_type,
-        .source_actions = [](void*, wl_data_offer*, std::uint32_t) {},
-        .action = [](void*, wl_data_offer*, std::uint32_t) {},
+        .source_actions = &Clipboard::on_offer_source_actions,
+        .action = &Clipboard::on_offer_action,
     };
-    self.offers_.emplace(offer, std::vector<std::string>{});
+    self.offers_.emplace(offer, Offer{});
     wl_data_offer_add_listener(offer, &kOfferListener, &self);
 }
 
 void Clipboard::on_offer_type(void* data, wl_data_offer* offer, const char* type) {
     auto& self = *static_cast<Clipboard*>(data);
     if (const auto it = self.offers_.find(offer); it != self.offers_.end()) {
-        it->second.emplace_back(type);
+        it->second.types.emplace_back(type);
     }
 }
 
-void Clipboard::on_enter(void* data, wl_data_device* /*device*/, std::uint32_t /*serial*/,
-                         wl_surface* /*surface*/, wl_fixed_t /*x*/, wl_fixed_t /*y*/,
+void Clipboard::on_offer_source_actions(void* data, wl_data_offer* offer, std::uint32_t actions) {
+    auto& self = *static_cast<Clipboard*>(data);
+    if (const auto it = self.offers_.find(offer); it != self.offers_.end()) {
+        it->second.source_actions = actions;
+    }
+}
+
+void Clipboard::on_offer_action(void* data, wl_data_offer* offer, std::uint32_t action) {
+    auto& self = *static_cast<Clipboard*>(data);
+    if (const auto it = self.offers_.find(offer); it != self.offers_.end()) {
+        it->second.action = action;
+    }
+}
+
+void Clipboard::on_enter(void* data, wl_data_device* /*device*/, std::uint32_t serial,
+                         wl_surface* /*surface*/, wl_fixed_t x, wl_fixed_t y,
                          wl_data_offer* offer) {
-    // Drag and drop is not taken yet: the offer is kept only until the drag leaves.
     auto& self = *static_cast<Clipboard*>(data);
     if (self.dragged_ != self.selection_) {
         self.forget_offer(self.dragged_);
     }
     self.dragged_ = offer;
+    self.enter_serial_ = serial;
+    self.drag_x_ = static_cast<float>(wl_fixed_to_double(x));
+    self.drag_y_ = static_cast<float>(wl_fixed_to_double(y));
+    if (offer != nullptr && self.drop_handler_) {
+        self.drop_handler_({.kind = DropEvent::Kind::enter, .x = self.drag_x_, .y = self.drag_y_});
+    }
 }
 
 void Clipboard::on_leave(void* data, wl_data_device* /*device*/) {
     auto& self = *static_cast<Clipboard*>(data);
+    if (self.dragged_ == nullptr) {
+        return;  // after a drop: that offer stays until it is read
+    }
     if (self.dragged_ != self.selection_) {
         self.forget_offer(self.dragged_);
     }
     self.dragged_ = nullptr;
+    if (self.drop_handler_) {
+        self.drop_handler_({.kind = DropEvent::Kind::leave, .x = self.drag_x_, .y = self.drag_y_});
+    }
 }
 
-void Clipboard::on_motion(void* /*data*/, wl_data_device* /*device*/, std::uint32_t /*time*/,
-                          wl_fixed_t /*x*/, wl_fixed_t /*y*/) {}
+void Clipboard::on_motion(void* data, wl_data_device* /*device*/, std::uint32_t /*time*/,
+                          wl_fixed_t x, wl_fixed_t y) {
+    auto& self = *static_cast<Clipboard*>(data);
+    self.drag_x_ = static_cast<float>(wl_fixed_to_double(x));
+    self.drag_y_ = static_cast<float>(wl_fixed_to_double(y));
+    if (self.dragged_ != nullptr && self.drop_handler_) {
+        self.drop_handler_({.kind = DropEvent::Kind::motion, .x = self.drag_x_, .y = self.drag_y_});
+    }
+}
 
-void Clipboard::on_drop(void* /*data*/, wl_data_device* /*device*/) {}
+void Clipboard::on_drop(void* data, wl_data_device* /*device*/) {
+    auto& self = *static_cast<Clipboard*>(data);
+    if (self.dragged_ == nullptr) {
+        return;
+    }
+    if (self.dropped_ != nullptr && self.dropped_ != self.selection_) {
+        self.forget_offer(self.dropped_);  // an earlier drop never read
+    }
+    self.dropped_ = self.dragged_;
+    self.dragged_ = nullptr;
+    if (self.drop_handler_) {
+        self.drop_handler_({.kind = DropEvent::Kind::drop, .x = self.drag_x_, .y = self.drag_y_});
+    }
+}
 
 void Clipboard::on_selection(void* data, wl_data_device* /*device*/, wl_data_offer* offer) {
     auto& self = *static_cast<Clipboard*>(data);
-    if (self.selection_ != offer && self.selection_ != self.dragged_) {
+    if (self.selection_ != offer && self.selection_ != self.dragged_ &&
+        self.selection_ != self.dropped_) {
         self.forget_offer(self.selection_);
     }
     if (self.selection_ != offer || offer == nullptr) {
@@ -223,10 +372,12 @@ void Clipboard::on_selection(void* data, wl_data_device* /*device*/, wl_data_off
     self.selection_ = offer;
 }
 
-void Clipboard::on_source_send(void* data, wl_data_source* /*source*/, const char* type, int fd) {
+void Clipboard::on_source_send(void* data, wl_data_source* source, const char* type, int fd) {
     auto& self = *static_cast<Clipboard*>(data);
-    const auto format = std::ranges::find(self.formats_, std::string_view{type}, &Format::first);
-    if (format == self.formats_.end() || fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
+    const std::vector<Format>& formats =
+        source == self.drag_source_.get() ? self.drag_formats_ : self.formats_;
+    const auto format = std::ranges::find(formats, std::string_view{type}, &Format::first);
+    if (format == formats.end() || fcntl(fd, F_SETFL, O_NONBLOCK) != 0) {
         close(fd);
         return;
     }
@@ -236,8 +387,19 @@ void Clipboard::on_source_send(void* data, wl_data_source* /*source*/, const cha
         fd, POLLOUT, [&self, writer](short /*revents*/) { self.write_some(writer); });
 }
 
+void Clipboard::on_source_dnd_finished(void* data, wl_data_source* source) {
+    auto& self = *static_cast<Clipboard*>(data);
+    if (source == self.drag_source_.get()) {
+        self.end_drag(true);
+    }
+}
+
 void Clipboard::on_source_cancelled(void* data, wl_data_source* source) {
     auto& self = *static_cast<Clipboard*>(data);
+    if (source == self.drag_source_.get()) {
+        self.end_drag(false);  // dropped nowhere, refused, or Escape in the compositor
+        return;
+    }
     if (source != self.source_.get()) {
         return;  // a replaced source is destroyed at once: it never gets here
     }

@@ -108,6 +108,17 @@ public:
     // removes the cursor and clears the selection.
     void set_cursor(std::optional<std::size_t> index, SelectMode mode = SelectMode::replace);
 
+    // A click with mode at index: as set_cursor, except that a plain click on an entry selected
+    // with others keeps them selected until release_press(), so the press can drag them all.
+    void press(std::optional<std::size_t> index, SelectMode mode);
+
+    // The button went up where it went down: the selection becomes the pressed entry alone, if
+    // a press left that for later.
+    void release_press();
+
+    // A drag took the press: the selection stays as it is.
+    void forget_press() noexcept { press_pending_ = false; }
+
     // Moves the cursor by delta entries (to the first entry when there is none).
     void move_cursor(std::ptrdiff_t delta, SelectMode mode = SelectMode::replace);
 
@@ -182,6 +193,7 @@ private:
     std::string cursor_name_;                  // empty: no cursor
     std::optional<std::size_t> cursor_index_;  // nullopt while pending
     bool cursor_expected_{false};              // pending on an entry Nordend made
+    bool press_pending_{false};                // release_press() selects the cursor's alone
     Reveal reveal_{Reveal::none};
     std::unordered_set<std::string> selected_;
     std::string anchor_;                               // where a Shift range starts

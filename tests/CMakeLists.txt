@@ -6,6 +6,7 @@ add_executable(nordend-tests
     config_test.cpp
     context_menu_test.cpp
     details_view_test.cpp
+    drag_drop_test.cpp
     directory_model_test.cpp
     directory_test.cpp
     event_loop_test.cpp

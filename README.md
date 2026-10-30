@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-225%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="225 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-231%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="231 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
@@ -68,7 +68,7 @@ It is made for people who browse a lot of files, photos above all:
 |---|---|
 | Binary | **3.05 MB** (2.56 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 18 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 29 400 lines of C++20, plus 8 200 lines of tests (225 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 30 500 lines of C++20, plus 8 600 lines of tests (231 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -182,6 +182,10 @@ status bar cost nothing measurable.
 - **Copy and paste with other programs.** Files copied or cut in Nordend paste in a file manager,
   in Firefox or as paths in a terminal; files copied or cut elsewhere paste in Nordend, copied or
   moved by the same careful engine. A program that does not answer never freezes the window.
+- **Drag and drop.** Drag files from any view onto a folder, the path above or a place in the
+  sidebar: on the same disk they move, onto another they copy (Ctrl copies, Shift moves), the
+  Trash trashes them, and Ctrl+Z takes it back. Drag them into Firefox or a terminal, or from
+  Firefox's downloads into Nordend.
 - **A context menu.** A right click, a two-finger tap or the Menu key: Open With lists the same
   applications GTK apps would offer (0 differences from `gio` on 1 232 types), New File makes an
   empty file or one from your templates, and every action shows its shortcut.

@@ -314,6 +314,19 @@ std::optional<std::size_t> ColumnView::column_at(float x) const {
     return std::nullopt;
 }
 
+std::optional<ViewHit> ColumnView::hit(float x, float y) const {
+    if (y < area_.y || y >= area_.bottom() || x < area_.x || x >= area_.right() ||
+        divider_at(x, y) || (info_area_.width > 0.0F && x >= info_area_.x)) {
+        return std::nullopt;
+    }
+    const std::optional<std::size_t> index = column_at(x);
+    if (!index) {
+        return std::nullopt;
+    }
+    const Column& column = *columns_[*index].column;
+    return ViewHit{.folder = column.shared_folder(), .entry = column.row_at(x, y)};
+}
+
 std::optional<std::size_t> ColumnView::divider_at(float x, float y) const {
     if (y < area_.y || y >= area_.bottom()) {
         return std::nullopt;
@@ -389,7 +402,7 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
             continue;
         }
         slot.column->draw(renderer, {left, area_.y, slot.width, area_.height}, palette, icons,
-                          i == focus_, now, edit_, cut_);
+                          i == focus_, now, edit_, cut_, drop_);
         const bool grabbed =
             resizing_ == i || (over_divider_ && divider_at(pointer_x_, pointer_y_) == i);
         const float line = grabbed ? 2.0F : 1.0F / renderer.scale();
@@ -493,7 +506,7 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 const std::optional<std::size_t> row = column.row_at(event.x, event.y);
                 const SelectMode mode = select_mode(event.modifiers, SelectMode::toggle);
                 if (row || mode == SelectMode::replace) {
-                    column.folder().set_cursor(row, mode);  // a plain click on nothing clears
+                    column.folder().press(row, mode);  // a plain click on nothing clears
                 }
                 // A double click opens a file with its application; a folder is open already.
                 const fs::Entry* const entry = column.folder().cursor_entry();

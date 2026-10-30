@@ -59,6 +59,13 @@ void GridView::open(const std::filesystem::path& directory) {
     show(std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
 }
 
+std::optional<ViewHit> GridView::hit(float x, float y) const {
+    if (!folder_ || x < area_.x || x >= area_.right() || y < area_.y || y >= area_.bottom()) {
+        return std::nullopt;
+    }
+    return ViewHit{.folder = folder_, .entry = cell_at(x, y)};
+}
+
 void GridView::set_show_hidden(bool show) {
     show_hidden_ = show;
     if (folder_) {
@@ -212,13 +219,15 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             const fs::Entry& entry = entries[i];
             const float x = area_.x + kPadding + (static_cast<float>(column) * cell_width_);
             const bool cut = cut_ != nullptr && cut_->holds(folder_->path(), entry);
-            const ItemStyle style = item_style(palette, entry,
-                                               {.selected = folder_->is_selected(entry.name),
-                                                .cursor = cursor == i,
-                                                .ring = cursor_ring,
-                                                .focused = true,
-                                                .hovered = hovered_ == i,
-                                                .cut = cut});
+            const ItemStyle style =
+                item_style(palette, entry,
+                           {.selected = folder_->is_selected(entry.name),
+                            .cursor = cursor == i,
+                            .ring = cursor_ring,
+                            .focused = true,
+                            .hovered = hovered_ == i,
+                            .cut = cut,
+                            .drop = drop_ != nullptr && drop_->holds(folder_->path(), entry)});
             if (style.fill || style.ring) {
                 renderer.draw_box({x + kCellInset, y + kCellInset,
                                    cell_width_ - (2.0F * kCellInset), height - (2.0F * kCellInset)},
@@ -285,6 +294,13 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         renderer.draw_box({area_.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
                           {.fill = palette.on_surface_variant.with_alpha(0.45F),
                            .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+    }
+    if (drop_ != nullptr && drop_->covers(folder_->path())) {
+        renderer.draw_box({area_.x + 2.0F, area_.y + 2.0F, area_.width - 4.0F, area_.height - 4.0F},
+                          {.fill = kTransparent,
+                           .radius = ui::Corners::all(8.0F),
+                           .border_width = 2.0F,
+                           .border = palette.primary});
     }
     renderer.pop_clip();
     if (pane) {
@@ -432,7 +448,7 @@ void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
                 break;
             }
             if (cell || mode == SelectMode::replace) {
-                folder_->set_cursor(cell, mode);  // a plain click on nothing clears
+                folder_->press(cell, mode);  // a plain click on nothing clears
             }
             break;
         }

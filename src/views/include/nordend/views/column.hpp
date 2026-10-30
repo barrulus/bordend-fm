@@ -12,6 +12,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/scroller.hpp"
 #include "nordend/views/cut_marks.hpp"
+#include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
 
@@ -46,7 +47,7 @@ public:
     // being edited (edit) is left out and its place noted there; cut entries are faded.
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, bool focused, Clock::time_point now, EditSlot* edit = nullptr,
-              const CutMarks* cut = nullptr);
+              const CutMarks* cut = nullptr, const DropMark* drop = nullptr);
 
     // A scroll animation is running: the window should keep drawing frames.
     [[nodiscard]] bool animating() const noexcept { return scroller_.animating(); }

@@ -51,6 +51,13 @@ public:
 
     void pointer(const ui::PointerEvent& event);
 
+    // The folder of the step at a window point, as last drawn (nullopt: none, or the "…").
+    [[nodiscard]] std::optional<std::filesystem::path> path_at(float x, float y) const;
+
+    // A drag over the window would drop into the step at this path (nullopt: none), drawn
+    // marked.
+    void set_drop_target(std::optional<std::filesystem::path> path);
+
     // The steps shown in the last draw: the first one's icon name, then the folders' names, "…"
     // where steps were left out (tests).
     [[nodiscard]] std::vector<std::string> shown() const;
@@ -70,6 +77,7 @@ private:
     std::vector<Shown> shown_;
     ui::Rect bounds_{};
     std::optional<std::size_t> hovered_;  // a crumb
+    std::optional<std::filesystem::path> drop_target_;
 };
 
 }  // namespace nordend::views

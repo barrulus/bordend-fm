@@ -23,6 +23,22 @@ Status: `suspected` → `confirmed` → `reported` → `pr-open` → `fixed` (or
 
 ## Entries
 
+### NB-002 — Escape does not cancel a drag and drop
+- Project: umbriel
+- Version: commit d9497f3 (pinned in `void-noctalia/packages/srcpkgs/umbriel`)
+- Status: suspected
+- Found: 2026-10-30, while working on ROADMAP 7.1
+- Repro:
+  1. In Nordend, start dragging a file (press, move).
+  2. Press Escape while still holding the button.
+- Expected: the drag is cancelled (Mutter and KWin cancel it themselves; GTK sources also cancel
+  on Escape when the key reaches them).
+- Actual: nothing; the key does not reach the source client either, so it cannot cancel it.
+- Notes / suspected cause: *to be verified* in Umbriel's source whether the drag grab keeps the
+  keyboard and drops keys (wlroots leaves cancelling to the compositor). Ctrl/Shift modifiers do
+  reach the client during the drag.
+- Upstream: none yet (only with the author's OK)
+
 ### NB-001 — Umbriel title bars don't follow the Noctalia theme
 - Project: noctalia
 - Version: 5.3.0 (builtin `umbriel` template)

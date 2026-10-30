@@ -21,6 +21,7 @@
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/cut_marks.hpp"
+#include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
 #include "nordend/views/info_pane.hpp"
@@ -64,6 +65,12 @@ public:
 
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
+
+    // Where a drag over the window would drop (the browser's).
+    void set_drop_mark(const DropMark* drop) { drop_ = drop; }
+
+    // The folder and the entry at a window point, as last drawn; nullopt off the entries' area.
+    [[nodiscard]] std::optional<ViewHit> hit(float x, float y) const;
 
     // Sorts by field: ascending, or reversed when it is the field already sorted by.
     void sort_by(Field field);
@@ -157,6 +164,7 @@ private:
 
     std::shared_ptr<Folder> folder_;
     bool show_hidden_{false};
+    const DropMark* drop_{nullptr};
     fs::SortOrder order_;
     ui::Scroller scroller_;
     // Widths of size, modified and type; the name takes the rest.

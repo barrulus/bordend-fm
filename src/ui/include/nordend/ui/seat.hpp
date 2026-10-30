@@ -116,6 +116,9 @@ public:
     // The serial of the last key or button press: what xdg-activation tokens are tied to.
     [[nodiscard]] std::uint32_t input_serial() const noexcept { return input_serial_; }
 
+    // The modifiers held now, as the compositor last told (a drag reads them as it moves).
+    [[nodiscard]] Modifiers modifiers() const { return current_modifiers(); }
+
 private:
     static void on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities);
     static void on_name(void* data, wl_seat* seat, const char* name);

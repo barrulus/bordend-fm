@@ -116,12 +116,20 @@ void Breadcrumb::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
         const float width =
             std::min(widths[i], std::max((2.0F * kInset) + 1.0F, bounds.x + kPadding + room - x));
         const ui::Rect box{x, top, width, kBoxHeight};
-        if (hovered_ == i && !last) {
+        const bool drop = drop_target_ == crumb.path;
+        if (drop) {
+            renderer.draw_box(box, {.fill = palette.primary_container,
+                                    .radius = ui::Corners::all(6.0F),
+                                    .border_width = 1.5F,
+                                    .border = palette.primary});
+        } else if (hovered_ == i && !last) {
             renderer.draw_box(
                 box, {.fill = palette.surface_container_high, .radius = ui::Corners::all(6.0F)});
         }
-        const ui::Color color =
-            last || hovered_ == i ? palette.on_surface : palette.on_surface_variant;
+        ui::Color color = last || hovered_ == i ? palette.on_surface : palette.on_surface_variant;
+        if (drop) {
+            color = palette.on_primary_container;
+        }
         if (crumb.label.empty()) {
             icons.draw(renderer, crumb.icon, x + kInset, top + ((kBoxHeight - kIconSize) / 2.0F),
                        kIconSize, last ? palette.primary : color);
@@ -136,6 +144,18 @@ void Breadcrumb::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     renderer.fill_rect(
         {bounds.x, bounds.y + kTitleHeight - 1.0F, bounds.width, 1.0F / renderer.scale()},
         palette.outline_variant);
+}
+
+std::optional<std::filesystem::path> Breadcrumb::path_at(float x, float y) const {
+    const std::optional<std::size_t> crumb = crumb_at(x, y);
+    return crumb ? std::optional{crumbs_[*crumb].path} : std::nullopt;
+}
+
+void Breadcrumb::set_drop_target(std::optional<std::filesystem::path> path) {
+    if (path != drop_target_) {
+        drop_target_ = std::move(path);
+        redraw_();
+    }
 }
 
 std::optional<std::size_t> Breadcrumb::crumb_at(float x, float y) const {

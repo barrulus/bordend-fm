@@ -16,6 +16,9 @@
 // last, Quick Look opens (and --bench scrolls its text page, when it shows one). --thumbnails gives
 // the grid a thumbnail cache directory (none by default: icons only, nothing written to ~/.cache).
 // The sidebar lists the places of $HOME and $XDG_CONFIG_HOME; "Ctrl+B" hides it, "F6" focuses it.
+// --drag NAME presses on the entry NAME of the folder shown and drags it a little (the drag image
+// drawn under the pointer); --drop-over X,Y then moves that drag (or, alone, another program's
+// drag of files) over the point X,Y, which shows where it would drop.
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
 // --transfer shows TEXT as a transfer's progress, 40 % done; --conflict asks about NAME as a
 // paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
@@ -26,8 +29,6 @@
 // it never talks to the compositor and never opens a window: it is how rendering is checked
 // without touching the user's screen.
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <array>
@@ -42,6 +43,7 @@
 #include <functional>
 #include <malloc.h>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -62,8 +64,10 @@
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
+#include "nordend/ui/clipboard.hpp"
 #include "nordend/ui/color.hpp"
 #include "nordend/ui/icons.hpp"
+#include "nordend/ui/offscreen.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
@@ -77,73 +81,6 @@ namespace core = nordend::core;
 namespace preview = nordend::preview;
 namespace ui = nordend::ui;
 namespace views = nordend::views;
-
-class SurfacelessContext {
-public:
-    SurfacelessContext()
-        : display_{
-              eglGetPlatformDisplay(EGL_PLATFORM_SURFACELESS_MESA, EGL_DEFAULT_DISPLAY, nullptr)} {
-        if (display_ == EGL_NO_DISPLAY || eglInitialize(display_, nullptr, nullptr) != EGL_TRUE) {
-            throw std::runtime_error{"surfaceless EGL display unavailable"};
-        }
-        eglBindAPI(EGL_OPENGL_ES_API);
-        // clang-format off
-        static constexpr std::array<EGLint, 5> kAttribs{
-            EGL_CONTEXT_MAJOR_VERSION, 3,
-            EGL_CONTEXT_MINOR_VERSION, 0,
-            EGL_NONE};
-        // clang-format on
-        context_ = eglCreateContext(display_, EGL_NO_CONFIG_KHR, EGL_NO_CONTEXT, kAttribs.data());
-        if (context_ == EGL_NO_CONTEXT ||
-            eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, context_) != EGL_TRUE) {
-            throw std::runtime_error{"cannot create a surfaceless OpenGL ES 3.0 context"};
-        }
-    }
-
-    ~SurfacelessContext() {
-        eglMakeCurrent(display_, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-        eglDestroyContext(display_, context_);
-        eglTerminate(display_);
-    }
-
-    SurfacelessContext(const SurfacelessContext&) = delete;
-    SurfacelessContext& operator=(const SurfacelessContext&) = delete;
-    SurfacelessContext(SurfacelessContext&&) = delete;
-    SurfacelessContext& operator=(SurfacelessContext&&) = delete;
-
-private:
-    EGLDisplay display_;
-    EGLContext context_{EGL_NO_CONTEXT};
-};
-
-class Framebuffer {
-public:
-    Framebuffer(std::int32_t width, std::int32_t height) {
-        glGenRenderbuffers(1, &color_);
-        glBindRenderbuffer(GL_RENDERBUFFER, color_);
-        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
-        glGenFramebuffers(1, &fbo_);
-        glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color_);
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-            throw std::runtime_error{"framebuffer incomplete"};
-        }
-    }
-
-    ~Framebuffer() {
-        glDeleteFramebuffers(1, &fbo_);
-        glDeleteRenderbuffers(1, &color_);
-    }
-
-    Framebuffer(const Framebuffer&) = delete;
-    Framebuffer& operator=(const Framebuffer&) = delete;
-    Framebuffer(Framebuffer&&) = delete;
-    Framebuffer& operator=(Framebuffer&&) = delete;
-
-private:
-    GLuint color_{0};
-    GLuint fbo_{0};
-};
 
 void write_ppm(const std::string& path, std::int32_t width, std::int32_t height,
                std::span<const std::uint8_t> rgba) {
@@ -177,6 +114,50 @@ void run_until(core::EventLoop& loop, const std::function<bool()>& done) {
     loop.run();
     loop.remove(check);
     loop.remove(limit);
+}
+
+// Presses on the entry called name in the view shown and moves past the drag threshold; where
+// the drag image then is (nullopt: no such entry shown).
+std::optional<std::pair<float, float>> drag_entry(views::Browser& browser, const std::string& name,
+                                                  float width, float height) {
+    const auto hit = [&browser](float x, float y) {
+        switch (browser.mode()) {
+            case views::Browser::Mode::grid:
+                return browser.grid().hit(x, y);
+            case views::Browser::Mode::details:
+                return browser.details().hit(x, y);
+            case views::Browser::Mode::columns:
+                break;
+        }
+        return browser.columns().hit(x, y);
+    };
+    for (float y = 0.0F; y < height; y += 3.0F) {
+        for (float x = 0.0F; x < width; x += 10.0F) {
+            const std::optional<views::ViewHit> found = hit(x, y);
+            if (!found || !found->entry || found->folder->entries()[*found->entry].name != name) {
+                continue;
+            }
+            const float at_x = x + 30.0F;  // clear of the sidebar's edge
+            const float at_y = y + 6.0F;
+            using Kind = ui::PointerEvent::Kind;
+            const auto now = views::Browser::Clock::now();
+            browser.pointer({.kind = Kind::motion, .x = at_x, .y = at_y}, now);
+            browser.pointer({.kind = Kind::press,
+                             .x = at_x,
+                             .y = at_y,
+                             .button = ui::PointerButton::left,
+                             .click_count = 1},
+                            now);
+            browser.pointer({.kind = Kind::motion, .x = at_x + 40.0F, .y = at_y + 20.0F}, now);
+            if (!browser.dragging()) {
+                log::warn("--drag {}: the press did not start a drag", name);
+                return std::nullopt;
+            }
+            return std::pair{at_x + 48.0F, at_y + 28.0F};
+        }
+    }
+    log::warn("--drag {}: no such entry shown", name);
+    return std::nullopt;
 }
 
 // "Down,Shift+Down,Ctrl+a" -> key events.
@@ -235,6 +216,8 @@ int main(int argc, char** argv) {
     std::string message;
     std::string transfer;
     std::string conflict;
+    std::string drag;
+    std::optional<std::pair<float, float>> drop_over;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -278,6 +261,13 @@ int main(int argc, char** argv) {
             transfer = args[2];
         } else if (option == "--conflict") {
             conflict = args[2];
+        } else if (option == "--drag") {
+            drag = args[2];
+        } else if (option == "--drop-over") {
+            const std::string_view point{args[2]};
+            const std::size_t comma = point.find(',');
+            drop_over = std::pair{std::stof(std::string{point.substr(0, comma)}),
+                                  std::stof(std::string{point.substr(comma + 1)})};
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -291,7 +281,8 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
-            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--memory [--trim] "
+            "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
+            "[--drop-over X,Y] [--memory [--trim] "
             "[--default-malloc]]] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
@@ -316,8 +307,7 @@ int main(int argc, char** argv) {
         const auto buffer_width = static_cast<std::int32_t>(std::lround(width * scale));
         const auto buffer_height = static_cast<std::int32_t>(std::lround(height * scale));
 
-        const SurfacelessContext context;
-        const Framebuffer framebuffer{buffer_width, buffer_height};
+        const ui::Offscreen offscreen{buffer_width, buffer_height};
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(buffer_width) *
                                          static_cast<std::size_t>(buffer_height) * 4);
         {
@@ -330,11 +320,19 @@ int main(int argc, char** argv) {
             std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches
             std::unique_ptr<views::Browser> columns;
             const ui::Rect bounds{0.0F, 0.0F, width, height};
+            std::optional<std::pair<float, float>> drag_image;  // where the pointer drags
             const auto frame = [&] {
                 renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
                 if (columns) {
                     columns->draw(renderer, bounds, palette.palette, icons,
                                   views::Browser::Clock::now());
+                    if (drag_image) {
+                        columns->draw_drag_icon(
+                            renderer,
+                            {drag_image->first, drag_image->second, views::Browser::kDragIconWidth,
+                             views::Browser::kDragIconHeight},
+                            palette.palette, icons);
+                    }
                 } else {
                     nordend::app::draw_test_scene(renderer, bounds, palette.palette);
                 }
@@ -438,6 +436,30 @@ int main(int argc, char** argv) {
                 // Let the horizontal glide end, so the snapshot shows where it settles.
                 for (int i = 0; i < 200 && columns->animating(); ++i) {
                     frame();
+                }
+                if (!drag.empty() || drop_over) {
+                    columns->set_drag_and_drop(
+                        {.start = [](const std::vector<views::DragAndDrop::Format>& /*f*/) {},
+                         .cancel = {},
+                         .types = [] { return std::vector<std::string>{"text/uri-list"}; },
+                         .source_actions = [] { return ui::kDndCopy; },
+                         .action = {},
+                         .accept = {},
+                         .read = {},
+                         .finish = {},
+                         .modifiers = {}});
+                }
+                if (!drag.empty()) {
+                    drag_image = drag_entry(*columns, drag, width, height);
+                    frame();
+                }
+                if (drop_over) {
+                    const auto [x, y] = *drop_over;
+                    columns->drop_event({.kind = ui::DropEvent::Kind::enter, .x = x, .y = y});
+                    columns->drop_event({.kind = ui::DropEvent::Kind::motion, .x = x, .y = y});
+                    if (drag_image) {
+                        drag_image = std::pair{x + 8.0F, y + 8.0F};
+                    }
                 }
             }
             // What --bench scrolls: Quick Look's text page, the last column, or the grid.

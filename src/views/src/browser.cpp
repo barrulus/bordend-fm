@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <format>
 #include <string>
+#include <sys/stat.h>
 #include <system_error>
 #include <unordered_set>
 #include <utility>
@@ -13,6 +14,7 @@
 
 #include "draw_helpers.hpp"
 #include "nordend/fs/erase.hpp"
+#include "nordend/fs/icon.hpp"
 #include "nordend/fs/operations.hpp"
 #include "nordend/fs/places.hpp"
 #include "nordend/fs/trash.hpp"
@@ -32,7 +34,8 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
                  std::function<void(ui::CursorShape)> set_cursor,
                  std::shared_ptr<const thumbs::Cache> thumbnails)
-    : pool_{pool},
+    : loop_{loop},
+      pool_{pool},
       redraw_{redraw},
       thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, thumbnails, redraw) : nullptr},
       info_pane_{pool, thumbnails_.get(), redraw},
@@ -79,6 +82,9 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     grid_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     details_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     columns_.set_cut_marks(&cut_marks_);
+    columns_.set_drop_mark(&drop_mark_);
+    grid_.set_drop_mark(&drop_mark_);
+    details_.set_drop_mark(&drop_mark_);
     grid_.set_cut_marks(&cut_marks_);
     details_.set_cut_marks(&cut_marks_);
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
@@ -287,11 +293,18 @@ void Browser::paste_files(const std::filesystem::path& destination, const Clipbo
                      false);
         return;
     }
+    transfer_paths(destination, files.paths, files.cut,
+                   files.cut ? std::optional{generation} : std::nullopt);
+}
+
+void Browser::transfer_paths(const std::filesystem::path& destination,
+                             const std::vector<std::filesystem::path>& paths, bool move,
+                             std::optional<std::uint64_t> empty_clipboard) {
     // One transfer per folder the files are in, one operation for Ctrl+Z.
-    const std::uint64_t batch = open_batch(
-        Purpose::user, files.cut ? FileOperation::Kind::move : FileOperation::Kind::copy);
+    const std::uint64_t batch =
+        open_batch(Purpose::user, move ? FileOperation::Kind::move : FileOperation::Kind::copy);
     std::vector<std::pair<std::filesystem::path, std::vector<std::string>>> folders;
-    for (const std::filesystem::path& path : files.paths) {
+    for (const std::filesystem::path& path : paths) {
         const std::filesystem::path parent = path.parent_path();
         auto it = std::ranges::find(folders, parent, [](const auto& f) { return f.first; });
         if (it == folders.end()) {
@@ -301,17 +314,16 @@ void Browser::paste_files(const std::filesystem::path& destination, const Clipbo
         it->second.push_back(path.filename().string());
     }
     for (auto& [source, names] : folders) {
-        submit({.kind = files.cut ? fs::TransferKind::move : fs::TransferKind::copy,
+        submit({.kind = move ? fs::TransferKind::move : fs::TransferKind::copy,
                 .source = source,
                 .names = std::move(names),
                 .destination = destination,
                 .force_copy = false},
-               batch, files.cut ? std::optional{generation} : std::nullopt);
+               batch, empty_clipboard);
     }
     if (!status_bar_.transfer()) {
-        status_bar_.set_transfer(
-            TransferStatus{.text = files.cut ? "Getting ready to move…" : "Getting ready to copy…",
-                           .fraction = -1.0F});
+        status_bar_.set_transfer(TransferStatus{
+            .text = move ? "Getting ready to move…" : "Getting ready to copy…", .fraction = -1.0F});
     }
     redraw_();
 }
@@ -959,7 +971,9 @@ void Browser::trash_paths(const std::vector<std::filesystem::path>& paths, Purpo
         }
         it->second.push_back(path.filename().string());
     }
-    undoing_ = true;
+    if (purpose != Purpose::user) {
+        undoing_ = true;
+    }
     for (auto& [source, names] : folders) {
         submit({.kind = fs::TransferKind::trash,
                 .source = source,
@@ -1080,7 +1094,10 @@ void Browser::start_inverse(const FileOperation& operation, Purpose purpose) {
     }
 }
 
-Browser::~Browser() { *alive_ = false; }
+Browser::~Browser() {
+    *alive_ = false;
+    loop_.remove(auto_scroll_timer_);
+}
 
 void Browser::start_rename() {
     const std::shared_ptr<Folder> folder = current_folder();
@@ -1779,7 +1796,30 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
     } else if (event.kind == Kind::release) {
         button_held_ = false;
     }
+    if (event.kind == Kind::motion && press_ && dnd_.start && button_held_ &&
+        pointer_target_ == Target::view &&
+        std::hypot(event.x - press_->x, event.y - press_->y) >= kDragThreshold) {
+        Press press = std::move(*press_);
+        press_.reset();
+        start_drag(std::move(press));
+        return;
+    }
     send_pointer(pointer_target_, event, now);
+    if (event.kind == Kind::press) {
+        press_.reset();
+        if (pointer_target_ == Target::view && event.button == ui::PointerButton::left &&
+            event.click_count == 1) {
+            // Where a drag may start: an entry, selected by the press just handled.
+            if (std::optional<ViewHit> hit = view_hit(event.x, event.y); hit && hit->entry) {
+                press_ = Press{.x = event.x, .y = event.y, .hit = std::move(*hit)};
+            }
+        }
+    } else if (event.kind == Kind::release && event.button == ui::PointerButton::left) {
+        if (press_) {
+            press_->hit.folder->release_press();
+            press_.reset();
+        }
+    }
 }
 
 void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now) {
@@ -1813,6 +1853,283 @@ void Browser::go_to(const std::filesystem::path& folder, const std::string& chil
         }
     }
     note_location();
+}
+
+std::optional<ViewHit> Browser::view_hit(float x, float y) const {
+    switch (mode_) {
+        case Mode::grid:
+            return grid_.hit(x, y);
+        case Mode::details:
+            return details_.hit(x, y);
+        case Mode::columns:
+            break;
+    }
+    return columns_.hit(x, y);
+}
+
+void Browser::start_drag(Press press) {
+    Folder& folder = *press.hit.folder;
+    folder.forget_press();
+    if (folder.is_trash() || !press.hit.entry || *press.hit.entry >= folder.entries().size()) {
+        return;  // the trash only gives back: Restore
+    }
+    const fs::Entry& entry = folder.entries()[*press.hit.entry];
+    std::vector<std::string> names = folder.is_selected(entry.name)
+                                         ? folder.selected_names()
+                                         : std::vector<std::string>{entry.name};
+    fs::Entry typed = entry;
+    typed.mime = folder.mime_of(entry);
+    std::vector<std::filesystem::path> paths;
+    paths.reserve(names.size());
+    for (const std::string& name : names) {
+        paths.push_back(folder.path() / name);
+    }
+    drag_ = Drag{.directory = folder.path(),
+                 .names = std::move(names),
+                 .icon = std::string{fs::icon_name(folder.mime(), typed)}};
+    // The view lets go of the press: the drag has the pointer now.
+    send_pointer(Target::view, {.kind = ui::PointerEvent::Kind::leave}, Clock::now());
+    button_held_ = false;
+    const std::string lines = path_lines(paths);
+    dnd_.start({{std::string{kUriList}, uri_list(paths)},
+                {std::string{kText}, lines},
+                {"text/plain", lines}});
+    redraw_();
+}
+
+void Browser::drag_ended() {
+    drag_.reset();
+    show_drop_target(std::nullopt);
+    stop_auto_scroll();
+}
+
+void Browser::draw_drag_icon(ui::Renderer& renderer, const ui::Rect& bounds,
+                             const theme::Palette& palette, ui::IconSet& icons) const {
+    renderer.draw_box(
+        bounds,
+        {.fill = palette.surface_container_high, .border_width = 1.0F, .border = palette.primary});
+    if (!drag_) {
+        return;
+    }
+    constexpr float icon_size = 20.0F;
+    constexpr float text_size = 13.0F;
+    const float left = bounds.x + 10.0F;
+    icons.draw(renderer, drag_->icon, left, bounds.y + ((bounds.height - icon_size) / 2.0F),
+               icon_size, palette.primary);
+    const std::string label = drag_->names.size() == 1
+                                  ? drag_->names.front()
+                                  : std::format("{} items", drag_->names.size());
+    const float text_x = left + icon_size + 8.0F;
+    renderer.draw_text(label, text_x, bounds.y + ((bounds.height - text_size) / 2.0F) - 2.0F,
+                       text_size, palette.on_surface,
+                       std::max(1.0F, bounds.right() - 10.0F - text_x), ui::Ellipsis::middle);
+}
+
+std::optional<Browser::DropTarget> Browser::drop_target_at(float x, float y) const {
+    if (sidebar_drawn_) {
+        if (const fs::Place* const place = sidebar_.place_under(x, y)) {
+            return DropTarget{.folder = place->path, .mark = {}, .place = place->path, .crumb = {}};
+        }
+        if (sidebar_.claims(x, y)) {
+            return std::nullopt;
+        }
+    }
+    if (const std::optional<std::filesystem::path> crumb = breadcrumb_.path_at(x, y)) {
+        return DropTarget{.folder = *crumb, .mark = {}, .place = {}, .crumb = crumb};
+    }
+    const std::optional<ViewHit> hit = view_hit(x, y);
+    if (!hit || hit->folder->is_trash()) {
+        return std::nullopt;
+    }
+    if (hit->entry && *hit->entry < hit->folder->entries().size()) {
+        const fs::Entry& entry = hit->folder->entries()[*hit->entry];
+        if (entry.is_directory()) {
+            return DropTarget{.folder = hit->folder->path() / entry.name,
+                              .mark = {.directory = hit->folder->path(), .name = entry.name},
+                              .place = {},
+                              .crumb = {}};
+        }
+    }
+    return DropTarget{.folder = hit->folder->path(),
+                      .mark = {.directory = hit->folder->path(), .name = {}},
+                      .place = {},
+                      .crumb = {}};
+}
+
+std::string Browser::refusal(const std::filesystem::path& folder,
+                             const std::vector<std::filesystem::path>& paths) {
+    if (fs::is_trash(folder)) {
+        return {};
+    }
+    for (const std::filesystem::path& path : paths) {
+        const std::filesystem::path inside = folder.lexically_relative(path);
+        if (!inside.empty() && *inside.begin() != "..") {
+            return std::format("“{}” cannot go into itself", path.filename().string());
+        }
+    }
+    if (std::ranges::all_of(paths, [&folder](const std::filesystem::path& path) {
+            return path.parent_path() == folder;
+        })) {
+        return "Already here";
+    }
+    return {};
+}
+
+void Browser::show_drop_target(const std::optional<DropTarget>& target) {
+    DropMark mark = target ? target->mark : DropMark{};
+    if (mark.directory != drop_mark_.directory || mark.name != drop_mark_.name) {
+        drop_mark_ = std::move(mark);
+        redraw_();
+    }
+    sidebar_.set_drop_target(target ? target->place : std::nullopt);
+    breadcrumb_.set_drop_target(target ? target->crumb : std::nullopt);
+}
+
+void Browser::drop_event(const ui::DropEvent& event) {
+    using Kind = ui::DropEvent::Kind;
+    drop_x_ = event.x;
+    drop_y_ = event.y;
+    if (event.kind == Kind::leave) {
+        show_drop_target(std::nullopt);
+        stop_auto_scroll();
+        return;
+    }
+    std::optional<DropTarget> target = drop_target_at(event.x, event.y);
+    const std::vector<std::string> types = dnd_.types ? dnd_.types() : std::vector<std::string>{};
+    const bool files = std::ranges::find(types, kUriList) != types.end();
+    std::vector<std::filesystem::path> own;
+    if (drag_) {
+        for (const std::string& name : drag_->names) {
+            own.push_back(drag_->directory / name);
+        }
+        if (target && !refusal(target->folder, own).empty()) {
+            target.reset();  // not there: nothing would happen, or it cannot be
+        }
+    } else if (!files) {
+        target.reset();
+    }
+    if (event.kind == Kind::drop) {
+        show_drop_target(std::nullopt);
+        stop_auto_scroll();
+        if (drag_) {
+            if (dnd_.finish) {
+                dnd_.finish();
+            }
+            if (target) {
+                drop_paths(target->folder, std::move(own), true, false);
+            }
+            return;
+        }
+        if (!target || !dnd_.read) {
+            return;
+        }
+        const bool move = dnd_.action && dnd_.action() == ui::kDndMove;
+        ++operations_;
+        dnd_.read(std::string{kUriList}, [this, alive = alive_, folder = target->folder,
+                                          move](const std::optional<std::string>& data) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            ClipboardFiles dropped = data ? parse_uri_list(*data) : ClipboardFiles{};
+            if (dropped.paths.empty()) {
+                show_message(dropped.refused > 0 ? "Only files can be dropped"
+                                                 : "Nothing could be read from the drop",
+                             false);
+                return;
+            }
+            drop_paths(folder, std::move(dropped.paths), false, move);
+        });
+        return;
+    }
+    show_drop_target(target);
+    if (dnd_.accept) {
+        if (!target) {
+            dnd_.accept(std::nullopt, 0, 0);
+        } else if (drag_) {
+            dnd_.accept(std::string{kUriList}, ui::kDndCopy, ui::kDndCopy);  // decided at the drop
+        } else {
+            const std::uint32_t allowed = dnd_.source_actions ? dnd_.source_actions() : 0;
+            dnd_.accept(std::string{kUriList}, ui::kDndCopy | (allowed & ui::kDndMove),
+                        ui::kDndCopy);
+        }
+    }
+    // Near the top or the bottom of the view, it scrolls.
+    float notches = 0.0F;
+    if (event.x >= view_area_.x && event.x < view_area_.right()) {
+        if (event.y >= view_area_.y && event.y < view_area_.y + kAutoScrollEdge) {
+            notches = -0.3F;
+        } else if (event.y < view_area_.bottom() &&
+                   event.y >= view_area_.bottom() - kAutoScrollEdge) {
+            notches = 0.3F;
+        }
+    }
+    auto_scroll_ = notches;
+    if (notches == 0.0F) {
+        stop_auto_scroll();
+    } else if (auto_scroll_timer_ == 0) {
+        auto_scroll_timer_ =
+            loop_.add_timer(std::chrono::milliseconds{0}, std::chrono::milliseconds{40},
+                            [this] { scroll_near_edge(); });
+    }
+}
+
+void Browser::scroll_near_edge() {
+    if (auto_scroll_ == 0.0F) {
+        stop_auto_scroll();
+        return;
+    }
+    view_pointer({.kind = ui::PointerEvent::Kind::scroll,
+                  .x = drop_x_,
+                  .y = drop_y_,
+                  .wheel_y = auto_scroll_},
+                 Clock::now());
+    redraw_();
+}
+
+void Browser::stop_auto_scroll() {
+    auto_scroll_ = 0.0F;
+    loop_.remove(auto_scroll_timer_);
+    auto_scroll_timer_ = 0;
+}
+
+void Browser::drop_paths(const std::filesystem::path& folder,
+                         std::vector<std::filesystem::path> paths, bool own, bool move) {
+    if (fs::is_trash(folder)) {
+        trash_paths(paths, Purpose::user);
+        return;
+    }
+    if (const std::string why = refusal(folder, paths); !why.empty()) {
+        show_message(why, false);
+        return;
+    }
+    if (!own) {
+        transfer_paths(folder, paths, move, std::nullopt);
+        return;
+    }
+    const ui::Modifiers modifiers = dnd_.modifiers ? dnd_.modifiers() : ui::Modifiers{};
+    if (modifiers.ctrl || modifiers.shift) {
+        transfer_paths(folder, paths, modifiers.shift && !modifiers.ctrl, std::nullopt);
+        return;
+    }
+    // On the same disk it moves, onto another it copies: which disk is a stat, on a worker.
+    ++operations_;
+    std::filesystem::path from = paths.front().parent_path();  // before paths moves away
+    pool_.submit(
+        core::Priority::visible,
+        [folder, from = std::move(from)](const core::CancelToken& /*token*/) {
+            struct stat to_stat{};
+            struct stat from_stat{};
+            return ::stat(folder.c_str(), &to_stat) == 0 && ::stat(from.c_str(), &from_stat) == 0 &&
+                   to_stat.st_dev == from_stat.st_dev;
+        },
+        [this, alive = alive_, folder, paths = std::move(paths)](bool same_disk) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            transfer_paths(folder, paths, same_disk, std::nullopt);
+        });
 }
 
 void Browser::view_pointer(const ui::PointerEvent& event, Clock::time_point now) {
@@ -1849,6 +2166,13 @@ bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
 }
 
 bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
+    if (drag_ && event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{}) {
+        if (dnd_.cancel) {
+            dnd_.cancel();
+        }
+        drag_ended();
+        return true;
+    }
     if (conflict_.is_open()) {
         return conflict_.key(event);  // a copy waits for the answer: every key is the card's
     }

@@ -89,6 +89,13 @@ public:
 
     [[nodiscard]] bool animating() const noexcept { return scroller_.animating(); }
 
+    // The place at a window point, as last drawn.
+    [[nodiscard]] const fs::Place* place_under(float x, float y) const;
+
+    // A drag over the window would drop into the place at this path (nullopt: none), drawn
+    // marked.
+    void set_drop_target(std::optional<std::filesystem::path> path);
+
 private:
     struct Row {
         float top{0.0F};                   // content coordinates
@@ -112,6 +119,7 @@ private:
     std::optional<std::size_t> current_;  // the place holding the folder shown, as last drawn
     std::optional<std::size_t> cursor_;   // while focused
     std::optional<std::size_t> hovered_;
+    std::optional<std::filesystem::path> drop_target_;
     bool focused_{false};
     float width_{kWidth};
     ui::Rect bounds_{};  // as last drawn; empty when not drawn
