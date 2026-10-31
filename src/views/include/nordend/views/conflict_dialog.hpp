@@ -49,6 +49,11 @@ public:
 
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
 
+    // A button or the "for the rest" checkbox is there.
+    [[nodiscard]] bool clickable_at(float x, float y) const {
+        return button_at(x, y).has_value() || checkbox_.contains(x, y);
+    }
+
 private:
     // The buttons, left to right.
     static constexpr std::size_t kSkip = 0;

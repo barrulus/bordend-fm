@@ -22,6 +22,7 @@ add_executable(nordend-tests
     palette_test.cpp
     paste_test.cpp
     places_test.cpp
+    pointer_shapes_test.cpp
     platform_test.cpp
     preview_test.cpp
     quick_look_test.cpp

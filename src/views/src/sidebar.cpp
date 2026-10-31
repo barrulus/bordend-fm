@@ -260,6 +260,17 @@ void Sidebar::set_bookmark_drop(bool shown) {
     }
 }
 
+std::optional<std::size_t> Sidebar::eject_at(float x, float y) const {
+    const std::optional<std::size_t> place = place_at(x, y);
+    if (place && *place < eject_rects_.size() && !eject_rects_[*place].empty() &&
+        x >= eject_rects_[*place].x - 4.0F && x < eject_rects_[*place].right() + 4.0F) {
+        return place;
+    }
+    return std::nullopt;
+}
+
+bool Sidebar::clickable_at(float x, float y) const { return eject_at(x, y).has_value(); }
+
 std::optional<std::size_t> Sidebar::place_at(float x, float y) const {
     if (bounds_.empty() || x < bounds_.x || x >= bounds_.right() || y < bounds_.y ||
         y >= bounds_.bottom()) {
@@ -298,12 +309,8 @@ void Sidebar::update_hover() {
         hovered_ = place;
         redraw_();
     }
-    std::optional<std::size_t> eject;
-    if (place && *place < eject_rects_.size() && !eject_rects_[*place].empty() &&
-        pointer_x_ >= eject_rects_[*place].x - 4.0F &&
-        pointer_x_ < eject_rects_[*place].right() + 4.0F) {
-        eject = place;
-    }
+    const std::optional<std::size_t> eject =
+        place ? eject_at(pointer_x_, pointer_y_) : std::nullopt;
     if (eject != hovered_eject_) {
         hovered_eject_ = eject;
         redraw_();

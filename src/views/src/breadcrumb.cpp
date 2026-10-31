@@ -168,6 +168,11 @@ std::optional<std::size_t> Breadcrumb::crumb_at(float x, float y) const {
     return std::nullopt;
 }
 
+bool Breadcrumb::clickable_at(float x, float y) const {
+    const std::optional<std::size_t> crumb = crumb_at(x, y);
+    return crumb && *crumb + 1 < crumbs_.size();
+}
+
 bool Breadcrumb::claims(float x, float y) const {
     return !bounds_.empty() && x >= bounds_.x && x < bounds_.right() && y >= bounds_.y &&
            y < bounds_.bottom();

@@ -39,14 +39,14 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     : loop_{loop},
       pool_{pool},
       redraw_{redraw},
+      set_cursor_{std::move(set_cursor)},
       thumbnails_{thumbnails ? std::make_unique<Thumbnails>(pool, thumbnails, redraw) : nullptr},
       info_pane_{pool, thumbnails_.get(), redraw},
-      columns_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
-      grid_{loop, pool, watcher, mime, redraw, set_cursor, thumbnails_.get(), &info_pane_},
-      details_{loop, pool, watcher, mime, redraw, set_cursor, &info_pane_},
+      columns_{loop, pool, watcher, mime, redraw, resize_cursor(), &info_pane_},
+      grid_{loop, pool, watcher, mime, redraw, resize_cursor(), thumbnails_.get(), &info_pane_},
+      details_{loop, pool, watcher, mime, redraw, resize_cursor(), &info_pane_},
       quick_look_{pool, mime, std::move(thumbnails), redraw},
-      sidebar_{redraw, std::move(set_cursor),
-               [this](const fs::Place& place) { open_place(place); }},
+      sidebar_{redraw, resize_cursor(), [this](const fs::Place& place) { open_place(place); }},
       breadcrumb_{redraw,
                   [this](const std::filesystem::path& folder, const std::string& child) {
                       go_to(folder, child);
@@ -1700,6 +1700,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
                    ui::IconSet& icons, Clock::time_point now) {
     const float sidebar_width = sidebar_visible_ ? sidebar_.width_in(bounds.width) : 0.0F;
     sidebar_drawn_ = sidebar_width > 0.0F;
+    info_pane_.forget_layout();  // drawn again below by the view that shows it
     if (!sidebar_drawn_ && sidebar_.focused()) {
         sidebar_.set_focused(false);  // no room for it: the keyboard goes back to the view
     }
@@ -1805,6 +1806,59 @@ void Browser::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (button) {
         note_location();
     }
+    if (event.kind == ui::PointerEvent::Kind::leave) {
+        // Someone else sets the shape now (the title bar, another window): send it again on
+        // the way back.
+        hover_cursor_ = ui::CursorShape::standard;
+        shown_cursor_.reset();
+        return;
+    }
+    hover_cursor_ = cursor_at(event.x, event.y);  // after the event: what it opened counts
+    update_cursor();
+}
+
+std::function<void(ui::CursorShape)> Browser::resize_cursor() {
+    return [this](ui::CursorShape shape) {
+        resize_cursor_ = shape;
+        update_cursor();
+    };
+}
+
+void Browser::update_cursor() {
+    const ui::CursorShape shape =
+        resize_cursor_ != ui::CursorShape::standard ? resize_cursor_ : hover_cursor_;
+    if (shape != shown_cursor_ && set_cursor_) {
+        shown_cursor_ = shape;
+        set_cursor_(shape);
+    }
+}
+
+ui::CursorShape Browser::cursor_at(float x, float y) const {
+    using Shape = ui::CursorShape;
+    const auto hand = [](bool clickable) { return clickable ? Shape::pointer : Shape::standard; };
+    // What takes the pointer first, as take_pointer() hands it out.
+    if (conflict_.is_open()) {
+        return hand(conflict_.clickable_at(x, y));
+    }
+    if (confirm_.is_open()) {
+        return hand(confirm_.clickable_at(x, y));
+    }
+    if (menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open()) {
+        return Shape::standard;
+    }
+    if (editor_.active() && editor_.field().bounds().contains(x, y)) {
+        return Shape::text;
+    }
+    if (sidebar_drawn_ && sidebar_.claims(x, y)) {
+        return hand(sidebar_.clickable_at(x, y));
+    }
+    if (breadcrumb_.claims(x, y)) {
+        return hand(breadcrumb_.clickable_at(x, y));
+    }
+    if (status_bar_.claims(x, y)) {
+        return hand(status_bar_.clickable_at(x, y));
+    }
+    return hand(info_pane_.clickable_at(x, y));
 }
 
 void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {

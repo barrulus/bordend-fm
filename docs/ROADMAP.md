@@ -151,11 +151,12 @@ all'autore quando ci si arriva.
     rotto dà i valori predefiniti con una riga nel log; test su lettura, scrittura e valori fuori
     misura. Provato dall'autore il 2026-10-31 su Umbriel; "massimizzata" non provata lì (Umbriel
     non comunica lo stato massimizzato a nessuna app): da provare nella VM.
-  - [ ] **7.5b Forme del puntatore** (proposta del 2026-10-30, approvata dall'autore): la manina
+  - [x] **7.5b Forme del puntatore** (proposta del 2026-10-30, approvata dall'autore): la manina
     sulle cose cliccabili (pulsanti della barra di stato, eject, × dei trasferimenti, pezzi del
     percorso, "More details") e il cursore di testo nei campi (rinomina, nuova cartella). Fatto
     quando: su Umbriel e con il cursore di riserva le forme cambiano lì e tornano freccia fuori;
-    un test verifica che ogni zona chieda la sua forma.
+    un test verifica che ogni zona chieda la sua forma. Provato dall'autore il 2026-10-31 su
+    Umbriel, anche con `NORDEND_FORCE_XCURSOR=1`.
   - [ ] **7.5c Pannello impostazioni**: Ctrl+, (la virgola; Ctrl++ resta lo zoom della griglia) o
     l'icona a rotellina nella barra di stato, accanto a "?" (chiesta dall'autore il 2026-10-31).
     Una scheda disegnata da Nordend come l'overlay delle scorciatoie: Esc chiude, Tab/frecce

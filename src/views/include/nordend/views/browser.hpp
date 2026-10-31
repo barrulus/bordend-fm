@@ -183,6 +183,11 @@ public:
     // The sidebar (shown at start; left out when the window is too narrow for it).
     void set_sidebar_visible(bool visible);
 
+    // The pointer's shape over a window point, as last drawn: a hand over what a click acts on
+    // (buttons, the path's crumbs, an eject icon, "More details"), the text cursor over a name
+    // being edited, the arrow elsewhere. The resize arrows are the views' own.
+    [[nodiscard]] ui::CursorShape cursor_at(float x, float y) const;
+
     // What is remembered from one start to the next (ROADMAP 7.5a); the window's part is main's.
     [[nodiscard]] State state() const;
     // Before open(): the view comes up in the remembered mode; afterwards, as if chosen.
@@ -490,6 +495,9 @@ private:
     void take_pointer(const ui::PointerEvent& event, Clock::time_point now);
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
+    // The callback the views and the sidebar set their resize arrows through.
+    [[nodiscard]] std::function<void(ui::CursorShape)> resize_cursor();
+    void update_cursor();
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // Who gets the pointer: the view, the sidebar or the breadcrumb above the view.
@@ -507,6 +515,7 @@ private:
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
     std::function<void()> redraw_;
+    std::function<void(ui::CursorShape)> set_cursor_;
     OpenHandler open_;
     ChoicesHandler choices_;
     OpenWithHandler open_with_;
@@ -541,6 +550,11 @@ private:
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};
     bool button_held_{false};  // since a press: the pointer stays with its target
+    // The pointer's shape: a view's or the sidebar's resize arrow wins, otherwise what is under
+    // the pointer (cursor_at); sent only when it changes.
+    ui::CursorShape resize_cursor_{ui::CursorShape::standard};
+    ui::CursorShape hover_cursor_{ui::CursorShape::standard};
+    std::optional<ui::CursorShape> shown_cursor_;
 
     // The last pointer position, handed to the view that comes on screen.
     float pointer_x_{0.0F};

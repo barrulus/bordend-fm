@@ -4,6 +4,41 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — Pointer shapes: a hand and a text cursor (ROADMAP 7.5b)
+
+**Done**
+- `Browser` decides the pointer's shape in one place: `cursor_at(x, y)` asks what is under the
+  pointer, in the order `take_pointer()` hands events out (the conflict and confirm cards first,
+  the menu, Quick Look and the shortcuts give an arrow, the name field, then the sidebar, the
+  path, the status bar, the info pane). A hand on what a click acts on: the status bar's view
+  buttons, "?" and a transfer's ×, the path's crumbs except the folder shown, a disk's eject icon,
+  "More details", the cards' buttons and the conflict's "for the rest" checkbox. The text cursor
+  over a name being edited (rename, new folder). The context menu's rows stay arrows, as menus
+  are.
+- The views' and the sidebar's resize arrows come through `Browser` now and win over the shape
+  under the pointer; a shape is sent to the seat only when it changes, and sent again after the
+  pointer left (the title bar, another window may have set one meanwhile).
+- `clickable_at(x, y)` on `StatusBar`, `Breadcrumb`, `Sidebar` (with `eject_at`, shared with its
+  hover), `InfoPane`, `ConflictDialog`, `ConfirmDialog`; `InfoPane::forget_layout()` at each
+  frame so a hidden pane has no "More details" left; `ui::Rect::contains`.
+- Tests (267), drawn offscreen: hands and arrows found zone by zone (status bar, path, sidebar
+  with a mounted external disk, "More details" once read), the text cursor over the field, a
+  card taking the pointer, the menu's arrows, shapes sent only on a change, the resize arrow
+  first, sent again after leaving.
+
+**Measured**
+- Binary 3.46 MB (+9 KB).
+
+**Decisions**
+- No hand on the title bar's buttons (Nordend's own, client-side): title bars keep the arrow, as
+  GTK's and KWin's do; no hand on the sidebar's places and the views' entries, which are lists.
+
+**Tested by the author** (2026-10-31, Umbriel, with cursor-shape-v1 and with
+`NORDEND_FORCE_XCURSOR=1`): the hand, the text cursor and the arrows where expected, the same in
+both.
+
+---
+
 ## 2026-10-31 — Remembering how Nordend was left (ROADMAP 7.5a)
 
 **Done**

@@ -17,6 +17,11 @@ struct Rect {
 
     [[nodiscard]] constexpr bool empty() const noexcept { return width <= 0.0F || height <= 0.0F; }
 
+    // The point is inside: left and top edges included, right and bottom left out.
+    [[nodiscard]] constexpr bool contains(float px, float py) const noexcept {
+        return px >= x && px < right() && py >= y && py < bottom();
+    }
+
     [[nodiscard]] constexpr Rect intersect(const Rect& other) const noexcept {
         const float left = std::max(x, other.x);
         const float top = std::max(y, other.y);

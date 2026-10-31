@@ -66,6 +66,12 @@ public:
 
     [[nodiscard]] bool expanded() const noexcept { return expanded_; }
 
+    // "More details" is there, as last drawn.
+    [[nodiscard]] bool clickable_at(float x, float y) const { return toggle_.contains(x, y); }
+
+    // Before a frame: what it drew is gone unless it is drawn again (a view without the pane).
+    void forget_layout() noexcept { toggle_ = {}; }
+
     // The width the user gave it (dragging its edge in the grid or the details).
     [[nodiscard]] float width() const noexcept { return width_; }
 

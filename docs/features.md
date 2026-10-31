@@ -253,8 +253,10 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
   menu; the window's edges and corners resize it, with the matching arrows (not when maximized,
   nor on an edge tiled against the screen). Buttons the compositor cannot honour are left out.
   `NORDEND_FORCE_CSD=1` asks any compositor for it (the compositor may still decorate).
-- Pointer shapes from the compositor's cursor theme (cursor-shape-v1), with a resize arrow on
-  every draggable edge. Where the compositor has no cursor-shape-v1 (GNOME, weston), Nordend
+- Pointer shapes from the compositor's cursor theme (cursor-shape-v1): a resize arrow on every
+  draggable edge, a hand on what a click acts on (the status bar's buttons, a transfer's ×, the
+  path's crumbs, a disk's eject icon, "More details", the buttons of a question), the text cursor
+  over a name being edited. Where the compositor has no cursor-shape-v1 (GNOME, weston), Nordend
   draws them itself from the xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, sharp at any
   scale); `NORDEND_FORCE_XCURSOR=1` does so on any compositor.
 

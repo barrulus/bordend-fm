@@ -74,6 +74,9 @@ public:
 
     [[nodiscard]] bool claims(float x, float y) const;
 
+    // A button is there (a view's, "?", a transfer's ×), as last drawn: the pointer is a hand.
+    [[nodiscard]] bool clickable_at(float x, float y) const;
+
     // Shows text in place of the status for kMessageTime; a new message replaces it. error
     // draws it in the error color.
     void show_message(std::string text, bool error);

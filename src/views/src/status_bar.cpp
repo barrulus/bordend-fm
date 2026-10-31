@@ -193,6 +193,10 @@ std::optional<std::size_t> StatusBar::button_at(float x, float y) const {
     return std::nullopt;
 }
 
+bool StatusBar::clickable_at(float x, float y) const {
+    return button_at(x, y).has_value() || cancel_button_.contains(x, y);
+}
+
 bool StatusBar::claims(float x, float y) const {
     return !bounds_.empty() && x >= bounds_.x && x < bounds_.right() && y >= bounds_.y &&
            y < bounds_.bottom();

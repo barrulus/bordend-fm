@@ -83,6 +83,9 @@ public:
     // The pointer at (x, y) is the sidebar's: over it or its edge, or dragging the edge.
     [[nodiscard]] bool claims(float x, float y) const;
 
+    // An eject icon is there, as last drawn.
+    [[nodiscard]] bool clickable_at(float x, float y) const;
+
     void pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // A key while the keyboard is in the sidebar: false when it is not one of its keys. Enter
@@ -120,6 +123,8 @@ private:
 
     void layout();
     [[nodiscard]] std::optional<std::size_t> place_at(float x, float y) const;
+    // The place whose eject icon is at a point (a little wider than the icon).
+    [[nodiscard]] std::optional<std::size_t> eject_at(float x, float y) const;
     [[nodiscard]] bool on_edge(float x, float y) const;
     void update_hover();
     void choose(std::size_t place);

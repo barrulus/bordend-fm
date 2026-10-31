@@ -49,6 +49,9 @@ public:
     // The pointer at (x, y) is over the bar as last drawn.
     [[nodiscard]] bool claims(float x, float y) const;
 
+    // A crumb that opens its folder is there (not the last: the folder shown).
+    [[nodiscard]] bool clickable_at(float x, float y) const;
+
     void pointer(const ui::PointerEvent& event);
 
     // The folder of the step at a window point, as last drawn (nullopt: none, or the "…").

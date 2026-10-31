@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <functional>
@@ -46,6 +47,12 @@ public:
     void pointer(const ui::PointerEvent& event);
 
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
+
+    // One of its buttons is there, as last drawn.
+    [[nodiscard]] bool clickable_at(float x, float y) const {
+        return std::ranges::any_of(
+            buttons_, [x, y](const ui::Rect& button) { return button.contains(x, y); });
+    }
 
 private:
     // The buttons, left to right.
