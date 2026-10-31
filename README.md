@@ -22,7 +22,14 @@
   <img src="docs/images/screenshot-columns.png" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right" width="100%">
   <br>
   <sub>The column view on a folder of OM System raw files: the camera's own preview, the shot's
-  EXIF and the darktable sidecars, in the Noctalia theme.</sub>
+  EXIF and the darktable sidecars, in the Noctalia theme on Umbriel.</sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot-quick-look.png" alt="Quick Look showing a raw photo of a rocky summit in the snow over the column view" width="100%">
+  <br>
+  <sub>Quick Look (<kbd>Space</kbd>) on the same raw file: the full preview in a fraction of a
+  second, with its name, size and dimensions.</sub>
 </p>
 
 ## Why Nordend
