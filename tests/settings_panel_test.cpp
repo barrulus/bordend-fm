@@ -1,5 +1,6 @@
 #include "nordend/views/settings_panel.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <functional>
@@ -68,6 +69,7 @@ struct Fixture {
                     [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
     std::string file = "# mine\n[pointer]\ndouble_click_ms = 400 # slow\n";
     std::vector<std::string> writes;  // "section.key = value", the ones asked for
+    std::vector<nordend::views::SystemClipboard::Format> offered;  // on the clipboard
 
     Fixture() {
         browser.set_home_trash(dir.path / "Trash");
@@ -96,7 +98,22 @@ struct Fixture {
                          {.name = "DejaVu Sans Mono", .monospace = true},
                          {.name = "Inter"},
                          {.name = "JetBrains Mono", .monospace = true}};
+                 },
+             .about =
+                 [] {
+                     return std::vector<std::pair<std::string, std::string>>{
+                         {"Nordend", "0.0.1 (abc1234)"}, {"Kernel", "Linux 6.18"}};
                  }});
+        browser.set_system_clipboard(
+            {.offer =
+                 [this](std::vector<nordend::views::SystemClipboard::Format> formats) {
+                     offered = std::move(formats);
+                 },
+             .clear = {},
+             .owned = {},
+             .generation = {},
+             .types = {},
+             .read = {}});
         browser.open(dir.path);
     }
 
@@ -292,4 +309,32 @@ TEST_CASE("settings: the installed fonts offered while a font is changed") {
     f.press(key(XKB_KEY_Down));
     f.press(key(XKB_KEY_Return));
     CHECK(f.panel().suggestions().empty());
+}
+
+TEST_CASE("settings: About tells what Nordend runs on, and copies it") {
+    Fixture f;
+    f.press(key(XKB_KEY_comma, kCtrl));
+    CHECK(f.panel().page() == SettingsPanel::Page::settings);
+    f.press(key(XKB_KEY_Right));
+    CHECK(f.panel().page() == SettingsPanel::Page::about);
+    REQUIRE(run_until(f.loop, [&] { return f.panel().has_about(); }));  // read on a worker
+    CHECK(f.panel().about_text() == "Nordend: 0.0.1 (abc1234)\nKernel: Linux 6.18\n");
+    f.press(key(XKB_KEY_Down));  // nothing to choose there
+    CHECK(f.panel().page() == SettingsPanel::Page::about);
+    f.press(key(XKB_KEY_Return));
+    CHECK(f.panel().copied());
+    REQUIRE_FALSE(f.offered.empty());
+    for (const auto& [type, text] : f.offered) {
+        CHECK(text == f.panel().about_text());
+    }
+    CHECK(std::ranges::any_of(
+        f.offered, [](const auto& format) { return format.first == "text/plain;charset=utf-8"; }));
+    f.press(key(XKB_KEY_Left));
+    CHECK(f.panel().page() == SettingsPanel::Page::settings);
+    CHECK_FALSE(f.panel().copied());
+    // Opened again: the settings first.
+    f.press(key(XKB_KEY_Right));
+    f.press(key(XKB_KEY_Escape));
+    f.press(key(XKB_KEY_comma, kCtrl));
+    CHECK(f.panel().page() == SettingsPanel::Page::settings);
 }

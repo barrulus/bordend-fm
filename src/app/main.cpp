@@ -29,6 +29,7 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
+#include "nordend/platform/about.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/platform/portal.hpp"
@@ -490,7 +491,23 @@ int main(int argc, char** argv) {
                  },
                  .fonts_in_use = [&config] { return config.font; },
                  .file = shown_path(config_path),
-                 .families = [] { return ui::installed_font_families(); }});
+                 .families = [] { return ui::installed_font_families(); },
+                 .about =
+                     [graphics = window.gl_renderer()] {
+                         std::vector<std::pair<std::string, std::string>> lines;
+                         const std::string_view commit = NORDEND_COMMIT;
+                         lines.emplace_back("Nordend",
+                                            commit.empty()
+                                                ? std::string{NORDEND_VERSION}
+                                                : std::format("{} ({})", NORDEND_VERSION, commit));
+                         for (platform::AboutLine& line : platform::system_about()) {
+                             lines.emplace_back(std::move(line.label), std::move(line.value));
+                         }
+                         if (!graphics.empty()) {
+                             lines.emplace_back("Graphics", graphics);
+                         }
+                         return lines;
+                     }});
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }

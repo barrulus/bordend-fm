@@ -293,6 +293,10 @@ A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 M
   fixed-width families ("mono"); arrows or a click pick one. A name that is not installed is
   refused with "choose one from the list" ("No installed font matches" when nothing does); a
   fontconfig pattern with properties ("Inter:weight=medium") is taken as written.
+- **About** (→ in the settings, or a click on its title): Nordend's version and commit, the
+  distribution, the kernel, the desktop, the versions of Noctalia and Umbriel when they are
+  running (asked of the very programs running, never of another copy), the GPU; Enter or "Copy"
+  puts it on the clipboard, ready for a bug report. MIT license, the repository's address.
 - Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
   template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with
@@ -312,6 +316,5 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-An "About" section in the settings, then benchmarks, a week of daily use and the first
-release. See the
+Benchmarks of every goal in the design, a week of daily use, and the first release. See the
 [roadmap](ROADMAP.md).

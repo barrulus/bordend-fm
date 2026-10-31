@@ -139,7 +139,7 @@ all'autore quando ci si arriva.
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
   screenshot di weston guardati.
 
-- [ ] **7.5 Impostazioni e stato ricordato** (Ctrl+,), in quattro passi, ognuno provato e
+- [x] **7.5 Impostazioni e stato ricordato** (Ctrl+,), in quattro passi, ognuno provato e
   committato (proposta approvata dall'autore il 2026-10-31):
   - [x] **7.5a Stato ricordato** in `$XDG_STATE_HOME/nordend/state.toml` (stato, non preferenze):
     vista, ordinamento, file nascosti, barra laterale, pannello info (visibile, larghezza, "More
@@ -178,11 +178,13 @@ all'autore quando ci si arriva.
     installate filtrate; da tastiera e con il mouse se ne sceglie una; le monospaziate prima per
     "Monospace"; un nome scritto a mano funziona come prima; test su filtro e ordine con un elenco
     finto; snapshot guardato. Provato dall'autore il 2026-10-31 su Umbriel.
-  - [ ] **7.5d Informazioni**, una sezione del pannello: Nordend (versione e commit), distro
+  - [x] **7.5d Informazioni**, una sezione del pannello: Nordend (versione e commit), distro
     (`/etc/os-release`), kernel, desktop (`XDG_CURRENT_DESKTOP`), GPU (`GL_RENDERER`), versioni di
     Noctalia e Umbriel se presenti; "Copia" mette tutto negli appunti (per le segnalazioni di
     bug); licenza e link al repository. Fatto quando: dati giusti su Umbriel, GNOME e Plasma;
-    quelli che mancano non compaiono; "Copia" incolla il testo in un'altra app.
+    quelli che mancano non compaiono; "Copia" incolla il testo in un'altra app. Fatto il
+    2026-10-31 come seconda pagina del pannello ("About", ←/→); provato dall'autore su Umbriel
+    (GNOME e Plasma da guardare alla prossima accensione della VM).
 
 - [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:

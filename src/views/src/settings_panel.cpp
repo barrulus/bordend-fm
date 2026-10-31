@@ -137,6 +137,8 @@ void SettingsPanel::open() {
     open_ = true;
     chosen_ = 0;
     editing_ = false;
+    page_ = Page::settings;
+    copied_ = false;
     problem_.clear();
     refresh();
 }
@@ -170,6 +172,38 @@ std::string SettingsPanel::text_of(Value value) const {
             return std::to_string(config_.pointer.double_click_distance);
     }
     return {};
+}
+
+void SettingsPanel::turn(Page page) {
+    if (editing_) {
+        problem_.clear();
+        stop_editing();
+    }
+    page_ = page;
+    copied_ = false;
+    redraw_();
+}
+
+void SettingsPanel::set_about(std::vector<std::pair<std::string, std::string>> lines) {
+    about_ = std::move(lines);
+    redraw_();
+}
+
+std::string SettingsPanel::about_text() const {
+    std::string text;
+    for (const auto& [label, value] : about_) {
+        text.append(label).append(": ").append(value).append("\n");
+    }
+    return text;
+}
+
+void SettingsPanel::copy_about() {
+    if (about_.empty() || !copy_) {
+        return;
+    }
+    copy_(about_text());
+    copied_ = true;
+    redraw_();
 }
 
 void SettingsPanel::set_families(std::vector<ui::FontFamily> families) {
@@ -297,6 +331,14 @@ bool SettingsPanel::key(const ui::KeyEvent& event) {
         event.keysym == XKB_KEY_comma && event.modifiers == ui::Modifiers{.ctrl = true};
     if (ctrl_comma || (event.keysym == XKB_KEY_Escape && plain(event))) {
         close();
+    } else if (event.keysym == XKB_KEY_Right && plain(event)) {
+        turn(Page::about);
+    } else if (event.keysym == XKB_KEY_Left && plain(event)) {
+        turn(Page::settings);
+    } else if (page_ == Page::about) {
+        if (enter && plain(event)) {
+            copy_about();
+        }
     } else if (event.keysym == XKB_KEY_Down || (event.keysym == XKB_KEY_Tab && plain(event))) {
         choose((chosen_ + 1) % kValues);
     } else if (event.keysym == XKB_KEY_Up || event.keysym == XKB_KEY_ISO_Left_Tab) {
@@ -325,6 +367,14 @@ void SettingsPanel::pointer(const ui::PointerEvent& event) {
         return;
     }
     if (event.kind != ui::PointerEvent::Kind::press || event.button != ui::PointerButton::left) {
+        return;
+    }
+    if (tabs_[0].contains(event.x, event.y) || tabs_[1].contains(event.x, event.y)) {
+        turn(tabs_[0].contains(event.x, event.y) ? Page::settings : Page::about);
+        return;
+    }
+    if (copy_button_.contains(event.x, event.y)) {
+        copy_about();
         return;
     }
     for (std::size_t i = 0; i < rows_.size(); ++i) {
@@ -366,12 +416,51 @@ void SettingsPanel::paste(std::string_view text) {
 bool SettingsPanel::clickable_at(float x, float y) const {
     const auto inside = [x, y](const ui::Rect& rect) { return rect.contains(x, y); };
     return open_ && !typing_at(x, y) &&
-           (std::ranges::any_of(rows_, inside) ||
+           (std::ranges::any_of(tabs_, inside) || copy_button_.contains(x, y) ||
+            std::ranges::any_of(rows_, inside) ||
             (!list_.contains(x, y) && std::ranges::any_of(boxes_, inside)));
 }
 
 bool SettingsPanel::typing_at(float x, float y) const {
     return open_ && editing_ && field_.bounds().contains(x, y);
+}
+
+void SettingsPanel::draw_about(ui::Renderer& renderer, const theme::Palette& palette, float left,
+                               float top, float inner) {
+    constexpr float line_height = 28.0F;
+    const float label_width = inner * 0.32F;
+    float y = top;
+    if (about_.empty()) {
+        renderer.draw_text("Reading…", left, y, kTextSize, palette.on_surface_variant);
+        y += line_height;
+    }
+    for (const auto& [label, value] : about_) {
+        renderer.draw_text(label, left, y, kTextSize, palette.on_surface_variant,
+                           label_width - 12.0F);
+        renderer.draw_text(value, left + label_width, y, kTextSize, palette.on_surface,
+                           inner - label_width);
+        y += line_height;
+    }
+    y += 10.0F;
+    copy_button_ = {left, y, 120.0F, kBoxHeight};
+    renderer.draw_box(copy_button_, {.fill = palette.surface_container_highest,
+                                     .radius = ui::Corners::all(6.0F),
+                                     .border_width = 1.0F,
+                                     .border = palette.outline_variant});
+    renderer.draw_text("Copy", copy_button_.x + 16.0F,
+                       copy_button_.y + ((kBoxHeight - kTextSize) / 2.0F) - 2.0F, kTextSize,
+                       palette.primary);
+    if (copied_) {
+        renderer.draw_text("Copied: paste it into a bug report", copy_button_.right() + 14.0F,
+                           copy_button_.y + ((kBoxHeight - kNoteSize) / 2.0F) - 2.0F, kNoteSize,
+                           palette.on_surface_variant, inner - copy_button_.width - 14.0F);
+    }
+    renderer.draw_text("MIT License  ·  github.com/pankaspe/nordend-fm", left,
+                       card_.bottom() - kPadding - kTextSize - 22.0F, 12.0F,
+                       palette.on_surface_variant, inner);
+    renderer.draw_text("← Settings  ·  Enter copy  ·  Esc close", left,
+                       card_.bottom() - kPadding - kTextSize, 12.0F, palette.on_surface_variant,
+                       inner);
 }
 
 void SettingsPanel::draw(ui::Renderer& renderer, const ui::Rect& bounds,
@@ -380,6 +469,8 @@ void SettingsPanel::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     card_ = {};
     rows_.clear();
     list_ = {};
+    tabs_ = {};
+    copy_button_ = {};
     if (!open_) {
         return;
     }
@@ -408,8 +499,26 @@ void SettingsPanel::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const float box_width = inner * kBoxShare;
     const float box_left = left + inner - box_width;
     float y = card_.y + kPadding;
-    renderer.draw_text("Settings", left, y, kTitleSize, palette.on_surface);
-    renderer.draw_text(settings_.file, left, y + 26.0F, kFileSize, palette.on_surface_variant,
+    // The pages' titles, the one shown underlined.
+    float tab_x = left;
+    for (const Page page : {Page::settings, Page::about}) {
+        const bool shown = page == page_;
+        const std::string_view title = page == Page::settings ? "Settings" : "About";
+        const float title_width = renderer.draw_text(
+            title, tab_x, y, kTitleSize, shown ? palette.on_surface : palette.on_surface_variant);
+        tabs_.at(static_cast<std::size_t>(page)) = {tab_x - 6.0F, y - 6.0F, title_width + 12.0F,
+                                                    kTitleSize + 16.0F};
+        if (shown) {
+            renderer.fill_rect({tab_x, y + kTitleSize + 6.0F, title_width, 2.0F}, palette.primary);
+        }
+        tab_x += title_width + 28.0F;
+    }
+    if (page_ == Page::about) {
+        draw_about(renderer, palette, left, y + kHeadHeight - 20.0F, inner);
+        renderer.pop_clip();
+        return;
+    }
+    renderer.draw_text(settings_.file, left, y + 30.0F, kFileSize, palette.on_surface_variant,
                        inner, ui::Ellipsis::middle);
     y += kHeadHeight;
 
@@ -470,9 +579,10 @@ void SettingsPanel::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                        palette.on_surface_variant, box_width);
     y += kRowHeight;
 
-    renderer.draw_text(
-        editing_ ? "Enter keep  ·  Esc drop" : "↑ ↓ choose  ·  Enter change  ·  Esc close", left,
-        card_.bottom() - kPadding - kTextSize, 12.0F, palette.on_surface_variant, inner);
+    renderer.draw_text(editing_ ? "Enter keep  ·  Esc drop"
+                                : "↑ ↓ choose  ·  Enter change  ·  → About  ·  Esc close",
+                       left, card_.bottom() - kPadding - kTextSize, 12.0F,
+                       palette.on_surface_variant, inner);
     renderer.pop_clip();
 
     // Nothing installed matches what is typed: say so, where the list would be.

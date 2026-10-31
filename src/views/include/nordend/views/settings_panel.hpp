@@ -7,6 +7,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "nordend/core/config.hpp"
@@ -36,6 +37,8 @@ struct Settings {
     std::string file;
     // The installed font families, offered while a font is typed; called on a worker.
     std::function<std::vector<ui::FontFamily>()> families;
+    // "About": what Nordend runs on, label and value per line; called on a worker.
+    std::function<std::vector<std::pair<std::string, std::string>>()> about;
 };
 
 // The families offered while a font is typed (ROADMAP 7.5c-bis): those whose name holds what is
@@ -52,7 +55,9 @@ struct Settings {
 // The settings (Ctrl+, or the status bar's gear, ROADMAP 7.5c), on a card over the window: the
 // fonts and the double click, changed in place and written to config.toml; where the colours come
 // from. Up, Down and Tab choose a value, Enter or a click changes it, Enter keeps the change and
-// Escape drops it; Escape, Ctrl+, or a click outside the card close it.
+// Escape drops it; Escape, Ctrl+, or a click outside the card close it. Left and Right (or a click
+// on its title) turn to "About" (ROADMAP 7.5d): what Nordend runs on, and Enter or "Copy" puts
+// it on the clipboard for a bug report.
 //
 // Loop thread only.
 class SettingsPanel {
@@ -62,6 +67,25 @@ public:
     void set_settings(Settings settings) { settings_ = std::move(settings); }
 
     [[nodiscard]] const Settings& settings() const noexcept { return settings_; }
+
+    // Copies text to the clipboard (the browser's).
+    void set_copy(std::function<void(std::string)> copy) { copy_ = std::move(copy); }
+
+    enum class Page : std::uint8_t { settings, about };
+
+    [[nodiscard]] Page page() const noexcept { return page_; }
+
+    void turn(Page page);
+
+    // "About"'s lines, once read; the text "Copy" puts on the clipboard.
+    void set_about(std::vector<std::pair<std::string, std::string>> lines);
+
+    [[nodiscard]] bool has_about() const noexcept { return !about_.empty(); }
+
+    [[nodiscard]] std::string about_text() const;
+    void copy_about();
+
+    [[nodiscard]] bool copied() const noexcept { return copied_; }
 
     // The installed families, once read.
     void set_families(std::vector<ui::FontFamily> families);
@@ -122,6 +146,8 @@ private:
     [[nodiscard]] bool font_chosen() const noexcept;
     void suggest();
     void pick(std::optional<std::size_t> index);
+    void draw_about(ui::Renderer& renderer, const theme::Palette& palette, float left, float top,
+                    float inner);
 
     std::function<void()> redraw_;
     Settings settings_;
@@ -140,6 +166,12 @@ private:
     bool typed_{false};           // typed since the change began: the list follows the text
     std::vector<ui::Rect> rows_;  // the suggestions shown, as last drawn (from first_)
     ui::Rect list_{};
+    std::function<void(std::string)> copy_;
+    Page page_{Page::settings};
+    std::vector<std::pair<std::string, std::string>> about_;
+    bool copied_{false};
+    std::array<ui::Rect, 2> tabs_{};  // the pages' titles, as last drawn
+    ui::Rect copy_button_{};
 };
 
 }  // namespace nordend::views

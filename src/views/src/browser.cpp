@@ -78,6 +78,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  [this](const fs::TransferRequest& request, const fs::TransferResult& result) {
                      transfer_done(request, result);
                  }} {
+    settings_.set_copy([this](const std::string& text) { copy_text(text); });
     columns_.set_open_handler([this] { open_selection(); });
     grid_.set_open_handler([this] { open_selection(); });
     details_.set_open_handler([this] { open_selection(); });
@@ -1840,11 +1841,42 @@ void Browser::update_cursor() {
     }
 }
 
+void Browser::copy_text(const std::string& text) {
+    if (!system_.offer) {
+        return;
+    }
+    // The clipboard holds text now, not Nordend's files: nothing of ours to paste.
+    clipboard_ = {};
+    cut_marks_ = {};
+    std::vector<SystemClipboard::Format> formats;
+    formats.reserve(kTextTypes.size());
+    for (const std::string_view type : kTextTypes) {
+        formats.emplace_back(std::string{type}, text);
+    }
+    system_.offer(std::move(formats));
+    redraw_();
+}
+
 void Browser::open_settings() {
     quick_look_.close();
     shortcuts_.close();
     menu_.close();
     settings_.open();
+    // What Nordend runs on, for "About": read once, on a worker (it asks the shell and the
+    // compositor for their versions).
+    if (!about_asked_ && settings_.settings().about) {
+        about_asked_ = true;
+        pool_.submit(
+            core::Priority::visible,
+            [read = settings_.settings().about](const core::CancelToken& /*token*/) {
+                return read();
+            },
+            [this, alive = alive_](std::vector<std::pair<std::string, std::string>> lines) {
+                if (*alive) {
+                    settings_.set_about(std::move(lines));
+                }
+            });
+    }
     // The installed fonts, for the font values: read once, on a worker.
     if (!families_asked_ && settings_.settings().families) {
         families_asked_ = true;

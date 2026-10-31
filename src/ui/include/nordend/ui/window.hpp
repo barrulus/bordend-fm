@@ -106,6 +106,9 @@ public:
 
     [[nodiscard]] const WindowState& state() const noexcept { return state_; }
 
+    // The GPU as OpenGL names it ("AMD Radeon RX 6650 XT (radeonsi, navi23, ...)").
+    [[nodiscard]] const std::string& gl_renderer() const noexcept { return gl_renderer_; }
+
     [[nodiscard]] const std::string& title() const noexcept { return title_; }
 
     // Interactive move and resize, started by the pointer press of serial on seat.
@@ -176,6 +179,7 @@ private:
     std::string title_;
     Color background_;
     DrawHandler draw_handler_;
+    std::string gl_renderer_;
     std::function<void()> close_handler_;
     std::unique_ptr<Renderer> renderer_;      // needs the context current: see ~Window
     EGLSurface egl_surface_{EGL_NO_SURFACE};  // destroyed first, in ~Window

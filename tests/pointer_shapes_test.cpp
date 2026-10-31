@@ -289,8 +289,10 @@ TEST_CASE("pointer shapes: the gear opens the settings; a hand on their values, 
                       Browser::Clock::now());
     REQUIRE(f.browser.settings_panel().is_open());
     f.draw();
-    // Its values are hands, the rest of the card and the window under it arrows.
-    const std::optional<Point> value = f.find(CursorShape::pointer);
+    // Its values are hands (at the right; the page titles at the left are too), the rest of the
+    // card and the window under it arrows.
+    const std::optional<Point> value =
+        f.find(CursorShape::pointer, [](float x, float /*y*/) { return x > kWidth / 2.0F; });
     REQUIRE(value);
     CHECK(f.find(CursorShape::standard));
     CHECK_FALSE(

@@ -1,5 +1,6 @@
 add_executable(nordend-tests
     main.cpp
+    about_test.cpp
     breadcrumb_test.cpp
     clipboard_test.cpp
     column_view_test.cpp

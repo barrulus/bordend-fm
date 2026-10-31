@@ -274,6 +274,9 @@ public:
 
     void open_settings();
 
+    // Puts text on the system clipboard (the settings' "Copy").
+    void copy_text(const std::string& text);
+
     [[nodiscard]] NameEditor& name_editor() noexcept { return editor_; }
 
     // F2: edits the name of the entry under the cursor (nothing without one).
@@ -565,6 +568,7 @@ private:
     ui::CursorShape hover_cursor_{ui::CursorShape::standard};
     std::optional<ui::CursorShape> shown_cursor_;
     bool families_asked_{false};  // the installed fonts, for the settings panel
+    bool about_asked_{false};     // "About"'s lines
 
     // The last pointer position, handed to the view that comes on screen.
     float pointer_x_{0.0F};

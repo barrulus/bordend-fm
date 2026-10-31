@@ -461,7 +461,19 @@ int main(int argc, char** argv) {
                          },
                      .fonts_in_use = [] { return nordend::core::Config::Font{}; },
                      .file = "~/.config/nordend/config.toml",
-                     .families = [] { return nordend::ui::installed_font_families(); }});
+                     .families = [] { return nordend::ui::installed_font_families(); },
+                     .about =
+                         [] {
+                             // Fixed lines: snapshots stay the same from one machine to the next.
+                             return std::vector<std::pair<std::string, std::string>>{
+                                 {"Nordend", "0.0.1 (abc1234)"},
+                                 {"Distribution", "Void Linux"},
+                                 {"Kernel", "Linux 6.18.59_1"},
+                                 {"Desktop", "umbriel"},
+                                 {"Noctalia", "5.4.0"},
+                                 {"Umbriel", "0.1.0"},
+                                 {"Graphics", "AMD Radeon RX 6650 XT (radeonsi, navi23)"}};
+                         }});
                 opener = std::make_unique<nordend::platform::Opener>(
                     loop, pool, mime, nordend::platform::Environment::from_environment(),
                     [](const std::string& /*message*/, bool /*error*/) {});

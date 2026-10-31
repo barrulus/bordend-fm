@@ -4,6 +4,53 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — "About", in the settings (ROADMAP 7.5d)
+
+**Done**
+- The settings panel has two pages, "Settings" and "About": Left and Right or a click on the
+  titles turn them; it always opens on "Settings".
+- "About": Nordend's version and commit, distribution, kernel, desktop, Noctalia's and
+  Umbriel's versions when they run, and the GPU; lines whose value is not known are left out.
+  Enter or "Copy" puts "Label: value" lines on the clipboard (the text types Nordend offers),
+  "Copied: paste it into a bug report" beside the button. MIT license and the repository's
+  address at the bottom.
+- `platform::system_about()` with `distribution_name` (os-release's PRETTY_NAME, else NAME),
+  `version_from` ("noctalia v5.4.0" -> "5.4.0"), `running(name)` (a process of this user by
+  /proc/PID/comm, its /proc/PID/exe) and `version_of(program)` (posix_spawn, stdout through a
+  pipe, nothing else inherited, 1 s at most, killed past it). Called on a worker the first time
+  the panel opens, like the font families.
+- Noctalia and Umbriel are asked through /proc/PID/exe of the process running: never another
+  copy, which with `--version` might do something else. Their sources were read first (5.4.0
+  and the pinned Umbriel commit): `--version` prints and exits in both.
+- The commit comes from git when CMake configures (`NORDEND_COMMIT`), configured again after
+  every commit (`.git/logs/HEAD` is a configure dependency); none outside a checkout.
+- `Window::gl_renderer()`; `Browser::copy_text()` empties Nordend's own file clipboard, since the
+  clipboard holds text now.
+- Tests (285): os-release, version lines, the test's own process found by name, `version_of`
+  with a good, a failing, a missing and a slow program (killed in time); the pages, the lines
+  read on a worker, the copy offered as every text type; the drawn test looks for a value's hand
+  right of the page titles.
+
+**Measured**
+- `noctalia --version` and `umbriel --version` together: 31 ms (on a worker).
+- Binary 3.64 MB, 3.04 MB stripped (+50 KB).
+
+**Decisions**
+- Two pages rather than one long card: everything on one would not fit a 640 px window.
+- No "+" for uncommitted changes after the commit: it would only be as fresh as the last
+  configure.
+
+**Tested by the author** (2026-10-31, Umbriel): the lines right (version and commit, Void Linux,
+the kernel, umbriel, Noctalia 5.4.0, Umbriel 0.1.0, the GPU), the pages turned by keys and by
+clicks, "Copy" pasted elsewhere, Ctrl+V in a view then finds nothing of Nordend's to paste.
+
+**Open**
+- "About" on GNOME and Plasma (no Noctalia or Umbriel lines) to look at in the VM.
+- `core::read_text_file` reads by the size the file states: /proc's files read empty with it
+  (comm is read with a stream instead).
+
+---
+
 ## 2026-10-31 — Choosing a font from the installed ones (ROADMAP 7.5c-bis)
 
 **Done**

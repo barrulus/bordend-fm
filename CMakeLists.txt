@@ -80,8 +80,24 @@ add_library(nordend_test_scene STATIC src/app/test_scene.cpp)
 target_include_directories(nordend_test_scene PUBLIC src/app)
 target_link_libraries(nordend_test_scene PUBLIC nordend::ui nordend::theme PRIVATE nordend::warnings)
 
+# The commit Nordend is built from, for "About" (ROADMAP 7.5d): read when CMake configures, which
+# it does again after every commit (it watches .git/logs/HEAD). Empty outside a git checkout.
+set(NORDEND_COMMIT "")
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+    execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse --short=7 HEAD
+                    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                    OUTPUT_VARIABLE NORDEND_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET)
+    if(EXISTS "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                     "${PROJECT_SOURCE_DIR}/.git/logs/HEAD")
+    endif()
+endif()
+
 add_executable(nordend src/app/main.cpp)
-target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}"
+                                           NORDEND_COMMIT="${NORDEND_COMMIT}")
 target_link_libraries(nordend
     PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
             nordend_test_scene

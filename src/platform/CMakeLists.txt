@@ -1,4 +1,5 @@
 add_library(nordend_platform
+    src/about.cpp
     src/applications.cpp
     src/bus_loop.cpp
     src/desktop_entry.cpp
