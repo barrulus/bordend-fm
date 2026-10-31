@@ -7,8 +7,7 @@
 #include <string_view>
 #include <vector>
 
-// What the settings' "About" section tells about the system (ROADMAP 7.5d), also copied into
-// bug reports.
+// What `nordend --about` tells about the system (ROADMAP 7.5d), to paste into bug reports.
 namespace nordend::platform {
 
 struct AboutLine {

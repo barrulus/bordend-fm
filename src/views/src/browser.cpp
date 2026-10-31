@@ -52,14 +52,10 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                       go_to(folder, child);
                   },
                   home_directory()},
-      status_bar_{loop,
-                  pool,
-                  redraw,
+      status_bar_{loop, pool, redraw,
                   [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
-                  [this] { shortcuts_.open(); },
-                  [this] { open_settings(); }},
+                  [this] { shortcuts_.open(); }},
       shortcuts_{redraw},
-      settings_{redraw},
       editor_{redraw,
               [this](const std::shared_ptr<Folder>& folder, const std::string& from,
                      const std::string& to) { rename(folder, from, to); },
@@ -78,7 +74,6 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  [this](const fs::TransferRequest& request, const fs::TransferResult& result) {
                      transfer_done(request, result);
                  }} {
-    settings_.set_copy([this](const std::string& text) { copy_text(text); });
     columns_.set_open_handler([this] { open_selection(); });
     grid_.set_open_handler([this] { open_selection(); });
     details_.set_open_handler([this] { open_selection(); });
@@ -352,9 +347,7 @@ void Browser::paste_text() {
                              return;
                          }
                          --operations_;
-                         if (text && settings_.editing()) {
-                             settings_.paste(*text);
-                         } else if (text) {
+                         if (text) {
                              editor_.paste(*text);
                          }
                      });
@@ -1747,7 +1740,6 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     }
     quick_look_.draw(renderer, bounds, palette, icons, now);
     shortcuts_.draw(renderer, bounds, palette);
-    settings_.draw(renderer, bounds, palette);
     menu_.draw(renderer, bounds, palette);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
     confirm_.draw(renderer, bounds, palette);
@@ -1841,58 +1833,6 @@ void Browser::update_cursor() {
     }
 }
 
-void Browser::copy_text(const std::string& text) {
-    if (!system_.offer) {
-        return;
-    }
-    // The clipboard holds text now, not Nordend's files: nothing of ours to paste.
-    clipboard_ = {};
-    cut_marks_ = {};
-    std::vector<SystemClipboard::Format> formats;
-    formats.reserve(kTextTypes.size());
-    for (const std::string_view type : kTextTypes) {
-        formats.emplace_back(std::string{type}, text);
-    }
-    system_.offer(std::move(formats));
-    redraw_();
-}
-
-void Browser::open_settings() {
-    quick_look_.close();
-    shortcuts_.close();
-    menu_.close();
-    settings_.open();
-    // What Nordend runs on, for "About": read once, on a worker (it asks the shell and the
-    // compositor for their versions).
-    if (!about_asked_ && settings_.settings().about) {
-        about_asked_ = true;
-        pool_.submit(
-            core::Priority::visible,
-            [read = settings_.settings().about](const core::CancelToken& /*token*/) {
-                return read();
-            },
-            [this, alive = alive_](std::vector<std::pair<std::string, std::string>> lines) {
-                if (*alive) {
-                    settings_.set_about(std::move(lines));
-                }
-            });
-    }
-    // The installed fonts, for the font values: read once, on a worker.
-    if (!families_asked_ && settings_.settings().families) {
-        families_asked_ = true;
-        pool_.submit(
-            core::Priority::visible,
-            [read = settings_.settings().families](const core::CancelToken& /*token*/) {
-                return read();
-            },
-            [this, alive = alive_](std::vector<ui::FontFamily> families) {
-                if (*alive) {
-                    settings_.set_families(std::move(families));
-                }
-            });
-    }
-}
-
 ui::CursorShape Browser::cursor_at(float x, float y) const {
     using Shape = ui::CursorShape;
     const auto hand = [](bool clickable) { return clickable ? Shape::pointer : Shape::standard; };
@@ -1903,13 +1843,7 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (confirm_.is_open()) {
         return hand(confirm_.clickable_at(x, y));
     }
-    if (menu_.is_open()) {
-        return Shape::standard;
-    }
-    if (settings_.is_open()) {
-        return settings_.typing_at(x, y) ? Shape::text : hand(settings_.clickable_at(x, y));
-    }
-    if (shortcuts_.is_open() || quick_look_.is_open()) {
+    if (menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open()) {
         return Shape::standard;
     }
     if (editor_.active() && editor_.field().bounds().contains(x, y)) {
@@ -1929,8 +1863,8 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
 
 void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (event.kind == ui::PointerEvent::Kind::release &&
-        (conflict_.is_open() || confirm_.is_open() || menu_.is_open() || settings_.is_open() ||
-         shortcuts_.is_open() || quick_look_.is_open())) {
+        (conflict_.is_open() || confirm_.is_open() || menu_.is_open() || shortcuts_.is_open() ||
+         quick_look_.is_open())) {
         // Taken by what the press opened (a menu from a right click): the button is up all the
         // same, and the next press finds its target again.
         button_held_ = false;
@@ -1945,14 +1879,6 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
     }
     if (menu_.is_open()) {
         menu_.pointer(event);  // a click outside closes it and does nothing else
-        if (event.kind != ui::PointerEvent::Kind::leave) {
-            pointer_x_ = event.x;
-            pointer_y_ = event.y;
-        }
-        return;
-    }
-    if (settings_.is_open()) {
-        settings_.pointer(event);  // a click outside the card closes it and does nothing else
         if (event.kind != ui::PointerEvent::Kind::leave) {
             pointer_x_ = event.x;
             pointer_y_ = event.y;
@@ -2657,14 +2583,6 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
     if (menu_.is_open()) {
         return menu_.key(event);  // every key is the menu's meanwhile
     }
-    if (settings_.is_open()) {
-        if (settings_.editing() && event.modifiers == ui::Modifiers{.ctrl = true} &&
-            (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
-            paste_text();
-            return true;
-        }
-        return settings_.key(event);  // every key is the panel's meanwhile
-    }
     if (editor_.active()) {
         if (event.modifiers == ui::Modifiers{.ctrl = true} &&
             (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
@@ -2769,9 +2687,6 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::show_shortcuts:
             shortcuts_.open();
-            break;
-        case Command::settings:
-            open_settings();
             break;
         case Command::rename:
             quick_look_.close();

@@ -17,6 +17,11 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-31: settings panel removed, `--about` added
+
+3 663 616 bytes; 3 058 552 after `strip`; 21 direct libraries. The panel and its font list are
+gone; the icon font is back to 47 outline icons (13 432 bytes).
+
 ### 2026-10-31: desktop colours (7.4)
 
 3 579 800 bytes; 2 988 792 after `strip`; 21 direct libraries, none new (the portal goes through

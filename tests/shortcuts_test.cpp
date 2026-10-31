@@ -129,7 +129,6 @@ struct Fixture {
         REQUIRE_FALSE(browser.name_editor().active());
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
-        browser.settings_panel().close();
         browser.context_menu().close();
         browser.confirm_dialog().close();
         browser.sidebar().set_focused(false);

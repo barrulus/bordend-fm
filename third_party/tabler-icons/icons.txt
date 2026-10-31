@@ -40,7 +40,6 @@ player-eject
 plug
 presentation
 server
-settings
 square
 squares
 terminal-2

@@ -5,7 +5,6 @@ add_executable(nordend-tests
     clipboard_test.cpp
     column_view_test.cpp
     config_test.cpp
-    config_edit_test.cpp
     desktop_palette_test.cpp
     context_menu_test.cpp
     details_view_test.cpp
@@ -30,7 +29,6 @@ add_executable(nordend-tests
     quick_look_test.cpp
     rename_test.cpp
     scroller_test.cpp
-    settings_panel_test.cpp
     shortcuts_test.cpp
     sort_test.cpp
     state_test.cpp

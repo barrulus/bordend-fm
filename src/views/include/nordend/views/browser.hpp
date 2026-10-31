@@ -39,7 +39,6 @@
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/name_editor.hpp"
 #include "nordend/views/quick_look.hpp"
-#include "nordend/views/settings_panel.hpp"
 #include "nordend/views/shortcuts.hpp"
 #include "nordend/views/shortcuts_overlay.hpp"
 #include "nordend/views/sidebar.hpp"
@@ -266,16 +265,6 @@ public:
     [[nodiscard]] StatusBar& status_bar() noexcept { return status_bar_; }
 
     [[nodiscard]] ShortcutsOverlay& shortcuts_overlay() noexcept { return shortcuts_; }
-
-    // The settings panel (Ctrl+, or the status bar's gear) and what it reads and writes.
-    [[nodiscard]] SettingsPanel& settings_panel() noexcept { return settings_; }
-
-    void set_settings(Settings settings) { settings_.set_settings(std::move(settings)); }
-
-    void open_settings();
-
-    // Puts text on the system clipboard (the settings' "Copy").
-    void copy_text(const std::string& text);
 
     [[nodiscard]] NameEditor& name_editor() noexcept { return editor_; }
 
@@ -544,7 +533,6 @@ private:
     Breadcrumb breadcrumb_;
     StatusBar status_bar_;
     ShortcutsOverlay shortcuts_;
-    SettingsPanel settings_;
     NameEditor editor_;
     ConflictDialog conflict_;
     ConfirmDialog confirm_;
@@ -567,8 +555,6 @@ private:
     ui::CursorShape resize_cursor_{ui::CursorShape::standard};
     ui::CursorShape hover_cursor_{ui::CursorShape::standard};
     std::optional<ui::CursorShape> shown_cursor_;
-    bool families_asked_{false};  // the installed fonts, for the settings panel
-    bool about_asked_{false};     // "About"'s lines
 
     // The last pointer position, handed to the view that comes on screen.
     float pointer_x_{0.0F};

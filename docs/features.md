@@ -281,22 +281,14 @@ A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 M
 - `~/.config/nordend/config.toml`: font family, monospace font, double-click time and distance
   ([example](config.example.toml)). `nordend --check-config` reports every problem with its
   line.
-- **Settings panel** (Ctrl+, or the gear in the status bar): the fonts and the double click,
-  changed in place. Only the value's own line in `config.toml` changes: comments, order and
-  unknown keys stay, a missing key goes into its section. A value out of range is refused with
-  the same message `--check-config` gives, and a file that no longer parses is never
-  overwritten. The double click changes at once, the fonts at the next start (the panel says
-  so). `config.toml` is followed while Nordend runs, also when edited by hand. The panel also
-  tells where the colours come from (Noctalia, the desktop, Nordend's own).
-- **Choosing a font:** while a font is changed, the installed families are listed under it,
-  narrowed as you type (case aside), the generic names first and, for the monospace font, the
-  fixed-width families ("mono"); arrows or a click pick one. A name that is not installed is
-  refused with "choose one from the list" ("No installed font matches" when nothing does); a
-  fontconfig pattern with properties ("Inter:weight=medium") is taken as written.
-- **About** (→ in the settings, or a click on its title): Nordend's version and commit, the
-  distribution, the kernel, the desktop, the versions of Noctalia and Umbriel when they are
-  running (asked of the very programs running, never of another copy), the GPU; Enter or "Copy"
-  puts it on the clipboard, ready for a bug report. MIT license, the repository's address.
+- No settings window: the defaults are the system's fonts (fontconfig's `sans-serif` and
+  `monospace`) and the desktop's colours, and the few settings live in the file.
+  `config.toml` is followed while Nordend runs: the double click changes at once, the fonts at
+  the next start; a file with problems keeps the settings in use, with the problems in the log.
+- **`nordend --about`**: Nordend's version and commit, the distribution, the kernel, the
+  desktop, the versions of Noctalia and Umbriel when they are running (asked of the very
+  programs running, never of another copy) and the GPU (from a surfaceless OpenGL context), one
+  "Label: value" line each, ready to paste into a bug report.
 - Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
   template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with

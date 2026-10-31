@@ -19,8 +19,8 @@ constexpr float kButtonGap = 2.0F;
 constexpr float kHelpGap = 10.0F;  // between the views' buttons and "?"
 constexpr float kIconSize = 16.0F;
 constexpr float kProgressHeight = 2.0F;
-constexpr std::array<std::string_view, StatusBar::kButtons> kIcons{
-    "layout-columns", "layout-grid", "list-details", "help", "settings"};
+constexpr std::array<std::string_view, StatusBar::kViews + 1> kIcons{
+    "layout-columns", "layout-grid", "list-details", "help"};
 
 }  // namespace
 
@@ -53,14 +53,12 @@ std::string status_of(const Folder& folder) {
 }
 
 StatusBar::StatusBar(core::EventLoop& loop, core::WorkerPool& pool, std::function<void()> redraw,
-                     std::function<void(std::size_t view)> choose_view, std::function<void()> help,
-                     std::function<void()> settings)
+                     std::function<void(std::size_t view)> choose_view, std::function<void()> help)
     : loop_{loop},
       pool_{pool},
       redraw_{std::move(redraw)},
       choose_view_{std::move(choose_view)},
-      help_{std::move(help)},
-      settings_{std::move(settings)} {}
+      help_{std::move(help)} {}
 
 StatusBar::~StatusBar() {
     *alive_ = false;
@@ -118,17 +116,17 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
     renderer.fill_rect({bounds.x, bounds.y, bounds.width, 1.0F / renderer.scale()},
                        palette.outline_variant);
 
-    // The buttons, from the right: the gear, "?", then the views.
+    // The buttons, from the right: "?", then the views.
     const float top = bounds.y + ((kHeight - kButtonHeight) / 2.0F);
     float x = bounds.right() - kPadding + kButtonGap;
-    for (std::size_t i = kButtons; i-- > 0;) {
+    for (std::size_t i = kViews + 1; i-- > 0;) {
         x -= kButtonWidth + kButtonGap;
         if (i == kViews - 1) {
             x -= kHelpGap;
         }
         buttons_.at(i) = {x, top, kButtonWidth, kButtonHeight};
     }
-    for (std::size_t i = 0; i < kButtons; ++i) {
+    for (std::size_t i = 0; i <= kViews; ++i) {
         const ui::Rect& button = buttons_.at(i);
         const bool active = i == view;
         if (active || hovered_ == i) {
@@ -228,13 +226,9 @@ void StatusBar::pointer(const ui::PointerEvent& event) {
     if (event.kind != Kind::press || event.button != ui::PointerButton::left || !over) {
         return;
     }
-    if (*over == kHelp) {
+    if (*over == kViews) {
         if (help_) {
             help_();
-        }
-    } else if (*over == kSettings) {
-        if (settings_) {
-            settings_();
         }
     } else if (choose_view_) {
         choose_view_(*over);

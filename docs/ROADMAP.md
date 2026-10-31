@@ -139,8 +139,11 @@ all'autore quando ci si arriva.
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
   screenshot di weston guardati.
 
-- [x] **7.5 Impostazioni e stato ricordato** (Ctrl+,), in quattro passi, ognuno provato e
-  committato (proposta approvata dall'autore il 2026-10-31):
+- [x] **7.5 Impostazioni e stato ricordato**, in quattro passi, ognuno provato e committato
+  (proposta approvata dall'autore il 2026-10-31). Il 2026-10-31 l'autore ha deciso di togliere il
+  pannello impostazioni (7.5c, 7.5c-bis): Nordend è pronto così com'è (font di sistema, colori del
+  desktop) e le poche impostazioni stanno in `~/.config/nordend/config.toml`, che resta ricaricato
+  a caldo; "About" (7.5d) diventa `nordend --about`.
   - [x] **7.5a Stato ricordato** in `$XDG_STATE_HOME/nordend/state.toml` (stato, non preferenze):
     vista, ordinamento, file nascosti, barra laterale, pannello info (visibile, larghezza, "More
     details"), larghezze delle colonne nei Dettagli, dimensione della finestra e se è
@@ -157,34 +160,16 @@ all'autore quando ci si arriva.
     quando: su Umbriel e con il cursore di riserva le forme cambiano lì e tornano freccia fuori;
     un test verifica che ogni zona chieda la sua forma. Provato dall'autore il 2026-10-31 su
     Umbriel, anche con `NORDEND_FORCE_XCURSOR=1`.
-  - [x] **7.5c Pannello impostazioni**: Ctrl+, (la virgola; Ctrl++ resta lo zoom della griglia) o
-    l'icona a rotellina nella barra di stato, accanto a "?" (chiesta dall'autore il 2026-10-31).
-    Una scheda disegnata da Nordend come l'overlay delle scorciatoie: Esc chiude, Tab/frecce
-    muovono, Invio modifica. Sezioni: Caratteri (famiglia, monospace), Puntatore (doppio clic),
-    Colori in sola lettura (da dove vengono: Noctalia, il desktop, i predefiniti). Le modifiche
-    scrivono `config.toml` cambiando solo il valore sulla sua riga (commenti, ordine e righe
-    sconosciute intatti; chiave mancante aggiunta nella sua sezione), in modo atomico;
-    `config.toml` si ricarica a caldo anche se modificato a mano. Fatto quando: ogni valore si
-    cambia dal pannello e vale subito (i caratteri al prossimo avvio se ricostruirli a caldo
-    costa troppo, e il pannello lo dice); il file conserva i commenti (test con commenti, chiavi
-    sconosciute, sezioni mancanti); un valore fuori misura è rifiutato con un messaggio; la
-    modifica a mano si ricarica. Provato dall'autore il 2026-10-31 su Umbriel.
-  - [x] **7.5c-bis Scegliere i font** (chiesto dall'autore il 2026-10-31: il pannello guida
-    alla scelta): mentre si modifica "Interface" o "Monospace", sotto il campo l'elenco delle
-    famiglie installate, ristretto da ciò che si scrive (senza badare alle maiuscole); ↑/↓ e il
-    clic scelgono, Invio conferma; per "Monospace" prima le famiglie a larghezza fissa; un pattern
-    fontconfig scritto a mano ("Inter:weight=medium") resta valido. Le famiglie si leggono da
-    fontconfig su un worker all'apertura del pannello. Fatto quando: l'elenco mostra le famiglie
-    installate filtrate; da tastiera e con il mouse se ne sceglie una; le monospaziate prima per
-    "Monospace"; un nome scritto a mano funziona come prima; test su filtro e ordine con un elenco
-    finto; snapshot guardato. Provato dall'autore il 2026-10-31 su Umbriel.
-  - [x] **7.5d Informazioni**, una sezione del pannello: Nordend (versione e commit), distro
-    (`/etc/os-release`), kernel, desktop (`XDG_CURRENT_DESKTOP`), GPU (`GL_RENDERER`), versioni di
-    Noctalia e Umbriel se presenti; "Copia" mette tutto negli appunti (per le segnalazioni di
-    bug); licenza e link al repository. Fatto quando: dati giusti su Umbriel, GNOME e Plasma;
-    quelli che mancano non compaiono; "Copia" incolla il testo in un'altra app. Fatto il
-    2026-10-31 come seconda pagina del pannello ("About", ←/→); provato dall'autore su Umbriel
-    (GNOME e Plasma da guardare alla prossima accensione della VM).
+  - [ ] ~~**7.5c Pannello impostazioni**~~ (Ctrl+, o la rotellina nella barra di stato):
+    fatto e provato il 2026-10-31, poi ritirato lo stesso giorno su richiesta dell'autore.
+  - [ ] ~~**7.5c-bis Scegliere i font**~~ dal pannello: ritirato con il pannello.
+  - [x] **7.5d Informazioni**: Nordend (versione e commit), distro (`/etc/os-release`), kernel,
+    desktop (`XDG_CURRENT_DESKTOP`), GPU (`GL_RENDERER`), versioni di Noctalia e Umbriel se
+    presenti, per le segnalazioni di bug. Fatto il 2026-10-31 come pagina del pannello e provato
+    dall'autore su Umbriel; con il pannello ritirato, stampato da `nordend --about` (una riga
+    "Etichetta: valore" ciascuna; la GPU da un contesto OpenGL senza finestra; provato
+    dall'autore il 2026-10-31). Fatto quando: dati giusti su Umbriel, GNOME e Plasma (questi due alla prossima
+    accensione della VM); quelli che mancano non compaiono.
 
 - [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:

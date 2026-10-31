@@ -130,7 +130,6 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
     const auto* renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));  // NOLINT
     const auto* version = reinterpret_cast<const char*>(glGetString(GL_VERSION));    // NOLINT
     log::info("GL: {} | {}", renderer, version);
-    gl_renderer_ = renderer != nullptr ? renderer : "";
     renderer_ = std::make_unique<Renderer>(fonts);
 
     // Initial commit without a buffer: the compositor answers with the first configure.

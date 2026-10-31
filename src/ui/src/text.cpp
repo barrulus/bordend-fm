@@ -641,47 +641,4 @@ GlyphBitmap FontSystem::rasterize(std::uint32_t font_id, std::uint32_t glyph, fl
     return bitmap;
 }
 
-std::vector<FontFamily> installed_font_families() {
-    FcPattern* pattern = FcPatternCreate();
-    FcObjectSet* objects = FcObjectSetBuild(FC_FAMILY, FC_SPACING, nullptr);
-    FcFontSet* set = FcFontList(nullptr, pattern, objects);
-    FcObjectSetDestroy(objects);
-    FcPatternDestroy(pattern);
-    std::unordered_map<std::string, std::size_t> seen;  // by name in lower case
-    std::vector<FontFamily> families;
-    for (int i = 0; set != nullptr && i < set->nfont; ++i) {
-        FcPattern* font = set->fonts[i];  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
-        FcChar8* name = nullptr;
-        if (FcPatternGetString(font, FC_FAMILY, 0, &name) != FcResultMatch || name == nullptr) {
-            continue;
-        }
-        int spacing = FC_PROPORTIONAL;
-        FcPatternGetInteger(font, FC_SPACING, 0, &spacing);
-        const bool mono = spacing == FC_MONO || spacing == FC_CHARCELL;
-        std::string family{reinterpret_cast<const char*>(name)};  // NOLINT
-        std::string key = family;
-        std::ranges::transform(key, key.begin(), [](char c) {
-            return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c;
-        });
-        if (const auto it = seen.find(key); it != seen.end()) {
-            families[it->second].monospace = families[it->second].monospace || mono;
-            continue;
-        }
-        seen.emplace(std::move(key), families.size());
-        families.push_back({.name = std::move(family), .monospace = mono});
-    }
-    if (set != nullptr) {
-        FcFontSetDestroy(set);
-    }
-    std::ranges::sort(families, [](const FontFamily& a, const FontFamily& b) {
-        return std::ranges::lexicographical_compare(a.name, b.name, [](char x, char y) {
-            const auto lower = [](char c) {
-                return c >= 'A' && c <= 'Z' ? static_cast<char>(c - 'A' + 'a') : c;
-            };
-            return lower(x) < lower(y);
-        });
-    });
-    return families;
-}
-
 }  // namespace nordend::ui

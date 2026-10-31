@@ -132,7 +132,8 @@ Dentro:
 Dentro anche, decisi con l'autore il 2026-10-30 (ROADMAP fase 7): cronologia di navigazione
 (Alt+←/→, tasti del mouse) e file nascosti (Ctrl+H, nascosti di default); drag and drop dentro
 Nordend e con le altre app; preferiti nella barra laterale; dischi rimovibili via udisks2;
-impostazioni (Ctrl+,) e stato ricordato.
+stato ricordato. Nessun pannello impostazioni (deciso con l'autore il 2026-10-31): Nordend parte
+pronto (font di sistema, colori del desktop) e le poche impostazioni stanno in `config.toml`.
 
 Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal FileChooser
 (Nordend come finestra "Apri file" delle altre app; leggere l'aspetto del desktop dal portale è

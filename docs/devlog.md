@@ -4,6 +4,43 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — No settings panel; `nordend --about`
+
+**Done**
+- The author decided Nordend should be ready as it starts, with the system's fonts and the
+  desktop's colours, and the few settings in `~/.config/nordend/config.toml`: the settings
+  panel (7.5c), its font list (7.5c-bis), the gear in the status bar and Ctrl+, are gone. Not a
+  `git revert` (later commits touched the same files): every file the panel touched and nothing
+  after it is back to its state before `dd60141`; `Browser` is byte-identical to it.
+- Removed with it: `core::set_config_value`/`config_problem`/`toml_string` (config_edit.cpp),
+  `ui::installed_font_families`, `Theme::from_file()`/`desktop()`, `Window::gl_renderer()`,
+  `Browser::copy_text()`, the "settings" icon (the outline subset is 47 icons again, sha256 as
+  before the panel).
+- Kept: `config.toml` followed while Nordend runs (the double click at once, the fonts at the
+  next start), `--check-config`, `platform::system_about()` with its tests, `NORDEND_COMMIT`.
+- `nordend --about` prints "Label: value" lines, aligned: Nordend's version and commit,
+  distribution, kernel, desktop, Noctalia and Umbriel when they run, and the GPU, read from a
+  surfaceless OpenGL ES context (`ui::Offscreen`, 1x1) since there is no window.
+
+**Measured**
+- Binary 3 663 616 bytes (3 058 552 stripped); the README said 3.64/3.04 MB; 21 libraries.
+- 271 tests (14 fewer: the panel's, config_edit's and one pointer-shape test), passing in
+  `build`, `build-asan` and `build-tsan`.
+
+**Decisions**
+- The file keeps its name, `config.toml` (DESIGN, and the author's existing file).
+- DESIGN's MVP line now says "no settings panel" (consequence of the author's decision).
+
+**Open**
+- How to explain config.toml to users (what each key does, where it lives): later, as agreed.
+- `--about` on GNOME and Plasma: at the next VM session.
+
+**Tested by the author** on Umbriel (2026-10-31): no gear, Ctrl+, does nothing, no "Settings"
+line in the shortcuts overlay, `--about` and `--check-config` print as expected, an edited
+config.toml is reloaded.
+
+---
+
 ## 2026-10-31 — "About", in the settings (ROADMAP 7.5d)
 
 **Done**

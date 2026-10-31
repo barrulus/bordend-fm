@@ -1,3 +1,5 @@
+#include <GLES3/gl3.h>
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <csignal>
@@ -8,6 +10,7 @@
 #include <filesystem>
 #include <format>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <poll.h>
 #include <stdexcept>
@@ -21,7 +24,6 @@
 
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
-#include "nordend/core/file.hpp"
 #include "nordend/core/file_watcher.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
@@ -41,6 +43,7 @@
 #include "nordend/ui/display.hpp"
 #include "nordend/ui/egl_context.hpp"
 #include "nordend/ui/icons.hpp"
+#include "nordend/ui/offscreen.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
@@ -143,12 +146,13 @@ const char* button_name(ui::PointerButton button) {
 }
 
 constexpr const char* kUsage =
-    "usage: nordend [--config FILE] [--check-config] [--test-scene] [--version] [DIR]\n"
+    "usage: nordend [--config FILE] [--check-config] [--test-scene] [--version] [--about] [DIR]\n"
     "  DIR             the folder to show (default: your home folder)\n"
     "  --config FILE   read FILE instead of ~/.config/nordend/config.toml\n"
     "  --test-scene    show the renderer test scene instead of a folder\n"
     "  --check-config  report problems in the config file and exit (status 1 if any)\n"
-    "  --version       print the version and exit\n";
+    "  --version       print the version and exit\n"
+    "  --about         print what Nordend runs on, for a bug report, and exit\n";
 
 // The folder to open: DIR as given (made absolute, ".." resolved), else $HOME, else "/".
 std::filesystem::path start_folder(const std::filesystem::path& given) {
@@ -168,14 +172,33 @@ bool client_decorations_forced() {
     return value != nullptr && *value != '\0' && std::string_view{value} != "0";
 }
 
-// A path as shown to a person: the home folder as "~".
-std::string shown_path(const std::filesystem::path& path) {
-    const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
-    std::string text = path.string();
-    if (home != nullptr && home[0] == '/' && text.starts_with(std::string{home} + "/")) {
-        return "~" + text.substr(std::string_view{home}.size());
+// --about: what Nordend runs on, one "Label: value" line each, to paste into a bug report.
+int print_about() {
+    std::vector<platform::AboutLine> lines;
+    const std::string_view commit = NORDEND_COMMIT;
+    lines.push_back({.label = "Nordend",
+                     .value = commit.empty() ? std::string{NORDEND_VERSION}
+                                             : std::format("{} ({})", NORDEND_VERSION, commit)});
+    std::ranges::move(platform::system_about(), std::back_inserter(lines));
+    // The GPU as OpenGL names it, from a context without a window.
+    try {
+        const ui::Offscreen offscreen{1, 1};
+        const auto* name = reinterpret_cast<const char*>(glGetString(GL_RENDERER));  // NOLINT
+        if (name != nullptr && *name != '\0') {
+            lines.push_back({.label = "Graphics", .value = name});
+        }
+    } catch (const std::exception& error) {
+        lines.push_back({.label = "Graphics", .value = std::format("unknown ({})", error.what())});
     }
-    return text;
+    std::size_t width = 0;
+    for (const platform::AboutLine& line : lines) {
+        width = std::max(width, line.label.size());
+    }
+    for (const platform::AboutLine& line : lines) {
+        std::printf("%-*s %s\n", static_cast<int>(width + 1), (line.label + ":").c_str(),
+                    line.value.c_str());
+    }
+    return 0;
 }
 
 // --check-config: every problem on stderr, a one-line verdict on stdout.
@@ -204,6 +227,9 @@ int main(int argc, char** argv) {
         if (arg == "--version") {
             std::puts("nordend " NORDEND_VERSION);
             return 0;
+        }
+        if (arg == "--about") {
+            return print_about();
         }
         if (arg == "--check-config") {
             check_only = true;
@@ -328,17 +354,12 @@ int main(int argc, char** argv) {
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
-        // config.toml as it is now, followed while Nordend runs (ROADMAP 7.5c): the double click
-        // changes at once, the fonts at the next start (`config` keeps the ones in use).
-        core::Config live_config = config;
+        // config.toml is followed while Nordend runs: the double click changes at once, the
+        // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
-        const auto apply_config = [&](const core::Config& fresh) {
-            live_config = fresh;
+        const auto apply_config = [&seat](const core::Config& fresh) {
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
-            if (columns) {
-                columns->settings_panel().refresh();
-            }
         };
         // Writes state.toml as things change; the window's size is the one it has when neither
         // maximized, fullscreen nor tiled, so a maximized window comes back to it.
@@ -453,61 +474,6 @@ int main(int argc, char** argv) {
                 });
             }
             columns->apply(remembered.state);
-            columns->set_settings(
-                {.read = [&live_config] { return live_config; },
-                 .write = [&](std::string_view section, std::string_view key,
-                              const std::string& value) -> std::string {
-                     if (config_path.empty()) {
-                         return "no place for config.toml (HOME is not set)";
-                     }
-                     const core::TextFile file = core::read_text_file(config_path);
-                     if (!file.error.empty()) {
-                         return file.error;
-                     }
-                     std::string edited = core::set_config_value(file.text, section, key, value);
-                     const core::ConfigResult parsed =
-                         core::parse_config(edited, config_path.string());
-                     if (std::string problem = core::config_problem(parsed, section, key);
-                         !problem.empty()) {
-                         return problem;  // a file that no longer parses is never overwritten
-                     }
-                     if (const std::error_code error =
-                             core::write_file_atomically(config_path, edited)) {
-                         return "could not write it: " + error.message();
-                     }
-                     log::info("config: {}.{} = {}", section, key, value);
-                     apply_config(parsed.config);
-                     return {};
-                 },
-                 .colours = [&theme]() -> std::string {
-                     if (theme.from_file()) {
-                         return "Noctalia (colors.toml)";
-                     }
-                     if (const std::optional<theme::Desktop>& desktop = theme.desktop()) {
-                         return std::format("The desktop: {}{}", desktop->dark ? "dark" : "light",
-                                            desktop->accent ? ", its accent" : "");
-                     }
-                     return "Nordend's own";
-                 },
-                 .fonts_in_use = [&config] { return config.font; },
-                 .file = shown_path(config_path),
-                 .families = [] { return ui::installed_font_families(); },
-                 .about =
-                     [graphics = window.gl_renderer()] {
-                         std::vector<std::pair<std::string, std::string>> lines;
-                         const std::string_view commit = NORDEND_COMMIT;
-                         lines.emplace_back("Nordend",
-                                            commit.empty()
-                                                ? std::string{NORDEND_VERSION}
-                                                : std::format("{} ({})", NORDEND_VERSION, commit));
-                         for (platform::AboutLine& line : platform::system_about()) {
-                             lines.emplace_back(std::move(line.label), std::move(line.value));
-                         }
-                         if (!graphics.empty()) {
-                             lines.emplace_back("Graphics", graphics);
-                         }
-                         return lines;
-                     }});
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
