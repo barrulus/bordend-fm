@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-267%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="267 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-277%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="277 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
@@ -62,7 +62,7 @@ It is made for people who browse a lot of files, photos above all:
 > with other programs, back and forward, hidden files, favourites in the sidebar and removable
 > disks. Nordend carries its own icons, title bar and cursor for desktops that do not provide
 > them, takes the desktop's colours without Noctalia, and was tried on GNOME, Plasma and niri.
-> It remembers how it was left; a settings panel comes next. There are no
+> It remembers how it was left and has a settings panel; an "About" comes next. There are no
 > packages yet: see [Building](#building). What happens step by step is in the
 > [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
@@ -70,9 +70,9 @@ It is made for people who browse a lot of files, photos above all:
 
 | | |
 |---|---|
-| Binary | **3.45 MB** (2.88 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **3.51 MB** (2.93 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2 and the desktop portal, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 34 000 lines of C++20, plus 10 100 lines of tests (267 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 34 900 lines of C++20, plus 10 400 lines of tests (277 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -158,7 +158,9 @@ status bar cost nothing measurable.
   came from.
 - **Everything at hand.** The bar at the bottom tells how many items there are, what is
   selected and how much space is left on the disk, and switches between the three views with a
-  click; "?" (or F1) shows every keyboard shortcut.
+  click; "?" (or F1) shows every keyboard shortcut, the gear (or Ctrl+,) the settings: fonts and
+  double click, changed in place in your `config.toml` with its comments kept, and where the
+  colours come from.
 - **Your photos at a glance.** Photos and camera raw files show their thumbnails, upright, in a
   fraction of a second: Nordend uses the previews your camera already stored in the file, and
   keeps the thumbnails in the freedesktop cache other apps read too. Not only OM System: Canon,
@@ -221,6 +223,7 @@ status bar cost nothing measurable.
 | <kbd>Ctrl</kbd>+<kbd>I</kbd> | Info pane (grid, details) |
 | <kbd>Ctrl</kbd>+<kbd>B</kbd> | Sidebar |
 | <kbd>Ctrl</kbd>+<kbd>H</kbd> | Hidden files (hidden at start) |
+| <kbd>Ctrl</kbd>+<kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd>+<kbd>D</kbd> | Add the folder to the sidebar |
 | <kbd>F6</kbd> | Keyboard into the sidebar and out |
 | <kbd>F1</kbd>, <kbd>?</kbd> | Every shortcut |
@@ -262,7 +265,7 @@ cmake --build build
 ```
 
 Needs a Wayland compositor with xdg-shell (developed on
-[Umbriel](https://github.com/noctalia-dev)). The icons (a 13 KB subset of
+[Umbriel](https://github.com/noctalia-dev)). The icons (a 14 KB subset of
 [Tabler Icons](https://tabler.io/icons)) are compiled into the program, so nothing else needs
 to be installed for them. Where the compositor draws no title bar (GNOME, weston) Nordend draws
 its own, with minimize, maximize and close, and resizes from its edges; where it has no

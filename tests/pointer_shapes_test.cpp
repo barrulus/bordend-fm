@@ -262,3 +262,48 @@ TEST_CASE("pointer shapes: sent when they change, the resize arrow first") {
     CHECK(f.sent.size() == left + 1);
     CHECK(f.sent.back() == CursorShape::standard);
 }
+
+TEST_CASE("pointer shapes: the gear opens the settings; a hand on their values, text in one") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    f.browser.open(f.photos);
+    REQUIRE(f.settle());
+    const nordend::views::StatusBar& status = f.browser.status_bar();
+    // The rightmost hand of the status bar is the gear.
+    std::optional<Point> gear;
+    for (float x = kWidth - 1.0F; x > 0.0F && !gear; x -= 1.0F) {
+        const float y = kHeight - (nordend::views::StatusBar::kHeight / 2.0F);
+        if (status.claims(x, y) && f.browser.cursor_at(x, y) == CursorShape::pointer) {
+            gear = Point{x, y};
+        }
+    }
+    REQUIRE(gear);
+    const Point at = gear.value_or(Point{0.0F, 0.0F});
+    f.browser.pointer({.kind = PointerEvent::Kind::press,
+                       .x = at.x,
+                       .y = at.y,
+                       .button = nordend::ui::PointerButton::left,
+                       .click_count = 1},
+                      Browser::Clock::now());
+    REQUIRE(f.browser.settings_panel().is_open());
+    f.draw();
+    // Its values are hands, the rest of the card and the window under it arrows.
+    const std::optional<Point> value = f.find(CursorShape::pointer);
+    REQUIRE(value);
+    CHECK(f.find(CursorShape::standard));
+    CHECK_FALSE(
+        f.find(CursorShape::pointer, [&](float x, float y) { return status.claims(x, y); }));
+    // Clicking one changes it: the text cursor over it.
+    const Point box = value.value_or(Point{0.0F, 0.0F});
+    f.browser.pointer({.kind = PointerEvent::Kind::press,
+                       .x = box.x + 20.0F,
+                       .y = box.y + 8.0F,
+                       .button = nordend::ui::PointerButton::left,
+                       .click_count = 1},
+                      Browser::Clock::now());
+    CHECK(f.browser.settings_panel().editing());
+    f.draw();
+    CHECK(f.browser.cursor_at(box.x + 20.0F, box.y + 8.0F) == CursorShape::text);
+}

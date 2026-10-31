@@ -50,6 +50,7 @@ enum class Command : std::uint8_t {
     forward,
     toggle_hidden,
     add_bookmark,
+    settings,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

@@ -60,6 +60,7 @@
 #include <vector>
 #include <xkbcommon/xkbcommon.h>
 
+#include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
@@ -230,6 +231,7 @@ int main(int argc, char** argv) {
     std::optional<std::pair<float, float>> drop_over;
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
+    std::string config_text;  // the settings panel's config.toml
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -433,6 +435,32 @@ int main(int argc, char** argv) {
                          .disk = {.volume = "sdc1", .mounted = true, .ejectable = true}});
                 }
                 columns->set_places(std::move(places));
+                // The settings panel over a config.toml in memory: the defaults, changed only by
+                // the keys pressed (nothing written).
+                columns->set_settings(
+                    {.read =
+                         [&config_text] {
+                             return nordend::core::parse_config(config_text, "config.toml").config;
+                         },
+                     .write =
+                         [&config_text](std::string_view section, std::string_view key,
+                                        const std::string& value) {
+                             std::string edited =
+                                 nordend::core::set_config_value(config_text, section, key, value);
+                             std::string problem = nordend::core::config_problem(
+                                 nordend::core::parse_config(edited, "config.toml"), section, key);
+                             if (problem.empty()) {
+                                 config_text = std::move(edited);
+                             }
+                             return problem;
+                         },
+                     .colours =
+                         [&desktop] {
+                             return desktop ? std::string{"the desktop"}
+                                            : std::string{"Nordend's own"};
+                         },
+                     .fonts_in_use = [] { return nordend::core::Config::Font{}; },
+                     .file = "~/.config/nordend/config.toml"});
                 opener = std::make_unique<nordend::platform::Opener>(
                     loop, pool, mime, nordend::platform::Environment::from_environment(),
                     [](const std::string& /*message*/, bool /*error*/) {});

@@ -35,6 +35,11 @@ public:
 
     [[nodiscard]] const Palette& palette() const noexcept { return palette_; }
 
+    // Where the palette comes from: colors.toml, else the desktop when it said something.
+    [[nodiscard]] bool from_file() const noexcept { return from_file_; }
+
+    [[nodiscard]] const std::optional<Desktop>& desktop() const noexcept { return desktop_; }
+
     // Reads the file again; public so the reload rules can be tested without inotify.
     void reload();
 

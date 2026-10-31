@@ -1,5 +1,6 @@
 add_library(nordend_core
     src/config.cpp
+    src/config_edit.cpp
     src/event_loop.cpp
     src/file.cpp
     src/file_watcher.cpp

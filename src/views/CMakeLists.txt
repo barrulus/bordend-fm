@@ -15,6 +15,7 @@ add_library(nordend_views
     src/info_pane.cpp
     src/name_editor.cpp
     src/shortcuts.cpp
+    src/settings_panel.cpp
     src/shortcuts_overlay.cpp
     src/sidebar.cpp
     src/status_bar.cpp

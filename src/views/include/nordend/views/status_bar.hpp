@@ -45,18 +45,22 @@ struct TransferStatus {
 // The bar under the view: at the left the folder's status and the free space of its file system
 // (read on a worker when the folder or its listing changes, so it follows copies into it), or for
 // a few seconds a message ("Opening photo.orf with darktable…"); at the right a button for each
-// view, the one shown marked, and "?" for the shortcuts.
+// view, the one shown marked, "?" for the shortcuts and a gear for the settings.
 //
 // Loop thread only. Must not outlive the loop or the pool.
 class StatusBar {
 public:
     static constexpr float kHeight = 30.0F;
-    static constexpr std::size_t kViews = 3;  // columns, grid, details: the browser's modes
+    static constexpr std::size_t kViews = 3;      // columns, grid, details: the browser's modes
+    static constexpr std::size_t kHelp = kViews;  // the buttons after the views'
+    static constexpr std::size_t kSettings = kViews + 1;
+    static constexpr std::size_t kButtons = kViews + 2;
     static constexpr std::chrono::seconds kMessageTime{4};
 
-    // choose_view(i): a view's button was clicked; help: the "?" button was.
+    // choose_view(i): a view's button was clicked; help: the "?" button was; settings: the gear.
     StatusBar(core::EventLoop& loop, core::WorkerPool& pool, std::function<void()> redraw,
-              std::function<void(std::size_t view)> choose_view, std::function<void()> help);
+              std::function<void(std::size_t view)> choose_view, std::function<void()> help,
+              std::function<void()> settings);
     ~StatusBar();
 
     StatusBar(const StatusBar&) = delete;
@@ -103,7 +107,7 @@ public:
     [[nodiscard]] bool loading() const noexcept { return job_.has_value(); }
 
 private:
-    // A button: a view's (0 to kViews - 1) or help (kViews).
+    // A button: a view's (0 to kViews - 1), help (kHelp) or the settings (kSettings).
     [[nodiscard]] std::optional<std::size_t> button_at(float x, float y) const;
 
     core::EventLoop& loop_;
@@ -111,6 +115,7 @@ private:
     std::function<void()> redraw_;
     std::function<void(std::size_t)> choose_view_;
     std::function<void()> help_;
+    std::function<void()> settings_;
 
     // What free_ is about: the folder and its listing's revision.
     std::filesystem::path path_;
@@ -128,7 +133,7 @@ private:
     core::EventLoop::SourceId message_timer_{0};
 
     ui::Rect bounds_{};
-    std::array<ui::Rect, kViews + 1> buttons_{};  // as last drawn
+    std::array<ui::Rect, kButtons> buttons_{};  // as last drawn
     std::optional<std::size_t> hovered_;
     // False once destroyed: results still on their way find out here.
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};

@@ -243,7 +243,7 @@ to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROA
 
 - Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
   raw files and darktable sidecars have their own icons. The icons are compiled into the
-  program (a 13 KB subset of the official Tabler font), so they show on any desktop.
+  program (a 14 KB subset of the official Tabler font), so they show on any desktop.
 - Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
 - Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
   monospace font come from `config.toml`.
@@ -281,6 +281,13 @@ A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 M
 - `~/.config/nordend/config.toml`: font family, monospace font, double-click time and distance
   ([example](config.example.toml)). `nordend --check-config` reports every problem with its
   line.
+- **Settings panel** (Ctrl+, or the gear in the status bar): the fonts and the double click,
+  changed in place. Only the value's own line in `config.toml` changes: comments, order and
+  unknown keys stay, a missing key goes into its section. A value out of range is refused with
+  the same message `--check-config` gives, and a file that no longer parses is never
+  overwritten. The double click changes at once, the fonts at the next start (the panel says
+  so). `config.toml` is followed while Nordend runs, also when edited by hand. The panel also
+  tells where the colours come from (Noctalia, the desktop, Nordend's own).
 - Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
   template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with
@@ -300,6 +307,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Pointer shapes, a settings panel (Ctrl+,) with an "About" section, then benchmarks, a week of
-daily use and the first release. See the
+An "About" section in the settings, then benchmarks, a week of daily use and the first
+release. See the
 [roadmap](ROADMAP.md).

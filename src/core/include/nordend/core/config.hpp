@@ -42,4 +42,20 @@ struct ConfigResult {
 // Reads and parses a file. A missing file is not a problem: defaults, from_file = false.
 [[nodiscard]] ConfigResult load_config(const std::filesystem::path& path);
 
+// Editing config.toml as text, so what a person wrote stays (ROADMAP 7.5c): the value of key in
+// [section] is replaced on its line, keeping the indentation, the spacing and a comment after
+// it; also when written as a dotted key at the top ("font.family = ..."). A missing key goes at
+// the end of its section, a missing section at the end of the file. value is TOML as written
+// in the file (see toml_string). Nothing else changes: comments, order, unknown keys.
+[[nodiscard]] std::string set_config_value(std::string_view text, std::string_view section,
+                                           std::string_view key, std::string_view value);
+
+// What is wrong with key in [section] in a parsed config, as a person reads it ("must be between
+// 100 and 2000, got 5"); a file that no longer parses is wrong too. Empty when nothing is.
+[[nodiscard]] std::string config_problem(const ConfigResult& result, std::string_view section,
+                                         std::string_view key);
+
+// text as a TOML basic string: in double quotes, with \, \" and control characters escaped.
+[[nodiscard]] std::string toml_string(std::string_view text);
+
 }  // namespace nordend::core

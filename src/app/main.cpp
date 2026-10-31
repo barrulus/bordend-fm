@@ -21,6 +21,8 @@
 
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
+#include "nordend/core/file.hpp"
+#include "nordend/core/file_watcher.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
 #include "nordend/core/worker_pool.hpp"
@@ -163,6 +165,16 @@ std::filesystem::path start_folder(const std::filesystem::path& given) {
 bool client_decorations_forced() {
     const char* value = std::getenv("NORDEND_FORCE_CSD");  // NOLINT(concurrency-mt-unsafe): startup
     return value != nullptr && *value != '\0' && std::string_view{value} != "0";
+}
+
+// A path as shown to a person: the home folder as "~".
+std::string shown_path(const std::filesystem::path& path) {
+    const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
+    std::string text = path.string();
+    if (home != nullptr && home[0] == '/' && text.starts_with(std::string{home} + "/")) {
+        return "~" + text.substr(std::string_view{home}.size());
+    }
+    return text;
 }
 
 // --check-config: every problem on stderr, a one-line verdict on stdout.
@@ -315,6 +327,18 @@ int main(int argc, char** argv) {
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
+        // config.toml as it is now, followed while Nordend runs (ROADMAP 7.5c): the double click
+        // changes at once, the fonts at the next start (`config` keeps the ones in use).
+        core::Config live_config = config;
+        std::unique_ptr<core::FileWatcher> config_watcher;
+        const auto apply_config = [&](const core::Config& fresh) {
+            live_config = fresh;
+            seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
+                                 static_cast<float>(fresh.pointer.double_click_distance));
+            if (columns) {
+                columns->settings_panel().refresh();
+            }
+        };
         // Writes state.toml as things change; the window's size is the one it has when neither
         // maximized, fullscreen nor tiled, so a maximized window comes back to it.
         views::StateKeeper keeper{loop, pool, state_path, remembered.state};
@@ -428,6 +452,44 @@ int main(int argc, char** argv) {
                 });
             }
             columns->apply(remembered.state);
+            columns->set_settings(
+                {.read = [&live_config] { return live_config; },
+                 .write = [&](std::string_view section, std::string_view key,
+                              const std::string& value) -> std::string {
+                     if (config_path.empty()) {
+                         return "no place for config.toml (HOME is not set)";
+                     }
+                     const core::TextFile file = core::read_text_file(config_path);
+                     if (!file.error.empty()) {
+                         return file.error;
+                     }
+                     std::string edited = core::set_config_value(file.text, section, key, value);
+                     const core::ConfigResult parsed =
+                         core::parse_config(edited, config_path.string());
+                     if (std::string problem = core::config_problem(parsed, section, key);
+                         !problem.empty()) {
+                         return problem;  // a file that no longer parses is never overwritten
+                     }
+                     if (const std::error_code error =
+                             core::write_file_atomically(config_path, edited)) {
+                         return "could not write it: " + error.message();
+                     }
+                     log::info("config: {}.{} = {}", section, key, value);
+                     apply_config(parsed.config);
+                     return {};
+                 },
+                 .colours = [&theme]() -> std::string {
+                     if (theme.from_file()) {
+                         return "Noctalia (colors.toml)";
+                     }
+                     if (const std::optional<theme::Desktop>& desktop = theme.desktop()) {
+                         return std::format("The desktop: {}{}", desktop->dark ? "dark" : "light",
+                                            desktop->accent ? ", its accent" : "");
+                     }
+                     return "Nordend's own";
+                 },
+                 .fonts_in_use = [&config] { return config.font; },
+                 .file = shown_path(config_path)});
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
@@ -585,6 +647,20 @@ int main(int argc, char** argv) {
                                palette.secondary);
             renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F, palette.tertiary);
         });
+        if (!config_path.empty()) {
+            config_watcher = std::make_unique<core::FileWatcher>(loop, config_path, [&] {
+                const core::ConfigResult fresh = core::load_config(config_path);
+                for (const std::string& problem : fresh.problems) {
+                    log::warn("config: {}", problem);
+                }
+                if (!fresh.from_file && !fresh.problems.empty()) {
+                    log::warn("config: keeping the settings in use");
+                    return;
+                }
+                log::info("config: reloaded {}", config_path.string());
+                apply_config(fresh.config);
+            });
+        }
         const int code = loop.run();
         keeper.flush();
         return code;

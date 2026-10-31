@@ -4,6 +4,54 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — The settings panel (ROADMAP 7.5c)
+
+**Done**
+- `views::SettingsPanel`: a card over the window (Ctrl+, or the new gear in the status bar, right
+  of "?") with the fonts (interface, monospace), the double click (time, distance) and where the
+  colours come from (read-only). Up, Down and Tab choose, Enter, F2 or a click change a value in
+  a `TextField` (Ctrl+V pastes its first line), Enter keeps and Escape drops; Escape, Ctrl+, or a
+  click outside the card close it. A refused value stays in a red field with the reason under
+  it; a font that differs from the one in use says "Fonts change at the next start".
+- What it reads and writes goes through `views::Settings`, a struct of functions wired by main
+  and faked in tests, like `Devices`.
+- `core::set_config_value`: config.toml edited as text, only the value on its line (indentation,
+  spacing, a comment after it kept; literal, multi-line and escaped strings, quoted and dotted
+  keys; a missing key at the end of its section, a missing section at the end).
+  `core::toml_string`; `core::config_problem` gives the parser's own message for a key ("must be
+  between 100 and 2000, got 5").
+- main: a change is applied to the file's text, parsed, refused with that message (a file that
+  no longer parses is never overwritten), else written atomically on the loop thread (a small
+  file, one write per Enter, in order) and applied. config.toml is watched (`core::FileWatcher`)
+  and reloaded when edited by hand: the double click changes at once (`Seat::set_multi_click`),
+  the fonts stay until the next start.
+- `Theme::from_file()`/`desktop()` for the colours' line; the icon `settings` added to the Tabler
+  subset (`icons.txt`, `scripts/make-icon-font.sh`, sha256 in THIRD_PARTY.md, 14 KB now);
+  `Command::settings` in the one key table, README's table too.
+- Snapshot: the panel over a config.toml in memory (keys "Ctrl+comma,...").
+- Tests (277): editing kept comments, spacing and other keys, missing keys and sections, dotted,
+  quoted, escaped and multi-line values, `toml_string`, `config_problem`; the panel's keys
+  (opening, closing, choosing around the ends, changing, a refused value, a non-number, Escape),
+  paste; drawn: the gear opens it, hands on its values, the text cursor in the one changed. The
+  every-key test's reset closes the panel too.
+
+**Measured**
+- Binary 3.51 MB, 2.93 MB stripped (+50 KB).
+
+**Decisions**
+- Fonts at the next start: changing them live would rebuild the font system, the glyph atlas,
+  the icon set and every view's text; the panel says so.
+- Writing on the loop thread, not a worker: one small file per Enter, in order, and its error
+  reaches the panel at once.
+
+**Tested by the author** (2026-10-31, Umbriel, on a copy of the config with `--config`): the gear
+and Ctrl+, open the panel; 5 refused with its reason, 800 kept and the double click slower;
+"DejaVu Serif" kept with the note, and in use after a restart; the comments still in the file; a
+hand edit reloaded at once; a broken file kept the settings in use, with its line in the log.
+The author asked for help choosing fonts: 7.5c-bis.
+
+---
+
 ## 2026-10-31 — Pointer shapes: a hand and a text cursor (ROADMAP 7.5b)
 
 **Done**
