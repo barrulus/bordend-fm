@@ -123,10 +123,14 @@ all'autore quando ci si arriva.
     sullo schermo dell'autore; weston headless non ha un `wl_seat` (niente puntatore né
     tastiera): lì si vedono la barra e le icone negli screenshot, il cursore e i clic si provano
     su Umbriel con le variabili che forzano il percorso di riserva, e nella VM;
-  - prove dell'autore: Umbriel, più una VM Arch con tre sessioni (GNOME, Plasma, niri) e SSH per
-    compilare e lanciare i test dentro (Arch confermata dall'autore il 2026-10-30; Ubuntu già
-    tolto, la VM da preparare prima di queste prove); checklist e risultati in
-    `docs/compatibility.md`.
+  - prove dell'autore: Umbriel, più la VM Void `nordend-dev` con GNOME e Plasma e SSH per
+    compilare e lanciare i test dentro (al posto della VM Arch: deciso con l'autore il
+    2026-10-31); niri nella VM non parte senza virgl (BUG-017 di void-noctalia), quindi si prova
+    annidato sull'host; checklist e risultati in `docs/compatibility.md`;
+  - colori del desktop (chiesti dall'autore il 2026-10-31, da fare dopo le prove nella VM): se
+    `colors.toml` manca, Nordend segue chiaro/scuro e il colore d'accento del desktop, letti dal
+    portale freedesktop (`org.freedesktop.appearance`), su GNOME e Plasma. Fatto quando: cambiando
+    chiaro/scuro o l'accento, Nordend si aggiorna senza riavvio; con `colors.toml` nulla cambia.
   Fatto quando: su Umbriel, GNOME, Plasma e niri Nordend si avvia con le icone, la finestra si
   sposta, si ridimensiona e si chiude, il cursore si vede e cambia forma, clipboard e drag and drop
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,

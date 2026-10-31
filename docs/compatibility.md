@@ -45,13 +45,29 @@ For each desktop: build in the VM (or on the host for Umbriel), then `./build/no
 
 | Step | Umbriel | GNOME | Plasma | niri | weston (headless) |
 |------|---------|-------|--------|------|-------------------|
-| 1 start, icons | | | | | yes (2026-10-30, screenshot) |
-| 2 title bar | | | | | drawn (screenshot); no pointer to try it |
-| 3 resize | | | | | no pointer |
-| 4 cursor | | | | | no pointer |
-| 5 clipboard | | | | | no clipboard global |
-| 6 drag and drop | | | | | no seat |
-| 7 open files | | | | | — |
-| 8 fractional scale | | | | | no fractional-scale |
+| 1 start, icons | yes | yes | yes | yes | yes (2026-10-30, screenshot) |
+| 2 title bar | Umbriel's, one bar | Nordend's; move, double click, buttons, window menu: yes | KWin's (screenshot), one bar | Nordend's | drawn (screenshot); no pointer to try it |
+| 3 resize | yes | yes | yes | yes | no pointer |
+| 4 cursor | yes (cursor-shape-v1) | yes, double arrow on dividers | yes | yes | no pointer |
+| 5 clipboard | yes, with foot and a second Nordend | yes, both ways with Nautilus | yes, both ways with Dolphin | yes, with foot and a second Nordend | no clipboard global |
+| 6 drag and drop | yes, with foot and Firefox | yes, both ways with Nautilus | yes, both ways with Dolphin | yes, with foot and Firefox | no seat |
+| 7 open files | yes, focused | yes, apps from `mimeapps.list` (imv, zathura, Okular), focused | yes, focused | yes, focused | — |
+| 8 fractional scale | yes | yes, after enabling `scale-monitor-framebuffer` | yes | not tried (nested: the host window's scale) | no fractional-scale |
+
+Umbriel: the author's desktop (pinned commit), tested by the author on 2026-10-31.
+
+GNOME: 48.7 (mutter 48.7) in the Void VM `nordend-dev` (virtio without 3D, Mesa llvmpipe),
+tested by the author on 2026-10-31; 249 tests pass in the VM. The colours are Nordend's defaults,
+not GNOME's: following the desktop's light/dark and accent is planned in 7.4. Fractional scaling
+in GNOME 48 is experimental:
+`gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffer']"`, then log
+in again.
+
+Plasma: 6.7.5 (KWin 6.7.5) in the same VM, tested by the author on 2026-10-31. The title bar and
+the task bar show the generic Wayland icon: no desktop entry matches the app id `nordend` yet
+(to add with the 0.1.0 package, 7.8).
+
+niri: 26.04, nested in Umbriel on the host (in the VM niri needs virgl, BUG-017 of
+void-noctalia), minimal config without `prefer-no-csd`, tested by the author on 2026-10-31.
 
 Headless weston offers no `wl_seat`: it shows the window, not how it reacts to the pointer.

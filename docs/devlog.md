@@ -4,6 +4,40 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — Nordend on GNOME, Plasma, niri and Umbriel (ROADMAP 7.4, the author's tests)
+
+**Done**
+- The checklist of `docs/compatibility.md` on four desktops, results in its table.
+- VM: the Void VM `nordend-dev` instead of an Arch one (decided with the author): GNOME 48.7 and
+  Plasma 6.7.5 installed in it, Nordend built and tested there over SSH (copied with
+  `git archive`). Snapshot `before-7.4` taken before the install.
+- niri 26.04 nested in Umbriel on the host (in the VM niri needs virgl, which BUG-017 of
+  void-noctalia rules out), with a minimal config without `prefer-no-csd`; removed afterwards.
+
+**Measured**
+- 249 tests pass in the VM (1 skipped: udisks2), Release build with GCC 14.2.
+
+**Decisions**
+- New item in 7.4, asked by the author before going public: without `colors.toml`, follow the
+  desktop's light/dark and accent colour through the freedesktop portal.
+
+**Tested by the author** (2026-10-31): every point of the checklist on GNOME (Nordend's title
+bar; fractional scale after enabling `scale-monitor-framebuffer`), Plasma (KWin's bar), niri
+(Nordend's bar; scale not tried, nested) and Umbriel (Umbriel's bar). Files opened in the apps of
+each `mimeapps.list`, focused.
+
+**Open**
+- The definition of `nordend-dev` had virgl on again (`accel3d='yes'`, SPICE GL), although
+  BUG-017 records it as removed; every older snapshot carries it. It booted with virgl for a few
+  seconds before it was noticed and forced off; no amdgpu fault in the host log (*to be verified*
+  as root). The definition and `before-7.4` are now without 3D; reverting an older snapshot
+  brings virgl back (to note in void-noctalia, with the author's OK).
+- KWin shows the generic Wayland icon: no desktop entry for the app id `nordend` (with the 0.1.0
+  package, 7.8).
+- Colours follow only Noctalia's palette (the new 7.4 item).
+
+---
+
 ## 2026-10-30 — A title bar of its own where the compositor draws none (ROADMAP 7.4, third part)
 
 **Done**
