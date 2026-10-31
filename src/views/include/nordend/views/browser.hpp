@@ -42,6 +42,7 @@
 #include "nordend/views/shortcuts.hpp"
 #include "nordend/views/shortcuts_overlay.hpp"
 #include "nordend/views/sidebar.hpp"
+#include "nordend/views/state.hpp"
 #include "nordend/views/status_bar.hpp"
 #include "nordend/views/thumbnails.hpp"
 #include "nordend/views/undo.hpp"
@@ -181,6 +182,11 @@ public:
 
     // The sidebar (shown at start; left out when the window is too narrow for it).
     void set_sidebar_visible(bool visible);
+
+    // What is remembered from one start to the next (ROADMAP 7.5a); the window's part is main's.
+    [[nodiscard]] State state() const;
+    // Before open(): the view comes up in the remembered mode; afterwards, as if chosen.
+    void apply(const State& state);
 
     [[nodiscard]] bool sidebar_visible() const noexcept { return sidebar_visible_; }
 

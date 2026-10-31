@@ -78,6 +78,9 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
     xdg_toplevel_set_title(toplevel_.get(), options.title.c_str());
     xdg_toplevel_set_app_id(toplevel_.get(), options.app_id.c_str());
     xdg_toplevel_set_min_size(toplevel_.get(), options.min_width, options.min_height);
+    if (options.maximized) {
+        xdg_toplevel_set_maximized(toplevel_.get());  // before the first commit: opens maximized
+    }
 
     // Server-side asked for, or client-side when forced; the compositor's configure has the
     // last word, so the window never gets two title bars.

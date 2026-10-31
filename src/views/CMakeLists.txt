@@ -18,6 +18,7 @@ add_library(nordend_views
     src/shortcuts_overlay.cpp
     src/sidebar.cpp
     src/status_bar.cpp
+    src/state.cpp
     src/title_bar.cpp
     src/quick_look.cpp
     src/thumbnails.cpp
@@ -27,4 +28,4 @@ add_library(nordend::views ALIAS nordend_views)
 target_include_directories(nordend_views PUBLIC include)
 target_link_libraries(nordend_views
     PUBLIC nordend::core nordend::ui nordend::fs nordend::theme nordend::thumbs nordend::preview
-    PRIVATE nordend::warnings)
+    PRIVATE nordend::warnings PkgConfig::TOMLPLUSPLUS)

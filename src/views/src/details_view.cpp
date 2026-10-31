@@ -121,6 +121,20 @@ void DetailsView::sort_by(Field field) {
     redraw_();
 }
 
+void DetailsView::set_sort(fs::SortKey key, bool descending) {
+    order_.key = key;
+    order_.descending = descending;
+    apply_order();
+    redraw_();
+}
+
+void DetailsView::set_widths(const std::array<float, 3>& widths) {
+    for (std::size_t i = 0; i < widths.size(); ++i) {
+        widths_.at(i + 1) = std::max(widths.at(i), kMinWidths.at(i + 1));
+    }
+    redraw_();
+}
+
 void DetailsView::apply_order() {
     if (folder_ && !same_order(folder_->order(), order_)) {
         folder_->set_order(order_);

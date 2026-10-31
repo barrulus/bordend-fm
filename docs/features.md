@@ -284,6 +284,11 @@ A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 M
   Plasma): light or dark, and the accent colour for the selection, icons and links, with
   neutral surfaces and text kept readable (WCAG AA contrast, tested for 15 accents). Without a
   portal either, a built-in default palette is used.
+- **Remembered from one start to the next** (`~/.local/state/nordend/state.toml`, written by
+  Nordend): the view, the details' order and column widths, hidden files shown or not, the
+  sidebar and the info pane (shown, width, "More details"), the window's size and whether it was
+  maximized. Not the last folder (Nordend opens Home, or the folder given) nor the back/forward
+  history. A broken file only means the defaults.
 
 ## Standards it follows
 
@@ -293,6 +298,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Compatibility outside Noctalia and Umbriel, then settings, remembered state, and
-the MVP. See the
+Pointer shapes, a settings panel (Ctrl+,) with an "About" section, then benchmarks, a week of
+daily use and the first release. See the
 [roadmap](ROADMAP.md).

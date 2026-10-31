@@ -29,6 +29,7 @@ add_executable(nordend-tests
     scroller_test.cpp
     shortcuts_test.cpp
     sort_test.cpp
+    state_test.cpp
     thumbs_test.cpp
     title_bar_test.cpp
     erase_test.cpp

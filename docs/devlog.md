@@ -4,6 +4,55 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — Remembering how Nordend was left (ROADMAP 7.5a)
+
+**Done**
+- ROADMAP: 7.5 split into four steps (7.5a state, 7.5b pointer shapes, 7.5c settings panel on
+  Ctrl+, and a gear button in the status bar, 7.5d About), approved by the author; DESIGN's
+  "portal" out of the MVP now says "portal FileChooser".
+- `views::State`: the view, hidden files, the sidebar (shown, width), the info pane (shown,
+  width, "More details"), the details' order and the widths of size, modified and type, the
+  window's size and whether it was maximized. `parse_state`/`format_state`/`load_state` in
+  `$XDG_STATE_HOME/nordend/state.toml` (`~/.local/state`): a value of the wrong type or out of
+  range keeps its default with a problem line, unknown keys are fine (a newer Nordend), a broken
+  file is the defaults.
+- `views::StateKeeper`: writes a second after the last change (a dragged edge writes once), on a
+  worker, one write at a time; `flush()` at exit. Writes carry a generation and go through a
+  mutex, so a worker's write still running at exit cannot land after the final one.
+- `Browser::state()`/`apply()` (before `open()` the view comes up in the remembered mode);
+  `DetailsView::set_sort`/`widths`/`set_widths` (each column keeps its minimum);
+  `WindowOptions::maximized` (asked before the first commit).
+- main: the state is read before the window opens and noted after every frame drawn (every change
+  shows in a frame, and nothing is drawn at rest, so idle stays at 0 CPU). The window's size is
+  taken only when it is neither maximized, fullscreen nor tiled, so a maximized window comes back
+  to its own size.
+- Tests (263): written and read back, defaults, bad values with their lines, a broken file,
+  unknown keys, the path under `XDG_STATE_HOME`, the browser giving back what it was given (and
+  the columns' minimum), the keeper writing once after two changes and flushing at exit.
+  `tests/main.cpp` points `XDG_STATE_HOME` into the test root too.
+
+**Measured**
+- Binary 3.45 MB, 2.88 MB stripped (+30 KB).
+
+**Decisions**
+- Not remembered: the last folder (Home or the folder given, as Nautilus and Dolphin) and the
+  back/forward history (decided with the author).
+- State, not configuration: its own file under `XDG_STATE_HOME`, never mixed into `config.toml`.
+
+**Tested by the author** (2026-10-31, Umbriel, `XDG_STATE_HOME` in /tmp): details sorted by
+date, hidden files, the sidebar's and the info pane's widths and "More details" come back after a
+restart; a broken file gives the defaults with one warning line. The window is tiled on Umbriel,
+so its size is the compositor's and is not taken, as meant. Maximizing there does not reach any
+client as the xdg maximized state (not Nordend, Firefox nor foot), so "maximized" could not be
+tried on Umbriel (*to be verified* in Umbriel's code; a buglog candidate, upstream only with the
+author's OK).
+
+**Open**
+- "Maximized" untried: on a floating window in the VM (GNOME, Plasma) with 7.5b or 7.5c.
+- Two Nordend windows: the last one to write wins (one window per process today).
+
+---
+
 ## 2026-10-31 — The desktop's colours without Noctalia (ROADMAP 7.4, last item)
 
 **Done**

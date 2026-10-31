@@ -53,7 +53,8 @@ all'autore quando ci si arriva.
   un messaggio. Ctrl+H vale per tutte le viste e il pannello info; da nascosti Ctrl+A, la ricerca
   per digitazione e il conteggio li ignorano e la barra di stato dice quanti sono; il cursore su un
   nascosto passa al visibile più vicino; una cartella nascosta aperta esplicitamente resta visibile
-  nel genitore. Cronologia e Ctrl+H valgono per la sessione (salvati con la 7.5). Test su
+  nel genitore. Cronologia e Ctrl+H valgono per la sessione (Ctrl+H ricordato con la 7.5a; la cronologia resta
+  della sessione, deciso con l'autore il 2026-10-31). Test su
   `Browser::key()`, snapshot delle tre viste, scorciatoie aggiornate, provato dall'autore con il
   mouse.
 
@@ -138,16 +139,40 @@ all'autore quando ci si arriva.
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
   screenshot di weston guardati.
 
-- [ ] **7.5 Impostazioni e stato ricordato** (Ctrl+,)
-  Un pannello che mostra le impostazioni, poi modificabile (scrivendo `config.toml` senza perdere
-  i commenti); lo stato ricordato tra un avvio e l'altro (vista, larghezze, barra laterale,
-  ordinamento, file nascosti, pannello info); una sezione "Informazioni" (Nordend, distro,
-  Noctalia, Umbriel, GPU).
-  Forme del puntatore (proposta del 2026-10-30, approvata dall'autore): la manina sulle cose
-  cliccabili (pulsanti della barra di stato, eject, × dei trasferimenti, pezzi del percorso,
-  "More details") e il cursore di testo nei campi (rinomina, nuova cartella). Fatto quando: su
-  Umbriel e con il cursore di riserva le forme cambiano lì e tornano freccia fuori; un test
-  verifica che ogni zona chieda la sua forma.
+- [ ] **7.5 Impostazioni e stato ricordato** (Ctrl+,), in quattro passi, ognuno provato e
+  committato (proposta approvata dall'autore il 2026-10-31):
+  - [x] **7.5a Stato ricordato** in `$XDG_STATE_HOME/nordend/state.toml` (stato, non preferenze):
+    vista, ordinamento, file nascosti, barra laterale, pannello info (visibile, larghezza, "More
+    details"), larghezze delle colonne nei Dettagli, dimensione della finestra e se è
+    massimizzata (la posizione la decide il compositor). Scritto su un worker in modo atomico, un
+    secondo dopo l'ultima modifica e all'uscita. Non si ricordano l'ultima cartella (si parte
+    dalla Home o dalla cartella data) né la cronologia. I test usano un `XDG_STATE_HOME` loro.
+    Fatto quando: cambiati quei valori, chiusa e riaperta la finestra, si ritrovano; un file
+    rotto dà i valori predefiniti con una riga nel log; test su lettura, scrittura e valori fuori
+    misura. Provato dall'autore il 2026-10-31 su Umbriel; "massimizzata" non provata lì (Umbriel
+    non comunica lo stato massimizzato a nessuna app): da provare nella VM.
+  - [ ] **7.5b Forme del puntatore** (proposta del 2026-10-30, approvata dall'autore): la manina
+    sulle cose cliccabili (pulsanti della barra di stato, eject, × dei trasferimenti, pezzi del
+    percorso, "More details") e il cursore di testo nei campi (rinomina, nuova cartella). Fatto
+    quando: su Umbriel e con il cursore di riserva le forme cambiano lì e tornano freccia fuori;
+    un test verifica che ogni zona chieda la sua forma.
+  - [ ] **7.5c Pannello impostazioni**: Ctrl+, (la virgola; Ctrl++ resta lo zoom della griglia) o
+    l'icona a rotellina nella barra di stato, accanto a "?" (chiesta dall'autore il 2026-10-31).
+    Una scheda disegnata da Nordend come l'overlay delle scorciatoie: Esc chiude, Tab/frecce
+    muovono, Invio modifica. Sezioni: Caratteri (famiglia, monospace), Puntatore (doppio clic),
+    Colori in sola lettura (da dove vengono: Noctalia, il desktop, i predefiniti). Le modifiche
+    scrivono `config.toml` cambiando solo il valore sulla sua riga (commenti, ordine e righe
+    sconosciute intatti; chiave mancante aggiunta nella sua sezione), in modo atomico;
+    `config.toml` si ricarica a caldo anche se modificato a mano. Fatto quando: ogni valore si
+    cambia dal pannello e vale subito (i caratteri al prossimo avvio se ricostruirli a caldo
+    costa troppo, e il pannello lo dice); il file conserva i commenti (test con commenti, chiavi
+    sconosciute, sezioni mancanti); un valore fuori misura è rifiutato con un messaggio; la
+    modifica a mano si ricarica.
+  - [ ] **7.5d Informazioni**, una sezione del pannello: Nordend (versione e commit), distro
+    (`/etc/os-release`), kernel, desktop (`XDG_CURRENT_DESKTOP`), GPU (`GL_RENDERER`), versioni di
+    Noctalia e Umbriel se presenti; "Copia" mette tutto negli appunti (per le segnalazioni di
+    bug); licenza e link al repository. Fatto quando: dati giusti su Umbriel, GNOME e Plasma;
+    quelli che mancano non compaiono; "Copia" incolla il testo in un'altra app.
 
 - [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:

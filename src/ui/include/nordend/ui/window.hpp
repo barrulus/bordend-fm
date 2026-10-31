@@ -28,6 +28,7 @@ struct WindowOptions {
     std::int32_t height{640};
     std::int32_t min_width{480};
     std::int32_t min_height{320};
+    bool maximized{false};  // ask to open maximized (width and height stay the restored size)
     Color background{Color::rgb(0x000000)};  // behind the content; the app passes the theme's
     // Ask for client-side decorations even where the compositor offers server-side ones
     // (NORDEND_FORCE_CSD, to try them); the compositor may still answer server-side.

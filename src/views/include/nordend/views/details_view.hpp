@@ -77,6 +77,16 @@ public:
 
     [[nodiscard]] const fs::SortOrder& order() const noexcept { return order_; }
 
+    // The order as remembered (views::State): by key, reversed or not.
+    void set_sort(fs::SortKey key, bool descending);
+
+    // The widths of size, modified and type, as dragged; set_widths keeps each column's minimum.
+    [[nodiscard]] std::array<float, 3> widths() const noexcept {
+        return {widths_[1], widths_[2], widths_[3]};
+    }
+
+    void set_widths(const std::array<float, 3>& widths);
+
     // Lays out and draws into bounds at time now (advancing the scroll animation).
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);

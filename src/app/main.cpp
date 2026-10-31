@@ -42,6 +42,7 @@
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/state.hpp"
 #include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
 
@@ -279,11 +280,20 @@ int main(int argc, char** argv) {
         };
         portal = std::make_unique<platform::DesktopPortal>(loop, follow_desktop);
         follow_desktop();
+        // How Nordend was left (ROADMAP 7.5a).
+        const std::filesystem::path state_path = views::default_state_path();
+        const views::StateResult remembered = views::load_state(state_path);
+        for (const std::string& problem : remembered.problems) {
+            log::warn("state: {}", problem);
+        }
         ui::Window window{display,
                           egl,
                           fonts,
                           {.title = "Nordend",
                            .app_id = "nordend",
+                           .width = remembered.state.window_width,
+                           .height = remembered.state.window_height,
+                           .maximized = remembered.state.maximized,
                            .background = theme.palette().surface,
                            .force_client_decorations = client_decorations_forced()}};
         theme.set_change_handler([&] { window.set_background(theme.palette().surface); });
@@ -305,6 +315,24 @@ int main(int argc, char** argv) {
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
+        // Writes state.toml as things change; the window's size is the one it has when neither
+        // maximized, fullscreen nor tiled, so a maximized window comes back to it.
+        views::StateKeeper keeper{loop, pool, state_path, remembered.state};
+        std::int32_t restored_width = remembered.state.window_width;
+        std::int32_t restored_height = remembered.state.window_height;
+        const auto note_state = [&] {
+            const ui::WindowState& shown = window.state();
+            if (!shown.maximized && !shown.fullscreen && !shown.tiled_left && !shown.tiled_right &&
+                !shown.tiled_top && !shown.tiled_bottom) {
+                restored_width = window.width();
+                restored_height = window.height();
+            }
+            views::State state = columns->state();
+            state.window_width = restored_width;
+            state.window_height = restored_height;
+            state.maximized = shown.maximized;
+            keeper.note(state);
+        };
         // Files open with their default applications (ROADMAP 6.1).
         std::unique_ptr<platform::Opener> opener;
         if (!test_scene) {
@@ -399,6 +427,7 @@ int main(int argc, char** argv) {
                     columns->drag_ended();
                 });
             }
+            columns->apply(remembered.state);
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
@@ -542,6 +571,7 @@ int main(int argc, char** argv) {
                 if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }
+                note_state();  // every change shows in a frame, so frames are where to look
                 return;
             }
             nordend::app::draw_test_scene(renderer, content, palette);
@@ -555,7 +585,9 @@ int main(int argc, char** argv) {
                                palette.secondary);
             renderer.draw_text(last_key, 32.0F, bounds.bottom() - 32.0F, 14.0F, palette.tertiary);
         });
-        return loop.run();
+        const int code = loop.run();
+        keeper.flush();
+        return code;
     } catch (const std::exception& e) {
         log::error("{}", e.what());
         return 1;

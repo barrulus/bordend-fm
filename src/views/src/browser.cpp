@@ -1618,6 +1618,47 @@ void Browser::set_sidebar_visible(bool visible) {
     redraw_();
 }
 
+// The remembered mode is the browser's, by value.
+static_assert(static_cast<int>(State::Mode::columns) == static_cast<int>(Browser::Mode::columns) &&
+              static_cast<int>(State::Mode::grid) == static_cast<int>(Browser::Mode::grid) &&
+              static_cast<int>(State::Mode::details) == static_cast<int>(Browser::Mode::details));
+
+State Browser::state() const {
+    State state;
+    state.mode = static_cast<State::Mode>(mode_);
+    state.show_hidden = show_hidden_;
+    state.sidebar_visible = sidebar_visible_;
+    state.sidebar_width = sidebar_.width();
+    state.info_visible = info_visible_;
+    state.info_width = info_pane_.width();
+    state.info_expanded = info_pane_.expanded();
+    state.sort_key = details_.order().key;
+    state.sort_descending = details_.order().descending;
+    state.details_widths = details_.widths();
+    return state;
+}
+
+void Browser::apply(const State& state) {
+    show_hidden_ = state.show_hidden;
+    columns_.set_show_hidden(state.show_hidden);
+    grid_.set_show_hidden(state.show_hidden);
+    details_.set_show_hidden(state.show_hidden);
+    set_sidebar_visible(state.sidebar_visible);
+    sidebar_.set_width(state.sidebar_width);
+    set_info_visible(state.info_visible);
+    info_pane_.set_width(state.info_width);
+    info_pane_.set_expanded(state.info_expanded);
+    details_.set_sort(state.sort_key, state.sort_descending);
+    details_.set_widths(state.details_widths);
+    const auto mode = static_cast<Mode>(state.mode);
+    if (current_folder()) {
+        set_mode(mode);
+    } else {
+        mode_ = mode;  // open() shows the folder in it
+    }
+    redraw_();
+}
+
 void Browser::set_mode(Mode mode) {
     if (mode == mode_) {
         return;

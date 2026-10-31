@@ -134,7 +134,9 @@ Dentro anche, decisi con l'autore il 2026-10-30 (ROADMAP fase 7): cronologia di 
 Nordend e con le altre app; preferiti nella barra laterale; dischi rimovibili via udisks2;
 impostazioni (Ctrl+,) e stato ricordato.
 
-Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal,
+Fuori dall'MVP: schede, doppio pannello, ricerca, palette comandi, culling, Luau, portal FileChooser
+(Nordend come finestra "Apri file" delle altre app; leggere l'aspetto del desktop dal portale è
+nella 7.4, chiarito con l'autore il 2026-10-31),
 evidenziazione della sintassi, editor esterno.
 
 ## Dopo l'MVP (in ordine)

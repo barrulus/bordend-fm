@@ -21,11 +21,11 @@ int main(int argc, char** argv) {
     nordend::fs::set_trash_sources({.home = std::filesystem::path{root} / "Trash",
                                     .tops = std::vector<std::filesystem::path>{},
                                     .uid = geteuid()});
-    // Nor the user's configuration, data or cache: a key that writes there (Ctrl+D adds a
+    // Nor the user's configuration, data, cache or state: a key that writes there (Ctrl+D adds a
     // bookmark to gtk-3.0/bookmarks) writes into the test root. Set before any thread starts.
     for (const auto& [name, folder] :
          {std::pair{"XDG_CONFIG_HOME", "config"}, std::pair{"XDG_DATA_HOME", "data"},
-          std::pair{"XDG_CACHE_HOME", "cache"}}) {
+          std::pair{"XDG_CACHE_HOME", "cache"}, std::pair{"XDG_STATE_HOME", "state"}}) {
         // NOLINTNEXTLINE(concurrency-mt-unsafe): no other thread yet
         setenv(name, (std::filesystem::path{root} / folder).c_str(), 1);
     }
