@@ -44,7 +44,7 @@ It is made for people who browse a lot of files, photos above all:
   walk a tree from the keyboard, a thumbnail grid (<kbd>Ctrl</kbd>+<kbd>2</kbd>) to see a folder
   of photos, a details table (<kbd>Ctrl</kbd>+<kbd>3</kbd>) to compare sizes and dates;
   switching keeps your place and your selection.
-- **Small and fast, and measured.** A 2.8 MB binary; a 10 000-file folder shows its first
+- **Small and fast, and measured.** A 3 MB binary; a 10 000-file folder shows its first
   entries in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens
   in Quick Look in about 50 ms; copies run as fast as `cp`; and when nothing moves Nordend uses
   no CPU at all. See [Benchmarks](#benchmarks).
@@ -63,9 +63,9 @@ It is made for people who browse a lot of files, photos above all:
 > disks. Nordend carries its own icons, title bar and cursor for desktops that do not provide
 > them, takes the desktop's colours without Noctalia, and was tried on GNOME, Plasma and niri.
 > It remembers how it was left, and `nordend --about` prints what it runs on for bug reports.
-> Measurements of every goal and a week of daily use come next, then the first
-> release. There are no
-> packages yet: see [Building](#building). What happens step by step is in the
+> The interface is in English only for now; translations come after the first release.
+> Measurements of every goal and a week of daily use come next, then the first release. There
+> are no packages yet: see [Building](#building). What happens step by step is in the
 > [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
 ## At a glance
