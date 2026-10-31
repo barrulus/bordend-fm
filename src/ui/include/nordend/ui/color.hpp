@@ -32,6 +32,8 @@ struct Color {
     [[nodiscard]] constexpr Color premultiplied() const noexcept {
         return {r * a, g * a, b * a, a};
     }
+
+    bool operator==(const Color&) const = default;
 };
 
 }  // namespace nordend::ui

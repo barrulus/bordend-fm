@@ -17,6 +17,11 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 
 ## Binary
 
+### 2026-10-31: desktop colours (7.4)
+
+3 579 800 bytes; 2 988 792 after `strip`; 21 direct libraries, none new (the portal goes through
+the sdbus-c++ already linked for udisks2).
+
 ### 2026-10-30: after 7.3
 
 3 457 608 bytes; 2 882 136 after `strip`; 20 direct libraries: libsdbus-c++ and libbasu (its
@@ -799,6 +804,22 @@ while read t; do
 done < all.txt > gio.txt
 diff ours.txt gio.txt
 ```
+
+## Desktop portal at start (ROADMAP 7.4)
+
+### 2026-10-31
+
+Reading the desktop's look before the first frame (session bus connection, proxy, signal match,
+`ReadAll` of `org.freedesktop.appearance`, synchronous with a 300 ms limit): **about 1 ms**
+(1.0 to 1.3 ms over five runs), timed with doctest's `-d` on the read-only test against the real
+portal (xdg-desktop-portal with the gtk and Umbriel backends, already running):
+
+```sh
+for i in 1 2 3 4 5; do build/tests/nordend-tests -tc="portal: the real*" -d | grep -E '^[0-9.]+ s'; done
+```
+
+A portal still starting (D-Bus activation) can take longer: past 300 ms Nordend starts with its
+default colours and takes the answer when it arrives (not measured: the portal was running).
 
 ---
 

@@ -4,6 +4,54 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — The desktop's colours without Noctalia (ROADMAP 7.4, last item)
+
+**Done**
+- `theme::desktop_palette(Desktop)`: a palette from light/dark and an accent colour, in OKLCH.
+  Neutral surfaces (a trace of the accent's hue, chroma 0.005) around GNOME's grey in dark mode
+  and near white in light mode; the accent for `primary` (selection, icons, links, the context
+  menu's row), its lightness kept in a band and pushed further until it reads on
+  `surface_container_high` (4.5:1); `on_*` colours chosen light or dark by contrast; error roles
+  a fixed red. No accent: GNOME's blue `#3584e4`.
+- `theme::Theme::set_desktop()`: `colors.toml` wins; without it the desktop's palette, otherwise
+  the default one. Removing the file falls back to the latest desktop look.
+- `platform::DesktopPortal`: the freedesktop portal's Settings on the session bus, namespace
+  `org.freedesktop.appearance` (`color-scheme`, `accent-color`), read before the window opens
+  (synchronous, 300 ms at most; later, the answer comes through the loop) and followed through
+  `SettingChanged`. `appearance_from()` checks the values: color-scheme 0 (no preference) reads as
+  light, as GTK and Qt apps read it; an accent outside 0..1 is the portal's "unset".
+- `platform::BusLoop`: the D-Bus connection served by the event loop, moved out of `Udisks` so
+  the portal uses it too.
+- `ui::Color` gains `operator==`. Snapshot: `--desktop dark|light[,#rrggbb]`.
+- Tests (256): contrast of every text/fill pair for 15 accents (GNOME's nine, Plasma's blue,
+  white, black, grey, pure yellow, pure blue) in both modes; surfaces step the right way; the
+  accent's hue; the portal's values; Theme's rules (file wins, back to the desktop, nothing to
+  redraw on the same look); a read-only test against the real portal (here: dark, no accent).
+
+**Measured**
+- Reading the portal at start: about 1 ms (`docs/benchmarks.md`).
+- Binary 3.41 MB, 2.85 MB stripped (+70 KB); no new library.
+- Snapshots looked at: dark and light with GNOME's blue, dark orange, light green, light purple
+  and red, with the title bar, the context menu and the rename field.
+
+**Decisions**
+- Selection, icons and the context menu's row take the accent, as GNOME and Plasma show them.
+- The first test showed brownish dark surfaces with an orange accent: the tint went from 0.008 to
+  0.005 chroma.
+
+**Tested by the author** (2026-10-31, the VM): on GNOME 48.7 light/dark and the accent change
+Nordend at once (screenshot: light, orange accent); on Plasma 6.7.5 too, Breeze and Breeze Dark and
+the accent (screenshot: dark, the wallpaper's salmon accent, the same KWin shows), so
+xdg-desktop-portal-kde gives `accent-color`. On Umbriel, with `colors.toml`: Noctalia's colours
+as before. In the VM, GNOME Settings stays dark in light mode because of the Noctalia
+`~/.config/gtk-4.0/gtk.css` there, not Nordend's business.
+
+**Open**
+- Plasma's colour schemes (Breeze's own greys and their many roles) are not read: only light/dark
+  and the accent, through the portal.
+
+---
+
 ## 2026-10-31 — Nordend on GNOME, Plasma, niri and Umbriel (ROADMAP 7.4, the author's tests)
 
 **Done**

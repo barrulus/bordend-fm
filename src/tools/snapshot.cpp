@@ -4,7 +4,7 @@
 //   nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails CACHE]
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
 //                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]
-//                    [--memory [--trim] [--default-malloc]]] [--csd STATE]
+//                    [--memory [--trim] [--default-malloc]]] [--csd STATE] [--desktop LOOK]
 //                    <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
@@ -29,6 +29,8 @@
 // --csd draws Nordend's own title bar above, as where the compositor draws none; STATE is
 // comma-separated words: "normal", "maximized", "inactive", "no-minimize", and "hover-close",
 // "hover-maximize", "press-close" for the pointer over a button.
+// --desktop draws with the palette made from a desktop's look, as without colors.toml under GNOME
+// or Plasma: LOOK is "dark" or "light", with an accent after a comma: "dark,#3584e4".
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -67,6 +69,7 @@
 #include "nordend/fs/places.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
+#include "nordend/theme/desktop.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/clipboard.hpp"
@@ -226,6 +229,7 @@ int main(int argc, char** argv) {
     std::string drag;
     std::optional<std::pair<float, float>> drop_over;
     std::optional<std::string> csd;
+    std::optional<std::string> desktop;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -283,6 +287,8 @@ int main(int argc, char** argv) {
                                   std::stof(std::string{point.substr(comma + 1)})};
         } else if (option == "--csd") {
             csd = args[2];
+        } else if (option == "--desktop") {
+            desktop = args[2];
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -298,7 +304,7 @@ int main(int argc, char** argv) {
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--fake-disks] [--memory [--trim] "
-            "[--default-malloc]]] [--csd STATE] "
+            "[--default-malloc]]] [--csd STATE] [--desktop LOOK] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -313,9 +319,21 @@ int main(int argc, char** argv) {
         const float height = sized ? std::stof(args[3]) : 640.0F;
         const float scale = sized ? std::stof(args[4]) : 1.0F;
         // The default palette unless a colors.toml is given: snapshots stay reproducible.
-        const nordend::theme::PaletteResult palette = args.size() == 6
-                                                          ? nordend::theme::load_palette(args[5])
-                                                          : nordend::theme::PaletteResult{};
+        nordend::theme::PaletteResult palette = args.size() == 6
+                                                    ? nordend::theme::load_palette(args[5])
+                                                    : nordend::theme::PaletteResult{};
+        if (desktop) {
+            const std::string_view look{*desktop};
+            const std::size_t comma = look.find(',');
+            nordend::theme::Desktop wanted{.dark = look.substr(0, comma) == "dark",
+                                           .accent = std::nullopt};
+            if (comma != std::string_view::npos) {
+                const std::string hex{look.substr(comma + 1)};
+                wanted.accent = nordend::ui::Color::rgb(static_cast<std::uint32_t>(
+                    std::stoul(hex.substr(hex.starts_with('#') ? 1 : 0), nullptr, 16)));
+            }
+            palette.palette = nordend::theme::desktop_palette(wanted);
+        }
         for (const std::string& problem : palette.problems) {
             log::warn("{}", problem);
         }

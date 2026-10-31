@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-250%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="250 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-256%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="256 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
@@ -30,7 +30,8 @@
 Nordend talks to the compositor directly: Wayland and OpenGL ES, **no toolkit at all**. Text,
 icons, scrolling and animations come from its own renderer, so it does exactly what it is
 designed to do and nothing gets in the way. It belongs to the Noctalia family (Noctalia Shell,
-the Umbriel compositor) and wears your Noctalia theme, live.
+the Umbriel compositor) and wears your Noctalia theme, live; elsewhere it takes your desktop's
+light or dark style and accent colour.
 
 It is made for people who browse a lot of files, photos above all:
 
@@ -59,8 +60,9 @@ It is made for people who browse a lot of files, photos above all:
 > opening files in their apps, a context menu, renaming, new folders and files, copying, moving,
 > the trash (restore and permanent delete included), undo, copy and paste and drag and drop
 > with other programs, back and forward, hidden files, favourites in the sidebar and removable
-> disks. Nordend now carries its own icons, title bar and cursor for desktops that do not
-> provide them; trying it on GNOME, Plasma and niri comes next, then settings. There are no
+> disks. Nordend carries its own icons, title bar and cursor for desktops that do not provide
+> them, takes the desktop's colours without Noctalia, and was tried on GNOME, Plasma and niri;
+> settings come next. There are no
 > packages yet: see [Building](#building). What happens step by step is in the
 > [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
 
@@ -68,9 +70,9 @@ It is made for people who browse a lot of files, photos above all:
 
 | | |
 |---|---|
-| Binary | **3.34 MB** (2.78 MB stripped), Release, x86-64, with the wuffs decoders built in |
-| Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 32 800 lines of C++20, plus 9 400 lines of tests (250 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Binary | **3.41 MB** (2.85 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2 and the desktop portal, the C/C++ runtime. No GTK, no Qt, no GLib |
+| Code | about 33 400 lines of C++20, plus 9 600 lines of tests (256 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -198,7 +200,8 @@ status bar cost nothing measurable.
   thousand-file copy arrives in a few smooth updates, not a thousand.
 - **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
   camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
-- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly.
+- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly. On GNOME
+  or Plasma it follows the desktop's light or dark style and accent colour, live too.
 - **Not only on Noctalia.** The icons are compiled in; where the compositor draws no title bar
   (GNOME, weston) Nordend draws its own, and where it offers no cursor shapes Nordend draws them
   from your cursor theme. What each desktop gives is tracked in

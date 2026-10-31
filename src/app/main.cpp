@@ -29,6 +29,7 @@
 #include "nordend/fs/places.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/opener.hpp"
+#include "nordend/platform/portal.hpp"
 #include "nordend/platform/udisks.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
@@ -261,6 +262,23 @@ int main(int argc, char** argv) {
         ui::FontSystem fonts{config.font.family, config.font.monospace};
         theme::Theme theme{theme::default_colors_path()};
         theme.watch(loop);
+        // Without colors.toml, the desktop's light/dark and accent (ROADMAP 7.4).
+        std::unique_ptr<platform::DesktopPortal> portal;
+        const auto follow_desktop = [&] {
+            if (!portal->available()) {
+                return;
+            }
+            const platform::Appearance& appearance = portal->appearance();
+            theme::Desktop desktop{.dark = appearance.dark, .accent = std::nullopt};
+            if (appearance.accent) {
+                const auto [r, g, b] = *appearance.accent;
+                desktop.accent = ui::Color{static_cast<float>(r), static_cast<float>(g),
+                                           static_cast<float>(b), 1.0F};
+            }
+            theme.set_desktop(desktop);
+        };
+        portal = std::make_unique<platform::DesktopPortal>(loop, follow_desktop);
+        follow_desktop();
         ui::Window window{display,
                           egl,
                           fonts,

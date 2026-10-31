@@ -1,9 +1,11 @@
 add_library(nordend_platform
     src/applications.cpp
+    src/bus_loop.cpp
     src/desktop_entry.cpp
     src/exec.cpp
     src/launcher.cpp
     src/opener.cpp
+    src/portal.cpp
     src/udisks.cpp
     src/volumes.cpp)
 add_library(nordend::platform ALIAS nordend_platform)

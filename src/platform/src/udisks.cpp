@@ -5,11 +5,11 @@
 #include <exception>
 #include <map>
 #include <optional>
-#include <poll.h>
 #include <sdbus-c++/sdbus-c++.h>
 #include <string_view>
 #include <utility>
 
+#include "bus_loop.hpp"
 #include "nordend/core/log.hpp"
 
 namespace nordend::platform {
@@ -112,24 +112,13 @@ struct Udisks::Impl {
     std::vector<UdisksObject> objects;
     std::vector<Volume> volumes;
 
-    // The bus in the loop: its socket for what it asks, its event fd, its timeout.
-    int fd{-1};
-    short events{0};
-    core::EventLoop::SourceId fd_source{0};
-    core::EventLoop::SourceId event_source{0};
-    core::EventLoop::SourceId timeout{0};
+    std::unique_ptr<BusLoop> bus;
     core::EventLoop::SourceId settle{0};
-    bool pumping{false};
 
     Impl(core::EventLoop& event_loop, std::function<void()> on_change)
         : loop{event_loop}, changed{std::move(on_change)} {}
 
-    ~Impl() {
-        loop.remove(fd_source);
-        loop.remove(event_source);
-        loop.remove(timeout);
-        loop.remove(settle);
-    }
+    ~Impl() { loop.remove(settle); }
 
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
@@ -145,42 +134,9 @@ struct Udisks::Impl {
         return *slot;
     }
 
-    // Lets the bus read and write what it has, then watches what it waits for next.
-    void pump() {
-        if (pumping || !connection) {
-            return;  // a callback inside processPendingEvent asked again
-        }
-        pumping = true;
-        try {
-            while (connection->processPendingEvent()) {
-            }
-        } catch (const sdbus::Error& error) {
-            log::warn("udisks: {}", error.getMessage());
-        }
-        pumping = false;
-        watch();
-    }
-
-    void watch() {
-        const sdbus::IConnection::PollData data = connection->getEventLoopPollData();
-        if (data.fd != fd || data.events != events || fd_source == 0) {
-            loop.remove(fd_source);
-            fd = data.fd;
-            events = data.events;
-            fd_source = loop.add_fd(fd, events, [this](short /*revents*/) { pump(); });
-        }
-        if (event_source == 0 && data.eventFd >= 0) {
-            event_source = loop.add_fd(data.eventFd, POLLIN, [this](short /*revents*/) { pump(); });
-        }
-        loop.remove(timeout);
-        timeout = 0;
-        const std::chrono::microseconds wait = data.getRelativeTimeout();
-        if (wait != std::chrono::microseconds::max()) {
-            timeout = loop.add_timer(std::chrono::ceil<std::chrono::milliseconds>(wait),
-                                     std::chrono::milliseconds{0}, [this] {
-                                         timeout = 0;
-                                         pump();
-                                     });
+    void pump() const {
+        if (bus) {
+            bus->pump();
         }
     }
 
@@ -231,6 +187,7 @@ Udisks::Udisks(core::EventLoop& loop, std::function<void()> changed)
     : impl_{std::make_unique<Impl>(loop, std::move(changed))} {
     try {
         impl_->connection = sdbus::createSystemBusConnection();
+        impl_->bus = std::make_unique<BusLoop>(loop, *impl_->connection, "udisks");
         impl_->manager =
             sdbus::createProxy(*impl_->connection, sdbus::ServiceName{std::string{kService}},
                                sdbus::ObjectPath{std::string{kManagerPath}});
@@ -244,6 +201,7 @@ Udisks::Udisks(core::EventLoop& loop, std::function<void()> changed)
         log::warn("udisks: no system bus or udisks2 ({}): disks are not mounted from Nordend",
                   error.getMessage());
         impl_->manager.reset();
+        impl_->bus.reset();
         impl_->connection.reset();
     }
 }

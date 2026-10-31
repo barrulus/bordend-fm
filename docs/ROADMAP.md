@@ -101,7 +101,7 @@ all'autore quando ci si arriva.
   reale (saltato senza udisks), snapshot; provato dall'autore con il Kinetic, anche con un file
   aperto.
 
-- [ ] **7.4 Compatibilità**
+- [x] **7.4 Compatibilità**
   Fuori da Noctalia e Umbriel. Proposta del 2026-10-30, discussa con l'autore:
   - font di icone di Nordend: un sottoinsieme del font ufficiale Tabler Icons (MIT) con le sole
     icone usate, generato da `scripts/make-icon-font.sh` (fonttools) dalla release ufficiale, in
@@ -131,6 +131,8 @@ all'autore quando ci si arriva.
     `colors.toml` manca, Nordend segue chiaro/scuro e il colore d'accento del desktop, letti dal
     portale freedesktop (`org.freedesktop.appearance`), su GNOME e Plasma. Fatto quando: cambiando
     chiaro/scuro o l'accento, Nordend si aggiorna senza riavvio; con `colors.toml` nulla cambia.
+    Scritto e provato dall'autore il 2026-10-31 su GNOME e Plasma nella VM, e su Umbriel (colori
+    Noctalia invariati).
   Fatto quando: su Umbriel, GNOME, Plasma e niri Nordend si avvia con le icone, la finestra si
   sposta, si ridimensiona e si chiude, il cursore si vede e cambia forma, clipboard e drag and drop
   vanno con le altre app, i file si aprono nelle loro app; test e snapshot per barra e icone,
