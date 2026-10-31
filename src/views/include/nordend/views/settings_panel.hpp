@@ -4,14 +4,17 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "nordend/core/config.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/seat.hpp"
+#include "nordend/ui/text.hpp"
 #include "nordend/ui/text_field.hpp"
 
 namespace nordend::views {
@@ -31,7 +34,20 @@ struct Settings {
     std::function<core::Config::Font()> fonts_in_use;
     // Where config.toml is, as shown.
     std::string file;
+    // The installed font families, offered while a font is typed; called on a worker.
+    std::function<std::vector<ui::FontFamily>()> families;
 };
+
+// The families offered while a font is typed (ROADMAP 7.5c-bis): those whose name holds what is
+// typed before any ':' (case aside), the generic names ("sans-serif", "monospace") first, then
+// with monospace_first the fixed-width families, names starting with it before the others.
+[[nodiscard]] std::vector<ui::FontFamily> font_suggestions(std::span<const ui::FontFamily> families,
+                                                           std::string_view typed,
+                                                           bool monospace_first);
+
+// typed names an installed family or a generic one (case aside), or is a fontconfig pattern
+// with properties ("Inter:weight=medium"), which fontconfig takes as it is.
+[[nodiscard]] bool font_known(std::span<const ui::FontFamily> families, std::string_view typed);
 
 // The settings (Ctrl+, or the status bar's gear, ROADMAP 7.5c), on a card over the window: the
 // fonts and the double click, changed in place and written to config.toml; where the colours come
@@ -44,6 +60,13 @@ public:
     explicit SettingsPanel(std::function<void()> redraw);
 
     void set_settings(Settings settings) { settings_ = std::move(settings); }
+
+    [[nodiscard]] const Settings& settings() const noexcept { return settings_; }
+
+    // The installed families, once read.
+    void set_families(std::vector<ui::FontFamily> families);
+
+    [[nodiscard]] bool has_families() const noexcept { return !families_.empty(); }
 
     void open();
     void close();
@@ -77,6 +100,13 @@ public:
 
     [[nodiscard]] const ui::TextField& field() const noexcept { return field_; }
 
+    // The families offered under the font being changed, and the one picked with the arrows.
+    [[nodiscard]] const std::vector<ui::FontFamily>& suggestions() const noexcept {
+        return suggestions_;
+    }
+
+    [[nodiscard]] std::optional<std::size_t> picked() const noexcept { return picked_; }
+
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
 
     // The values, in the order they are shown.
@@ -89,6 +119,9 @@ private:
     void stop_editing();
     void confirm();
     [[nodiscard]] std::string text_of(Value value) const;
+    [[nodiscard]] bool font_chosen() const noexcept;
+    void suggest();
+    void pick(std::optional<std::size_t> index);
 
     std::function<void()> redraw_;
     Settings settings_;
@@ -100,6 +133,13 @@ private:
     ui::TextField field_;
     std::array<ui::Rect, kValues> boxes_{};  // the values' boxes, as last drawn
     ui::Rect card_{};
+    std::vector<ui::FontFamily> families_;
+    std::vector<ui::FontFamily> suggestions_;
+    std::optional<std::size_t> picked_;
+    std::size_t first_{0};        // the first suggestion shown (the list scrolls)
+    bool typed_{false};           // typed since the change began: the list follows the text
+    std::vector<ui::Rect> rows_;  // the suggestions shown, as last drawn (from first_)
+    ui::Rect list_{};
 };
 
 }  // namespace nordend::views

@@ -460,7 +460,8 @@ int main(int argc, char** argv) {
                                             : std::string{"Nordend's own"};
                          },
                      .fonts_in_use = [] { return nordend::core::Config::Font{}; },
-                     .file = "~/.config/nordend/config.toml"});
+                     .file = "~/.config/nordend/config.toml",
+                     .families = [] { return nordend::ui::installed_font_families(); }});
                 opener = std::make_unique<nordend::platform::Opener>(
                     loop, pool, mime, nordend::platform::Environment::from_environment(),
                     [](const std::string& /*message*/, bool /*error*/) {});

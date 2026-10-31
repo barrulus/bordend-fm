@@ -564,6 +564,7 @@ private:
     ui::CursorShape resize_cursor_{ui::CursorShape::standard};
     ui::CursorShape hover_cursor_{ui::CursorShape::standard};
     std::optional<ui::CursorShape> shown_cursor_;
+    bool families_asked_{false};  // the installed fonts, for the settings panel
 
     // The last pointer position, handed to the view that comes on screen.
     float pointer_x_{0.0F};

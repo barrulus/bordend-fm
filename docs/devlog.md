@@ -4,6 +4,45 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-10-31 — Choosing a font from the installed ones (ROADMAP 7.5c-bis)
+
+**Done**
+- `ui::installed_font_families()`: fontconfig's list (family, spacing), one entry per name (case
+  aside), fixed-width when one of its fonts is (`FC_MONO`, `FC_CHARCELL`), sorted by name.
+- `views::font_suggestions()`: the families whose name holds what is typed before any ':', case
+  aside; "sans-serif", "serif", "monospace" first (tagged "default"), then for the monospace font
+  the fixed-width ones (tagged "mono"), names starting with the text before those holding it.
+  `views::font_known()`: installed, generic, or a pattern with properties.
+- The panel: while a font is changed, up to 8 suggestions under the field (every family until
+  something is typed), a scroll bar when there are more, the wheel scrolls them; Down and Up pick
+  (above the first: back to the text), Enter or a click keeps the one picked. Enter on a name
+  not installed is refused ("not installed: choose one from the list"); "No installed font
+  matches" when nothing does. Numbers get no list.
+- `Browser` reads the families on a worker the first time the panel opens (`Settings::families`,
+  guarded by `alive_`).
+- Tests (280): ordering, filtering, patterns, `font_known`, the panel's list, picking, refusing,
+  a pattern kept, no list for numbers.
+
+**Measured**
+- `fc-list : family spacing` (the same fontconfig call), 317 families, warm cache: 6-7 ms.
+- Binary 3.58 MB, 2.99 MB stripped (+60 KB).
+
+**Decisions**
+- Suggestions while typing rather than a plain drop-down: 317 families are too many to scroll,
+  and a fontconfig pattern can still be written.
+- Until the families are read (a few milliseconds after the panel opens) any name is accepted:
+  there is nothing to check it against. Seen in a snapshot, whose keys arrive all at once.
+
+**Tested by the author** (2026-10-31, Umbriel, on a copy of the config): the list, filtering,
+picking with the arrows and with a click, the fixed-width families first for the monospace font,
+a name not installed refused, "No installed font matches", the font chosen in use after a
+restart.
+
+**Open**
+- Families are listed by name only, not drawn in their own font (the renderer has one family).
+
+---
+
 ## 2026-10-31 — The settings panel (ROADMAP 7.5c)
 
 **Done**

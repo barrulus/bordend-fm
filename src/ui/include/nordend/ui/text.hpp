@@ -10,6 +10,19 @@
 
 namespace nordend::ui {
 
+// A font family installed on the system, as fontconfig lists it.
+struct FontFamily {
+    std::string name;
+    bool monospace{false};  // one of its fonts is fixed-width
+
+    bool operator==(const FontFamily&) const = default;
+};
+
+// Every installed family, by name (case aside), each once. Asks fontconfig for the whole list: a
+// few milliseconds with a warm cache (`fc-list : family spacing`, 317 families: 6 ms), more on a
+// cold one, so not on the loop thread.
+[[nodiscard]] std::vector<FontFamily> installed_font_families();
+
 enum class Ellipsis : std::uint8_t {
     end,     // "a very long na…"
     middle,  // "a very lo…me.jpg": keeps the extension of a file name visible

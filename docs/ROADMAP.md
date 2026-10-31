@@ -169,7 +169,7 @@ all'autore quando ci si arriva.
     costa troppo, e il pannello lo dice); il file conserva i commenti (test con commenti, chiavi
     sconosciute, sezioni mancanti); un valore fuori misura è rifiutato con un messaggio; la
     modifica a mano si ricarica. Provato dall'autore il 2026-10-31 su Umbriel.
-  - [ ] **7.5c-bis Scegliere i font** (chiesto dall'autore il 2026-10-31: il pannello guida
+  - [x] **7.5c-bis Scegliere i font** (chiesto dall'autore il 2026-10-31: il pannello guida
     alla scelta): mentre si modifica "Interface" o "Monospace", sotto il campo l'elenco delle
     famiglie installate, ristretto da ciò che si scrive (senza badare alle maiuscole); ↑/↓ e il
     clic scelgono, Invio conferma; per "Monospace" prima le famiglie a larghezza fissa; un pattern
@@ -177,7 +177,7 @@ all'autore quando ci si arriva.
     fontconfig su un worker all'apertura del pannello. Fatto quando: l'elenco mostra le famiglie
     installate filtrate; da tastiera e con il mouse se ne sceglie una; le monospaziate prima per
     "Monospace"; un nome scritto a mano funziona come prima; test su filtro e ordine con un elenco
-    finto; snapshot guardato.
+    finto; snapshot guardato. Provato dall'autore il 2026-10-31 su Umbriel.
   - [ ] **7.5d Informazioni**, una sezione del pannello: Nordend (versione e commit), distro
     (`/etc/os-release`), kernel, desktop (`XDG_CURRENT_DESKTOP`), GPU (`GL_RENDERER`), versioni di
     Noctalia e Umbriel se presenti; "Copia" mette tutto negli appunti (per le segnalazioni di

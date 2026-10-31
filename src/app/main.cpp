@@ -489,7 +489,8 @@ int main(int argc, char** argv) {
                      return "Nordend's own";
                  },
                  .fonts_in_use = [&config] { return config.font; },
-                 .file = shown_path(config_path)});
+                 .file = shown_path(config_path),
+                 .families = [] { return ui::installed_font_families(); }});
             columns->open(start_folder(start_dir));
             memory_lines = [&columns] { return columns->memory_lines(); };
         }

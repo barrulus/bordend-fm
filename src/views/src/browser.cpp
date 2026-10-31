@@ -1845,6 +1845,20 @@ void Browser::open_settings() {
     shortcuts_.close();
     menu_.close();
     settings_.open();
+    // The installed fonts, for the font values: read once, on a worker.
+    if (!families_asked_ && settings_.settings().families) {
+        families_asked_ = true;
+        pool_.submit(
+            core::Priority::visible,
+            [read = settings_.settings().families](const core::CancelToken& /*token*/) {
+                return read();
+            },
+            [this, alive = alive_](std::vector<ui::FontFamily> families) {
+                if (*alive) {
+                    settings_.set_families(std::move(families));
+                }
+            });
+    }
 }
 
 ui::CursorShape Browser::cursor_at(float x, float y) const {

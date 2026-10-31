@@ -288,6 +288,11 @@ A 2.5 MB binary with 18 direct libraries; 25 MB of its own memory at start, 54 M
   overwritten. The double click changes at once, the fonts at the next start (the panel says
   so). `config.toml` is followed while Nordend runs, also when edited by hand. The panel also
   tells where the colours come from (Noctalia, the desktop, Nordend's own).
+- **Choosing a font:** while a font is changed, the installed families are listed under it,
+  narrowed as you type (case aside), the generic names first and, for the monospace font, the
+  fixed-width families ("mono"); arrows or a click pick one. A name that is not installed is
+  refused with "choose one from the list" ("No installed font matches" when nothing does); a
+  fontconfig pattern with properties ("Inter:weight=medium") is taken as written.
 - Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
   template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with

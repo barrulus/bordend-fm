@@ -1,6 +1,8 @@
 #include "nordend/views/settings_panel.hpp"
 
+#include <chrono>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -23,7 +25,24 @@ using nordend::ui::Modifiers;
 using nordend::views::Browser;
 using nordend::views::SettingsPanel;
 
+using namespace std::chrono_literals;
+
 namespace {
+
+bool run_until(EventLoop& loop, const std::function<bool()>& done) {
+    bool ok = false;
+    const auto poll = loop.add_timer(1ms, 1ms, [&] {
+        if (done()) {
+            ok = true;
+            loop.quit(0);
+        }
+    });
+    const auto watchdog = loop.add_timer(5s, 0ms, [&loop] { loop.quit(1); });
+    loop.run();
+    loop.remove(poll);
+    loop.remove(watchdog);
+    return ok;
+}
 
 KeyEvent key(xkb_keysym_t keysym, Modifiers modifiers = {}, std::string text = {}) {
     KeyEvent event;
@@ -69,7 +88,15 @@ struct Fixture {
                  },
              .colours = [] { return std::string{"Nordend's own"}; },
              .fonts_in_use = [] { return nordend::core::Config::Font{}; },
-             .file = "~/.config/nordend/config.toml"});
+             .file = "~/.config/nordend/config.toml",
+             .families =
+                 [] {
+                     return std::vector<nordend::ui::FontFamily>{
+                         {.name = "DejaVu Sans"},
+                         {.name = "DejaVu Sans Mono", .monospace = true},
+                         {.name = "Inter"},
+                         {.name = "JetBrains Mono", .monospace = true}};
+                 }});
         browser.open(dir.path);
     }
 
@@ -170,4 +197,99 @@ TEST_CASE("settings: pasted text goes into the value being changed, its first li
     f.press(key(XKB_KEY_Return));
     f.browser.settings_panel().paste("IBM Plex Sans\nsecond line");
     CHECK(f.panel().field().text() == "IBM Plex Sans");
+}
+
+namespace {
+
+using nordend::ui::FontFamily;
+
+std::vector<std::string> names(const std::vector<FontFamily>& families) {
+    std::vector<std::string> out;
+    out.reserve(families.size());
+    for (const FontFamily& family : families) {
+        out.push_back(family.name);
+    }
+    return out;
+}
+
+const std::vector<FontFamily> kFamilies{{.name = "DejaVu Sans"},
+                                        {.name = "DejaVu Sans Mono", .monospace = true},
+                                        {.name = "Inter"},
+                                        {.name = "JetBrains Mono", .monospace = true},
+                                        {.name = "Noto Sans Mono"}};
+
+}  // namespace
+
+TEST_CASE("font suggestions: what is typed, case aside, generic names and fixed width first") {
+    using nordend::views::font_suggestions;
+    CHECK(names(font_suggestions(kFamilies, "", false)) ==
+          std::vector<std::string>{"sans-serif", "serif", "monospace", "DejaVu Sans",
+                                   "DejaVu Sans Mono", "Inter", "JetBrains Mono",
+                                   "Noto Sans Mono"});
+    // Names starting with it before names holding it.
+    CHECK(names(font_suggestions(kFamilies, "MONO", false)) ==
+          std::vector<std::string>{"monospace", "DejaVu Sans Mono", "JetBrains Mono",
+                                   "Noto Sans Mono"});
+    CHECK(names(font_suggestions(kFamilies, "in", false)) ==
+          std::vector<std::string>{"Inter", "JetBrains Mono"});
+    // For the monospace font: the fixed-width families first.
+    CHECK(names(font_suggestions(kFamilies, "", true)) ==
+          std::vector<std::string>{"monospace", "sans-serif", "serif", "DejaVu Sans Mono",
+                                   "JetBrains Mono", "DejaVu Sans", "Inter", "Noto Sans Mono"});
+    // A pattern's properties do not filter.
+    CHECK(names(font_suggestions(kFamilies, "inter:weight=medium", false)) ==
+          std::vector<std::string>{"Inter"});
+    CHECK(font_suggestions(kFamilies, "comic", false).empty());
+}
+
+TEST_CASE("font known: installed, generic, or a pattern") {
+    using nordend::views::font_known;
+    CHECK(font_known(kFamilies, "inter"));
+    CHECK(font_known(kFamilies, " DejaVu Sans Mono "));
+    CHECK(font_known(kFamilies, "sans-serif"));
+    CHECK(font_known(kFamilies, "Comic Sans:weight=bold"));  // fontconfig's to resolve
+    CHECK_FALSE(font_known(kFamilies, "Comic Sans"));
+    CHECK_FALSE(font_known(kFamilies, "Inte"));
+}
+
+TEST_CASE("settings: the installed fonts offered while a font is changed") {
+    Fixture f;
+    f.press(key(XKB_KEY_comma, kCtrl));
+    REQUIRE(run_until(f.loop, [&] { return f.panel().has_families(); }));  // read on a worker
+    f.press(key(XKB_KEY_Return));
+    CHECK(f.panel().suggestions().size() == 7);  // all: nothing typed yet
+    f.type("mono");
+    CHECK(names(f.panel().suggestions()) ==
+          std::vector<std::string>{"monospace", "DejaVu Sans Mono", "JetBrains Mono"});
+    CHECK_FALSE(f.panel().picked());
+    f.press(key(XKB_KEY_Down));
+    f.press(key(XKB_KEY_Down));
+    CHECK(f.panel().picked() == 1);
+    f.press(key(XKB_KEY_Up));
+    f.press(key(XKB_KEY_Up));
+    CHECK_FALSE(f.panel().picked());  // above the first: back to what is typed
+    f.press(key(XKB_KEY_Down));
+    f.press(key(XKB_KEY_Down));
+    f.press(key(XKB_KEY_Return));
+    CHECK_FALSE(f.panel().editing());
+    CHECK(f.writes.back() == "font.family = \"DejaVu Sans Mono\"");
+
+    // A name not installed is refused, the list showing what is.
+    f.press(key(XKB_KEY_Return));
+    f.type("Comic Sans");
+    f.press(key(XKB_KEY_Return));
+    CHECK(f.panel().editing());
+    CHECK(f.panel().problem() == "not installed: choose one from the list");
+    CHECK(f.writes.back() == "font.family = \"DejaVu Sans Mono\"");
+    // A pattern with properties is taken as written.
+    f.press(key(XKB_KEY_a, kCtrl));
+    f.type("Inter:weight=medium");
+    f.press(key(XKB_KEY_Return));
+    CHECK_FALSE(f.panel().editing());
+    CHECK(f.writes.back() == "font.family = \"Inter:weight=medium\"");
+    // Not offered for numbers.
+    f.press(key(XKB_KEY_Down));
+    f.press(key(XKB_KEY_Down));
+    f.press(key(XKB_KEY_Return));
+    CHECK(f.panel().suggestions().empty());
 }
