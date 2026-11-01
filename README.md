@@ -13,15 +13,19 @@
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/OpenGL%20ES-3.0-5586A4?logo=opengl&logoColor=white" alt="OpenGL ES 3.0">
   <img src="https://img.shields.io/badge/CMake-3.20%2B-064F8C?logo=cmake&logoColor=white" alt="CMake 3.20+">
-  <img src="https://img.shields.io/badge/tests-271%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="271 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-272%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="272 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
 
 > [!IMPORTANT]
 > **Pre-release.** Nordend has not been released yet: there are no packages and no tagged
-> versions. To try it, [build it from source](#building); it takes a minute. The first release
-> will be 0.1.0.
+> versions. To try it, [build it from source](#building); it takes about a minute. The first
+> release will be 0.1.0.
+
+<p align="center">
+  <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-FFF59B?style=for-the-badge&labelColor=0E0E43" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
+</p>
 
 <p align="center">
   <img src="docs/images/screenshot-columns.png" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right" width="100%">
@@ -57,8 +61,8 @@ It is made for people who browse a lot of files, photos above all:
   of photos, a details table (<kbd>Ctrl</kbd>+<kbd>3</kbd>) to compare sizes and dates;
   switching keeps your place and your selection.
 - **Small and fast, and measured.** A 3 MB binary; a 10 000-file folder shows its first
-  entries in 0.8 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens
-  in Quick Look in about 50 ms; copies run as fast as `cp`; and when nothing moves Nordend uses
+  entries in 0.7 ms; a scrolling frame costs a fraction of a millisecond; a 20 MP raw photo opens
+  in Quick Look in under 100 ms; copies run as fast as `cp`; and when nothing moves Nordend uses
   no CPU at all. See [Benchmarks](#benchmarks).
 - **Natural scrolling.** The touchpad moves the list 1:1 under your fingers and lets it glide
   when they lift; wheel and keyboard glide too. Nothing jumps.
@@ -87,7 +91,7 @@ It is made for people who browse a lot of files, photos above all:
 |---|---|
 | Binary | **3.50 MB** (2.92 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2 and the desktop portal, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 34 700 lines of C++20, plus 10 100 lines of tests (271 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 34 700 lines of C++20, plus 10 100 lines of tests (272 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -95,184 +99,25 @@ It is made for people who browse a lot of files, photos above all:
 ## Benchmarks
 
 Measured, not assumed: every number comes from a tool in this repository, on a Ryzen 7 5700G with
-an RX 6650 XT and a SATA SSD. Method and more cases in [docs/benchmarks.md](docs/benchmarks.md).
-
-**The design's targets** (measured 2026-11-01, on screen on a 2560x1440 75 Hz monitor where it
-says so):
+an RX 6650 XT and a SATA SSD. The design's four targets, measured on 2026-11-01:
 
 | Target | Measured |
 |--------|---------:|
 | Cold start to the first frame on screen: < 150 ms | **128 ms** (warm: **64 ms**) |
 | A 10 000-file folder: first frame < 50 ms, the rest in the background | first entries ready in **0.7 ms**, all of them in **17 ms** |
 | Quick Look of an ORF raw photo: < 100 ms | **82-96 ms** from Space to the sharp image |
-| Scrolling at the monitor's full rate, no dropped frame | worst frame **3.7 ms** of 13.3 |
+| Scrolling at the monitor's full rate, no dropped frame | worst frame **3.7 ms** of 13.3 (75 Hz) |
 
-**Opening a folder of 10 000 files**
+More numbers (thumbnails, copies, the trash, every view's scrolling) on the
+[site](https://pankaspe.github.io/nordend-fm/#performance); every measurement with its method in
+[docs/benchmarks.md](docs/benchmarks.md).
 
-| Cache | First entries ready | Whole folder loaded and sorted | Target for the first frame |
-|-------|--------------------:|-------------------------------:|---------------------------:|
-| warm (median of 20) | **0.7 ms** | **16.6 ms** | < 50 ms |
-| cold (after `drop_caches`) | **1.7 ms** | **81 ms** | < 50 ms |
+## Features and shortcuts
 
-**Scrolling a 10 000-file folder**, per frame at 2560x1440, GPU work included (a 75 Hz frame is
-13.3 ms):
-
-| View | Median | p95 |
-|------|-------:|----:|
-| Columns | **0.33 ms** | 0.53-0.55 ms |
-| Columns, all selected | **0.53-0.55 ms** | 0.71-0.76 ms |
-| Grid (icons) | **0.51-0.52 ms** | 0.78 ms |
-| Details | **0.50-0.53 ms** | 0.66-0.69 ms |
-
-Only what is on screen is drawn, so the folder's size does not matter; sidebar, breadcrumb and
-status bar cost nothing measurable.
-
-**Photos** (OM System OM-1: 20 MP JPEGs and ORF raw files), warm cache:
-
-| What | Time |
-|------|-----:|
-| A grid screenful of thumbnails, made the first time / read from the cache | **0.15-0.4 s** / **12-22 ms** |
-| One thumbnail from an OM-1 JPEG / ORF (embedded preview, scaled, PNG written) | **12 ms** / **36 ms** |
-| An ORF's preview fitted to a 2880x1620 screen (the decoding part of Quick Look) | **51-55 ms** |
-| Quick Look of a Sony ARW (small embedded preview) | **17 ms** |
-| A 20 MP JPEG decoded whole (wuffs) | **149 ms** |
-| Sorting 10 000 entries by size, date or type | **1-3 ms** |
-
-**Files**, warm cache:
-
-| What | Nordend | For comparison |
-|------|--------:|---------------:|
-| Copying a folder of 342 photos, 3.1 GB, into tmpfs | **1.39 s** | `cp -a`: 1.38-1.40 s |
-| Moving 1 001 items to the trash | **25 ms** | `gio trash`: 70 ms |
-| Default app and Open With list, all 1 232 file types | **0 differences** | from `gio mime` |
-
-<details>
-<summary><b>Features</b>: what works today (the full list: <a href="docs/features.md">docs/features.md</a>)</summary>
-
-- **Natural touch.** Scrolling that feels physical: on a touchpad the list follows your fingers
-  1:1 and, when they lift, keeps gliding and slows down smoothly, stopping softly at the ends;
-  a mouse wheel glides instead of jumping, and quick turns add up. The keyboard moves the same
-  way: arrows and Page Up/Down glide, Home/End jump.
-- **Columns, as in Finder.** Every folder you pick opens in the next column; arrows walk the
-  tree, Left from the first column climbs to the parent. Columns resize by dragging their edge
-  and slide sideways by themselves to keep where you are in view.
-- **A grid when you want to see more.** Ctrl+2 lays the folder out as large icons and
-  thumbnails; Ctrl+plus/minus (or Ctrl+wheel) make the cells bigger or smaller, from 48 to
-  256 px.
-- **Details when you want to compare.** Ctrl+3 shows the folder as a table of names, sizes,
-  dates and types: click a title to sort by it, click again to reverse, drag a column's edge to
-  make it wider. Cursor and selection go along between all three views.
-- **Selection as you expect it.** Click, Ctrl+click, Shift+click, or the keyboard alone:
-  Shift+arrows for a range, Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all.
-- **A preview beside every view.** The pane at the right shows the photo under the cursor
-  with what it is: size, pixels, dates, and the shot itself (camera, lens, exposure, focal
-  length, when, your darktable rating); text files show their first lines. "More details"
-  opens permissions, owner and the rest. In the grid and the details Ctrl+I hides it, and its
-  edge can be dragged to make it (and the photo) larger.
-- **Your places, one click away.** A sidebar lists your home and its folders (Downloads,
-  Pictures...), the file system, your GTK bookmarks and the mounted disks; a disk appears as
-  soon as it is mounted and goes when it is unmounted. Ctrl+B hides it, F6 takes the keyboard
-  there and back. Ctrl+D, "Add to Sidebar" or a folder dragged there makes a favourite, shared
-  with the file choosers of other apps (Firefox's too). Disks plugged in show up without
-  mounting themselves: a click mounts and opens one, the eject icon unmounts it and powers it
-  off, ready to unplug.
-- **Back and forward.** Alt+← and Alt+→, or the mouse's side buttons, go through the folders
-  you opened, the cursor where you left it. Hidden files stay out of the way until Ctrl+H.
-- **As you left it.** The view, the order, hidden files, the sidebar, the info pane, column
-  widths and the window's size come back at the next start.
-- **The path, one step at a time.** Above every view the folder's path is a row of steps,
-  starting from your home; click one to go back up there, with the cursor on the folder you
-  came from.
-- **Everything at hand.** The bar at the bottom tells how many items there are, what is
-  selected and how much space is left on the disk, and switches between the three views with a
-  click; "?" (or F1) shows every keyboard shortcut.
-- **Your photos at a glance.** Photos and camera raw files show their thumbnails, upright, in a
-  fraction of a second: Nordend uses the previews your camera already stored in the file, and
-  keeps the thumbnails in the freedesktop cache other apps read too. Not only OM System: Canon,
-  Nikon, Sony, Fujifilm, Panasonic and Hasselblad raw files too, each in the shape it was shot,
-  without black bars.
-- **Quick Look.** Press Space and the photo fills the window, raw files included; the arrows
-  walk the folder without closing it, and the next photo is already there. Text files open on
-  a page you can scroll, darktable sidecars included; everything else shows what it is, how
-  big, whose and who may touch it.
-- **Opens in the right app.** Enter or a double click opens a file in its default application,
-  the same one GTK apps choose (checked on all 1 232 file types); five photos go to one darktable,
-  not five; terminal apps such as Helix get a terminal; and the new window comes up in front.
-- **Rename where the name is.** F2 turns the name into a field, the extension left out of the
-  selection; Ctrl+Shift+N makes a new folder ready to be named. Nothing is ever overwritten, and
-  renaming a photo takes its darktable sidecars along, duplicates included, so no edit is lost.
-- **Copy and move, safely.** Ctrl+C or Ctrl+X, then Ctrl+V: a move on one disk is instant, a
-  copy runs as fast as `cp` with its progress, speed and time left in the status bar. Nothing
-  half-copied ever carries a real name, an original leaves another disk only once its copy is
-  safely written, dates and permissions stay, and darktable sidecars come along. A taken name
-  asks: replace, skip or keep both, for one or for the rest.
-- **A real trash.** Delete moves files to the freedesktop trash, on their own disk (no copies),
-  where any other trash program finds and restores them; darktable sidecars go with their photo.
-  The Trash in the sidebar shows every disk's trash as one folder, by original name, and Restore
-  puts things back where they were, folder and sidecars included. Shift+Delete and Empty Trash
-  delete for good, only after a card that says how many items and how many MB go.
-- **Undo.** Ctrl+Z undoes the last rename, move, copy, trashing or restore, and Ctrl+Shift+Z
-  redoes it; copies and new folders go to the trash, never deleted, so even an undo can be undone.
-- **Copy and paste with other programs.** Files copied or cut in Nordend paste in a file manager,
-  in Firefox or as paths in a terminal; files copied or cut elsewhere paste in Nordend, copied or
-  moved by the same careful engine. A program that does not answer never freezes the window.
-- **Drag and drop.** Drag files from any view onto a folder, the path above or a place in the
-  sidebar: on the same disk they move, onto another they copy (Ctrl copies, Shift moves), the
-  Trash trashes them, and Ctrl+Z takes it back. Drag them into Firefox or a terminal, or from
-  Firefox's downloads into Nordend.
-- **A context menu.** A right click, a two-finger tap or the Menu key: Open With lists the same
-  applications GTK apps would offer (0 differences from `gio` on 1 232 types), New File makes an
-  empty file or one from your templates, and every action shows its shortcut.
-- **Live folders.** Files created, removed or renamed by any program appear at once; a
-  thousand-file copy arrives in a few smooth updates, not a thousand.
-- **The right icon for every file**, the same line icons as Noctalia, tinted by your theme:
-  camera RAW files and darktable sidecars have their own. File types match GTK apps exactly.
-- **Your theme, live.** Change the palette in Noctalia and Nordend follows instantly. On GNOME
-  or Plasma it follows the desktop's light or dark style and accent colour, live too.
-- **Not only on Noctalia.** The icons are compiled in; where the compositor draws no title bar
-  (GNOME, weston) Nordend draws its own, and where it offers no cursor shapes Nordend draws them
-  from your cursor theme. What each desktop gives is tracked in
-  [compatibility](docs/compatibility.md).
-- **Sharp at any scale.** Fractional scaling (1, 1.25, 1.5, 2...), text shaped by HarfBuzz
-  with font fallback for accents, emoji and CJK.
-
-</details>
-
-<details>
-<summary><b>Keyboard shortcuts</b> (F1 in Nordend shows the same list)</summary>
-
-| Keys | Action |
-|------|--------|
-| <kbd>Ctrl</kbd>+<kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> | Columns / grid / details |
-| <kbd>Space</kbd> | Quick Look (Space or Escape closes it) |
-| <kbd>Ctrl</kbd>+<kbd>I</kbd> | Info pane (grid, details) |
-| <kbd>Ctrl</kbd>+<kbd>B</kbd> | Sidebar |
-| <kbd>Ctrl</kbd>+<kbd>H</kbd> | Hidden files (hidden at start) |
-| <kbd>Ctrl</kbd>+<kbd>D</kbd> | Add the folder to the sidebar |
-| <kbd>F6</kbd> | Keyboard into the sidebar and out |
-| <kbd>F1</kbd>, <kbd>?</kbd> | Every shortcut |
-| <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Quit |
-| <kbd>↑</kbd> <kbd>↓</kbd> (<kbd>←</kbd> <kbd>→</kbd> in the grid) | Previous, next |
-| <kbd>PgUp</kbd> <kbd>PgDn</kbd>, <kbd>Home</kbd> <kbd>End</kbd> | A screenful, first, last |
-| <kbd>Enter</kbd>, double click | Open: a folder here, files in their default app |
-| <kbd>→</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↓</kbd> (grid, details) | Open the folder |
-| <kbd>Backspace</kbd>, <kbd>←</kbd> (columns, details), <kbd>Alt</kbd>+<kbd>↑</kbd> | Parent folder |
-| <kbd>Alt</kbd>+<kbd>←</kbd> / <kbd>→</kbd>, mouse side buttons | Back / forward through the folders opened |
-| <kbd>Shift</kbd>+moves | Select a range |
-| <kbd>Ctrl</kbd>+moves | Move without selecting |
-| <kbd>Ctrl</kbd>+<kbd>Space</kbd> | Select or unselect |
-| <kbd>Ctrl</kbd>+<kbd>A</kbd> | Select all |
-| <kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>X</kbd> / <kbd>V</kbd> | Copy / cut (<kbd>Escape</kbd> keeps them) / paste, with other programs too |
-| <kbd>Delete</kbd> | Move to the trash (in the Trash: delete permanently, after asking) |
-| <kbd>Shift</kbd>+<kbd>Delete</kbd> | Delete permanently, after asking |
-| <kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> | Undo the last operation on files, redo it |
-| <kbd>Menu</kbd>, <kbd>Shift</kbd>+<kbd>F10</kbd>, right click | Context menu |
-| <kbd>F2</kbd> | Rename (<kbd>Enter</kbd> keeps the name, <kbd>Escape</kbd> gives up, <kbd>Ctrl</kbd>+<kbd>V</kbd> pastes text, <kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes) |
-| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> | New folder |
-| <kbd>Escape</kbd> | Back to one entry |
-| <kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd> | Grid: larger, smaller, usual size |
-
-</details>
+Everything Nordend does, how to use it and every keyboard shortcut are in the
+[guide](https://pankaspe.github.io/nordend-fm/#guide) and on the
+[shortcuts page](https://pankaspe.github.io/nordend-fm/#shortcuts); inside Nordend, <kbd>F1</kbd>
+shows the shortcuts too. The full list, area by area, is in [docs/features.md](docs/features.md).
 
 ## Building
 
@@ -286,23 +131,15 @@ sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one
+cmake --install build --prefix ~/.local --strip   # nordend and its desktop entry, for your user
 ```
 
-Needs a Wayland compositor with xdg-shell (developed on
-[Umbriel](https://github.com/noctalia-dev)). The icons (a 13 KB subset of
-[Tabler Icons](https://tabler.io/icons)) are compiled into the program, so nothing else needs
-to be installed for them. Where the compositor draws no title bar (GNOME, weston) Nordend draws
-its own, with minimize, maximize and close, and resizes from its edges; where it has no
-cursor-shape-v1 Nordend draws the pointer from your xcursor theme (`XCURSOR_THEME`,
-`XCURSOR_SIZE`). `NORDEND_FORCE_CSD=1` asks any compositor for client-side decorations and
-`NORDEND_FORCE_XCURSOR=1` draws the cursor everywhere, to try them. `NORDEND_LOG=debug` (or
-`trace`) shows more detail.
-
-Nordend is ready as it starts: the system's fonts, the desktop's colours. The few settings there
-are (fonts, double click) live in `~/.config/nordend/config.toml`, every key optional
-([example](docs/config.example.toml)); the file is read again when it changes, and
-`nordend --check-config` reports every problem in it. `nordend --about` prints Nordend's
-version, the system and the GPU, ready to paste into a bug report.
+About a minute on an 8-core CPU. Needs a Wayland compositor with xdg-shell (developed on
+[Umbriel](https://github.com/noctalia-dev)); icons, title bar and cursor come with Nordend where
+the desktop has none. Making it the default for folders, the command line, the environment
+variables and `config.toml` are on the site:
+[install](https://pankaspe.github.io/nordend-fm/#install),
+[configuration](https://pankaspe.github.io/nordend-fm/#configuration).
 
 <details>
 <summary><b>Development builds and tools</b></summary>
@@ -325,6 +162,12 @@ ctest --test-dir build
 # Folders in columns offscreen, opened down to a path, and the scrolling benchmark
 ./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm
 ./build/nordend-snapshot --columns /tmp --reveal /tmp/bench-10k --bench 600 columns.ppm
+
+# Start-up benchmark: every step from exec to the first frame on screen, 10 runs
+./build/nordend-bench-start -n 10 -- ./build/nordend ~
+
+# Quick Look timings (thumbnail, sharp image) in the log
+NORDEND_LOG=debug ./build/nordend ~/Pictures
 
 # Directory loading benchmark
 ./build/nordend-bench-dir --make 10000 /tmp/bench-10k
@@ -367,6 +210,8 @@ roadmap.
 
 ## Documentation
 
+- [The site](https://pankaspe.github.io/nordend-fm/): overview, install, guide, shortcuts,
+  configuration, performance, compatibility, architecture, roadmap
 - [Features](docs/features.md): everything Nordend does, area by area
 - [Devlog](docs/devlog.md): what was done, measured and decided, step by step
 - [Benchmarks](docs/benchmarks.md): every measurement, with its method

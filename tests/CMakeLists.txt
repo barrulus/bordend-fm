@@ -30,6 +30,7 @@ add_executable(nordend-tests
     rename_test.cpp
     scroller_test.cpp
     shortcuts_test.cpp
+    site_test.cpp
     sort_test.cpp
     state_test.cpp
     thumbs_test.cpp
@@ -46,7 +47,8 @@ target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
-            NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data")
+            NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
+            NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/index.html")
 if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()

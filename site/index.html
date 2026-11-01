@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nordend</title>
+<meta name="description" content="Nordend: a fast, native file manager for Wayland, made for photographers and the Noctalia desktop. C++20 on Wayland and OpenGL ES, no GTK, no Qt.">
+<meta name="color-scheme" content="dark light">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="#overview"><span class="mark" aria-hidden="true"></span>Nordend</a>
+  <span class="badge">pre-release</span>
+  <span class="spacer"></span>
+  <a class="github" href="https://github.com/pankaspe/nordend-fm">GitHub</a>
+  <button class="theme-toggle" type="button">Light</button>
+</header>
+
+<div class="layout">
+<nav class="nav" aria-label="Pages">
+  <a href="#overview">Overview</a>
+  <a href="#install">Install</a>
+  <a href="#guide">Guide</a>
+  <a href="#shortcuts">Shortcuts</a>
+  <a href="#configuration">Configuration</a>
+  <a href="#performance">Performance</a>
+  <a href="#compatibility">Compatibility</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#roadmap">Roadmap</a>
+</nav>
+
+<main>
+
+<!-- ============================================================== Overview -->
+<section class="page" id="overview">
+  <h1>A fast, native file manager for Wayland</h1>
+  <p class="lead">Made for photographers and the <a href="https://github.com/noctalia-dev">Noctalia</a>
+  desktop. <strong>No GTK, no Qt:</strong> C++20 straight on Wayland and OpenGL ES, with its own
+  renderer for text, icons, scrolling and animation.</p>
+
+  <div class="notice">
+    <p><strong>Pre-release.</strong> Nordend has not been released yet: there are no packages and
+    no tagged versions. To try it, <a href="#install">build it from source</a>; it takes about a
+    minute.
+    The first release will be 0.1.0.</p>
+  </div>
+
+  <div class="buttons">
+    <a class="button primary" href="#install">Build and install</a>
+    <a class="button" href="#guide">Read the guide</a>
+    <a class="button" href="https://github.com/pankaspe/nordend-fm">Source on GitHub</a>
+  </div>
+
+  <figure class="shot">
+    <img src="images/screenshot-columns.png" width="2560" height="1440" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right">
+    <figcaption>The column view on a folder of OM System raw files: the camera's own preview, the
+    shot's EXIF and the darktable sidecars, in the Noctalia theme on Umbriel.</figcaption>
+  </figure>
+
+  <h2>Why Nordend</h2>
+  <div class="cards">
+    <div class="card"><h3>No toolkit at all</h3><p>Nordend talks to the compositor directly. It
+    belongs to the Noctalia family (Noctalia Shell, the Umbriel compositor) and wears your Noctalia
+    theme, live; elsewhere it takes your desktop's light or dark style and accent colour.</p></div>
+    <div class="card"><h3>Photos first</h3><p>Thumbnails, the preview pane and Quick Look read the
+    previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm, Panasonic,
+    Hasselblad), upright, with the shot's EXIF and your darktable rating.</p></div>
+    <div class="card"><h3>Three views of one folder</h3><p>Finder-style columns to walk a tree from
+    the keyboard, a thumbnail grid to see a folder of photos, a details table to compare sizes and
+    dates. Switching keeps your place and your selection.</p></div>
+    <div class="card"><h3>Small, fast, measured</h3><p>A 3 MB binary that starts in 128 ms from a
+    cold cache, shows a 10 000-file folder at once and uses no CPU at all while nothing moves.
+    Every number has a <a href="#performance">benchmark</a>.</p></div>
+    <div class="card"><h3>Natural scrolling</h3><p>The touchpad moves the list 1:1 under your fingers
+    and lets it glide when they lift; wheel and keyboard glide too. Nothing jumps.</p></div>
+    <div class="card"><h3>Careful with your files</h3><p>Nothing is overwritten without asking,
+    nothing half-copied carries a real name, a real freedesktop trash, a card before anything is
+    deleted for good, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> for the last operation.</p></div>
+  </div>
+
+  <figure class="shot">
+    <img src="images/screenshot-quick-look.png" width="2560" height="1440" alt="Quick Look showing a raw photo of a rocky summit in the snow over the column view">
+    <figcaption>Quick Look (<kbd>Space</kbd>) on the same raw file: the full preview in a fraction of
+    a second, with its name, size and dimensions.</figcaption>
+  </figure>
+
+  <h2>At a glance</h2>
+  <div class="stats">
+    <div class="stat"><span class="value">128 ms</span><span class="what">cold start to the first frame on screen</span></div>
+    <div class="stat"><span class="value">0.7 ms</span><span class="what">first entries of a 10 000-file folder</span></div>
+    <div class="stat"><span class="value">2.9 MB</span><span class="what">stripped binary, decoders built in</span></div>
+    <div class="stat"><span class="value">0 CPU</span><span class="what">while nothing moves on screen</span></div>
+  </div>
+  <div class="table"><table>
+    <tr><th>Libraries</th><td>21 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz,
+    toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (for udisks2 and the desktop portal), the C/C++
+    runtime. No GTK, no Qt, no GLib.</td></tr>
+    <tr><th>Memory</th><td>25 MB of its own at start; 54 MB after browsing 163 raw photos in all
+    three views and Quick Look: decoded photos go back to the system.</td></tr>
+    <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
+    priorities and cancellation.</td></tr>
+    <tr><th>Tests</th><td>272 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================== Install -->
+<section class="page" id="install">
+  <h2>Build and install</h2>
+  <p>There are no packages yet. Nordend builds with CMake and a C++20 compiler (developed with
+  GCC 14), in about a minute on an 8-core CPU.</p>
+
+  <h3 id="install/requirements">Requirements</h3>
+  <ul>
+    <li>Linux with a Wayland compositor that offers xdg-shell. Developed on Umbriel; also tried on
+    GNOME, Plasma and niri (see <a href="#compatibility">Compatibility</a>).</li>
+    <li>A GPU driver with OpenGL ES 3.0 (Mesa).</li>
+  </ul>
+
+  <h3 id="install/void">Build on Void Linux</h3>
+  <pre><code>sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
+    libxkbcommon-devel libglvnd-devel MesaLib-devel \
+    harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
+    libwebp-devel libjxl-devel exiv2-devel zlib-devel sdbus-c++-devel
+git clone https://github.com/pankaspe/nordend-fm
+cd nordend-fm
+cmake -B build -G Ninja
+cmake --build build
+./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one</code></pre>
+  <p>Nordend is developed on Void Linux. On other distributions install the development packages of
+  the same libraries; their names differ and have not been tried yet.</p>
+
+  <h3 id="install/desktop">Install it for your user</h3>
+  <p>This puts <code>nordend</code> in <code>~/.local/bin</code> and its desktop entry in
+  <code>~/.local/share/applications</code>, so menus and launchers find it:</p>
+  <pre><code>cmake --install build --prefix ~/.local --strip</code></pre>
+  <p>To open folders in Nordend from other applications (a browser's "Show in folder",
+  <code>xdg-open</code>), make it the default for folders:</p>
+  <pre><code>xdg-mime default nordend.desktop inode/directory</code></pre>
+  <p>Then bind it to a key in your compositor. In Umbriel's <code>config.toml</code>:</p>
+  <pre><code>"Mod+E" = { action = "spawn:nordend", repeat = false }</code></pre>
+
+  <h3 id="install/command-line">Command line</h3>
+  <div class="table"><table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>nordend [DIR]</code></td><td>Opens DIR, or your home folder</td></tr>
+    <tr><td><code>--config FILE</code></td><td>Reads FILE instead of <code>~/.config/nordend/config.toml</code></td></tr>
+    <tr><td><code>--check-config</code></td><td>Reports every problem in the config file and exits (status 1 if any)</td></tr>
+    <tr><td><code>--about</code></td><td>Prints Nordend's version, the system, the desktop and the GPU, ready for a bug report</td></tr>
+    <tr><td><code>--version</code></td><td>Prints the version</td></tr>
+    <tr><td><code>--test-scene</code></td><td>Shows the renderer's test scene instead of a folder</td></tr>
+  </table></div>
+
+  <h3 id="install/environment">Environment</h3>
+  <div class="table"><table>
+    <tr><th>Variable</th><th>Effect</th></tr>
+    <tr><td><code>NORDEND_LOG</code></td><td><code>trace</code>, <code>debug</code>, <code>info</code> (default), <code>warn</code>, <code>error</code>, <code>off</code></td></tr>
+    <tr><td><code>NORDEND_FORCE_CSD=1</code></td><td>Asks for Nordend's own title bar even where the compositor draws one</td></tr>
+    <tr><td><code>NORDEND_FORCE_XCURSOR=1</code></td><td>Draws the pointer from the cursor theme even where the compositor offers cursor shapes</td></tr>
+    <tr><td><code>XCURSOR_THEME</code>, <code>XCURSOR_SIZE</code></td><td>The cursor theme and size used when Nordend draws the pointer</td></tr>
+  </table></div>
+
+  <h3 id="install/development">Development builds and tests</h3>
+  <pre><code># AddressSanitizer + UBSan (needs libsanitizer-devel)
+cmake -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DNORDEND_SANITIZER=address,undefined
+cmake --build build-asan
+
+# ThreadSanitizer
+cmake -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DNORDEND_SANITIZER=thread
+cmake --build build-tsan
+
+# Unit tests (needs doctest-devel), in any build directory
+ctest --test-dir build
+
+# A folder in columns, rendered offscreen (no window) to a PPM image
+./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm</code></pre>
+  <p>More tools (benchmarks, decoding, thumbnails, copy engine) are listed in the
+  <a href="https://github.com/pankaspe/nordend-fm#readme">README</a>.</p>
+</section>
+
+<!-- ============================================================== Guide -->
+<section class="page" id="guide">
+  <h2>Using Nordend</h2>
+  <p class="lead">Every action has a key and a click. <kbd>F1</kbd> (or <kbd>?</kbd>) shows all the
+  keys inside Nordend; the same list is on the <a href="#shortcuts">Shortcuts</a> page.</p>
+
+  <h3 id="guide/views">Three views</h3>
+  <ul>
+    <li><strong>Columns</strong> (<kbd>Ctrl</kbd>+<kbd>1</kbd>), as in Finder: every folder you pick
+    opens in the next column. The arrows walk the tree; <kbd>←</kbd> from the first column climbs to
+    the parent. Drag a column's edge to resize it; the columns slide sideways by themselves to keep
+    where you are in view.</li>
+    <li><strong>Grid</strong> (<kbd>Ctrl</kbd>+<kbd>2</kbd>): large icons and thumbnails.
+    <kbd>Ctrl</kbd>+<kbd>+</kbd> and <kbd>Ctrl</kbd>+<kbd>−</kbd> (or <kbd>Ctrl</kbd>+wheel) change
+    the cells from 48 to 256 px; <kbd>Ctrl</kbd>+<kbd>0</kbd> goes back to the usual size.</li>
+    <li><strong>Details</strong> (<kbd>Ctrl</kbd>+<kbd>3</kbd>): a table of names, sizes, dates and
+    types. Click a title to sort by it, again to reverse; drag a column's edge to widen it.</li>
+  </ul>
+  <p>The cursor and the selection go along between the three views. The bar at the bottom tells how
+  many items there are, what is selected and how much space is left, and switches views with a
+  click.</p>
+
+  <h3 id="guide/selecting">Moving and selecting</h3>
+  <p>Click, <kbd>Ctrl</kbd>+click, <kbd>Shift</kbd>+click, or the keyboard alone:
+  <kbd>Shift</kbd>+arrows for a range, <kbd>Ctrl</kbd>+arrows to move without selecting and
+  <kbd>Ctrl</kbd>+<kbd>Space</kbd> to pick here and there, <kbd>Ctrl</kbd>+<kbd>A</kbd> for all,
+  <kbd>Escape</kbd> back to one entry. <kbd>Enter</kbd> or a double click opens: a folder in
+  Nordend, a file in its application. <kbd>Backspace</kbd> goes to the parent folder.</p>
+  <p>Above every view the folder's path is a row of steps starting from your home: click one to go
+  back up there, with the cursor on the folder you came from. <kbd>Alt</kbd>+<kbd>←</kbd> and
+  <kbd>Alt</kbd>+<kbd>→</kbd>, or the mouse's side buttons, go back and forward through the folders
+  you opened. Hidden files stay out of the way until <kbd>Ctrl</kbd>+<kbd>H</kbd>.</p>
+
+  <h3 id="guide/sidebar">The sidebar</h3>
+  <p>Your home and its folders (Downloads, Pictures...), the file system, the Trash, your bookmarks
+  and the disks. <kbd>Ctrl</kbd>+<kbd>B</kbd> hides it, <kbd>F6</kbd> takes the keyboard there and
+  back. <kbd>Ctrl</kbd>+<kbd>D</kbd>, "Add to Sidebar" or a folder dragged there makes a favourite;
+  favourites are GTK bookmarks, so the file choosers of other applications (Firefox's too) show
+  them as well.</p>
+  <p>Disks plugged in show up without mounting themselves: a click mounts and opens one, the eject
+  icon unmounts it and powers it off, ready to unplug (through udisks2).</p>
+
+  <h3 id="guide/info">The info pane</h3>
+  <p>The pane at the right shows the file under the cursor: the photo itself, its size, pixels and
+  dates, and for photos the shot (camera, lens, exposure, focal length, when, your darktable
+  rating); text files show their first lines. "More details" opens permissions, owner and the rest.
+  In the grid and the details <kbd>Ctrl</kbd>+<kbd>I</kbd> hides it; drag its edge to make it, and
+  the photo, larger.</p>
+
+  <h3 id="guide/quick-look">Quick Look</h3>
+  <p><kbd>Space</kbd> and the photo fills the window, raw files included. The arrows walk the folder
+  without closing it, and the next photo is already there. Text files open on a page you can
+  scroll, darktable sidecars included; everything else shows what it is, how big, whose and who may
+  touch it. <kbd>Space</kbd> or <kbd>Escape</kbd> closes it.</p>
+
+  <h3 id="guide/photos">Photos and raw files</h3>
+  <p>Photos and camera raw files show their thumbnails upright in a fraction of a second: Nordend
+  uses the previews your camera already stored in the file and keeps the thumbnails in the
+  freedesktop cache that other applications read too. OM System, Canon, Nikon, Sony, Fujifilm,
+  Panasonic and Hasselblad raw files show in the shape they were shot, without black bars.</p>
+  <p>darktable sidecars (<code>photo.ORF.xmp</code>, and the duplicates' <code>photo_01.ORF.xmp</code>)
+  travel with their photo through every rename, copy, move, trip to the trash and restore, so no
+  edit is lost.</p>
+
+  <h3 id="guide/opening">Opening files</h3>
+  <p><kbd>Enter</kbd> or a double click opens a file in its default application, the same one GTK
+  applications choose (checked on all 1 232 file types). Five photos go to one darktable, not five;
+  terminal programs such as Helix get a terminal; the new window comes up in front. The context
+  menu's Open With lists the same applications GTK would offer.</p>
+
+  <h3 id="guide/files">Renaming, new folders, copy and move</h3>
+  <ul>
+    <li><kbd>F2</kbd> turns the name into a field, the extension left out of the selection;
+    <kbd>Enter</kbd> keeps the new name, <kbd>Escape</kbd> gives up. Nothing is ever overwritten.</li>
+    <li><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> makes a new folder ready to be named; the
+    context menu's New File makes an empty file or one from your templates folder.</li>
+    <li><kbd>Ctrl</kbd>+<kbd>C</kbd> or <kbd>Ctrl</kbd>+<kbd>X</kbd>, then <kbd>Ctrl</kbd>+<kbd>V</kbd>.
+    A move on one disk is instant; a copy runs as fast as <code>cp</code>, with its progress, speed
+    and time left in the status bar. Nothing half-copied ever carries a real name, an original leaves
+    another disk only once its copy is safely written, and dates and permissions stay.</li>
+    <li>A taken name asks: replace, skip or keep both, for one item or for the rest.</li>
+  </ul>
+
+  <h3 id="guide/trash">The trash</h3>
+  <p><kbd>Delete</kbd> moves files to the freedesktop trash, on their own disk, where any other
+  trash program finds and restores them. The Trash in the sidebar shows every disk's trash as one
+  folder; Restore puts things back where they were. <kbd>Shift</kbd>+<kbd>Delete</kbd> and Empty
+  Trash delete for good, only after a card that says how many items and how many MB go.</p>
+
+  <h3 id="guide/undo">Undo</h3>
+  <p><kbd>Ctrl</kbd>+<kbd>Z</kbd> undoes the last rename, move, copy, trashing or restore;
+  <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> redoes it. Copies and new folders are undone by
+  moving them to the trash, never by deleting them, so even an undo can be undone.</p>
+
+  <h3 id="guide/other-programs">With other programs</h3>
+  <p>Files copied or cut in Nordend paste in another file manager, in Firefox or as paths in a
+  terminal; files copied elsewhere paste in Nordend. Drag files from any view onto a folder, the
+  path above or a place in the sidebar: on the same disk they move, onto another they copy
+  (<kbd>Ctrl</kbd> copies, <kbd>Shift</kbd> moves), the Trash trashes them. Drag them into Firefox
+  or a terminal, or from Firefox's downloads into Nordend. Folders change live when other programs
+  create, remove or rename files.</p>
+
+  <h3 id="guide/menu">The context menu</h3>
+  <p>A right click, a two-finger tap, <kbd>Menu</kbd> or <kbd>Shift</kbd>+<kbd>F10</kbd>. Every
+  action in it shows its shortcut.</p>
+
+  <h3 id="guide/look">Look and memory</h3>
+  <p>With Noctalia, Nordend wears your Noctalia palette and follows it live. On GNOME or Plasma it
+  follows the desktop's light or dark style and accent colour, live too. Where the compositor draws
+  no title bar Nordend draws its own; where it offers no cursor shapes Nordend draws them from your
+  cursor theme. The view, the order, hidden files, the sidebar, the info pane, column widths and the
+  window's size come back at the next start.</p>
+</section>
+
+<!-- ============================================================== Shortcuts -->
+<section class="page" id="shortcuts">
+  <h2>Keyboard shortcuts</h2>
+  <p class="lead">The same list Nordend shows with <kbd>F1</kbd>, taken from the table Nordend works
+  from (a test keeps them equal).</p>
+  <div class="shortcut-groups" id="shortcut-groups">
+    <p>The shortcuts are drawn by JavaScript; inside Nordend, press <kbd>F1</kbd>.</p>
+  </div>
+<script type="application/json" id="shortcut-data">
+[
+  {"group": "General", "keys": "Ctrl+1", "action": "Columns"},
+  {"group": "General", "keys": "Ctrl+2", "action": "Grid"},
+  {"group": "General", "keys": "Ctrl+3", "action": "Details"},
+  {"group": "General", "keys": "Space", "action": "Quick Look"},
+  {"group": "General", "keys": "Ctrl+I", "action": "Info pane (grid, details)"},
+  {"group": "General", "keys": "Ctrl+B", "action": "Sidebar"},
+  {"group": "General", "keys": "Ctrl+H", "action": "Hidden files"},
+  {"group": "General", "keys": "Ctrl+D", "action": "Add the folder to the sidebar"},
+  {"group": "General", "keys": "F6", "action": "Into the sidebar and out"},
+  {"group": "General", "keys": "F1  ?", "action": "These shortcuts"},
+  {"group": "General", "keys": "Menu  Shift+F10", "action": "Context menu"},
+  {"group": "General", "keys": "Ctrl+Q", "action": "Quit"},
+  {"group": "Moving", "keys": "↑  ↓", "action": "Previous, next"},
+  {"group": "Moving", "keys": "←  →", "action": "Previous, next (grid)"},
+  {"group": "Moving", "keys": "PgUp  PgDn", "action": "A screenful"},
+  {"group": "Moving", "keys": "Home  End", "action": "First, last"},
+  {"group": "Moving", "keys": "Enter", "action": "Open (files in their app)"},
+  {"group": "Moving", "keys": "→", "action": "Open (columns, details)"},
+  {"group": "Moving", "keys": "Alt+↓", "action": "Open (grid, details)"},
+  {"group": "Moving", "keys": "Backspace", "action": "Parent folder"},
+  {"group": "Moving", "keys": "←", "action": "Parent (columns, details)"},
+  {"group": "Moving", "keys": "Alt+↑", "action": "Parent folder"},
+  {"group": "Moving", "keys": "Alt+←  Alt+→", "action": "Back, forward (mouse too)"},
+  {"group": "Selecting", "keys": "Shift+moves", "action": "Select a range"},
+  {"group": "Selecting", "keys": "Ctrl+moves", "action": "Move without selecting"},
+  {"group": "Selecting", "keys": "Ctrl+Space", "action": "Select or unselect"},
+  {"group": "Selecting", "keys": "Ctrl+A", "action": "Select all"},
+  {"group": "Selecting", "keys": "Escape", "action": "Back to one entry"},
+  {"group": "Files", "keys": "F2", "action": "Rename"},
+  {"group": "Files", "keys": "Ctrl+Shift+N", "action": "New folder"},
+  {"group": "Files", "keys": "Ctrl+C", "action": "Copy"},
+  {"group": "Files", "keys": "Ctrl+X", "action": "Cut (Escape: keep them)"},
+  {"group": "Files", "keys": "Ctrl+V", "action": "Paste: copy or move here"},
+  {"group": "Files", "keys": "Delete", "action": "Move to the trash"},
+  {"group": "Files", "keys": "Shift+Delete", "action": "Delete permanently"},
+  {"group": "Files", "keys": "Ctrl+Z", "action": "Undo the last operation"},
+  {"group": "Files", "keys": "Ctrl+Shift+Z", "action": "Redo it"},
+  {"group": "Files", "keys": "Enter  Escape", "action": "Renaming: keep, give up"},
+  {"group": "Files", "keys": "Ctrl+←  Ctrl+→", "action": "Renaming: by words"},
+  {"group": "Files", "keys": "Ctrl+Z", "action": "Renaming: undo (Shift: redo)"},
+  {"group": "Files", "keys": "Ctrl+V", "action": "Renaming: paste text"},
+  {"group": "Files", "keys": "R  S  Enter", "action": "Name taken: replace, skip, both"},
+  {"group": "Files", "keys": "A  Escape", "action": "Name taken: for the rest, stop"},
+  {"group": "Files", "keys": "Enter  Escape", "action": "Delete permanently? Yes, no"},
+  {"group": "Grid", "keys": "Ctrl++  Ctrl+−", "action": "Larger, smaller"},
+  {"group": "Grid", "keys": "Ctrl+0", "action": "Usual size"},
+  {"group": "Sidebar", "keys": "↑  ↓  Home  End", "action": "Choose a place"},
+  {"group": "Sidebar", "keys": "Enter", "action": "Open it"},
+  {"group": "Sidebar", "keys": "Escape", "action": "Back to the view"},
+  {"group": "Quick Look", "keys": "Space  Escape", "action": "Close"},
+  {"group": "Quick Look", "keys": "Arrows", "action": "The next file, the previous"}
+]
+</script>
+</section>
+
+<!-- ============================================================== Configuration -->
+<section class="page" id="configuration">
+  <h2>Configuration</h2>
+  <p class="lead">Nordend is ready as it starts: the system's fonts and the desktop's colours. There
+  is no settings window; the few settings there are live in one file.</p>
+
+  <h3 id="configuration/config">config.toml</h3>
+  <p><code>~/.config/nordend/config.toml</code> (or <code>$XDG_CONFIG_HOME/nordend/config.toml</code>).
+  Every key is optional; a bad value is reported in the log and keeps its default. Nordend reads the
+  file again when it changes: the double click at once, the fonts at the next start.
+  <code>nordend --check-config</code> checks a file without starting Nordend.</p>
+  <div class="table"><table>
+    <tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
+    <tr><td><code>font.family</code></td><td><code>"sans-serif"</code></td><td>The interface font: a fontconfig pattern, a family name with optional properties (<code>"Inter"</code>, <code>"Inter:weight=medium"</code>)</td></tr>
+    <tr><td><code>font.monospace</code></td><td><code>"monospace"</code></td><td>The same for text previews</td></tr>
+    <tr><td><code>pointer.double_click_ms</code></td><td><code>400</code></td><td>Two presses closer than this (milliseconds, 100-2000)...</td></tr>
+    <tr><td><code>pointer.double_click_distance</code></td><td><code>4</code></td><td>...and closer than this (logical pixels, 0-50) make a double click</td></tr>
+  </table></div>
+  <pre><code>[font]
+family = "sans-serif"
+monospace = "monospace"
+
+[pointer]
+double_click_ms = 400
+double_click_distance = 4</code></pre>
+  <p>The commented example is <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/config.example.toml">docs/config.example.toml</a>.</p>
+
+  <h3 id="configuration/colours">Colours</h3>
+  <p>With <code>~/.config/nordend/colors.toml</code> (the palette's colours by name, which Noctalia
+  can write from its theme through a user template; a template for Noctalia itself is planned),
+  Nordend uses that palette and follows every change live. Without it, Nordend follows the desktop's light
+  or dark style and accent colour through the freedesktop portal (GNOME, Plasma); with no portal,
+  Noctalia's default palette.</p>
+
+  <h3 id="configuration/files">Files Nordend reads and writes</h3>
+  <div class="table"><table>
+    <tr><th>What</th><th>Where</th></tr>
+    <tr><td>Settings</td><td><code>~/.config/nordend/config.toml</code></td></tr>
+    <tr><td>Colours</td><td><code>~/.config/nordend/colors.toml</code></td></tr>
+    <tr><td>How Nordend was left</td><td><code>~/.local/state/nordend/state.toml</code> (<code>$XDG_STATE_HOME</code>)</td></tr>
+    <tr><td>Thumbnails</td><td><code>~/.cache/thumbnails</code>, the freedesktop cache shared with other applications</td></tr>
+    <tr><td>Trash</td><td>The freedesktop trash: <code>~/.local/share/Trash</code>, and a <code>.Trash-UID</code> folder on other disks</td></tr>
+    <tr><td>Sidebar favourites</td><td><code>~/.config/gtk-3.0/bookmarks</code>, shared with GTK file choosers</td></tr>
+    <tr><td>Templates for New File</td><td>Your templates folder (<code>XDG_TEMPLATES_DIR</code>, usually <code>~/Templates</code>)</td></tr>
+    <tr><td>Default applications</td><td><code>mimeapps.list</code> and desktop entries, read exactly as GLib reads them</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================== Performance -->
+<section class="page" id="performance">
+  <h2>Performance</h2>
+  <p class="lead">Measured, not assumed: every number comes from a tool in the repository, on a
+  Ryzen 7 5700G with an RX 6650 XT and a SATA SSD; the start and Quick Look on screen, on a
+  2560x1440 monitor at 75 Hz. The method of each one is in
+  <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/benchmarks.md">docs/benchmarks.md</a>.</p>
+
+  <h3 id="performance/targets">The design's targets</h3>
+  <p>Measured on 2026-11-01. All four are met.</p>
+  <div class="table"><table>
+    <tr><th>Target</th><th>Measured</th><th></th></tr>
+    <tr><td>Cold start to the first frame on screen: under 150 ms</td><td><strong>128 ms</strong> (warm: 64 ms)</td><td class="met">met</td></tr>
+    <tr><td>A 10 000-file folder: first frame under 50 ms, the rest in the background</td><td>first entries ready in <strong>0.7 ms</strong>, all of them in 17 ms</td><td class="met">met</td></tr>
+    <tr><td>Quick Look of a raw photo: under 100 ms</td><td><strong>82-96 ms</strong> from <kbd>Space</kbd> to the sharp image</td><td class="met">met</td></tr>
+    <tr><td>Scrolling at the monitor's full rate, no dropped frame</td><td>worst frame <strong>3.7 ms</strong> of 13.3</td><td class="met">met</td></tr>
+  </table></div>
+
+  <h3 id="performance/start">Where the start goes</h3>
+  <p>Milliseconds since the program was started, median of 10 warm runs and 5 cold ones (page cache
+  dropped before each), measured with <code>nordend-bench-start</code>:</p>
+  <div class="table"><table>
+    <tr><th>Step</th><th class="num">warm</th><th class="num">cold</th></tr>
+    <tr><td>Program loaded</td><td class="num">4.8</td><td class="num">26.6</td></tr>
+    <tr><td>EGL and the GPU driver ready</td><td class="num">32.3</td><td class="num">74.2</td></tr>
+    <tr><td>Fonts, theme, desktop colours</td><td class="num">38.3</td><td class="num">88.0</td></tr>
+    <tr><td>Window created</td><td class="num">44.7</td><td class="num">95.9</td></tr>
+    <tr><td><strong>First frame on screen</strong></td><td class="num"><strong>64.5</strong></td><td class="num"><strong>128.3</strong></td></tr>
+  </table></div>
+  <p>Loading the GPU driver is the largest step; Nordend's own work before the window takes about
+  12 ms.</p>
+
+  <h3 id="performance/scrolling">Scrolling a 10 000-file folder</h3>
+  <p>Per frame at 2560x1440, GPU work included. Only what is on screen is drawn, so the folder's
+  size does not matter.</p>
+  <div class="table"><table>
+    <tr><th>View</th><th class="num">median</th><th class="num">p95</th><th class="num">worst</th></tr>
+    <tr><td>Columns</td><td class="num">0.33 ms</td><td class="num">0.55 ms</td><td class="num">1.9 ms</td></tr>
+    <tr><td>Columns, all selected</td><td class="num">0.55 ms</td><td class="num">0.76 ms</td><td class="num">1.7 ms</td></tr>
+    <tr><td>Grid</td><td class="num">0.52 ms</td><td class="num">0.78 ms</td><td class="num">3.7 ms</td></tr>
+    <tr><td>Details</td><td class="num">0.53 ms</td><td class="num">0.69 ms</td><td class="num">2.5 ms</td></tr>
+  </table></div>
+
+  <h3 id="performance/photos">Photos</h3>
+  <p>OM System OM-1: 20 MP JPEGs and ORF raw files, warm cache.</p>
+  <div class="table"><table>
+    <tr><th>What</th><th class="num">Time</th></tr>
+    <tr><td>A grid screenful of thumbnails, made the first time / read from the cache</td><td class="num">0.15-0.4 s / 12-22 ms</td></tr>
+    <tr><td>One thumbnail from an OM-1 JPEG / ORF</td><td class="num">12 ms / 36 ms</td></tr>
+    <tr><td>Quick Look of a Sony ARW (small embedded preview)</td><td class="num">17 ms</td></tr>
+    <tr><td>A 20 MP JPEG decoded whole (wuffs)</td><td class="num">149 ms</td></tr>
+    <tr><td>Sorting 10 000 entries by size, date or type</td><td class="num">1-3 ms</td></tr>
+  </table></div>
+
+  <h3 id="performance/files">Files</h3>
+  <div class="table"><table>
+    <tr><th>What</th><th class="num">Nordend</th><th class="num">For comparison</th></tr>
+    <tr><td>Copying 342 photos, 3.1 GB, into tmpfs</td><td class="num">1.39 s</td><td class="num"><code>cp -a</code>: 1.38-1.40 s</td></tr>
+    <tr><td>Moving 1 001 items to the trash</td><td class="num">25 ms</td><td class="num"><code>gio trash</code>: 70 ms</td></tr>
+    <tr><td>Default application and Open With, all 1 232 file types</td><td class="num">0 differences</td><td class="num">from <code>gio mime</code></td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================== Compatibility -->
+<section class="page" id="compatibility">
+  <h2>Compatibility</h2>
+  <p class="lead">Nordend is made on Umbriel, and works wherever Wayland does. What changes from one
+  desktop to another is what the compositor offers; where something is missing, Nordend brings its
+  own.</p>
+
+  <h3 id="compatibility/protocols">What depends on the compositor</h3>
+  <div class="table"><table>
+    <tr><th>Need</th><th>Protocol</th><th>Without it</th></tr>
+    <tr><td>Title bar</td><td><code>xdg-decoration</code>, server-side</td><td>Nordend draws its own, with minimize, maximize and close, and resizes from its edges</td></tr>
+    <tr><td>Cursor shapes</td><td><code>cursor-shape-v1</code></td><td>Nordend draws them from the xcursor theme</td></tr>
+    <tr><td>Sharp fractional scaling</td><td><code>fractional-scale-v1</code> + <code>viewporter</code></td><td>Renders at scale 1</td></tr>
+    <tr><td>Copy, paste, drag and drop with other applications</td><td><code>wl_data_device_manager</code></td><td>Inside Nordend only</td></tr>
+    <tr><td>Focus for the applications it opens</td><td><code>xdg-activation-v1</code></td><td>They may open without focus</td></tr>
+    <tr><td>The desktop's colours</td><td>freedesktop portal, <code>org.freedesktop.appearance</code></td><td>Noctalia's default palette</td></tr>
+  </table></div>
+  <p>Icons need nothing: they are compiled into the program.</p>
+
+  <h3 id="compatibility/results">Tried on</h3>
+  <div class="table"><table>
+    <tr><th></th><th>Umbriel</th><th>GNOME 48</th><th>Plasma 6.7</th><th>niri 26.04</th></tr>
+    <tr><td>Title bar</td><td>Umbriel's</td><td>Nordend's</td><td>KWin's</td><td>Nordend's</td></tr>
+    <tr><td>Resize, cursor shapes</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Clipboard with other apps</td><td>yes</td><td>yes, with Nautilus</td><td>yes, with Dolphin</td><td>yes</td></tr>
+    <tr><td>Drag and drop</td><td>yes, with Firefox</td><td>yes, with Nautilus</td><td>yes, with Dolphin</td><td>yes, with Firefox</td></tr>
+    <tr><td>Opening files, focused</td><td>yes</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Fractional scale</td><td>yes</td><td>yes (experimental in GNOME 48)</td><td>yes</td><td>not tried</td></tr>
+    <tr><td>Desktop colours</td><td>Noctalia's</td><td>light/dark and accent, live</td><td>light/dark and accent, live</td><td>—</td></tr>
+  </table></div>
+  <p>Tried by the author on 2026-10-31; GNOME and Plasma in a virtual machine, niri nested. The
+  checklist and the details are in
+  <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/compatibility.md">docs/compatibility.md</a>.
+  GNOME's fractional scaling needs
+  <code>gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffer']"</code>.</p>
+</section>
+
+<!-- ============================================================== Architecture -->
+<section class="page" id="architecture">
+  <h2>Architecture</h2>
+  <p class="lead">One process, one window thread, a pool of workers. No toolkit: Nordend draws
+  everything with OpenGL ES and shapes its text with HarfBuzz.</p>
+
+  <h3 id="architecture/modules">Modules</h3>
+  <div class="table"><table>
+    <tr><th>Module</th><th>What it does</th></tr>
+    <tr><td><code>core</code></td><td>The event loop (one <code>poll()</code>), the worker pool with priorities and cancellation, config, logging, memory</td></tr>
+    <tr><td><code>ui</code></td><td>Wayland, EGL, the GLES renderer, text and icons, input, the clipboard and drag and drop, scrolling physics</td></tr>
+    <tr><td><code>fs</code></td><td>Asynchronous directory loading, MIME types identical to GLib, inotify, places, file operations, the copy engine, the trash</td></tr>
+    <tr><td><code>image</code></td><td>Decoding (wuffs, libwebp, libjxl), raw files' embedded previews through exiv2, EXIF orientation, scaling</td></tr>
+    <tr><td><code>preview</code></td><td>Quick Look and the info pane: one provider per kind (image, raw, text, information)</td></tr>
+    <tr><td><code>thumbs</code></td><td>Thumbnails in the freedesktop cache</td></tr>
+    <tr><td><code>theme</code></td><td>The Noctalia palette, its live reload, the desktop's colours</td></tr>
+    <tr><td><code>platform</code></td><td>Default applications (exactly as GLib), launching, udisks2, the desktop portal</td></tr>
+    <tr><td><code>views</code></td><td>Columns, grid, details, sidebar, path, status bar, info pane, Quick Look, menus, undo</td></tr>
+  </table></div>
+
+  <h3 id="architecture/threads">Threads and frames</h3>
+  <ul>
+    <li>The window thread waits in a single <code>poll()</code> on Wayland, the workers' results,
+    inotify, D-Bus and timers.</li>
+    <li>Workers do the I/O, decoding and thumbnails. Jobs have priorities (visible, nearby,
+    prefetch) and are cancelled when what they were for scrolls away.</li>
+    <li>A frame is drawn only when something changed or is moving, and at most one is in flight,
+    paced by the compositor. An idle window draws nothing and uses no CPU.</li>
+    <li>Decoded photos go back to the system once they are on the GPU.</li>
+  </ul>
+
+  <h3 id="architecture/safety">Safe file operations</h3>
+  <ul>
+    <li>Copies go into a hidden temporary file (<code>copy_file_range</code>) and take their name
+    only when complete, with <code>renameat2</code> refusing to replace anything.</li>
+    <li>A move across disks removes the original only once its copy is written.</li>
+    <li>Deleting for good is planned on a worker and always confirmed first.</li>
+  </ul>
+
+  <h3 id="architecture/quality">Quality</h3>
+  <ul>
+    <li>272 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    before every commit; clang-tidy and clang-format on every change.</li>
+    <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
+    surfaceless EGL context, without a window.</li>
+    <li>Vendored code (the wuffs decoders, a subset of Tabler Icons, Noctalia's default palette) is
+    listed with its origin and license in
+    <a href="https://github.com/pankaspe/nordend-fm/blob/main/THIRD_PARTY.md">THIRD_PARTY.md</a>.</li>
+  </ul>
+</section>
+
+<!-- ============================================================== Roadmap -->
+<section class="page" id="roadmap">
+  <h2>Roadmap</h2>
+  <p class="lead">One step at a time, each closed only when it is tested on real hardware. What was
+  done, measured and decided at each step is in the
+  <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/devlog.md">devlog</a>.</p>
+
+  <h3 id="roadmap/now">Now</h3>
+  <ol>
+    <li><strong>A week of daily use</strong> by the author, with a memory log, and every bug found
+    fixed.</li>
+    <li><strong>Release 0.1.0</strong>, with a Void Linux package and Nordend's own icon.</li>
+  </ol>
+
+  <h3 id="roadmap/later">After the first release</h3>
+  <ul>
+    <li>A command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search</li>
+    <li>Tabs, a dual pane, a queue of operations with its undo history, batch renaming</li>
+    <li>Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
+    comparison, EXIF and histogram</li>
+    <li>Scripting in Luau</li>
+    <li>A file chooser for other applications (the desktop portal's FileChooser)</li>
+    <li>Opening text files in an external editor (Helix) from Nordend</li>
+    <li>A richer Quick Look for text: syntax highlighting, selecting and copying</li>
+    <li>Translations, Italian first</li>
+  </ul>
+
+  <h3 id="roadmap/done">Done</h3>
+  <div class="table"><table>
+    <tr><th>Step</th><th>What</th></tr>
+    <tr><td>Window and rendering</td><td>Wayland window, EGL and OpenGL ES, fractional scaling, drawing primitives, text with HarfBuzz and font fallback</td></tr>
+    <tr><td>Input, loop and theme</td><td>Keyboard and pointer, one <code>poll()</code> loop and a worker pool, TOML config, the Noctalia theme with live reload</td></tr>
+    <tr><td>File system</td><td>Asynchronous loading, MIME types identical to GLib, inotify, icons by type</td></tr>
+    <tr><td>Views</td><td>Columns, selection, grid, details</td></tr>
+    <tr><td>Thumbnails and Quick Look</td><td>Image decoding, the freedesktop thumbnail cache, Quick Look, raw previews, text previews, info pane, sidebar, path bar, status bar, shortcuts overlay</td></tr>
+    <tr><td>File operations</td><td>Default applications and Open With, rename, new folder, copy and move with progress and conflicts, trash with restore, permanent delete, system clipboard, undo and redo</td></tr>
+    <tr><td>Navigation</td><td>Back and forward, hidden files</td></tr>
+    <tr><td>Drag and drop</td><td>Inside Nordend and with other applications</td></tr>
+    <tr><td>Favourites</td><td>Bookmarks in the sidebar, shared with GTK file choosers</td></tr>
+    <tr><td>Removable disks</td><td>Mount, open, unmount and power off through udisks2</td></tr>
+    <tr><td>Compatibility</td><td>Own icons, title bar and cursor where the desktop has none; the desktop's colours; GNOME, Plasma, niri</td></tr>
+    <tr><td>Remembered state</td><td>View, order, panes, column widths, window size; pointer shapes; <code>nordend --about</code></td></tr>
+    <tr><td>Benchmarks</td><td>Every target of the design measured and met</td></tr>
+  </table></div>
+</section>
+
+</main>
+</div>
+
+<footer>
+  Nordend is free software under the
+  <a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT license</a>.
+  Part of the <a href="https://github.com/noctalia-dev">Noctalia</a> family.
+  Source, issues and history on <a href="https://github.com/pankaspe/nordend-fm">GitHub</a>.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

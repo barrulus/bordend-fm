@@ -4,6 +4,44 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-01 — The site, and a shorter README
+
+**Done**
+- `site/`: Nordend's site for GitHub Pages, `https://pankaspe.github.io/nordend-fm/`. One HTML
+  page with nine tabs (Overview, Install, Guide, Shortcuts, Configuration, Performance,
+  Compatibility, Architecture, Roadmap), chosen by the address (`#guide`, `#guide/quick-look`:
+  every section has a link to share); plain HTML, CSS and about 140 lines of JavaScript, no
+  framework, no web fonts, nothing loaded from other servers. Dark and light themes from
+  Noctalia's default palette, the system's choice unless the visitor picks one. Without
+  JavaScript every page shows, one after the other. Narrow screens get the tabs as a row.
+- The shortcuts page is drawn from JSON data in the page; `site_test.cpp` checks that the data is
+  exactly `views::shortcuts()` (and prints what it should be when it is not).
+- `.github/workflows/pages.yml`: on a push touching `site/` or `docs/images/`, assembles the
+  site with the two screenshots and deploys it (actions/checkout v7, configure-pages v6,
+  upload-pages-artifact v5, deploy-pages v5: the latest releases today).
+- README: a "Read the guide" button under the pre-release notice; the benchmarks down to the
+  four targets; the long feature list and the shortcut table moved to the site (one place to
+  keep them); building in a few lines with `cmake --install`; 224 lines instead of 384.
+  Numbers brought up to date: 0.7 ms (not 0.8) for the first entries, Quick Look "under 100 ms"
+  (the "about 50 ms" was the decoding alone), 272 tests.
+
+**Measured**
+- A clean Release build: 54 s for everything, 33 s for `nordend` alone (Ryzen 7 5700G, 16
+  threads): "about a minute on an 8-core CPU".
+- The site looked at in headless Firefox (own profile, no window): overview, shortcuts and
+  performance at 1440 px, the guide and overview at 420 px, dark and light.
+
+**Decisions**
+- No Alpine (the author's choice): a few lines of JavaScript do the tabs.
+- The site carries what users need; the markdown in `docs/` stays the detailed record, linked
+  from the site.
+
+**Open**
+- The site states facts checked today (keys, files, numbers); the shortcuts are tested, the rest
+  is kept by hand.
+
+---
+
 ## 2026-11-01 — Installed for daily use (ROADMAP 7.7)
 
 **Done**
