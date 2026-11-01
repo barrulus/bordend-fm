@@ -176,3 +176,5 @@ if(NORDEND_SANITIZER)
 endif()
 
 install(TARGETS nordend RUNTIME DESTINATION bin)
+# The desktop entry (app id "nordend"): menus, and the default for folders (inode/directory).
+install(FILES data/nordend.desktop DESTINATION share/applications)

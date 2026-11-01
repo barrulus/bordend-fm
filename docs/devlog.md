@@ -4,6 +4,20 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-01 — Installed for daily use (ROADMAP 7.7)
+
+**Done**
+- `data/nordend.desktop` (app id `nordend`, `Exec=nordend %f`, `MimeType=inode/directory`,
+  category FileManager), installed by `cmake --install` into `share/applications`. Valid for
+  `desktop-file-validate`. Icon `folder` (Adwaita) until Nordend has its own (7.8).
+- On the author's machine: `cmake --install build --prefix ~/.local --strip`; Super+E starts
+  Nordend in Umbriel (Super+Shift+E stays nnn), and folders open in Nordend
+  (`inode/directory=nordend.desktop`: `xdg-mime`, `gio mime` and `nordend-open --default` agree).
+- Memory log for the week: a turnstile user service runs a fish loop writing `Rss` and
+  `Anonymous` of each `nordend` every 10 minutes into `~/nordend-rss.log`.
+
+---
+
 ## 2026-11-01 — Every DESIGN target measured (ROADMAP 7.6)
 
 **Done**
