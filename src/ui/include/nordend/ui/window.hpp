@@ -101,6 +101,12 @@ public:
     // Called when the user asks to close the window (title-bar button, compositor keybinding).
     void set_close_handler(std::function<void()> handler) { close_handler_ = std::move(handler); }
 
+    // Called when the compositor is done with a frame (its frame callback): the frame was shown.
+    // Used to time the start (ROADMAP 7.6).
+    void set_frame_shown_handler(std::function<void()> handler) {
+        frame_shown_handler_ = std::move(handler);
+    }
+
     // True when the compositor draws no title bar: the app draws one.
     [[nodiscard]] bool client_decorations() const noexcept { return client_decorations_; }
 
@@ -177,6 +183,7 @@ private:
     Color background_;
     DrawHandler draw_handler_;
     std::function<void()> close_handler_;
+    std::function<void()> frame_shown_handler_;
     std::unique_ptr<Renderer> renderer_;      // needs the context current: see ~Window
     EGLSurface egl_surface_{EGL_NO_SURFACE};  // destroyed first, in ~Window
 

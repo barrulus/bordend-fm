@@ -4,6 +4,51 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-01 — Every DESIGN target measured (ROADMAP 7.6)
+
+**Done**
+- `nordend-bench-start [-n RUNS] [--keep-open] -- COMMAND...` (development tool, not
+  installed): runs `nordend` RUNS times with `NORDEND_STARTUP_NS` (steady clock before the exec)
+  and `NORDEND_STARTUP_QUIT`; prints each run's steps and their median, min and max. A run
+  silent for 10 s is stopped. Nordend's info lines are not echoed, its warnings are.
+- `nordend`: with `NORDEND_STARTUP_NS` set, prints `startup: STEP MS` after `main`, `display`,
+  `egl`, `fonts`, `portal`, `window`, at the first draw, when the compositor shows the first
+  frame and when it shows the first frame drawn with the folder loaded; with
+  `NORDEND_STARTUP_QUIT` it then closes. Without the variable nothing changes.
+- `ui::Window::set_frame_shown_handler`: called on each frame callback.
+- Quick Look logs at debug level how long an entry's thumbnail and sharp image took from the
+  request to the frame that uploads them ("made in advance" for a neighbour).
+- `nordend-snapshot` reads `NORDEND_LOG` (it did not), so those timings show offscreen too.
+
+**Measured** (details in `benchmarks.md`, "DESIGN targets")
+- Cold start to the first frame on screen: 128.3 ms median of 5 after `drop_caches` (target
+  < 150); warm 64.5 ms. EGL and radeonsi are the largest step (27 ms warm, 46 ms cold).
+- Started inside a 10k folder: first frame 69 ms, the whole list on screen 86 ms after exec.
+  Directory benchmark again: first chunk 0.68 ms, complete 16.6 ms (19.5 on 2026-10-26).
+- Quick Look of an OM-1 ORF, Space to the sharp image: 82-96 ms offscreen (median 86, 15 runs),
+  92 ms on screen. Target < 100: met, with the smallest margin of the four.
+- Scrolling at 2560x1440 in every view, all selected included: worst frame 3.7 ms of a 13.3 ms
+  frame (75 Hz).
+- Binary 3 668 120 bytes (3 062 648 stripped), 21 libraries; 271 tests.
+
+**Decisions**
+- "Cold" means `sync; echo 3 > /proc/sys/vm/drop_caches` before each run; the cache directory
+  is on disk (`/var/tmp`), so Mesa's shader cache is dropped too, as after a reboot.
+- The scrolling target is judged on the offscreen benchmark, as DESIGN words it; dropped frames
+  on screen are not counted.
+- Headless weston (llvmpipe) numbers are kept only for comparison: software rendering.
+
+**Open**
+- Quick Look's 30 ms over the 2026-10-27 `load_to_fit` time: the neighbours decoded at the same
+  time are the suspect, *to be verified* (e.g. `nearby` jobs started after the current one).
+- Once, headless weston stopped sending frame callbacks to every client until restarted; not
+  seen again in about 30 runs.
+
+**Tested by the author** on Umbriel (2026-11-01): `nordend-bench-start` warm (home and the 10k
+folder), five cold runs, and Quick Look with `NORDEND_LOG=debug`.
+
+---
+
 ## 2026-10-31 — No settings panel; `nordend --about`
 
 **Done**

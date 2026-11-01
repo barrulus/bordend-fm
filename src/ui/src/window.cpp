@@ -378,6 +378,9 @@ void Window::on_preferred_scale(void* data, wp_fractional_scale_v1* /*scale*/,
 void Window::on_frame_done(void* data, wl_callback* /*callback*/, std::uint32_t /*time_ms*/) {
     auto& self = *static_cast<Window*>(data);
     self.frame_callback_.reset();
+    if (self.frame_shown_handler_) {
+        self.frame_shown_handler_();
+    }
     if (self.dirty_) {
         self.draw();
     }

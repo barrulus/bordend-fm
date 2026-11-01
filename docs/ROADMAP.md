@@ -50,6 +50,10 @@ dettagli sono nella cronologia git di questo file e nel devlog.
   pannello impostazioni (7.5c) è stato fatto e poi ritirato il 2026-10-31 per scelta
   dell'autore: Nordend parte pronto (font di sistema, colori del desktop) e le poche
   impostazioni stanno in `~/.config/nordend/config.toml`, ricaricato a caldo.
+- [x] **7.6 Benchmark degli obiettivi del DESIGN** (2026-11-01, tutti raggiunti): avvio a freddo
+  128 ms (< 150), cartella da 10k con le prime voci in 0,7 ms (< 50), Quick Look di un ORF
+  82-96 ms (< 100, il margine più stretto), scroll con il frame peggiore a 3,7 ms su 13,3 (75 Hz).
+  Nuovo strumento `nordend-bench-start`; risultati in `benchmarks.md`.
 
 Rimandati: **0.4 Pacchetto xbps-src** (con il rilascio, 7.8); **2.6 PR del template a Noctalia**
 (dopo il rilascio: il template resta in `void-noctalia`). Da guardare alla prossima accensione
@@ -59,7 +63,6 @@ della VM: `--about` su GNOME e Plasma, la finestra che torna alla sua misura dop
 
 ## Da fare: fine dell'MVP
 
-- [ ] **7.6 Benchmark** di tutti gli obiettivi del DESIGN, risultati in `devlog.md`
 - [ ] **7.7 Uso quotidiano per una settimana**, bug annotati e chiusi (il primo vero test:
   scaricare ed elaborare foto, spostare documenti). Con un registro della memoria per tutta la
   settimana (chiesto dall'autore il 2026-10-30): ora e RSS di `nordend` ogni 10 minuti in un

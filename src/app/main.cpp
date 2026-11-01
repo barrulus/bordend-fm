@@ -1,6 +1,7 @@
 #include <GLES3/gl3.h>
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -12,6 +13,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <poll.h>
 #include <stdexcept>
 #include <string>
@@ -102,6 +104,49 @@ private:
 
     sigset_t mask_;
     int fd_;
+};
+
+// Start timing (ROADMAP 7.6). nordend-bench-start puts the steady-clock time of its exec, in
+// nanoseconds, in NORDEND_STARTUP_NS; every step then prints "startup: STEP MS" on stderr, the
+// milliseconds since that exec. With NORDEND_STARTUP_QUIT set, Nordend closes once its folder is
+// shown. Without NORDEND_STARTUP_NS nothing is measured.
+class StartupTrace {
+public:
+    StartupTrace() {
+        const char* start = std::getenv("NORDEND_STARTUP_NS");  // NOLINT(concurrency-mt-unsafe)
+        if (start == nullptr) {
+            return;
+        }
+        const std::string_view text{start};
+        std::int64_t nanoseconds = 0;
+        const auto [end, error] =
+            std::from_chars(text.data(), text.data() + text.size(), nanoseconds);
+        if (error != std::errc{} || end != text.data() + text.size()) {
+            return;
+        }
+        start_ = std::chrono::steady_clock::time_point{std::chrono::nanoseconds{nanoseconds}};
+        const char* quit = std::getenv("NORDEND_STARTUP_QUIT");  // NOLINT(concurrency-mt-unsafe)
+        quit_ = quit != nullptr && *quit != '\0';
+    }
+
+    [[nodiscard]] bool active() const noexcept { return start_.has_value(); }
+
+    [[nodiscard]] bool quit_when_shown() const noexcept { return quit_; }
+
+    void mark(std::string_view step) const {
+        if (!start_) {
+            return;
+        }
+        const double ms =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - *start_)
+                .count();
+        std::fprintf(stderr, "startup: %.*s %.2f ms\n", static_cast<int>(step.size()), step.data(),
+                     ms);
+    }
+
+private:
+    std::optional<std::chrono::steady_clock::time_point> start_;
+    bool quit_{false};
 };
 
 // "Ctrl+Shift+a  text 'A'  (repeat)": what the test scene shows for the last key.
@@ -218,6 +263,8 @@ int check_config(const std::filesystem::path& path, const core::ConfigResult& re
 
 int main(int argc, char** argv) {
     core::give_back_large_blocks();  // before any thread: decoded photos go back to the system
+    const StartupTrace startup;
+    startup.mark("main");
     std::filesystem::path config_path;
     std::filesystem::path start_dir;
     bool check_only = false;
@@ -298,8 +345,11 @@ int main(int argc, char** argv) {
         });
 
         ui::Display display;
+        startup.mark("display");
         ui::EglContext egl{display};
+        startup.mark("egl");
         ui::FontSystem fonts{config.font.family, config.font.monospace};
+        startup.mark("fonts");
         theme::Theme theme{theme::default_colors_path()};
         theme.watch(loop);
         // Without colors.toml, the desktop's light/dark and accent (ROADMAP 7.4).
@@ -319,6 +369,7 @@ int main(int argc, char** argv) {
         };
         portal = std::make_unique<platform::DesktopPortal>(loop, follow_desktop);
         follow_desktop();
+        startup.mark("portal");
         // How Nordend was left (ROADMAP 7.5a).
         const std::filesystem::path state_path = views::default_state_path();
         const views::StateResult remembered = views::load_state(state_path);
@@ -336,6 +387,7 @@ int main(int argc, char** argv) {
                            .background = theme.palette().surface,
                            .force_client_decorations = client_decorations_forced()}};
         theme.set_change_handler([&] { window.set_background(theme.palette().surface); });
+        startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
                              static_cast<float>(config.pointer.double_click_distance));
@@ -603,7 +655,29 @@ int main(int argc, char** argv) {
             window.request_redraw();
         });
 
+        // Start timing: the first frame, then the first frame drawn with the folder loaded
+        // (listed, its thumbnails made), each when the compositor shows it.
+        bool first_drawn = false;
+        bool first_shown = false;
+        bool ready_drawn = false;
+        bool ready_shown = false;
+        if (startup.active()) {
+            window.set_frame_shown_handler([&] {
+                if (first_drawn && !first_shown) {
+                    first_shown = true;
+                    startup.mark("first-frame-shown");
+                }
+                if (ready_drawn && !ready_shown) {
+                    ready_shown = true;
+                    startup.mark("folder-shown");
+                    if (startup.quit_when_shown()) {
+                        loop.quit(0);
+                    }
+                }
+            });
+        }
         window.set_draw_handler([&](ui::Renderer& renderer, const ui::Rect& bounds) {
+            const bool ready = !columns || !columns->loading();
             seat.set_cursor_scale(window.scale());  // the xcursor fallback's images follow it
             const theme::Palette& palette = theme.palette();
             ui::Rect content = bounds;
@@ -611,6 +685,13 @@ int main(int argc, char** argv) {
                 title_bar.set_state(window.state());
                 title_bar.draw(renderer, bounds, palette, icons, window.title());
                 content = title_bar.content(bounds);
+            }
+            if (startup.active()) {
+                if (!first_drawn) {
+                    first_drawn = true;
+                    startup.mark("first-draw");
+                }
+                ready_drawn = ready_drawn || ready;
             }
             if (columns) {
                 columns->draw(renderer, content, palette, icons, views::Browser::Clock::now());

@@ -8,11 +8,17 @@
 #include <variant>
 
 #include "draw_helpers.hpp"
+#include "nordend/core/log.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
 namespace {
+
+// Milliseconds from then to now.
+double since(QuickLook::Clock::time_point then) {
+    return std::chrono::duration<double, std::milli>(QuickLook::Clock::now() - then).count();
+}
 
 constexpr float kMargin = 32.0F;         // around the image
 constexpr float kCaptionHeight = 44.0F;  // under it
@@ -118,6 +124,8 @@ QuickLook::Slot& QuickLook::ensure(const fs::Entry& entry, bool current) {
     slot.path = folder_->path_of(entry);
     slot.kind = provider.kind();
     if (!slot.content && !slot.content_job) {
+        slot.requested = Clock::now();
+        slot.in_advance = !current;
         slot.content_job = pool_.submit(
             current ? core::Priority::visible : core::Priority::nearby,
             [&provider,
@@ -300,6 +308,9 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
         slot.image_texture = std::make_unique<ui::Texture>(
             fitted->image.width, fitted->image.height, fitted->image.rgba);
         std::vector<std::uint8_t>{}.swap(fitted->image.rgba);
+        log::debug("quick look: {} {}x{} on screen {:.1f} ms after it was asked for{}", entry.name,
+                   fitted->image.width, fitted->image.height, since(slot.requested),
+                   slot.in_advance ? " (made in advance, as a neighbour)" : "");
         if (slot.thumbnail_texture) {
             retired_.push_back(std::move(slot.thumbnail_texture));
         }
@@ -310,6 +321,11 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
                                                                slot.thumbnail_pixels->height,
                                                                slot.thumbnail_pixels->rgba);
         slot.thumbnail_pixels.reset();
+        if (!slot.thumbnail_logged) {
+            slot.thumbnail_logged = true;
+            log::debug("quick look: {} thumbnail on screen {:.1f} ms after the image was asked for",
+                       entry.name, since(slot.requested));
+        }
     }
     const ui::Texture* const texture =
         slot.image_texture ? slot.image_texture.get() : slot.thumbnail_texture.get();

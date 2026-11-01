@@ -15,7 +15,89 @@ again. Newest results first in each section; the [devlog](devlog.md) tells the s
 | OS | Void Linux (glibc), kernel 6.18 |
 | Build | GCC 14.2, CMake Release (`-O3`) |
 
+## DESIGN targets (ROADMAP 7.6)
+
+### 2026-11-01
+
+Every target of the DESIGN, measured again with today's code. On screen: Umbriel, ASUS ProArt
+at 2560x1440, 75 Hz (a frame is 13.3 ms).
+
+| Target | Measured | Verdict |
+|--------|----------|---------|
+| Cold start to the first frame: < 150 ms | **128 ms** median after `drop_caches` (126.7-131.7, 5 runs); **64.5 ms** warm | met |
+| 10k-file folder: first frame < 50 ms, full list in the background | first entries ready in **0.68 ms**, whole folder in 16.6 ms (warm); started inside it: first frame 69 ms, whole folder on screen 86 ms after exec | met |
+| Quick Look of an ORF: < 100 ms | sharp image on screen **82-96 ms** after Space (offscreen, 5 files x 3 runs; median 86); **92 ms** on screen (1 file) | met, narrowly |
+| Scrolling at the monitor's full rate, no dropped frame | worst frame **3.7 ms** at 2560x1440 in every view (median 0.3-0.8 ms) | met |
+
+Details in "Start-up", "Directory loading", "Quick Look" and "Column view scrolling" below.
+
+## Start-up (ROADMAP 7.6)
+
+**Target:** cold start to the first frame in < 150 ms (DESIGN).
+
+**Tool:** `nordend-bench-start` (`src/tools/bench_start.cpp`). It forks and execs `nordend`
+with `NORDEND_STARTUP_NS` (the steady clock just before the exec) and `NORDEND_STARTUP_QUIT`;
+Nordend prints `startup: STEP MS` at each step and closes once its folder is shown. Steps:
+`main` (dynamic linking and static initialisation done), `display` (Wayland connected), `egl`
+(EGL and the GPU driver loaded), `fonts` (fontconfig), `portal` (the desktop's look read),
+`window` (the window created and configured), `first-draw` (the first frame starts drawing),
+`first-frame-shown` (the compositor's frame callback for it), `folder-shown` (the same for the
+first frame drawn with the folder loaded), `exit` (the process is gone, seen from the tool).
+
+```fish
+set -x XDG_CACHE_HOME /var/tmp/nordend-bench-cache   # not ~/.cache; on disk, not tmpfs
+set -x XDG_STATE_HOME /tmp/nordend-state-test        # a copy of state.toml: the usual size
+build/nordend-bench-start -n 3 -- build/nordend ~ >/dev/null   # fills Mesa's shader cache
+build/nordend-bench-start -n 10 -- build/nordend ~
+for i in (seq 5); sync; echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
+    build/nordend-bench-start -n 1 -- build/nordend ~ | string match 'run*'; end
+```
+
+### 2026-11-01: on screen, Umbriel
+
+Milliseconds since exec; the window at its remembered size, the home folder.
+
+| Step | warm, median of 10 | warm, min-max | cold, median of 5 | cold, min-max |
+|------|------:|------:|------:|------:|
+| main | 4.8 | 4.6-5.5 | 26.6 | 26.2-27.0 |
+| display | 5.1 | 4.8-5.8 | 27.7 | 27.5-28.1 |
+| egl | 32.3 | 31.0-36.8 | 74.2 | 73.6-75.3 |
+| fonts | 37.1 | 35.7-41.5 | 85.3 | 82.7-86.3 |
+| portal | 38.3 | 36.9-42.7 | 88.0 | 85.3-88.9 |
+| window | 44.7 | 43.3-49.1 | 95.9 | 92.6-96.3 |
+| first-draw | 49.2 | 47.6-53.3 | 107.9 | 104.8-108.4 |
+| **first-frame-shown** | **64.5** | 56.8-71.1 | **128.3** | 126.7-131.7 |
+| folder-shown | 64.6 | 56.8-71.1 | 144.5 | 143.2-147.2 |
+| exit | 83.5 | 66.0-89.2 | 184.8 | 183.1-186.6 |
+
+Started inside the generated 10 000-entry folder (`build/bench-10k`), warm, median of 10: first
+frame shown at **69.1 ms** (61.7-71.3), the folder fully listed on screen at **85.9 ms**
+(83.8-94.8).
+
+### Reading the numbers
+
+- Loading EGL and the GPU driver (radeonsi) is the largest step: 27 ms warm, 46 ms cold, about
+  40 % of the start. Nordend's own work before the window (fonts, theme, portal, state) is
+  about 12 ms warm.
+- A cold start costs about 64 ms more than a warm one, spread over reading the binary and its
+  21 libraries (`main` at 27 ms), Mesa (`egl`) and the fonts.
+- From the first draw to the compositor showing it: 15 ms warm, 20 ms cold: up to a 75 Hz frame
+  of waiting for the next vblank, plus the GPU's first frame (shader cache read).
+- In a 10k folder the first frame is not slower (the first chunk is ready in under 1 ms); the
+  whole list follows 17 ms later, as the directory benchmark predicts.
+
+### 2026-11-01: headless weston (llvmpipe), for comparison
+
+`weston --backend=headless --renderer=pixman`: Mesa draws in software there, so these are not
+the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-shown` 102.0 ms.
+Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
+the tool now stops a run after 10 s of silence.
+
 ## Binary
+
+### 2026-11-01: start-up and Quick Look timings (7.6)
+
+3 668 120 bytes; 3 062 648 after `strip`; 21 direct libraries.
 
 ### 2026-10-31: settings panel removed, `--about` added
 
@@ -106,6 +188,17 @@ Columns, in milliseconds:
 - **+stat:** names plus type, size, date and link target for each entry, on one thread.
 - **sort:** sorting all entries by name (natural order, directories first).
 
+### 2026-11-01: 10k files on the SATA SSD, warm cache (7.6)
+
+Same tool, a freshly generated folder (`build/bench-10k`), 20 runs, 8 worker threads; the MIME
+column (types from names) was added in 3.2.
+
+| ms | readdir | +stat | sort | mime | 1st chunk | complete |
+|----|--------:|------:|-----:|-----:|----------:|---------:|
+| min | 2.93 | 15.13 | 2.88 | 1.66 | 0.54 | 16.28 |
+| **median** | **3.00** | **15.33** | **2.95** | **1.70** | **0.68** | **16.59** |
+| max | 3.08 | 16.54 | 3.28 | 1.74 | 0.73 | 17.20 |
+
 ### 2026-10-26: 10k files on the SATA SSD, warm cache
 
 20 runs, 8 worker threads.
@@ -180,6 +273,25 @@ the list about 1.5 % of it.
 opens the columns down to DIR, then scrolls the last column (DIR) from top to bottom over FRAMES
 frames, drawing the whole view (title, every visible column) and waiting for the GPU after each
 frame, as for the list.
+
+### 2026-11-01: every view at 2560x1440 (7.6)
+
+The author's screen at scale 1 (ASUS ProArt, 75 Hz: 13.3 ms a frame), the generated 10 000-entry
+folder, 600 frames, two runs each (ranges are the spread between runs). Grid and details are
+scrolled the same way (`--keys "Right,Ctrl+2"`, `"Right,Ctrl+3"`; `Ctrl+a` selects everything).
+
+| View | median | p95 | max |
+|------|-------:|----:|----:|
+| Columns | 0.33 ms | 0.53-0.55 ms | 1.6-1.9 ms |
+| Columns, info pane expanded | 0.33-0.43 ms | 0.55-0.56 ms | 1.6-1.9 ms |
+| Columns, all selected | 0.53-0.55 ms | 0.71-0.76 ms | 1.7 ms |
+| Grid, 96 px | 0.51-0.52 ms | 0.78 ms | 2.1-3.7 ms |
+| Grid, all selected | 0.83-0.84 ms | 1.03-1.07 ms | 1.9-2.2 ms |
+| Details | 0.50-0.53 ms | 0.66-0.69 ms | 2.3-2.5 ms |
+
+The worst frame of all, 3.7 ms, is 28 % of a 75 Hz frame: no frame is dropped on the GPU side.
+This is the offscreen benchmark (DESIGN: "nel benchmark di scorrimento"); frames dropped on
+screen by the compositor are not counted by it.
 
 ### 2026-10-26
 
@@ -323,6 +435,37 @@ Scrolling the grid with thumbnails (`--bench 600`, 90 JPEGs, warm, 2880x1620): 0
 0.76 ms p95, against 0.32 ms with icons only; one draw call per thumbnail.
 
 ## Quick Look (ROADMAP 5.3)
+
+### 2026-11-01: from Space to the sharp image (7.6)
+
+**Target:** Quick Look of an ORF in < 100 ms (DESIGN).
+
+With `NORDEND_LOG=debug`, Quick Look logs the time from asking for an entry's content to its
+sharp image going to the GPU, the frame that shows it (and the thumbnail stage, when there is a
+cached thumbnail; none in these runs). Offscreen:
+
+```sh
+NORDEND_LOG=debug build/nordend-snapshot --columns DIR --reveal DIR/_4230010.ORF --keys space \
+    out.ppm 2560 1440 1
+```
+
+OM-1 ORF files (20 MP, 18 MB) from the author's library, shown 1440x1920 or 1920x1440 (the
+window 2560x1440), each run a new process; the two neighbours are made at the same time.
+
+| File | run 1 (first read) | run 2 | run 3 |
+|------|-----:|-----:|-----:|
+| _4230010.ORF | 89.8 | 92.4 | 92.5 |
+| _4230011.ORF | 89.0 | 90.7 | 91.3 |
+| _4230017.ORF | 82.8 | 81.9 | 81.9 |
+| _4230025.ORF | 95.8 | 82.3 | 82.6 |
+| _4230048.ORF | 84.8 | 86.0 | 83.0 |
+
+On screen (Umbriel, `NORDEND_LOG=debug build/nordend DIR`, Space on one ORF): **92.1 ms**.
+
+The cache does not matter (reading 18 MB is not the cost). Fitting the preview alone took
+51-55 ms on 2026-10-27 (below); the rest is, *to be verified*, the two neighbours decoded at the
+same time on other workers and the scaling to a larger screen than then. Under the target, with
+4-18 ms to spare: the first thing to look at if Quick Look ever gets slower.
 
 ### 2026-10-27: an image fitted to the screen
 

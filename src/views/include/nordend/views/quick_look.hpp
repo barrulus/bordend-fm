@@ -103,6 +103,11 @@ private:
         std::shared_ptr<preview::Content> content;  // once made (for images, the sharp stage)
         std::unique_ptr<ui::Texture> thumbnail_texture;
         std::unique_ptr<ui::Texture> image_texture;
+        // When the content was asked for, and whether as the entry shown or a neighbour made in
+        // advance: the debug log says how long it took (ROADMAP 7.6).
+        Clock::time_point requested;
+        bool in_advance{false};
+        bool thumbnail_logged{false};
     };
 
     [[nodiscard]] const preview::Provider& provider_of(const fs::Entry& entry) const;

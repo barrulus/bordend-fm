@@ -79,9 +79,9 @@ It is made for people who browse a lot of files, photos above all:
 
 | | |
 |---|---|
-| Binary | **3.49 MB** (2.92 MB stripped), Release, x86-64, with the wuffs decoders built in |
+| Binary | **3.50 MB** (2.92 MB stripped), Release, x86-64, with the wuffs decoders built in |
 | Linked libraries | 21 direct: Wayland (with its cursor library), EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz, toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (with basu) for udisks2 and the desktop portal, the C/C++ runtime. No GTK, no Qt, no GLib |
-| Code | about 34 400 lines of C++20, plus 10 100 lines of tests (271 test cases, run under AddressSanitizer and ThreadSanitizer too) |
+| Code | about 34 700 lines of C++20, plus 10 100 lines of tests (271 test cases, run under AddressSanitizer and ThreadSanitizer too) |
 | Memory | **25 MB** of its own (private, anonymous) at start, 111 MB resident counting shared libraries (Mesa's GPU driver among them, shared with every OpenGL app); after browsing a folder of 163 raw photos in all three views and Quick Look, **54 MB** of its own, 143 MB resident: decoded photos go back to the system |
 | Idle | **0 CPU**: nothing is drawn while nothing moves (0 ticks in 30 s, measured) |
 | Threads | the window on one thread, I/O and decoding on a worker pool with priorities and cancellation |
@@ -91,22 +91,32 @@ It is made for people who browse a lot of files, photos above all:
 Measured, not assumed: every number comes from a tool in this repository, on a Ryzen 7 5700G with
 an RX 6650 XT and a SATA SSD. Method and more cases in [docs/benchmarks.md](docs/benchmarks.md).
 
+**The design's targets** (measured 2026-11-01, on screen on a 2560x1440 75 Hz monitor where it
+says so):
+
+| Target | Measured |
+|--------|---------:|
+| Cold start to the first frame on screen: < 150 ms | **128 ms** (warm: **64 ms**) |
+| A 10 000-file folder: first frame < 50 ms, the rest in the background | first entries ready in **0.7 ms**, all of them in **17 ms** |
+| Quick Look of an ORF raw photo: < 100 ms | **82-96 ms** from Space to the sharp image |
+| Scrolling at the monitor's full rate, no dropped frame | worst frame **3.7 ms** of 13.3 |
+
 **Opening a folder of 10 000 files**
 
 | Cache | First entries ready | Whole folder loaded and sorted | Target for the first frame |
 |-------|--------------------:|-------------------------------:|---------------------------:|
-| warm (median of 20) | **0.8 ms** | **19.5 ms** | < 50 ms |
+| warm (median of 20) | **0.7 ms** | **16.6 ms** | < 50 ms |
 | cold (after `drop_caches`) | **1.7 ms** | **81 ms** | < 50 ms |
 
-**Scrolling a 10 000-file folder**, per frame at 2880x1620, GPU work included (a 60 Hz frame is
-16.7 ms):
+**Scrolling a 10 000-file folder**, per frame at 2560x1440, GPU work included (a 75 Hz frame is
+13.3 ms):
 
 | View | Median | p95 |
 |------|-------:|----:|
-| Columns | **0.26 ms** | 0.33-0.47 ms |
-| Grid (icons) | **0.30 ms** | 0.51 ms |
-| Grid (90 photo thumbnails) | **0.62 ms** | 0.76 ms |
-| Details | **0.36-0.50 ms** | 0.58 ms |
+| Columns | **0.33 ms** | 0.53-0.55 ms |
+| Columns, all selected | **0.53-0.55 ms** | 0.71-0.76 ms |
+| Grid (icons) | **0.51-0.52 ms** | 0.78 ms |
+| Details | **0.50-0.53 ms** | 0.66-0.69 ms |
 
 Only what is on screen is drawn, so the folder's size does not matter; sidebar, breadcrumb and
 status bar cost nothing measurable.
@@ -117,7 +127,7 @@ status bar cost nothing measurable.
 |------|-----:|
 | A grid screenful of thumbnails, made the first time / read from the cache | **0.15-0.4 s** / **12-22 ms** |
 | One thumbnail from an OM-1 JPEG / ORF (embedded preview, scaled, PNG written) | **12 ms** / **36 ms** |
-| Quick Look of an ORF, fitted to a 2880x1620 screen | **51-55 ms** |
+| An ORF's preview fitted to a 2880x1620 screen (the decoding part of Quick Look) | **51-55 ms** |
 | Quick Look of a Sony ARW (small embedded preview) | **17 ms** |
 | A 20 MP JPEG decoded whole (wuffs) | **149 ms** |
 | Sorting 10 000 entries by size, date or type | **1-3 ms** |

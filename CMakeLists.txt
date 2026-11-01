@@ -114,6 +114,11 @@ target_link_libraries(nordend-snapshot
 add_executable(nordend-bench-dir src/tools/bench_dir.cpp)
 target_link_libraries(nordend-bench-dir PRIVATE nordend::core nordend::fs nordend::warnings)
 
+# Development tool: start-up benchmark, runs nordend and times each step of its start
+# (ROADMAP 7.6). Not installed.
+add_executable(nordend-bench-start src/tools/bench_start.cpp)
+target_link_libraries(nordend-bench-start PRIVATE nordend::warnings)
+
 # Development tool: MIME detection check against GLib (ROADMAP 3.2). Not installed.
 add_executable(nordend-mime src/tools/mime.cpp)
 target_link_libraries(nordend-mime PRIVATE nordend::core nordend::fs nordend::warnings)

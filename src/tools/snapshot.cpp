@@ -206,6 +206,7 @@ std::vector<ui::KeyEvent> parse_keys(std::string_view keys) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    log::init_from_env();  // NORDEND_LOG=debug: Quick Look timings, among others
     std::span args{argv, static_cast<std::size_t>(argc)};
     // --columns DIR: the column view instead of the test scene; --reveal PATH: with the columns
     // opened down to PATH (inside DIR); --bench N: then scroll the last column (or the grid) over N
