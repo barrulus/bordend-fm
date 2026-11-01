@@ -18,6 +18,11 @@
   <img src="https://img.shields.io/badge/platform-Linux-FCC624?logo=linux&logoColor=black" alt="Linux">
 </p>
 
+> [!IMPORTANT]
+> **Pre-release.** Nordend has not been released yet: there are no packages and no tagged
+> versions. To try it, [build it from source](#building); it takes a minute. The first release
+> will be 0.1.0.
+
 <p align="center">
   <img src="docs/images/screenshot-columns.png" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right" width="100%">
   <br>
@@ -71,9 +76,10 @@ It is made for people who browse a lot of files, photos above all:
 > them, takes the desktop's colours without Noctalia, and was tried on GNOME, Plasma and niri.
 > It remembers how it was left, and `nordend --about` prints what it runs on for bug reports.
 > The interface is in English only for now; translations come after the first release.
-> Measurements of every goal and a week of daily use come next, then the first release. There
-> are no packages yet: see [Building](#building). What happens step by step is in the
-> [devlog](docs/devlog.md), what comes next in the [roadmap](docs/ROADMAP.md).
+> Every performance goal of the design is measured and met (see [Benchmarks](#benchmarks)); a
+> week of daily use comes next, then the first release. There are no packages yet: see
+> [Building](#building). What happens step by step is in the [devlog](docs/devlog.md), what
+> comes next in [What's next](#whats-next).
 
 ## At a glance
 
@@ -339,13 +345,32 @@ ctest --test-dir build
 
 </details>
 
+## What's next
+
+1. **A week of daily use** by the author, with a memory log, and every bug found fixed.
+2. **Release 0.1.0**, with a Void Linux package and Nordend's own icon.
+
+After the first release, roughly in this order:
+
+- A command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search
+- Tabs, a dual pane, a queue of operations with its undo history, batch renaming
+- Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
+  comparison, EXIF and histogram
+- Scripting in Luau
+- A file chooser for other applications (the desktop portal's FileChooser)
+- Opening text files in an external editor (Helix) from Nordend
+- A richer Quick Look for text: syntax highlighting, selecting and copying
+- Translations, Italian first
+
+Step numbers in code comments and in the devlog ("ROADMAP 6.3") refer to the project's internal
+roadmap.
+
 ## Documentation
 
 - [Features](docs/features.md): everything Nordend does, area by area
-- [Design](docs/DESIGN.md) (Italian): what Nordend is and why
-- [Roadmap](docs/ROADMAP.md) (Italian): the steps, each with when it counts as done
 - [Devlog](docs/devlog.md): what was done, measured and decided, step by step
 - [Benchmarks](docs/benchmarks.md): every measurement, with its method
+- [Compatibility](docs/compatibility.md): what to expect on each desktop, and what was tried
 - [Upstream bug log](docs/buglog.md): bugs found in Noctalia and Umbriel
 
 ## Development

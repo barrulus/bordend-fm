@@ -1,7 +1,7 @@
 # Benchmarks
 
-Nordend's performance targets ([DESIGN](DESIGN.md), "Obiettivi di performance") are measured
-here, not assumed. Every number below comes from a tool in this repository, so it can be run
+Nordend's performance targets (the design's performance goals, summed up in "DESIGN targets"
+below) are measured here, not assumed. Every number below comes from a tool in this repository, so it can be run
 again. Newest results first in each section; the [devlog](devlog.md) tells the story around them.
 
 ## Machine
@@ -290,8 +290,8 @@ scrolled the same way (`--keys "Right,Ctrl+2"`, `"Right,Ctrl+3"`; `Ctrl+a` selec
 | Details | 0.50-0.53 ms | 0.66-0.69 ms | 2.3-2.5 ms |
 
 The worst frame of all, 3.7 ms, is 28 % of a 75 Hz frame: no frame is dropped on the GPU side.
-This is the offscreen benchmark (DESIGN: "nel benchmark di scorrimento"); frames dropped on
-screen by the compositor are not counted by it.
+This is the offscreen benchmark (the design asks for no dropped frame "in the scrolling
+benchmark"); frames dropped on screen by the compositor are not counted by it.
 
 ### 2026-10-26
 

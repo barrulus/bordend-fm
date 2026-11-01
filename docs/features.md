@@ -2,7 +2,8 @@
 
 Everything Nordend does today, by area. Numbers are measurements from
 [benchmarks.md](benchmarks.md), taken on a Ryzen 7 5700G with an RX 6650 XT; how each feature came
-to be is in the [devlog](devlog.md), and what comes next is in the [roadmap](ROADMAP.md).
+to be is in the [devlog](devlog.md), and what comes next is in the
+README's [What's next](../README.md#whats-next).
 
 ## What it is
 
@@ -309,5 +310,5 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-Benchmarks of every goal in the design, a week of daily use, and the first release. See the
-[roadmap](ROADMAP.md).
+A week of daily use, then the first release. See the README's
+[What's next](../README.md#whats-next).

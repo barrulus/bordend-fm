@@ -8,3 +8,8 @@ build*/
 # Editor / tooling (.clangd and the clang config files are tracked, on purpose)
 .cache/
 compile_commands.json
+
+# The design and the roadmap: in Italian, for the author and the copilot only (untracked since
+# 2026-11-01; earlier versions stay in the history)
+docs/DESIGN.md
+docs/ROADMAP.md
