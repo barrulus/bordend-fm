@@ -22,6 +22,7 @@ constexpr float kRightPadding = 12.0F;
 constexpr float kTextSize = 14.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
+constexpr float kItemSlack = 8.0F;  // past the end of a name, still the entry (a press drags it)
 
 }  // namespace
 
@@ -71,6 +72,8 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
 
     renderer.push_clip(bounds);
     const float name_x = bounds.x + kIconX + kIconSize + kIconGap;
+    item_first_ = range.first;
+    item_right_.clear();
     const std::optional<std::size_t> cursor = folder_->cursor();
     const bool cursor_ring = folder_->single_selection() == nullptr;
     for (std::size_t i = range.first; i < range.last; ++i) {
@@ -107,11 +110,13 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
                          std::max(1.0F, name_right - name_x) + (2.0F * ui::TextField::kPadding),
                          kRowHeight - 6.0F},
                         kTextSize);
+            item_right_.push_back(name_right);
             continue;
         }
-        renderer.draw_text(entry.name, name_x, y + ((kRowHeight - kTextSize) / 2.0F) - 2.0F,
-                           kTextSize, style.text, std::max(1.0F, name_right - name_x),
-                           ui::Ellipsis::middle);
+        const float drawn = renderer.draw_text(
+            entry.name, name_x, y + ((kRowHeight - kTextSize) / 2.0F) - 2.0F, kTextSize, style.text,
+            std::max(1.0F, name_right - name_x), ui::Ellipsis::middle);
+        item_right_.push_back(name_x + drawn + kItemSlack);
     }
 
     const fs::DirectoryModel& model = folder_->model();
@@ -158,6 +163,17 @@ std::optional<std::size_t> Column::row_at(float x, float y) const {
         return std::nullopt;
     }
     return row;
+}
+
+bool Column::on_item(std::size_t row, float x) const {
+    if (row < item_first_ || row - item_first_ >= item_right_.size()) {
+        return false;
+    }
+    return x >= rows_area_.x + kRowInset && x < item_right_[row - item_first_];
+}
+
+std::vector<std::size_t> Column::rows_in(const ui::Rect& content) const {
+    return rows_touched(content.y, content.bottom(), kRowHeight, folder_->entries().size());
 }
 
 bool Column::set_hovered(std::optional<std::size_t> row) {

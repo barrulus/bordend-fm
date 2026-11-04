@@ -34,6 +34,7 @@ constexpr float kSortIcon = 12.0F;
 constexpr float kDividerGrab = 4.0F;  // either side of a divider, for the pointer
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
+constexpr float kItemSlack = 8.0F;  // past the end of a name, still the entry (a press drags it)
 // The least a column can be made: the name keeps room for a short file name.
 constexpr std::array<float, 4> kMinWidths{160.0F, 64.0F, 96.0F, 80.0F};
 constexpr std::array<std::string_view, 4> kTitles{"Name", "Size", "Modified", "Type"};
@@ -95,7 +96,34 @@ std::optional<ViewHit> DetailsView::hit(float x, float y) const {
     if (!folder_ || x < rows_.x || x >= rows_.right() || y < rows_.y || y >= rows_.bottom()) {
         return std::nullopt;
     }
-    return ViewHit{.folder = folder_, .entry = row_at(x, y)};
+    const std::optional<std::size_t> row = row_at(x, y);
+    bool on_item = false;
+    if (row && *row >= item_first_ && *row - item_first_ < item_right_.size()) {
+        on_item = x >= layout_.left.at(index(Field::name)) && x < item_right_[*row - item_first_];
+    }
+    return ViewHit{.folder = folder_, .entry = row, .on_item = on_item};
+}
+
+std::optional<BandLane> DetailsView::band_lane(const Folder& folder) const {
+    if (folder_.get() != &folder) {
+        return std::nullopt;
+    }
+    return BandLane{.area = rows_, .offset = scroller_.offset()};
+}
+
+std::vector<std::size_t> DetailsView::band_entries(const Folder& folder,
+                                                   const ui::Rect& content) const {
+    if (folder_.get() != &folder) {
+        return {};
+    }
+    return rows_touched(content.y, content.bottom(), kRowHeight, folder.entries().size());
+}
+
+void DetailsView::band_scroll(const Folder& folder, float pixels) {
+    if (folder_.get() == &folder) {
+        scroller_.jump_to(scroller_.offset() + pixels);
+        redraw_();
+    }
 }
 
 void DetailsView::set_show_hidden(bool show) {
@@ -289,6 +317,8 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const bool cursor_ring = folder_->single_selection() == nullptr;
     const float table_left = rows_.x + kPadding;
     const float table_width = rows_.width - (2.0F * kPadding);
+    item_first_ = range.first;
+    item_right_.clear();
     for (std::size_t i = range.first; i < range.last; ++i) {
         const fs::Entry& entry = entries[i];
         const float y = rows_.y + (static_cast<float>(i) * kRowHeight) - offset;
@@ -326,10 +356,12 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                 {name_x - ui::TextField::kPadding, y + 3.0F,
                  std::max(1.0F, name_room) + (2.0F * ui::TextField::kPadding), kRowHeight - 6.0F},
                 kNameSize);
+            item_right_.push_back(name_x + name_room);
         } else {
-            renderer.draw_text(entry.name, name_x, y + ((kRowHeight - kNameSize) / 2.0F) - 2.0F,
-                               kNameSize, style.text, std::max(1.0F, name_room),
-                               ui::Ellipsis::middle);
+            const float drawn = renderer.draw_text(
+                entry.name, name_x, y + ((kRowHeight - kNameSize) / 2.0F) - 2.0F, kNameSize,
+                style.text, std::max(1.0F, name_room), ui::Ellipsis::middle);
+            item_right_.push_back(name_x + drawn + kItemSlack);
         }
 
         const float detail_y = y + ((kRowHeight - kDetailSize) / 2.0F) - 2.0F;

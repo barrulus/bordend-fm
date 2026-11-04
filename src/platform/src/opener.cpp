@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <format>
+#include <optional>
 #include <utility>
 
 #include "nordend/core/log.hpp"
@@ -138,7 +139,9 @@ Opener::~Opener() { *alive_ = false; }
 
 void Opener::open(const std::filesystem::path& directory, std::vector<fs::Entry> entries,
                   std::string app_id) {
-    std::erase_if(entries, [](const fs::Entry& entry) { return entry.is_directory(); });
+    if (app_id.empty()) {  // folders open in the views, or with a chosen application
+        std::erase_if(entries, [](const fs::Entry& entry) { return entry.is_directory(); });
+    }
     if (entries.empty()) {
         return;
     }
@@ -182,6 +185,36 @@ void Opener::choices(const std::filesystem::path& directory, fs::Entry entry,
         [alive = alive_, done = std::move(done)](std::vector<AppChoice> choices) {
             if (*alive) {
                 done(std::move(choices));
+            }
+        });
+}
+
+void Opener::open_terminal(const std::filesystem::path& directory) {
+    ++planning_;
+    pool_.submit(
+        core::Priority::visible,
+        [directory, environment = environment_](const core::CancelToken& /*token*/) {
+            OpenPlan plan;
+            std::optional<std::vector<std::string>> line = terminal_alone(*environment);
+            if (!line) {
+                plan.problems.emplace_back("No terminal found: set $TERMINAL");
+                return plan;
+            }
+            const std::string name = std::filesystem::path{line->front()}.filename().string();
+            plan.launches.push_back({.app_id = name,
+                                     .app_name = name,
+                                     .argv = std::move(*line),
+                                     .directory = directory,
+                                     .files = 1});
+            plan.files = 1;
+            plan.first_name =
+                directory.has_filename() ? directory.filename().string() : directory.string();
+            return plan;
+        },
+        [this, alive = alive_](OpenPlan plan) {
+            if (*alive) {
+                --planning_;
+                start(std::move(plan));
             }
         });
 }

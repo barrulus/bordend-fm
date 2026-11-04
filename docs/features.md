@@ -45,6 +45,11 @@ README's [What's next](../README.md#whats-next).
   folder you open (from a bookmark, say) stays in sight on the way to it.
 - **Selection as you expect it:** click, Ctrl+click and Shift+click; Shift+arrows for a range,
   Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all, Escape for one again.
+- **Rubber band:** a drag from empty space (below the entries, a row away from its icon and
+  name, a cell away from them in the grid) draws a rectangle that selects what it touches; with
+  Ctrl it adds to the selection. Past the top or bottom of the list it scrolls, faster the
+  farther the pointer; in the column view it stays in its column. A drag from an icon or a name
+  still moves the files, and a click anywhere on a row still selects it.
 - **The selection follows its files:** cursor and selection are kept by name, so they stay on a
   file that another program renames or that moves in the order.
 - **Every shortcut on one card:** F1 or "?" lists them all, from the same table the code runs on,
@@ -88,6 +93,9 @@ README's [What's next](../README.md#whats-next).
   - an executable is never run: it opens in the app for its type;
   - the status bar says what happened ("Opening 5 files with Darktable…"), in red when there is
     no app for a type or the app fails at once.
+- **Open in a terminal.** F4 opens a terminal in the folder under the cursor, else in the folder
+  shown (also from the context menu, "Open in Terminal"); the same terminal as for terminal apps
+  (`$TERMINAL`, `xdg-terminal-exec`, foot...).
 - **Rename in place** (F2): the name becomes a field where it is, in all three views, with the
   name selected but not its extension. Typing works with accents and compose. Enter keeps the
   name, Escape gives up, and a click elsewhere keeps it. The usual editing keys work, including
@@ -128,7 +136,7 @@ README's [What's next](../README.md#whats-next).
     (a file another program moved) is skipped and said;
   - the status bar says what happened: "Undone: “Lake.ORF” is “P1.ORF” again", "Undone: 3
     items moved to the trash", "Redone: “P1.ORF” back in album".
-- **Drag and drop:** a press on an entry moved a few pixels drags it (the whole selection when it
+- **Drag and drop:** a press on an entry's icon or name moved a few pixels drags it (the whole selection when it
   is in it), with its icon and name under the pointer. It drops onto a folder in any view (marked),
   the empty part of a column or view (that folder), a step of the path above or a place in the
   sidebar; the Trash trashes. On the same disk it moves, onto another it copies; Ctrl copies,
@@ -166,13 +174,14 @@ README's [What's next](../README.md#whats-next).
 - **Context menu**: a right click (or a two-finger tap on the touchpad) in any of the three views
   or on the info pane, the Menu key or Shift+F10:
   - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash,
-    Delete Permanently;
-    on a folder's empty space: New Folder, New File, Paste; what cannot be done now is dimmed,
+    Delete Permanently; on a folder also Open in Terminal and Add to Sidebar;
+    on a folder's empty space: New Folder, New File, Paste, Add to Sidebar, Open in Terminal; what cannot be done now is dimmed,
     and each item shows its shortcut;
   - a right click on an entry selects it first, unless it is part of the selection already;
   - Open With lists the applications for the file's type exactly as GTK apps do (0 differences
     from `gio mime` on all 1 232 types and aliases), the default one first, and opens every
-    selected file with the one chosen;
+    selected file with the one chosen (on a folder: the applications for folders, such as an
+    editor, and the selected folders);
   - New File makes an empty file, or a copy of one of your templates (`XDG_TEMPLATES_DIR`),
     never over an existing file, with the name ready to edit;
   - drawn by Nordend in your theme's colors, it stays whole near the window's edges, and the

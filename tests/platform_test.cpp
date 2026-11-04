@@ -221,6 +221,23 @@ TEST_CASE("exec: the terminal: $TERMINAL, then xdg-terminal-exec, then the known
           std::vector<std::string>{exec.string(), "hx", "/d/a.txt"});
 }
 
+TEST_CASE("exec: a terminal alone: the same one, with its options and nothing to run") {
+    using Line = std::vector<std::string>;
+    System sys;
+    CHECK_FALSE(platform::terminal_alone(sys.environment).has_value());
+
+    const fs::path foot = sys.program("foot");
+    CHECK(platform::terminal_alone(sys.environment).value_or(Line{}) == Line{foot.string()});
+    const fs::path exec = sys.program("xdg-terminal-exec");
+    CHECK(platform::terminal_alone(sys.environment).value_or(Line{}) == Line{exec.string()});
+    const fs::path mine = sys.program("myterm");
+    sys.environment.terminal = "myterm --big";
+    CHECK(platform::terminal_alone(sys.environment).value_or(Line{}) ==
+          Line{mine.string(), "--big"});
+    sys.environment.terminal = "missing";
+    CHECK(platform::terminal_alone(sys.environment).value_or(Line{}) == Line{exec.string()});
+}
+
 TEST_CASE("applications: defaults, associations and the cache, by priority") {
     System sys;
     sys.program("viewer");
@@ -431,6 +448,45 @@ TEST_CASE("opener: the files reach their application, and what happened is repor
                 {{.name = "d.zip", .kind = Kind::file, .mime = sys.mime->find("application/zip")}});
     REQUIRE(run_until(loop, [&] { return !reports.empty(); }));
     CHECK(reports[0] == std::pair<std::string, bool>{"No application opens application/zip", true});
+}
+
+TEST_CASE("opener: a terminal in a folder, and a folder with a chosen application") {
+    System sys;
+    const fs::path log = sys.dir.path / "where";
+    sys.program("editor", R"(for a in "$@"; do echo "$a"; done > )" + log.string() + "\n");
+    sys.app("share", "editor.desktop", "editor");
+    fs::create_directories(sys.dir.path / "photos" / "sub");
+
+    EventLoop loop;
+    WorkerPool pool{loop, 2};
+    std::vector<std::pair<std::string, bool>> reports;
+    Opener opener{
+        loop, pool, sys.mime, sys.environment,
+        [&](const std::string& message, bool error) { reports.emplace_back(message, error); }};
+    opener.open_terminal(sys.dir.path / "photos");
+    REQUIRE(run_until(loop, [&] { return !reports.empty(); }));
+    CHECK(reports[0] == std::pair<std::string, bool>{"No terminal found: set $TERMINAL", true});
+
+    // The terminal starts in the folder: the fake one writes where it is.
+    sys.program("foot", "pwd > " + log.string() + "\n");
+    reports.clear();
+    opener.open_terminal(sys.dir.path / "photos" / "sub");
+    REQUIRE(run_until(loop, [&] {
+        return reports.size() == 1 && opener.launcher().running() == 0 && !opener.planning();
+    }));
+    CHECK(reports[0] == std::pair<std::string, bool>{"Opening sub with foot…", false});
+    CHECK(read_file(log) == (sys.dir.path / "photos" / "sub").string() + "\n");
+
+    // Open With on a folder: the application gets it (without one, folders are left out).
+    reports.clear();
+    using Kind = nordend::fs::EntryKind;
+    opener.open(sys.dir.path / "photos", {{.name = "sub", .kind = Kind::directory}},
+                "editor.desktop");
+    REQUIRE(run_until(loop, [&] {
+        return reports.size() == 1 && opener.launcher().running() == 0 && !opener.planning();
+    }));
+    CHECK(reports[0] == std::pair<std::string, bool>{"Opening sub with editor.desktop…", false});
+    CHECK(read_file(log) == (sys.dir.path / "photos" / "sub").string() + "\n");
 }
 
 TEST_CASE("applications: every one for a type, in GLib's order, the default first to choose") {

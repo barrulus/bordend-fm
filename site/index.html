@@ -90,7 +90,7 @@
   <div class="stats">
     <div class="stat"><span class="value">128 ms</span><span class="what">cold start to the first frame on screen</span></div>
     <div class="stat"><span class="value">0.7 ms</span><span class="what">first entries of a 10 000-file folder</span></div>
-    <div class="stat"><span class="value">2.9 MB</span><span class="what">stripped binary, decoders built in</span></div>
+    <div class="stat"><span class="value">3.0 MB</span><span class="what">stripped binary, decoders built in</span></div>
     <div class="stat"><span class="value">0 CPU</span><span class="what">while nothing moves on screen</span></div>
   </div>
   <div class="table"><table>
@@ -101,7 +101,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>272 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>276 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -174,10 +174,34 @@ cmake --build build-tsan
 # Unit tests (needs doctest-devel), in any build directory
 ctest --test-dir build
 
-# A folder in columns, rendered offscreen (no window) to a PPM image
-./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm</code></pre>
-  <p>More tools (benchmarks, decoding, thumbnails, copy engine) are listed in the
-  <a href="https://github.com/pankaspe/nordend-fm#readme">README</a>.</p>
+# Render the test scene offscreen, no window: &lt;out.ppm&gt; [width height scale [colors.toml]]
+./build/nordend-snapshot scene.ppm 960 820 1.5
+
+# Folders in columns offscreen, opened down to a path, and the scrolling benchmark
+./build/nordend-snapshot --columns ~ --reveal ~/Pictures columns.ppm
+./build/nordend-snapshot --columns /tmp --reveal /tmp/bench-10k --bench 600 columns.ppm
+
+# The grid and Quick Look offscreen, keys pressed first, thumbnails in a scratch cache
+./build/nordend-snapshot --columns ~/Pictures --keys "Ctrl+2,Right,space" \
+    --thumbnails /tmp/thumbs quick-look.ppm 1600 1000 1.5
+
+# The details sorted newest first, and the scrolling benchmark over them
+./build/nordend-snapshot --columns /tmp/bench-10k --keys "Ctrl+3" --sort "modified,modified" \
+    --bench 600 details.ppm 1440 810 2
+
+# Start-up benchmark: every step from exec to the first frame on screen, 10 runs
+./build/nordend-bench-start -n 10 -- ./build/nordend ~
+
+# Quick Look timings (thumbnail, sharp image) in the log
+NORDEND_LOG=debug ./build/nordend ~/Pictures
+
+# Directory loading benchmark
+./build/nordend-bench-dir --make 10000 /tmp/bench-10k
+./build/nordend-bench-dir --runs 20 /tmp/bench-10k
+
+# Image decoding and thumbnails: sizes, timings, and a PPM to look at
+./build/nordend-decode --runs 5 --ppm photo.ppm photo.jpg
+./build/nordend-thumb --size large --cache /tmp/thumbs photo.ORF</code></pre>
 </section>
 
 <!-- ============================================================== Guide -->
@@ -206,7 +230,9 @@ ctest --test-dir build
   <p>Click, <kbd>Ctrl</kbd>+click, <kbd>Shift</kbd>+click, or the keyboard alone:
   <kbd>Shift</kbd>+arrows for a range, <kbd>Ctrl</kbd>+arrows to move without selecting and
   <kbd>Ctrl</kbd>+<kbd>Space</kbd> to pick here and there, <kbd>Ctrl</kbd>+<kbd>A</kbd> for all,
-  <kbd>Escape</kbd> back to one entry. <kbd>Enter</kbd> or a double click opens: a folder in
+  <kbd>Escape</kbd> back to one entry. With the mouse, drag from empty space (beside a name, below
+  the entries, between the grid's icons) to draw a rectangle that selects what it touches,
+  <kbd>Ctrl</kbd> to add to the selection; past the bottom or top the list scrolls. <kbd>Enter</kbd> or a double click opens: a folder in
   Nordend, a file in its application. <kbd>Backspace</kbd> goes to the parent folder.</p>
   <p>Above every view the folder's path is a row of steps starting from your home: click one to go
   back up there, with the cursor on the folder you came from. <kbd>Alt</kbd>+<kbd>←</kbd> and
@@ -248,7 +274,9 @@ ctest --test-dir build
   <p><kbd>Enter</kbd> or a double click opens a file in its default application, the same one GTK
   applications choose (checked on all 1 232 file types). Five photos go to one darktable, not five;
   terminal programs such as Helix get a terminal; the new window comes up in front. The context
-  menu's Open With lists the same applications GTK would offer.</p>
+  menu's Open With lists the same applications GTK would offer, for folders too.
+  <kbd>F4</kbd> opens a terminal in the folder under the cursor, else in the folder shown
+  ("Open in Terminal" in the context menu); <code>$TERMINAL</code> chooses which one.</p>
 
   <h3 id="guide/files">Renaming, new folders, copy and move</h3>
   <ul>
@@ -323,6 +351,7 @@ ctest --test-dir build
   {"group": "Moving", "keys": "Enter", "action": "Open (files in their app)"},
   {"group": "Moving", "keys": "→", "action": "Open (columns, details)"},
   {"group": "Moving", "keys": "Alt+↓", "action": "Open (grid, details)"},
+  {"group": "Moving", "keys": "F4", "action": "Open in a terminal"},
   {"group": "Moving", "keys": "Backspace", "action": "Parent folder"},
   {"group": "Moving", "keys": "←", "action": "Parent (columns, details)"},
   {"group": "Moving", "keys": "Alt+↑", "action": "Parent folder"},
@@ -548,7 +577,7 @@ double_click_distance = 4</code></pre>
 
   <h3 id="architecture/quality">Quality</h3>
   <ul>
-    <li>272 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    <li>274 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
     before every commit; clang-tidy and clang-format on every change.</li>
     <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
     surfaceless EGL context, without a window.</li>
@@ -568,14 +597,15 @@ double_click_distance = 4</code></pre>
   <h3 id="roadmap/now">Now</h3>
   <ol>
     <li><strong>A week of daily use</strong> by the author, with a memory log, and every bug found
-    fixed.</li>
+    fixed; along the way a terminal in a folder (<kbd>F4</kbd>) and rubber-band selection with
+    the mouse, both done.</li>
     <li><strong>Release 0.1.0</strong>, with a Void Linux package and Nordend's own icon.</li>
   </ol>
 
   <h3 id="roadmap/later">After the first release</h3>
   <ul>
     <li>A command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search</li>
-    <li>Tabs, a dual pane, a queue of operations with its undo history, batch renaming</li>
+    <li>Tabs first (<kbd>Ctrl</kbd>+<kbd>T</kbd>), then a dual pane, a queue of operations with its undo history, batch renaming</li>
     <li>Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
     comparison, EXIF and histogram</li>
     <li>Scripting in Luau</li>

@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -118,6 +119,10 @@ public:
 
     // A drag took the press: the selection stays as it is.
     void forget_press() noexcept { press_pending_ = false; }
+
+    // A rubber band: the selection becomes base and the entries at rows (indices), the cursor
+    // stays where it is.
+    void select_band(const std::vector<std::string>& base, std::span<const std::size_t> rows);
 
     // Moves the cursor by delta entries (to the first entry when there is none).
     void move_cursor(std::ptrdiff_t delta, SelectMode mode = SelectMode::replace);

@@ -131,6 +131,13 @@ public:
     // the info pane, outside).
     [[nodiscard]] std::optional<ViewHit> hit(float x, float y) const;
 
+    // A rubber band over folder's entries: where it runs (nullopt when folder is not shown),
+    // the entries a band in content points touches, and scrolling under it by pixels.
+    [[nodiscard]] std::optional<BandLane> band_lane(const Folder& folder) const;
+    [[nodiscard]] std::vector<std::size_t> band_entries(const Folder& folder,
+                                                        const ui::Rect& content) const;
+    void band_scroll(const Folder& folder, float pixels);
+
     [[nodiscard]] std::size_t column_count() const noexcept { return columns_.size(); }
 
     [[nodiscard]] Column& column(std::size_t index) { return *columns_.at(index).column; }

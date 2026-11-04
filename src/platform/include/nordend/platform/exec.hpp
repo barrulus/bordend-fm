@@ -32,4 +32,10 @@ namespace nordend::platform {
 [[nodiscard]] std::optional<std::vector<std::string>> in_terminal(
     const std::vector<std::string>& argv, const Environment& environment);
 
+// The command line that opens the same terminal as in_terminal() with its shell and nothing to
+// run: the program and $TERMINAL's own options. Started in a folder, the shell opens there.
+// nullopt when there is none.
+[[nodiscard]] std::optional<std::vector<std::string>> terminal_alone(
+    const Environment& environment);
+
 }  // namespace nordend::platform

@@ -473,6 +473,8 @@ int main(int argc, char** argv) {
                     std::string app_id) {
                     opener->open(directory, std::move(files), std::move(app_id));
                 });
+            columns->set_terminal_handler(
+                [&](const std::filesystem::path& directory) { opener->open_terminal(directory); });
             if (clipboard.available()) {
                 columns->set_system_clipboard({
                     .offer =

@@ -225,6 +225,11 @@ public:
         open_with_ = std::move(open_with);
     }
 
+    // Opens a terminal in a folder (F4, "Open in Terminal"). Without one, neither is there.
+    using TerminalHandler = std::function<void(const std::filesystem::path& directory)>;
+
+    void set_terminal_handler(TerminalHandler terminal) { terminal_ = std::move(terminal); }
+
     // Where "New File" takes its templates from: fs::templates_dir() unless set (tests).
     void set_templates_dir(std::filesystem::path directory) {
         templates_dir_ = std::move(directory);
@@ -309,6 +314,11 @@ public:
 
     // Nordend is dragging entries.
     [[nodiscard]] bool dragging() const noexcept { return drag_.has_value(); }
+
+    // A press on empty space (or on an entry's row away from its icon and name) moved past
+    // kDragThreshold draws a rubber band: what it touches is selected, with Ctrl added to what
+    // was selected. Beyond the top or bottom of its list the list scrolls under it.
+    [[nodiscard]] bool banding() const noexcept { return band_.has_value(); }
 
     // The image under the pointer: the first entry's icon and name, or how many there are.
     void draw_drag_icon(ui::Renderer& renderer, const ui::Rect& bounds,
@@ -438,6 +448,14 @@ private:
                         const std::vector<std::filesystem::path>& paths, bool move,
                         std::optional<std::uint64_t> empty_clipboard);
     void scroll_near_edge();
+    // The rubber band: where it runs in the view shown, the selection it makes, the list
+    // scrolled under it (on a timer, while the pointer is beyond an edge), the band drawn.
+    [[nodiscard]] std::optional<BandLane> band_lane(const Folder& folder) const;
+    void start_band(float x, float y);
+    void update_band();
+    void end_band();
+    void scroll_band();
+    void draw_band(ui::Renderer& renderer, const theme::Palette& palette) const;
     void stop_auto_scroll();
     // The folder shown into the history: a new step when it changed, else its cursor.
     void note_location();
@@ -485,6 +503,8 @@ private:
     // Opens the selected files when the cursor is on a file (only the cursor's when it is not
     // selected); false when the cursor is on a folder or nowhere.
     bool open_selection();
+    // F4: a terminal in the cursor's folder, else in the folder shown.
+    void open_terminal();
     void rename(const std::shared_ptr<Folder>& folder, const std::string& from,
                 const std::string& to);
     void transfer_progress(const fs::TransferRequest& request,
@@ -519,6 +539,7 @@ private:
     OpenHandler open_;
     ChoicesHandler choices_;
     OpenWithHandler open_with_;
+    TerminalHandler terminal_;
     std::optional<std::filesystem::path> templates_dir_;
     fs::PlaceSources place_sources_{
         fs::PlaceSources::from_environment()};  // read at start: where the templates folder is
@@ -591,6 +612,28 @@ private:
     };
 
     std::optional<Press> press_;
+
+    // A press where a rubber band may start.
+    struct BandPress {
+        float x{0.0F};
+        float y{0.0F};
+        std::shared_ptr<Folder> folder;
+        bool add{false};  // Ctrl: keep what is selected
+    };
+
+    std::optional<BandPress> band_press_;
+
+    struct Band {
+        std::shared_ptr<Folder> folder;
+        float anchor_x{0.0F};  // where it started, in content points (BandLane)
+        float anchor_y{0.0F};
+        std::vector<std::string> base;  // selected before, kept (Ctrl)
+        float x{0.0F};                  // the pointer, in the window
+        float y{0.0F};
+    };
+
+    std::optional<Band> band_;
+    core::EventLoop::SourceId band_timer_{0};
 
     // Nordend's drag.
     struct Drag {

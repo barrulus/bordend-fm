@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <memory>
@@ -218,8 +219,8 @@ struct Fixture {
         return browser.columns().hit(x, y);
     }
 
-    // A point over the entry called name of folder (name empty: over folder's view, off its
-    // entries), as last drawn: the middle of the first line of them.
+    // A point over the entry called name of folder, on its icon or name (name empty: over
+    // folder's view, off its entries), as last drawn: the middle of the first line of them.
     std::pair<float, float> point_of(const fs::path& folder, const std::string& name) {
         for (float y = 0.0F; y < kHeight; y += 3.0F) {
             std::vector<float> xs;
@@ -228,9 +229,9 @@ struct Fixture {
                 if (!found || found->folder->path() != folder) {
                     continue;
                 }
-                if (name.empty()
-                        ? !found->entry
-                        : found->entry && found->folder->entries()[*found->entry].name == name) {
+                if (name.empty() ? !found->entry
+                                 : found->entry && found->on_item &&
+                                       found->folder->entries()[*found->entry].name == name) {
                     xs.push_back(x);
                 }
             }
@@ -242,13 +243,61 @@ struct Fixture {
         return {};
     }
 
-    void pointer(PointerEvent::Kind kind, std::pair<float, float> at, int clicks = 1) {
+    void pointer(PointerEvent::Kind kind, std::pair<float, float> at, int clicks = 1,
+                 Modifiers modifiers = {}) {
         browser.pointer({.kind = kind,
                          .x = at.first,
                          .y = at.second,
                          .button = PointerButton::left,
-                         .click_count = clicks},
+                         .click_count = clicks,
+                         .modifiers = modifiers},
                         Browser::Clock::now());
+    }
+
+    // A point on the row or cell of the entry called name of folder, away from its icon and
+    // name (where a band starts), as last drawn.
+    std::pair<float, float> beside(const fs::path& folder, const std::string& name) {
+        for (float y = 0.0F; y < kHeight; y += 3.0F) {
+            std::vector<float> xs;
+            for (float x = 0.0F; x < kWidth; x += 4.0F) {
+                const std::optional<ViewHit> found = hit(x, y);
+                if (found && found->folder->path() == folder && found->entry && !found->on_item &&
+                    found->folder->entries()[*found->entry].name == name) {
+                    xs.push_back(x);
+                }
+            }
+            if (!xs.empty()) {
+                return {xs[xs.size() / 2], y + 6.0F};
+            }
+        }
+        FAIL("no room beside " << (folder / name));
+        return {};
+    }
+
+    // A band from one point to another, the button still down.
+    void band(std::pair<float, float> from, std::pair<float, float> to, Modifiers modifiers = {}) {
+        pointer(PointerEvent::Kind::motion, from);
+        pointer(PointerEvent::Kind::press, from, 1, modifiers);
+        pointer(PointerEvent::Kind::motion, {from.first + 2.0F, from.second + 2.0F});
+        CHECK_FALSE(browser.banding());  // not yet: a click may move a pixel or two
+        pointer(PointerEvent::Kind::motion, to);
+        REQUIRE(browser.banding());
+        CHECK_FALSE(browser.dragging());
+        draw();
+    }
+
+    [[nodiscard]] Names selected(const fs::path& folder) {
+        std::optional<ViewHit> found;
+        for (float y = 0.0F; y < kHeight && !found; y += 3.0F) {
+            for (float x = 0.0F; x < kWidth; x += 10.0F) {
+                if (std::optional<ViewHit> at = hit(x, y); at && at->folder->path() == folder) {
+                    found = std::move(at);
+                    break;
+                }
+            }
+        }
+        REQUIRE(found);
+        return found.value_or(ViewHit{}).folder->selected_names();
     }
 
     // Presses on the entry and moves past the threshold: a drag starts.
@@ -628,4 +677,79 @@ TEST_CASE("sidebar disks: a click on the eject icon ejects; the right click offe
     f.drag(f.root, "sub");
     f.browser.drop_event({.kind = DropEvent::Kind::enter, .x = 40.0F, .y = spare});
     CHECK_FALSE(f.dnd.accepted);
+}
+
+TEST_CASE("band: from empty space, or beside a name, selects what it touches; Ctrl adds") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    for (const Browser::Mode mode :
+         {Browser::Mode::columns, Browser::Mode::details, Browser::Mode::grid}) {
+        CAPTURE(static_cast<int>(mode));
+        f.show(f.photos, mode);
+        // From empty space to P1.ORF.xmp: in the lists up from below the entries (that one and
+        // the one after it), in the grid down from the margin above the cells (that one).
+        const auto empty = f.point_of(f.photos, "");
+        const auto xmp = f.point_of(f.photos, "P1.ORF.xmp");
+        f.band(empty, xmp);
+        CHECK(f.selected(f.photos) ==
+              (mode == Browser::Mode::grid ? Names{"P1.ORF.xmp"} : Names{"P1.ORF.xmp", "P2.ORF"}));
+        f.pointer(PointerEvent::Kind::release, xmp);
+        CHECK_FALSE(f.browser.banding());
+        f.draw();
+
+        // Beside P1.ORF's name down to P2.ORF: all three, and nothing dragged.
+        f.band(f.beside(f.photos, "P1.ORF"), f.point_of(f.photos, "P2.ORF"));
+        CHECK(f.selected(f.photos) == Names{"P1.ORF", "P1.ORF.xmp", "P2.ORF"});
+        f.pointer(PointerEvent::Kind::release, f.point_of(f.photos, "P2.ORF"));
+        CHECK(f.dnd.started.empty());
+        f.draw();
+
+        // A click on P1.ORF, then a band with Ctrl over P2.ORF alone: both.
+        const auto first = f.point_of(f.photos, "P1.ORF");
+        f.pointer(PointerEvent::Kind::press, first);
+        f.pointer(PointerEvent::Kind::release, first);
+        f.draw();
+        REQUIRE(f.selected(f.photos) == Names{"P1.ORF"});
+        const auto last = f.beside(f.photos, "P2.ORF");
+        f.band(last, {last.first + 1.0F, last.second + 7.0F}, {.ctrl = true});
+        CHECK(f.selected(f.photos) == Names{"P1.ORF", "P2.ORF"});
+        f.pointer(PointerEvent::Kind::release, last);
+        f.draw();
+
+        // A click beside a name, without moving, selects that entry as before.
+        const auto beside = f.beside(f.photos, "P2.ORF");
+        f.pointer(PointerEvent::Kind::press, beside);
+        f.pointer(PointerEvent::Kind::release, beside);
+        CHECK(f.selected(f.photos) == Names{"P2.ORF"});
+        CHECK_FALSE(f.browser.banding());
+    }
+}
+
+TEST_CASE("band: beyond the bottom of the list, it scrolls and selects as it goes") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    const fs::path many = f.root / "many";
+    fs::create_directories(many);
+    for (int i = 0; i < 80; ++i) {
+        std::ofstream{many / std::format("photo-{:02}.jpg", i)} << i;
+    }
+    f.show(many, Browser::Mode::details);
+    const std::shared_ptr<nordend::views::Folder> folder = f.browser.details().folder();
+    const auto start = f.beside(many, "photo-00.jpg");
+    f.band(start, {start.first, static_cast<float>(kHeight) - 2.0F});
+    // The rows shown are selected at once; the rest come while the list scrolls.
+    const std::size_t shown = folder->selected_count();
+    CHECK(shown > 5);
+    CHECK(shown < 80);
+    CHECK(run_until(f.loop, [&] {
+        f.draw();
+        return folder->selected_count() == 80;
+    }));
+    f.pointer(PointerEvent::Kind::release, {start.first, static_cast<float>(kHeight) - 2.0F});
+    CHECK_FALSE(f.browser.banding());
+    CHECK(folder->selected_count() == 80);
 }

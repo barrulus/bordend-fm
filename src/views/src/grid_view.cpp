@@ -63,7 +63,69 @@ std::optional<ViewHit> GridView::hit(float x, float y) const {
     if (!folder_ || x < area_.x || x >= area_.right() || y < area_.y || y >= area_.bottom()) {
         return std::nullopt;
     }
-    return ViewHit{.folder = folder_, .entry = cell_at(x, y)};
+    const std::optional<std::size_t> cell = cell_at(x, y);
+    return ViewHit{.folder = folder_, .entry = cell, .on_item = cell && on_item(*cell, x, y)};
+}
+
+bool GridView::on_item(std::size_t index, float x, float y) const {
+    if (index < item_first_ || index - item_first_ >= name_width_.size() || columns_ == 0) {
+        return false;
+    }
+    const float left = area_.x + kPadding + (static_cast<float>(index % columns_) * cell_width_);
+    const float top = area_.y + row_top(index / columns_) - scroller_.offset();
+    const float icon = icon_size();
+    const ui::Rect picture{left + ((cell_width_ - icon) / 2.0F), top + kIconTop, icon, icon};
+    const float width = name_width_[index - item_first_];
+    const ui::Rect name{left + ((cell_width_ - width) / 2.0F) - kNameGap,
+                        top + kIconTop + icon + (kNameGap / 2.0F), width + (2.0F * kNameGap),
+                        kTextSize + kNameGap};
+    return picture.contains(x, y) || name.contains(x, y);
+}
+
+std::optional<BandLane> GridView::band_lane(const Folder& folder) const {
+    if (folder_.get() != &folder) {
+        return std::nullopt;
+    }
+    return BandLane{.area = area_, .offset = scroller_.offset()};
+}
+
+std::vector<std::size_t> GridView::band_entries(const Folder& folder,
+                                                const ui::Rect& content) const {
+    std::vector<std::size_t> touched;
+    if (folder_.get() != &folder || columns_ == 0 || cell_width_ <= 0.0F) {
+        return touched;
+    }
+    // The cells whose highlight box the band meets.
+    const float height = cell_height();
+    const std::size_t count = folder.entries().size();
+    const RowRange band_rows = visible_rows(rows(), height, std::max(0.0F, content.y - kPadding),
+                                            std::max(content.height, 0.01F));
+    for (std::size_t row = band_rows.first; row < band_rows.last; ++row) {
+        const float top = row_top(row) + kCellInset;
+        const float bottom = row_top(row) + height - kCellInset;
+        if (content.bottom() < top || content.y > bottom) {
+            continue;
+        }
+        for (std::size_t column = 0; column < columns_; ++column) {
+            const std::size_t index = (row * columns_) + column;
+            if (index >= count) {
+                break;
+            }
+            const float left = kPadding + (static_cast<float>(column) * cell_width_) + kCellInset;
+            const float right = left + cell_width_ - (2.0F * kCellInset);
+            if (content.right() >= left && content.x <= right) {
+                touched.push_back(index);
+            }
+        }
+    }
+    return touched;
+}
+
+void GridView::band_scroll(const Folder& folder, float pixels) {
+    if (folder_.get() == &folder) {
+        scroller_.jump_to(scroller_.offset() + pixels);
+        redraw_();
+    }
 }
 
 void GridView::set_show_hidden(bool show) {
@@ -206,6 +268,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const std::optional<std::size_t> cursor = folder_->cursor();
     const bool cursor_ring = folder_->single_selection() == nullptr;
     ui::FontSystem& fonts = renderer.fonts();
+    item_first_ = range.first * columns_;
+    name_width_.clear();
     // The cache size that covers the icon in physical pixels.
     const thumbs::Size thumbnail_size =
         thumbs::size_for(static_cast<std::uint32_t>(std::lround(icon * renderer.scale())));
@@ -266,12 +330,14 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                               std::max(1.0F, cell_width_ - (2.0F * kNameMargin)) + (2.0F * pad),
                               kTextSize + (2.0F * pad) + 6.0F},
                              kTextSize);
+                name_width_.push_back(cell_width_ - (2.0F * kNameMargin));
                 continue;
             }
             const ui::TextLayout& name = fonts.layout(
                 entry.name, kTextSize, renderer.scale(),
                 std::max(1.0F, cell_width_ - (2.0F * kNameMargin)), ui::Ellipsis::middle);
             const float name_width = name.width / renderer.scale();
+            name_width_.push_back(name_width);
             renderer.draw_layout(name, x + ((cell_width_ - name_width) / 2.0F),
                                  y + kIconTop + icon + kNameGap, style.text);
         }

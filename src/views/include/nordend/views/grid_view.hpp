@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
@@ -69,6 +70,13 @@ public:
     // The folder and the entry at a window point, as last drawn; nullopt off the entries' area.
     [[nodiscard]] std::optional<ViewHit> hit(float x, float y) const;
 
+    // A rubber band over folder's entries: where it runs (nullopt when folder is not shown),
+    // the entries a band in content points touches, and scrolling under it by pixels.
+    [[nodiscard]] std::optional<BandLane> band_lane(const Folder& folder) const;
+    [[nodiscard]] std::vector<std::size_t> band_entries(const Folder& folder,
+                                                        const ui::Rect& content) const;
+    void band_scroll(const Folder& folder, float pixels);
+
     // Lays out and draws into bounds at time now (advancing the scroll animation).
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);
@@ -125,6 +133,8 @@ private:
     [[nodiscard]] std::size_t rows() const;
     [[nodiscard]] float row_top(std::size_t row) const;  // content coordinates
     [[nodiscard]] std::optional<std::size_t> cell_at(float x, float y) const;
+    // The point is on cell index's icon or name, as last drawn.
+    [[nodiscard]] bool on_item(std::size_t index, float x, float y) const;
     void update_hover();
     [[nodiscard]] bool on_pane_edge(float x, float y) const;
 
@@ -174,6 +184,10 @@ private:
     float pointer_y_{0.0F};
     bool pointer_inside_{false};
     std::optional<std::size_t> hovered_;
+    // The width of each drawn cell's name, from item_first_ on: a press on the icon or the name
+    // drags the entry, elsewhere in the cell it starts a band.
+    std::vector<float> name_width_;
+    std::size_t item_first_{0};
 };
 
 }  // namespace nordend::views

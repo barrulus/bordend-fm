@@ -203,34 +203,72 @@ std::vector<std::vector<std::string>> expand_exec(const DesktopEntry& entry,
     return lines;
 }
 
-std::optional<std::vector<std::string>> in_terminal(const std::vector<std::string>& argv,
-                                                    const Environment& environment) {
+namespace {
+
+// The terminal to use: its program, the options $TERMINAL gave it, and its known form if any.
+// is_exec: xdg-terminal-exec, which takes the command as it is.
+struct FoundTerminal {
+    std::string program;
+    std::vector<std::string> options;
+    const Terminal* known{nullptr};
+    bool is_exec{false};
+};
+
+std::optional<FoundTerminal> find_terminal(const Environment& environment) {
     if (!environment.terminal.empty()) {
         if (const std::optional<std::vector<std::string>> words =
                 split_exec(environment.terminal)) {
-            // $TERMINAL may carry its own options ("foot --server"): the command goes after them.
+            // $TERMINAL may carry its own options ("foot --server").
             if (const std::optional<std::filesystem::path> program =
                     find_program(words->front(), environment.path)) {
-                std::vector<std::string> line =
-                    terminal_line(program->string(), known_terminal(words->front()), argv);
-                line.insert(line.begin() + 1, words->begin() + 1, words->end());
-                return line;
+                return FoundTerminal{.program = program->string(),
+                                     .options = {words->begin() + 1, words->end()},
+                                     .known = known_terminal(words->front()),
+                                     .is_exec = false};
             }
         }
     }
     if (const std::optional<std::filesystem::path> program =
             find_program("xdg-terminal-exec", environment.path)) {
-        std::vector<std::string> line{program->string()};
-        line.insert(line.end(), argv.begin(), argv.end());
-        return line;
+        return FoundTerminal{
+            .program = program->string(), .options = {}, .known = nullptr, .is_exec = true};
     }
     for (const Terminal& terminal : kTerminals) {
         if (const std::optional<std::filesystem::path> program =
                 find_program(terminal.program, environment.path)) {
-            return terminal_line(program->string(), &terminal, argv);
+            return FoundTerminal{.program = program->string(), .options = {}, .known = &terminal};
         }
     }
     return std::nullopt;
+}
+
+}  // namespace
+
+std::optional<std::vector<std::string>> in_terminal(const std::vector<std::string>& argv,
+                                                    const Environment& environment) {
+    std::optional<FoundTerminal> found = find_terminal(environment);
+    if (!found) {
+        return std::nullopt;
+    }
+    if (found->is_exec) {
+        std::vector<std::string> line{std::move(found->program)};
+        line.insert(line.end(), argv.begin(), argv.end());
+        return line;
+    }
+    // The command goes after $TERMINAL's own options.
+    std::vector<std::string> line = terminal_line(std::move(found->program), found->known, argv);
+    line.insert(line.begin() + 1, found->options.begin(), found->options.end());
+    return line;
+}
+
+std::optional<std::vector<std::string>> terminal_alone(const Environment& environment) {
+    std::optional<FoundTerminal> found = find_terminal(environment);
+    if (!found) {
+        return std::nullopt;
+    }
+    std::vector<std::string> line{std::move(found->program)};
+    line.insert(line.end(), found->options.begin(), found->options.end());
+    return line;
 }
 
 }  // namespace nordend::platform

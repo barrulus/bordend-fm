@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
@@ -71,6 +72,13 @@ public:
 
     // The folder and the entry at a window point, as last drawn; nullopt off the entries' area.
     [[nodiscard]] std::optional<ViewHit> hit(float x, float y) const;
+
+    // A rubber band over folder's entries: where it runs (nullopt when folder is not shown),
+    // the entries a band in content points touches, and scrolling under it by pixels.
+    [[nodiscard]] std::optional<BandLane> band_lane(const Folder& folder) const;
+    [[nodiscard]] std::vector<std::size_t> band_entries(const Folder& folder,
+                                                        const ui::Rect& content) const;
+    void band_scroll(const Folder& folder, float pixels);
 
     // Sorts by field: ascending, or reversed when it is the field already sorted by.
     void sort_by(Field field);
@@ -196,6 +204,10 @@ private:
     float pointer_y_{0.0F};
     bool pointer_inside_{false};
     std::optional<std::size_t> hovered_;
+    // Where the icon and name of each drawn row end (window x), from item_first_ on: a press
+    // before that drags the entry, after it starts a band.
+    std::vector<float> item_right_;
+    std::size_t item_first_{0};
 };
 
 }  // namespace nordend::views

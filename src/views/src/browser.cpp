@@ -1140,6 +1140,7 @@ void Browser::start_inverse(const FileOperation& operation, Purpose purpose) {
 Browser::~Browser() {
     *alive_ = false;
     loop_.remove(auto_scroll_timer_);
+    loop_.remove(band_timer_);
 }
 
 void Browser::start_rename() {
@@ -1251,17 +1252,19 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         enter.keysym = XKB_KEY_Return;
         view_key(enter, Clock::now());
     });
-    if (cursor != nullptr && !cursor->is_directory() && choices_ && open_with_) {
+    if (cursor != nullptr && choices_ && open_with_) {
         MenuItem with;
         with.id = "open_with";
         with.label = "Open With";
         with.submenu = true;
         with.empty_text = "Looking for applications…";
         items.push_back(std::move(with));
-        // The files it would open: the selected ones, else the cursor's; their types as known.
+        // What it would open: the selected entries of the cursor's kind (files, or folders), else
+        // the cursor's; their types as known.
         std::vector<fs::Entry> files;
         for (const fs::Entry& entry : folder->entries()) {
-            if (!entry.is_directory() && std::ranges::find(names, entry.name) != names.end()) {
+            if (entry.is_directory() == cursor->is_directory() &&
+                std::ranges::find(names, entry.name) != names.end()) {
                 fs::Entry typed = entry;
                 typed.mime = folder->mime_of(entry);
                 files.push_back(std::move(typed));
@@ -1301,6 +1304,10 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
                          menu_.set_submenu("open_with", std::move(children));
                      });
         });
+    }
+    if (cursor != nullptr && cursor->is_directory() && terminal_) {
+        add("open_terminal", "Open in Terminal", keys_for(Command::open_terminal),
+            [this] { open_terminal(); });
     }
     const std::size_t count = names.size();
     std::vector<std::filesystem::path> folders;
@@ -1399,6 +1406,14 @@ std::vector<MenuItem> Browser::folder_menu() {
         bookmark.separator = true;
         bookmark.action = [this, path = shown->path()] { add_to_sidebar({path}); };
         items.push_back(std::move(bookmark));
+        if (terminal_) {
+            MenuItem terminal;
+            terminal.id = "open_terminal";
+            terminal.label = "Open in Terminal";
+            terminal.keys = keys_for(Command::open_terminal);
+            terminal.action = [this, path = shown->path()] { terminal_(path); };
+            items.push_back(std::move(terminal));
+        }
     }
     return items;
 }
@@ -1734,6 +1749,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     view_area_ = {view.x, view.y + kTitleHeight, view.width,
                   std::max(0.0F, view.height - kTitleHeight - bar)};
     draw_view(renderer, view_area_, palette, icons, now);
+    draw_band(renderer, palette);
     editor_.draw(renderer, palette);
     if (quick_look_.is_open()) {
         quick_look_.follow(current_folder());  // entries may have moved or gone meanwhile
@@ -1868,6 +1884,8 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
         // Taken by what the press opened (a menu from a right click): the button is up all the
         // same, and the next press finds its target again.
         button_held_ = false;
+        band_press_.reset();
+        end_band();
     }
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
@@ -1936,6 +1954,8 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
         send_pointer(pointer_target_, event, now);
         pointer_target_ = Target::view;
         button_held_ = false;
+        band_press_.reset();
+        end_band();
         return;
     }
     // While a button is held (a drag) the pointer stays with whoever took the press.
@@ -1969,14 +1989,37 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
         start_drag(std::move(press));
         return;
     }
+    if (event.kind == Kind::motion && band_) {
+        band_->x = event.x;
+        band_->y = event.y;
+        update_band();
+        return;  // the views see nothing meanwhile (no hover)
+    }
+    if (event.kind == Kind::motion && band_press_ && button_held_ &&
+        pointer_target_ == Target::view &&
+        std::hypot(event.x - band_press_->x, event.y - band_press_->y) >= kDragThreshold) {
+        start_band(event.x, event.y);
+        return;
+    }
     send_pointer(pointer_target_, event, now);
+    if (event.kind == Kind::scroll && band_) {
+        update_band();  // the list moved under it
+    }
     if (event.kind == Kind::press) {
         press_.reset();
+        band_press_.reset();
+        end_band();
         if (pointer_target_ == Target::view && event.button == ui::PointerButton::left &&
             event.click_count == 1) {
-            // Where a drag may start: an entry, selected by the press just handled.
-            if (std::optional<ViewHit> hit = view_hit(event.x, event.y); hit && hit->entry) {
+            // On an entry's icon or name, selected by the press just handled, a drag may start;
+            // on empty space, or beside the name, a band.
+            if (std::optional<ViewHit> hit = view_hit(event.x, event.y); hit && hit->on_item) {
                 press_ = Press{.x = event.x, .y = event.y, .hit = std::move(*hit)};
+            } else if (hit) {
+                band_press_ = BandPress{.x = event.x,
+                                        .y = event.y,
+                                        .folder = std::move(hit->folder),
+                                        .add = event.modifiers.ctrl};
             }
         }
     } else if (event.kind == Kind::release && event.button == ui::PointerButton::left) {
@@ -1984,7 +2027,144 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
             press_->hit.folder->release_press();
             press_.reset();
         }
+        if (band_press_) {
+            band_press_->folder->release_press();
+            band_press_.reset();
+        }
+        end_band();
     }
+}
+
+std::optional<BandLane> Browser::band_lane(const Folder& folder) const {
+    switch (mode_) {
+        case Mode::grid:
+            return grid_.band_lane(folder);
+        case Mode::details:
+            return details_.band_lane(folder);
+        case Mode::columns:
+            break;
+    }
+    return columns_.band_lane(folder);
+}
+
+void Browser::start_band(float x, float y) {
+    if (!band_press_) {
+        return;
+    }
+    BandPress press = std::move(*band_press_);
+    band_press_.reset();
+    const std::optional<BandLane> lane = band_lane(*press.folder);
+    if (!lane) {
+        return;
+    }
+    std::vector<std::string> base;
+    if (press.add) {
+        base = press.folder->selected_names();
+    }
+    band_ = Band{.folder = std::move(press.folder),
+                 .anchor_x = press.x - lane->area.x,
+                 .anchor_y = press.y - lane->area.y + lane->offset,
+                 .base = std::move(base),
+                 .x = x,
+                 .y = y};
+    update_band();
+}
+
+void Browser::update_band() {
+    if (!band_) {
+        return;
+    }
+    const std::optional<BandLane> lane = band_lane(*band_->folder);
+    if (!lane || lane->area.width <= 0.0F || lane->area.height <= 0.0F) {
+        end_band();  // its folder is not shown any more
+        return;
+    }
+    const ui::Rect& area = lane->area;
+    const float x = std::clamp(band_->x, area.x, area.right()) - area.x;
+    const float y = std::clamp(band_->y, area.y, area.bottom()) - area.y + lane->offset;
+    const ui::Rect content{std::min(x, band_->anchor_x), std::min(y, band_->anchor_y),
+                           std::abs(x - band_->anchor_x), std::abs(y - band_->anchor_y)};
+    std::vector<std::size_t> touched;
+    switch (mode_) {
+        case Mode::grid:
+            touched = grid_.band_entries(*band_->folder, content);
+            break;
+        case Mode::details:
+            touched = details_.band_entries(*band_->folder, content);
+            break;
+        case Mode::columns:
+            touched = columns_.band_entries(*band_->folder, content);
+            break;
+    }
+    band_->folder->select_band(band_->base, touched);
+    redraw_();
+    // Beyond the top or the bottom of the list, it scrolls on its own.
+    const bool beyond = band_->y < area.y || band_->y >= area.bottom();
+    if (beyond && band_timer_ == 0) {
+        band_timer_ = loop_.add_timer(std::chrono::milliseconds{16}, std::chrono::milliseconds{16},
+                                      [this] { scroll_band(); });
+    } else if (!beyond && band_timer_ != 0) {
+        loop_.remove(band_timer_);
+        band_timer_ = 0;
+    }
+}
+
+void Browser::scroll_band() {
+    const std::optional<BandLane> lane = band_ ? band_lane(*band_->folder) : std::nullopt;
+    if (!lane) {
+        end_band();
+        return;
+    }
+    // Faster the farther the pointer is: a pixel a tick per 4 pixels beyond, up to 40.
+    const float beyond =
+        band_->y < lane->area.y ? band_->y - lane->area.y : band_->y - lane->area.bottom();
+    const float step = std::clamp(beyond / 4.0F, -40.0F, 40.0F);
+    const float pixels = step < 0.0F ? std::min(step, -2.0F) : std::max(step, 2.0F);
+    switch (mode_) {
+        case Mode::grid:
+            grid_.band_scroll(*band_->folder, pixels);
+            break;
+        case Mode::details:
+            details_.band_scroll(*band_->folder, pixels);
+            break;
+        case Mode::columns:
+            columns_.band_scroll(*band_->folder, pixels);
+            break;
+    }
+    update_band();
+}
+
+void Browser::end_band() {
+    loop_.remove(band_timer_);
+    band_timer_ = 0;
+    if (band_) {
+        band_.reset();
+        redraw_();
+    }
+}
+
+void Browser::draw_band(ui::Renderer& renderer, const theme::Palette& palette) const {
+    if (!band_) {
+        return;
+    }
+    const std::optional<BandLane> lane = band_lane(*band_->folder);
+    if (!lane) {
+        return;
+    }
+    const ui::Rect& area = lane->area;
+    const float left = area.x + band_->anchor_x;
+    const float top = area.y + band_->anchor_y - lane->offset;
+    const float x = std::clamp(band_->x, area.x, area.right());
+    const float y = std::clamp(band_->y, area.y, area.bottom());
+    renderer.push_clip(area);
+    renderer.draw_box({std::min(left, x), std::min(top, y), std::abs(x - left), std::abs(y - top)},
+                      // The text's colour: it shows over the selection it makes, which has
+                      // the accent's.
+                      {.fill = palette.on_surface.with_alpha(0.12F),
+                       .radius = ui::Corners::all(3.0F),
+                       .border_width = 1.5F,
+                       .border = palette.on_surface.with_alpha(0.85F)});
+    renderer.pop_clip();
 }
 
 void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now) {
@@ -2735,6 +2915,9 @@ void Browser::run(Command command, Clock::time_point now) {
                 add_to_sidebar({shown->path()});
             }
             break;
+        case Command::open_terminal:
+            open_terminal();
+            break;
     }
 }
 
@@ -2767,6 +2950,20 @@ bool Browser::open_selection() {
     }
     open_(folder->path(), std::move(files));
     return true;
+}
+
+void Browser::open_terminal() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder || !terminal_) {
+        return;
+    }
+    if (folder->is_trash()) {
+        show_message("Restore it first to open it", false);
+        return;
+    }
+    const fs::Entry* const cursor = folder->cursor_entry();
+    terminal_(cursor != nullptr && cursor->is_directory() ? folder->path() / cursor->name
+                                                          : folder->path());
 }
 
 bool Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {

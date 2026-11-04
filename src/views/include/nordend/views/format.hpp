@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace nordend::views {
 
@@ -23,5 +24,10 @@ struct RowRange {
 
 [[nodiscard]] RowRange visible_rows(std::size_t count, float row_height, float offset,
                                     float viewport);
+
+// The rows of such a list that a band from y `top` to `bottom` (content pixels) touches; a flat
+// band touches the row it lies on.
+[[nodiscard]] std::vector<std::size_t> rows_touched(float top, float bottom, float row_height,
+                                                    std::size_t count);
 
 }  // namespace nordend::views

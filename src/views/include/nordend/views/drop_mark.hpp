@@ -7,15 +7,26 @@
 #include <string>
 
 #include "nordend/fs/entry.hpp"
+#include "nordend/ui/geometry.hpp"
 #include "nordend/views/folder.hpp"
 
 namespace nordend::views {
 
 // What a view shows at a window point: the folder shown there and the entry under it, if any
-// (where a drag starts, where a drop goes).
+// (where a drag starts, where a drop goes). on_item: the point is on the entry's icon or name,
+// where a press drags it; the rest of its row or cell is empty space, where a band starts.
 struct ViewHit {
     std::shared_ptr<Folder> folder;
     std::optional<std::size_t> entry;
+    bool on_item{false};
+};
+
+// Where a rubber band over a folder's entries runs, as last drawn: their area in the window (the
+// band is cut to it) and how far it is scrolled. Points inside it are given to the views as
+// content points: x from the area's left, y from the top of the whole list.
+struct BandLane {
+    ui::Rect area;
+    float offset{0.0F};
 };
 
 // Where a drag over the window would drop, as the views draw it: the entry called name in

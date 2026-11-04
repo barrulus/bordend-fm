@@ -19,6 +19,8 @@
 // --drag NAME presses on the entry NAME of the folder shown and drags it a little (the drag image
 // drawn under the pointer); --drop-over X,Y then moves that drag (or, alone, another program's
 // drag of files) over the point X,Y, which shows where it would drop.
+// --band X1,Y1,X2,Y2 presses at X1,Y1 and moves to X2,Y2 with the button down: a rubber band
+// when the press is on empty space.
 // --fake-disks adds two disks to the sidebar as udisks2 would: "kinetic", external and not mounted,
 // and "SD card", external and mounted on the folder shown (its eject icon).
 // --message shows TEXT in the status bar as opening a file would ("!TEXT": as an error).
@@ -229,6 +231,7 @@ int main(int argc, char** argv) {
     std::string conflict;
     std::string drag;
     std::optional<std::pair<float, float>> drop_over;
+    std::vector<float> band;  // x1, y1, x2, y2
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
     while (args.size() >= 2) {
@@ -286,6 +289,18 @@ int main(int argc, char** argv) {
             const std::size_t comma = point.find(',');
             drop_over = std::pair{std::stof(std::string{point.substr(0, comma)}),
                                   std::stof(std::string{point.substr(comma + 1)})};
+        } else if (option == "--band") {
+            std::string_view rest{args[2]};
+            while (!rest.empty()) {
+                const std::size_t comma = rest.find(',');
+                band.push_back(std::stof(std::string{rest.substr(0, comma)}));
+                rest =
+                    comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
+            }
+            if (band.size() != 4) {
+                log::error("--band takes X1,Y1,X2,Y2");
+                return 2;
+            }
         } else if (option == "--csd") {
             csd = args[2];
         } else if (option == "--desktop") {
@@ -304,7 +319,7 @@ int main(int argc, char** argv) {
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
-            "[--drop-over X,Y] [--fake-disks] [--memory [--trim] "
+            "[--drop-over X,Y] [--band X1,Y1,X2,Y2] [--fake-disks] [--memory [--trim] "
             "[--default-malloc]]] [--csd STATE] [--desktop LOOK] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
@@ -456,6 +471,7 @@ int main(int argc, char** argv) {
                     [](const std::filesystem::path& /*directory*/,
                        const std::vector<nordend::fs::Entry>& /*files*/,
                        const std::string& /*app_id*/) {});
+                columns->set_terminal_handler([](const std::filesystem::path& /*directory*/) {});
                 if (reveal.empty()) {
                     columns->open(columns_dir);
                 } else {
@@ -538,6 +554,25 @@ int main(int argc, char** argv) {
                 }
                 if (!drag.empty()) {
                     drag_image = drag_entry(*columns, drag, width, height);
+                    frame();
+                }
+                if (band.size() == 4) {
+                    using Kind = ui::PointerEvent::Kind;
+                    const auto at = [&](Kind kind, float x, float y) {
+                        columns->pointer({.kind = kind,
+                                          .x = x,
+                                          .y = y,
+                                          .button = ui::PointerButton::left,
+                                          .click_count = 1},
+                                         std::chrono::steady_clock::now());
+                    };
+                    at(Kind::motion, band[0], band[1]);
+                    at(Kind::press, band[0], band[1]);
+                    frame();
+                    at(Kind::motion, band[2], band[3]);
+                    if (!columns->banding()) {
+                        log::warn("--band: the press did not start a band");
+                    }
                     frame();
                 }
                 if (drop_over) {

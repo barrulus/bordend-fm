@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
@@ -54,8 +55,19 @@ public:
 
     [[nodiscard]] ui::Scroller& scroller() noexcept { return scroller_; }
 
+    [[nodiscard]] const ui::Scroller& scroller() const noexcept { return scroller_; }
+
     // Row at a window point, from the last drawn bounds; nullopt outside the rows.
     [[nodiscard]] std::optional<std::size_t> row_at(float x, float y) const;
+
+    // The point is on row's icon or name as last drawn (not the empty rest of the row).
+    [[nodiscard]] bool on_item(std::size_t row, float x) const;
+
+    // Where the rows were last drawn, scrolled by the scroller's offset.
+    [[nodiscard]] const ui::Rect& rows_area() const noexcept { return rows_area_; }
+
+    // The rows a band touches, in content points (BandLane).
+    [[nodiscard]] std::vector<std::size_t> rows_in(const ui::Rect& content) const;
 
     // Below the cursor's row, near its left: where a menu opened from the keyboard goes; nullopt
     // when the row is not shown.
@@ -70,6 +82,9 @@ private:
     std::shared_ptr<Folder> folder_;
     ui::Scroller scroller_;
     ui::Rect rows_area_{};  // where the rows were last drawn, for hit testing
+    // Where the icon and name of each drawn row end (window x), from item_first_ on.
+    std::vector<float> item_right_;
+    std::size_t item_first_{0};
     std::optional<std::size_t> hovered_;
 };
 

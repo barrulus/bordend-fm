@@ -48,4 +48,16 @@ RowRange visible_rows(std::size_t count, float row_height, float offset, float v
     return {std::min(first, count), std::min(last, count)};
 }
 
+std::vector<std::size_t> rows_touched(float top, float bottom, float row_height,
+                                      std::size_t count) {
+    const RowRange range =
+        visible_rows(count, row_height, std::max(0.0F, top), std::max(bottom - top, 0.01F));
+    std::vector<std::size_t> rows;
+    rows.reserve(range.size());
+    for (std::size_t row = range.first; row < range.last; ++row) {
+        rows.push_back(row);
+    }
+    return rows;
+}
+
 }  // namespace nordend::views

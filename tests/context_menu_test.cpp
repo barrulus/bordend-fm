@@ -102,6 +102,7 @@ struct Fixture {
     std::string asked_type;
     std::string opened_with;
     Names opened;
+    std::vector<fs::path> terminals;  // where F4 and "Open in Terminal" opened one
 
     Fixture() {
         fs::create_directories(photos / "sub");
@@ -124,6 +125,8 @@ struct Fixture {
                     opened.push_back(file.name);
                 }
             });
+        browser.set_terminal_handler(
+            [this](const fs::path& directory) { terminals.push_back(directory); });
         browser.open(photos);
         browser.set_mode(Browser::Mode::details);
         REQUIRE(settle());
@@ -251,7 +254,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.press(key(XKB_KEY_Escape)));
     CHECK_FALSE(f.menu().is_open());
 
-    // Several: no Rename. A folder: no Open With.
+    // Several: no Rename. A folder: Open With and a terminal too.
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
     CHECK(ids(f.menu().items()) ==
@@ -259,8 +262,8 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
-    CHECK(ids(f.menu().items()) ==
-          Names{"open", "add_bookmark", "copy", "cut", "-paste", "rename", "trash", "erase"});
+    CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_terminal", "add_bookmark",
+                                         "copy", "cut", "-paste", "rename", "trash", "erase"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -268,7 +271,8 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.browser.status_bar().message() == "Ctrl+V copies “sub” where you want them");
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));
-    CHECK(ids(f.menu().items()) == Names{"new_folder", "new_file", "paste", "add_bookmark"});
+    CHECK(ids(f.menu().items()) ==
+          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
 }
@@ -300,6 +304,37 @@ TEST_CASE("context menu: Open With lists the applications and opens the selectio
     REQUIRE(f.menu().items()[1].children.size() == 1);
     CHECK(f.menu().items()[1].children[0].label == "No applications");
     CHECK_FALSE(f.menu().items()[1].children[0].enabled);
+}
+
+TEST_CASE("context menu: F4 and Open in Terminal: the cursor's folder, else the one shown") {
+    Fixture f;
+    f.select({"sub"});
+    CHECK(f.press(key(XKB_KEY_F4)));
+    f.select({"a.txt"});
+    CHECK(f.press(key(XKB_KEY_F4)));
+    CHECK(f.terminals == std::vector<fs::path>{f.photos / "sub", f.photos});
+
+    f.select({"sub"});
+    CHECK(f.press(key(XKB_KEY_Menu)));
+    CHECK(f.menu().items()[2].keys == "F4");
+    f.choose("open_terminal");
+    f.select({});
+    CHECK(f.press(key(XKB_KEY_Menu)));
+    f.choose("open_terminal");
+    CHECK(f.terminals ==
+          std::vector<fs::path>{f.photos / "sub", f.photos, f.photos / "sub", f.photos});
+
+    // A folder opens with a chosen application; the files selected with it are left out.
+    f.select({"a.txt", "sub"});  // the cursor on sub
+    REQUIRE(f.folder()->cursor_entry() != nullptr);
+    REQUIRE(f.folder()->cursor_entry()->name == "sub");
+    CHECK(f.press(key(XKB_KEY_Menu)));
+    CHECK(f.asked_type == "sub");
+    CHECK(f.press(key(XKB_KEY_Down)));
+    CHECK(f.press(key(XKB_KEY_Right)));
+    CHECK(f.press(key(XKB_KEY_Return)));
+    CHECK(f.opened_with == "viewer.desktop");
+    CHECK(f.opened == Names{"sub"});
 }
 
 TEST_CASE("context menu: Move to Trash and Rename from the menu do what their keys do") {

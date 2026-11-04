@@ -324,7 +324,40 @@ std::optional<ViewHit> ColumnView::hit(float x, float y) const {
         return std::nullopt;
     }
     const Column& column = *columns_[*index].column;
-    return ViewHit{.folder = column.shared_folder(), .entry = column.row_at(x, y)};
+    const std::optional<std::size_t> row = column.row_at(x, y);
+    return ViewHit{
+        .folder = column.shared_folder(), .entry = row, .on_item = row && column.on_item(*row, x)};
+}
+
+std::optional<BandLane> ColumnView::band_lane(const Folder& folder) const {
+    for (const Slot& slot : columns_) {
+        if (&slot.column->folder() == &folder) {
+            return BandLane{.area = slot.column->rows_area(),
+                            .offset = slot.column->scroller().offset()};
+        }
+    }
+    return std::nullopt;
+}
+
+std::vector<std::size_t> ColumnView::band_entries(const Folder& folder,
+                                                  const ui::Rect& content) const {
+    for (const Slot& slot : columns_) {
+        if (&slot.column->folder() == &folder) {
+            return slot.column->rows_in(content);
+        }
+    }
+    return {};
+}
+
+void ColumnView::band_scroll(const Folder& folder, float pixels) {
+    for (Slot& slot : columns_) {
+        if (&slot.column->folder() == &folder) {
+            ui::Scroller& scroller = slot.column->scroller();
+            scroller.jump_to(scroller.offset() + pixels);
+            redraw_();
+            return;
+        }
+    }
 }
 
 std::optional<std::size_t> ColumnView::divider_at(float x, float y) const {

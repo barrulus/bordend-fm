@@ -210,6 +210,22 @@ void Folder::press(std::optional<std::size_t> index, SelectMode mode) {
     set_cursor(index, mode);
 }
 
+void Folder::select_band(const std::vector<std::string>& base, std::span<const std::size_t> rows) {
+    press_pending_ = false;
+    std::unordered_set<std::string> chosen{base.begin(), base.end()};
+    const std::vector<fs::Entry>& list = entries();
+    for (const std::size_t row : rows) {
+        if (row < list.size()) {
+            chosen.insert(list[row].name);
+        }
+    }
+    if (chosen == selected_) {
+        return;
+    }
+    selected_ = std::move(chosen);
+    selection_changed();
+}
+
 void Folder::release_press() {
     if (press_pending_) {
         press_pending_ = false;

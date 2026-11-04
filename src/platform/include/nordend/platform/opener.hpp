@@ -86,9 +86,13 @@ public:
 
     // Opens directory's entries (not folders: callers go into those). Entries with a known type
     // keep it; the others are detected as the views would.
-    // With app_id, all of them with that application.
+    // With app_id, all of them with that application, folders too ("Open With" on a folder).
     void open(const std::filesystem::path& directory, std::vector<fs::Entry> entries,
               std::string app_id = {});
+
+    // Opens a terminal (terminal_alone()) with its shell in directory: "Opening Documents with
+    // foot…", or "No terminal found: set $TERMINAL".
+    void open_terminal(const std::filesystem::path& directory);
 
     // The applications for entry (its type detected if unknown), worked out on a worker and
     // handed to done on the loop thread.

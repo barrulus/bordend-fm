@@ -4,6 +4,80 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-04 — 7.7b: rubber-band selection with the mouse
+
+**Done**
+- A press on empty space moved past 6 px (the drag threshold) draws a band; what it touches is
+  selected, with Ctrl added to what was selected. Empty space: below the entries, a row away
+  from its icon and name (8 px past the name still count as the name), in the grid a cell away
+  from its icon and name, the margins. A press on the icon or name drags as before; a click
+  (no move) anywhere on a row still selects it.
+- Views: `ViewHit::on_item` (each view notes at draw where each visible row's name ends, from
+  `draw_text`'s width; the grid notes each cell's name width), `band_lane()` (the entries' area
+  and scroll), `band_entries()` (the rows a band touches: `rows_touched()` for the lists, the
+  cells' highlight boxes for the grid), `band_scroll()`. `Folder::select_band(base, rows)`
+  leaves the cursor where it is.
+- `Browser`: the band is kept in content coordinates, so it stays anchored while the list
+  scrolls; beyond the top or bottom of its list a 16 ms timer scrolls it (2-40 px a tick, a pixel
+  per 4 px beyond) and selects as it goes; the timer exists only then (idle stays 0 CPU). In
+  the column view the band stays in the column it started in. The band is drawn in the text's
+  colour (12 % fill, 85 % border): over the selection it makes, the accent would vanish.
+- Ends on release, on leaving the window, on any press, and when an overlay takes the pointer.
+- `nordend-snapshot --band X1,Y1,X2,Y2`.
+- Tests (drawn with `Offscreen`): in all three views, from empty space, from beside a name,
+  Ctrl adding, a click beside a name; scrolling a list of 80 by holding below it. The drag
+  tests now press on the name. 276 tests, ASan and TSan clean.
+
+**Decisions**
+- A click beside a name keeps selecting the row (as before): only a drag from there draws a
+  band, so nothing the author is used to changes.
+- No cursor move during the band: in the column view a cursor on a folder would open columns
+  while dragging.
+
+**Tested by the author** (2026-11-04): all three views, from empty space and beside a name,
+Ctrl, scrolling past the bottom, a drag from a name and a click beside one as before.
+
+**Open**
+- After a band from empty space there is no cursor: arrows start from the first entry.
+
+---
+
+## 2026-11-04 — 7.7a: open a folder in a terminal, Open With on folders
+
+The week of daily use so far: the memory log has 9 lines (Nordend was rarely open for 10
+minutes in a row); two windows for half an hour on 11-02 stayed at 24.7 MB anonymous (+40 kB):
+no sign of a leak, too little to call it. The author asked for three comforts: 7.7a (this), 7.7b
+(rubber-band selection), and tabs, agreed as 9.1, the first step after 0.1.0 (the DESIGN keeps
+them out of the MVP).
+
+**Done**
+- `F4` (views and Quick Look) opens a terminal in the cursor's folder when the cursor is on one,
+  else in the folder shown. Context menu: "Open in Terminal" on a folder and on empty space.
+- `platform::terminal_alone()`: the terminal `in_terminal()` would use (`$TERMINAL` with its own
+  options, `xdg-terminal-exec`, the known ones), with nothing to run; the shell starts in the
+  folder through the launcher's working directory. `Opener::open_terminal()` works it out on a
+  worker and reports "Opening sub with foot…" or "No terminal found: set $TERMINAL".
+- Open With on folders too: the selected entries of the cursor's kind (folders with a folder,
+  files with a file); `Opener::open` keeps folders when an application is chosen.
+- Tests: `terminal_alone` against fake programs; the opener starts a fake foot that writes `pwd`;
+  F4, the menu items and Open With on a folder in `context_menu_test`. 274 tests.
+
+**Decisions**
+- The cursor's folder wins over the folder shown, as agreed: in the column view the cursor on
+  `Documents` already shows its contents next to it.
+- No new key for the terminal program: `$TERMINAL` stays the way to choose it.
+
+**Tested by the author** (2026-11-04): F4 on a folder and on a file, both menu items, Open With
+on a folder, the message without a terminal.
+
+**Open**
+- Terminals other than foot not tried here (kitty, ghostty, gnome-terminal...): they should
+  start in the working directory they are given, *to be verified*.
+- Open With on a folder lists Nordend itself first (the default for `inode/directory`): a second
+  window on that folder.
+
+---
+
 ## 2026-11-01 — The site, and a shorter README
 
 **Done**
