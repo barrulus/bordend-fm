@@ -136,7 +136,7 @@
 <!-- ============================================================== Install -->
 <section class="page" id="install">
   <h2>Build and install</h2>
-  <p>There are no packages yet. Nordend builds with CMake and a C++20 compiler (developed with
+  <p>Nordend builds with CMake and a C++20 compiler (developed with
   GCC 14), in about a minute on an 8-core CPU.</p>
 
   <h3 id="install/requirements">Requirements</h3>
@@ -158,6 +158,18 @@ cmake --build build
 ./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one</code></pre>
   <p>Nordend is developed on Void Linux. On other distributions install the development packages of
   the same libraries; their names differ and have not been tried yet.</p>
+
+  <h3 id="install/void-package">A package on Void Linux</h3>
+  <p>An xbps-src template is in <a href="https://github.com/pankaspe/nordend-fm/tree/main/packaging/void"><code>packaging/void</code></a>.
+  It builds the release into a package that puts <code>nordend</code>, its desktop entry and its
+  icon under <code>/usr</code>:</p>
+  <pre><code>git clone --depth 1 https://github.com/void-linux/void-packages
+cd void-packages
+./xbps-src binary-bootstrap
+git clone --depth 1 https://github.com/pankaspe/nordend-fm /tmp/nordend-fm
+cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
+./xbps-src pkg nordend
+sudo xbps-install -R hostdir/binpkgs nordend</code></pre>
 
   <h3 id="install/desktop">Install it for your user</h3>
   <p>This puts <code>nordend</code> in <code>~/.local/bin</code>, its desktop entry in

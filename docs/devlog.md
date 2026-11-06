@@ -16,6 +16,9 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 **Decisions**
 - The tag goes on this commit; a public copy of the Void template, pinned to the tag's tarball,
   comes in the next one (it cannot be part of the commit it checksums).
+- After the tag (`v0.1.0` on `a21057a`): `packaging/void/nordend/template`, the same as
+  void-noctalia's, on the tag's tarball; the site's install page shows how to build it with
+  void-packages. Built from the tag with xbps-src: `nordend-0.1.0_1`.
 
 ---
 

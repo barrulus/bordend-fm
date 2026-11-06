@@ -95,6 +95,7 @@ cmake --build build
 cmake --install build --prefix ~/.local --strip   # nordend and its desktop entry
 ```
 
+On Void Linux there is also an xbps-src template in [`packaging/void`](packaging/void).
 Needs a Wayland compositor with xdg-shell. Default for folders, configuration, development builds
 and tools: [install](https://pankaspe.github.io/nordend-fm/#install),
 [configuration](https://pankaspe.github.io/nordend-fm/#configuration).
