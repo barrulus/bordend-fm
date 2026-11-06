@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/release-v0.2.0-2a6a9e" alt="release v0.2.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-298%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="298 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-307%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="307 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -55,13 +55,37 @@ colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Nocta
 
 Everything it does, and every shortcut, is in the [guide](https://pankaspe.github.io/nordend-fm/#guide).
 
+## Features
+
+- **Views:** columns, thumbnail grid, details table; tabs; zoom; sort by name, size, date or type
+- **Quick Look** (<kbd>Space</kbd>): photos fill the window, raw files included; text files on a
+  scrollable page; the arrows walk the folder
+- **Raw decoding:** the previews cameras embed in ORF, CR2, NEF, ARW, RAF, RW2, 3FR (exiv2),
+  upright and cropped to the shot; EXIF in the info pane
+- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL; thumbnails in the shared freedesktop cache
+- **darktable:** sidecars follow their photo everywhere; ratings shown
+- **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
+  (fzy), the recently used first
+- **Files:** copy and move with progress and conflict questions, rename, new folder or file
+  from templates, undo and redo, freedesktop trash with restore, delete permanently
+- **Drag and drop** within Nordend and with other apps; rubber-band selection; the system
+  clipboard
+- **Sidebar:** places, GTK bookmarks, disks through udisks2 (mount, unmount, eject)
+- **Opening:** default applications and "Open With", resolved exactly as GLib does; a terminal
+  in any folder (<kbd>F4</kbd>)
+- **Always current:** folders follow changes on disk (inotify); history with
+  <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>→</kbd> and the mouse's side buttons
+- **Looks:** Noctalia's theme live, or the desktop's light/dark style and accent (GNOME, Plasma);
+  its icon follows the accent; fractional scaling; its own title bar where needed
+- **Remembers** views, order, tabs and window size; a short `config.toml`, reloaded live
+
 ## At a glance
 
 | | |
 |---|---|
-| Binary | **3.60 MB** (3.01 MB stripped), x86-64, decoders built in |
+| Binary | **3.74 MB** (3.12 MB stripped), x86-64, decoders built in |
 | Libraries | 21 direct; no GTK, no Qt, no GLib |
-| Code | about 36 300 lines of C++20, 11 000 of tests (298 test cases, under ASan and TSan too) |
+| Code | about 38 000 lines of C++20, 11 900 of tests (307 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -149,14 +173,15 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
+| on `main`, next | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
 
 ## What's next
 
 0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
-lists. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
+lists. On `main` since: the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>). Coming, roughly in
+this order: finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); a dual
 pane, a queue of operations and batch renaming; photo culling (ratings and colour labels in
 darktable's sidecars, side-by-side comparison, histogram); scripting in Luau; a file chooser for
 other applications; text files in an external editor; translations, Italian first. The full list
