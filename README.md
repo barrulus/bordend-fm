@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/release-v0.1.0-2a6a9e" alt="release v0.1.0"></a>
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/release-v0.2.0-2a6a9e" alt="release v0.2.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-289%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="289 tests, ASan, TSan">
@@ -17,8 +17,8 @@
 </p>
 
 > [!NOTE]
-> **Young software, used every day by its author.** The first release, 0.1.0, came out on
-> 2026-11-06; since then `main` has gained **tabs** and **Sort By** from the context menu.
+> **Young software, used every day by its author.** 0.2.0 brings **tabs**, **Sort By** from the
+> context menu and **zoom in the lists**, on top of the first release, 0.1.0.
 > On Void Linux, [install it as a package](#on-void-linux); anywhere else,
 > [build it from source](#from-source) in about a minute.
 
@@ -109,8 +109,8 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 sudo xbps-install -R hostdir/binpkgs nordend
 ```
 
-The package is the latest release, **0.1.0**. Tabs and Sort By are on `main` and come with the
-next release; to have them now, build from source.
+The package is the latest release, **0.2.0**. What `main` gains after it comes with the next
+release; to have it at once, build from source.
 
 ### From source
 
@@ -155,13 +155,14 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Sort By in the context menu; tabs (a folder, a view and a history each, remembered); zoom in the columns and the details, each tab its own, remembered |
+| on `main`, next | — |
+| [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
 
 ## What's next
 
-0.1.0 came out after a week of daily use by the author; since then, Sort By in the context menu,
-tabs, and zoom in the lists. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
+0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
+lists. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
 pane, a queue of operations and batch renaming; photo culling (ratings and colour labels in
 darktable's sidecars, side-by-side comparison, histogram); scripting in Luau; a file chooser for
 other applications; text files in an external editor; translations, Italian first. The full list

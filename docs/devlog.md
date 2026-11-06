@@ -4,6 +4,16 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 0.2.0
+
+**Done**
+- Version 0.2.0: Sort By in the context menu (8.0), tabs (9.1a-d), zoom in the lists and a zoom
+  per tab (8.1, 8.1b), with the new screenshots. The README's Versions table and badge, the
+  site's badge, notice, install note and roadmap say so. The tag goes on this commit; the Void
+  template moves to it in the next one, as for 0.1.0.
+
+---
+
 ## 2026-11-06 — New screenshots for the README and the site
 
 **Done**
