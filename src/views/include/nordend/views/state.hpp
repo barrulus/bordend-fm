@@ -32,6 +32,10 @@ struct State {
     fs::SortKey sort_key{fs::SortKey::name};
     bool sort_descending{false};
     std::array<float, 3> details_widths{96.0F, 150.0F, 220.0F};
+    // The lists' row size (an index into kListSizes, 1 the usual) and the grid's icon size in
+    // pixels (one of GridView::kIconSizes).
+    std::size_t list_size{1};
+    std::int32_t grid_icon{96};
     // The window's size when it was last neither maximized, fullscreen nor tiled; logical pixels.
     std::int32_t window_width{960};
     std::int32_t window_height{640};

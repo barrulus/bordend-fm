@@ -25,6 +25,7 @@
 #include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/info_pane.hpp"
+#include "nordend/views/list_size.hpp"
 
 namespace nordend::views {
 
@@ -89,6 +90,14 @@ public:
 
     // The order of every folder the columns show, now and later (the window's: Browser::set_sort).
     void set_order(const fs::SortOrder& order);
+
+    // The rows' size (ListSize, kListSizes[index]), as the window sets it: no zoom handler call.
+    void set_list_size(std::size_t index);
+
+    [[nodiscard]] std::size_t list_size() const noexcept { return list_size_; }
+
+    // Ctrl+plus/minus/0 and Ctrl+wheel changed the size: the window makes it every list's.
+    void set_zoom_handler(std::function<void(std::size_t)> zoomed) { zoomed_ = std::move(zoomed); }
 
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
@@ -161,6 +170,7 @@ public:
     [[nodiscard]] float scroll_offset() const noexcept { return scroller_.offset(); }
 
 private:
+    void zoom(std::size_t index);
     void right_click(float x, float y);
 
     struct Slot {
@@ -208,6 +218,9 @@ private:
     bool suspended_{false};
     bool show_hidden_{false};
     fs::SortOrder order_;
+    std::size_t list_size_{kUsualListSize};
+    float zoom_wheel_{0.0F};  // Ctrl+wheel notches not yet turned into a step
+    std::function<void(std::size_t)> zoomed_;
     ui::Scroller scroller_;     // horizontal
     bool reveal_focus_{false};  // glide to show the focused column at the next draw
     float shift_{0.0F};         // added to the offset at the next draw (a column prepended)

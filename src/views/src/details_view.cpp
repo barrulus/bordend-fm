@@ -25,10 +25,7 @@ using Field = DetailsView::Field;
 constexpr float kPadding = 8.0F;       // either side of the table
 constexpr float kCellPadding = 10.0F;  // inside each column
 constexpr float kRowInset = 2.0F;      // the highlight box, from the row's edges
-constexpr float kIconSize = 18.0F;
 constexpr float kIconGap = 10.0F;
-constexpr float kNameSize = 14.0F;
-constexpr float kDetailSize = 13.0F;
 constexpr float kTitleSize = 12.0F;
 constexpr float kSortIcon = 12.0F;
 constexpr float kDividerGrab = 4.0F;  // either side of a divider, for the pointer
@@ -116,7 +113,7 @@ std::vector<std::size_t> DetailsView::band_entries(const Folder& folder,
     if (folder_.get() != &folder) {
         return {};
     }
-    return rows_touched(content.y, content.bottom(), kRowHeight, folder.entries().size());
+    return rows_touched(content.y, content.bottom(), size_.row, folder.entries().size());
 }
 
 void DetailsView::band_scroll(const Folder& folder, float pixels) {
@@ -159,6 +156,39 @@ void DetailsView::set_sort(fs::SortKey key, bool descending) {
     redraw_();
 }
 
+void DetailsView::set_list_size(std::size_t index) {
+    list_size_ = std::min(index, kListSizes.size() - 1);
+    const ListSize& size = kListSizes.at(list_size_);
+    if (size == size_) {
+        return;
+    }
+    // The cursor's row stays where it is on screen.
+    const float offset = scroller_.offset();
+    const float old_row = size_.row;
+    const std::optional<std::size_t> cursor = folder_ ? folder_->cursor() : std::nullopt;
+    size_ = size;
+    if (cursor) {
+        // The same height on screen, the whole row still in sight.
+        const float screen = std::clamp((static_cast<float>(*cursor) * old_row) - offset, 0.0F,
+                                        std::max(0.0F, rows_.height - size_.row));
+        scroller_.jump_to(std::max(0.0F, (static_cast<float>(*cursor) * size_.row) - screen));
+    } else {
+        scroller_.jump_to(offset * size_.row / old_row);
+    }
+    redraw_();
+}
+
+void DetailsView::zoom(std::size_t index) {
+    index = std::min(index, kListSizes.size() - 1);
+    if (index == list_size_) {
+        return;
+    }
+    set_list_size(index);
+    if (zoomed_) {
+        zoomed_(index);
+    }
+}
+
 void DetailsView::set_widths(const std::array<float, 3>& widths) {
     for (std::size_t i = 0; i < widths.size(); ++i) {
         widths_.at(i + 1) = std::max(widths.at(i), kMinWidths.at(i + 1));
@@ -173,12 +203,20 @@ void DetailsView::apply_order() {
 }
 
 float DetailsView::width(Field field) const {
-    return field == Field::name ? layout_.width.at(index(Field::name)) : widths_.at(index(field));
+    return field == Field::name ? layout_.width.at(index(Field::name)) : shown_width(index(field));
 }
 
 void DetailsView::set_info_visible(bool visible) {
     info_visible_ = visible;
     redraw_();
+}
+
+float DetailsView::width_scale() const {
+    return size_.detail / kListSizes.at(kUsualListSize).detail;
+}
+
+float DetailsView::shown_width(std::size_t column) const {
+    return widths_.at(column) * width_scale();
 }
 
 void DetailsView::lay_out() {
@@ -187,7 +225,7 @@ void DetailsView::lay_out() {
     float fixed = 0.0F;
     for (const Field field : {Field::size, Field::modified, Field::type}) {
         layout_.shown.at(index(field)) = true;
-        fixed += widths_.at(index(field));
+        fixed += shown_width(index(field));
     }
     const float table = rows_.width - (2.0F * kPadding);
     for (const Field field : {Field::type, Field::modified, Field::size}) {
@@ -195,7 +233,7 @@ void DetailsView::lay_out() {
             break;
         }
         layout_.shown.at(index(field)) = false;
-        fixed -= widths_.at(index(field));
+        fixed -= shown_width(index(field));
     }
     // The fixed columns from the right edge; the name takes what is left.
     float right = rows_.right() - kPadding;
@@ -206,8 +244,8 @@ void DetailsView::lay_out() {
             layout_.left.at(i) = right;
             continue;
         }
-        layout_.width.at(i) = widths_.at(i);
-        layout_.left.at(i) = right - widths_.at(i);
+        layout_.width.at(i) = shown_width(i);
+        layout_.left.at(i) = right - shown_width(i);
         right = layout_.left.at(i);
     }
     layout_.left.at(index(Field::name)) = rows_.x + kPadding;
@@ -242,14 +280,14 @@ void DetailsView::reveal_cursor(Folder::Reveal reveal, Clock::time_point now) {
         folder_->request_jump();  // nowhere to show it yet
         return;
     }
-    const float top = static_cast<float>(*cursor) * kRowHeight;
-    const float bottom = top + kRowHeight;
+    const float top = static_cast<float>(*cursor) * size_.row;
+    const float bottom = top + size_.row;
     const float from = scroller_.destination();
     if (top >= from && bottom <= from + viewport) {
         return;
     }
     if (reveal == Folder::Reveal::jump) {
-        scroller_.jump_to(top - ((viewport - kRowHeight) / 2.0F));  // centered
+        scroller_.jump_to(top - ((viewport - size_.row) / 2.0F));  // centered
     } else if (top < from) {
         scroller_.glide_to(top, now);
     } else {
@@ -308,12 +346,12 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
 
     // The rows.
     const std::vector<fs::Entry>& entries = folder_->entries();
-    const float content = static_cast<float>(entries.size()) * kRowHeight;
+    const float content = static_cast<float>(entries.size()) * size_.row;
     scroller_.set_extent(content, rows_.height);
     reveal_cursor(folder_->take_reveal(), now);
     scroller_.advance(now);
     const float offset = scroller_.offset();
-    const RowRange range = visible_rows(entries.size(), kRowHeight, offset, rows_.height);
+    const RowRange range = visible_rows(entries.size(), size_.row, offset, rows_.height);
 
     renderer.push_clip(rows_);
     const std::optional<std::size_t> cursor = folder_->cursor();
@@ -324,7 +362,7 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     item_right_.clear();
     for (std::size_t i = range.first; i < range.last; ++i) {
         const fs::Entry& entry = entries[i];
-        const float y = rows_.y + (static_cast<float>(i) * kRowHeight) - offset;
+        const float y = rows_.y + (static_cast<float>(i) * size_.row) - offset;
         const bool selected = folder_->is_selected(entry.name);
         const ItemStyle style =
             item_style(palette, entry,
@@ -337,7 +375,7 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                         .drop = drop_ != nullptr && drop_->holds(folder_->path(), entry)});
         if (style.fill || style.ring) {
             renderer.draw_box(
-                {table_left, y + kRowInset, table_width, kRowHeight - (2.0F * kRowInset)},
+                {table_left, y + kRowInset, table_width, size_.row - (2.0F * kRowInset)},
                 {.fill = style.fill.value_or(kTransparent),
                  .radius = ui::Corners::all(6.0F),
                  .border_width = style.ring ? 1.5F : 0.0F,
@@ -350,24 +388,24 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
 
         const float name_left = layout_.left.at(index(Field::name)) + kCellPadding;
         icons.draw(renderer, fs::icon_name(*mime_, typed), name_left,
-                   y + ((kRowHeight - kIconSize) / 2.0F), kIconSize, style.icon);
-        const float name_x = name_left + kIconSize + kIconGap;
+                   y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon);
+        const float name_x = name_left + size_.icon + kIconGap;
         const float name_room = layout_.left.at(index(Field::name)) +
                                 layout_.width.at(index(Field::name)) - kCellPadding - name_x;
         if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
             edit_->place(
                 {name_x - ui::TextField::kPadding, y + 3.0F,
-                 std::max(1.0F, name_room) + (2.0F * ui::TextField::kPadding), kRowHeight - 6.0F},
-                kNameSize);
+                 std::max(1.0F, name_room) + (2.0F * ui::TextField::kPadding), size_.row - 6.0F},
+                size_.text);
             item_right_.push_back(name_x + name_room);
         } else {
             const float drawn = renderer.draw_text(
-                entry.name, name_x, y + ((kRowHeight - kNameSize) / 2.0F) - 2.0F, kNameSize,
+                entry.name, name_x, y + ((size_.row - size_.text) / 2.0F) - 2.0F, size_.text,
                 style.text, std::max(1.0F, name_room), ui::Ellipsis::middle);
             item_right_.push_back(name_x + drawn + kItemSlack);
         }
 
-        const float detail_y = y + ((kRowHeight - kDetailSize) / 2.0F) - 2.0F;
+        const float detail_y = y + ((size_.row - size_.detail) / 2.0F) - 2.0F;
         const auto cell = [&](Field field, const std::string& text, bool right) {
             if (!layout_.shown.at(index(field))) {
                 return;
@@ -376,10 +414,10 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
             const float room =
                 std::max(1.0F, layout_.width.at(index(field)) - (2.0F * kCellPadding));
             if (right) {
-                const float width = std::min(text_width(renderer, text, kDetailSize), room);
-                renderer.draw_text(text, left + room - width, detail_y, kDetailSize, detail, room);
+                const float width = std::min(text_width(renderer, text, size_.detail), room);
+                renderer.draw_text(text, left + room - width, detail_y, size_.detail, detail, room);
             } else {
-                renderer.draw_text(text, left, detail_y, kDetailSize, detail, room);
+                renderer.draw_text(text, left, detail_y, size_.detail, detail, room);
             }
         };
         cell(Field::size, entry.is_directory() ? std::string{"—"} : format_size(entry.size), true);
@@ -392,10 +430,10 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
 
     const fs::DirectoryModel& model = folder_->model();
     if (model.error()) {
-        draw_centered(renderer, model.error().message(), rows_, rows_.y + 24.0F, kNameSize,
+        draw_centered(renderer, model.error().message(), rows_, rows_.y + 24.0F, size_.text,
                       palette.error);
     } else if (entries.empty() && !model.loading()) {
-        draw_centered(renderer, "Empty folder", rows_, rows_.y + 24.0F, kNameSize,
+        draw_centered(renderer, "Empty folder", rows_, rows_.y + 24.0F, size_.text,
                       palette.on_surface_variant);
     }
 
@@ -435,7 +473,7 @@ std::optional<std::size_t> DetailsView::row_at(float x, float y) const {
     if (!folder_ || x < rows_.x || x >= rows_.right() || y < rows_.y || y >= rows_.bottom()) {
         return std::nullopt;
     }
-    const auto row = static_cast<std::size_t>((y - rows_.y + scroller_.offset()) / kRowHeight);
+    const auto row = static_cast<std::size_t>((y - rows_.y + scroller_.offset()) / size_.row);
     if (row >= folder_->entries().size()) {
         return std::nullopt;
     }
@@ -510,11 +548,14 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
                 const std::size_t i = index(drag_->field);
                 float others = 0.0F;
                 for (const Field field : {Field::size, Field::modified, Field::type}) {
-                    others += field == drag_->field ? 0.0F : widths_.at(index(field));
+                    others += field == drag_->field ? 0.0F : shown_width(index(field));
                 }
+                // Dragged in pixels as shown; kept as at the usual size, so a zoom scales it.
                 const float most = rows_.width - (2.0F * kPadding) - others - kMinWidths.at(0);
-                widths_.at(i) = std::clamp(drag_->start_width + (drag_->start_x - event.x),
-                                           kMinWidths.at(i), std::max(kMinWidths.at(i), most));
+                const float shown = std::clamp(drag_->start_width + (drag_->start_x - event.x),
+                                               kMinWidths.at(i) * width_scale(),
+                                               std::max(kMinWidths.at(i) * width_scale(), most));
+                widths_.at(i) = shown / width_scale();
                 redraw_();
             }
             update_hover();
@@ -528,6 +569,20 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
                 info_pane_->scroll(event, now)) {
                 break;
             }
+            if (event.modifiers.ctrl && event.wheel_y != 0.0F) {
+                // Ctrl+wheel: up makes the rows bigger, one size per notch.
+                zoom_wheel_ += event.wheel_y;
+                while (zoom_wheel_ <= -1.0F) {
+                    zoom_wheel_ += 1.0F;
+                    zoom(list_size_ + 1);
+                }
+                while (zoom_wheel_ >= 1.0F) {
+                    zoom_wheel_ -= 1.0F;
+                    zoom(list_size_ > 0 ? list_size_ - 1 : 0);
+                }
+                break;
+            }
+
             if (event.wheel_y != 0.0F) {
                 scroller_.wheel(event.wheel_y, now);
             } else if (event.scroll_y != 0.0F) {
@@ -564,7 +619,7 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
             if (const std::optional<Field> divider = divider_at(event.x, event.y)) {
                 drag_ = Drag{.field = *divider,
                              .start_x = event.x,
-                             .start_width = widths_.at(index(*divider))};
+                             .start_width = shown_width(index(*divider))};
                 redraw_();
                 break;
             }
@@ -608,12 +663,34 @@ bool DetailsView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
         return false;
     }
     Folder& folder = *folder_;
-    const auto visible = static_cast<std::ptrdiff_t>(rows_.height / kRowHeight);
+    const auto visible = static_cast<std::ptrdiff_t>(rows_.height / size_.row);
     const std::ptrdiff_t page = std::max<std::ptrdiff_t>(1, visible > 1 ? visible - 1 : visible);
     const std::optional<std::size_t> cursor = folder.cursor();
     const SelectMode mode = select_mode(event.modifiers, SelectMode::keep);
     const bool ctrl = event.modifiers.ctrl;
     switch (event.keysym) {
+        case XKB_KEY_plus:
+        case XKB_KEY_equal:
+        case XKB_KEY_KP_Add:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(list_size_ + 1);
+            break;
+        case XKB_KEY_minus:
+        case XKB_KEY_KP_Subtract:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(list_size_ > 0 ? list_size_ - 1 : 0);
+            break;
+        case XKB_KEY_0:
+        case XKB_KEY_KP_0:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(kUsualListSize);
+            break;
         case XKB_KEY_Up:
             if (event.modifiers.alt) {
                 go_up();
@@ -704,8 +781,8 @@ std::optional<std::pair<float, float>> DetailsView::cursor_anchor() const {
         return std::nullopt;
     }
     const float bottom =
-        rows_.y + (static_cast<float>(*cursor + 1) * kRowHeight) - scroller_.offset();
-    if (bottom - kRowHeight < rows_.y || bottom > rows_.bottom()) {
+        rows_.y + (static_cast<float>(*cursor + 1) * size_.row) - scroller_.offset();
+    if (bottom - size_.row < rows_.y || bottom > rows_.bottom()) {
         return std::nullopt;
     }
     return std::pair{rows_.x + 48.0F, bottom};

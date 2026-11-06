@@ -4,6 +4,33 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 8.1: zoom in the lists
+
+**Done**
+- `views::ListSize`, five sizes (`kListSizes`: row 24-52 px, icon 16-36, name 13-17, the other
+  cells 12-15; index 1 the usual, as before). `Column` and `DetailsView` take their row, icon and
+  text from it instead of constants (`kRowHeight` stays as the usual size, for the benchmarks).
+- Ctrl+plus, Ctrl+minus, Ctrl+wheel and Ctrl+0 in the columns and the details, as in the grid;
+  the shortcuts' "Grid" group is now "Zoom", listed for every view. A zoom keeps the cursor's
+  row at the same height on screen, the whole row in sight (else the first rows scale).
+- The details' fixed columns (size, modified, type) grow with the text: widths are kept at the
+  usual size and shown times the text's scale; a dragged edge is converted back, so a zoom
+  scales it too. At the largest size dates no longer end in "…".
+- One size for the lists and one for the grid, the window's: the views report a zoom
+  (`set_zoom_handler`), `Browser::set_list_size` / `set_grid_size` give it to every tab, a new
+  tab takes it. Both remembered in `state.toml` (`view.list_size` "small" … "largest",
+  `view.grid_icon` 48-256); the grid's size was not remembered before, nor shared between tabs.
+- Tests: keys and Ctrl+wheel in the details and the columns, the size shared between tabs and
+  the two views, Ctrl+0, the smallest as a floor, the cursor's row kept on screen, the grid apart;
+  state read and written, bad values reported. Snapshots at the smallest, the largest (details)
+  and a larger size (columns). 288 tests, ASan and TSan clean.
+
+**Tested by the author** (2026-11-06): keys and Ctrl+wheel in both lists, dates whole at the
+largest size, Ctrl+0 and the smallest floor, the grid apart, a new tab with the same sizes, a
+dragged column scaling, the sizes back after a restart.
+
+---
+
 ## 2026-11-06 — 9.1d: tabs remembered
 
 **Done**

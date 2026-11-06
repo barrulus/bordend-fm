@@ -111,6 +111,10 @@ Pane& Browser::add_pane(std::size_t at) {
     wire(added.columns);
     wire(added.grid);
     wire(added.details);
+    // A zoom is the window's: every list, or every grid, takes the size.
+    added.columns.set_zoom_handler([this](std::size_t index) { set_list_size(index); });
+    added.details.set_zoom_handler([this](std::size_t index) { set_list_size(index); });
+    added.grid.set_zoom_handler([this](std::size_t index) { set_grid_size(index); });
     // A click on a title of the details sorts the whole window.
     added.details.set_sort_handler([this](const fs::SortOrder& order) {
         for (const std::unique_ptr<Pane>& each : panes_) {
@@ -125,6 +129,9 @@ Pane& Browser::add_pane(std::size_t at) {
         added.columns.set_order(added.details.order());
         added.grid.set_order(added.details.order());
         added.details.set_widths(first.details.widths());
+        added.columns.set_list_size(first.details.list_size());
+        added.details.set_list_size(first.details.list_size());
+        added.grid.set_size_index(first.grid.size_index());
     }
     added.columns.set_show_hidden(show_hidden_);
     added.grid.set_show_hidden(show_hidden_);
@@ -1775,6 +1782,19 @@ void Browser::travel(int direction) {
     report_gone();
 }
 
+void Browser::set_list_size(std::size_t index) {
+    for (const std::unique_ptr<Pane>& each : panes_) {
+        each->columns.set_list_size(index);
+        each->details.set_list_size(index);
+    }
+}
+
+void Browser::set_grid_size(std::size_t index) {
+    for (const std::unique_ptr<Pane>& each : panes_) {
+        each->grid.set_size_index(index);
+    }
+}
+
 void Browser::set_sort(fs::SortKey key, bool descending) {
     for (const std::unique_ptr<Pane>& each : panes_) {
         each->details.set_sort(key, descending);
@@ -1879,6 +1899,8 @@ State Browser::state() const {
     state.sort_key = pane().details.order().key;
     state.sort_descending = pane().details.order().descending;
     state.details_widths = pane().details.widths();
+    state.list_size = pane().details.list_size();
+    state.grid_icon = static_cast<std::int32_t>(pane().grid.icon_size());
     if (panes_.size() > 1) {  // one tab: nothing to restore, the start folder is the start's
         for (std::size_t i = 0; i < panes_.size() && i < State::kMaxTabs; ++i) {
             const Pane& each = *panes_[i];
@@ -1960,6 +1982,12 @@ void Browser::apply(const State& state) {
     info_pane_.set_width(state.info_width);
     info_pane_.set_expanded(state.info_expanded);
     set_sort(state.sort_key, state.sort_descending);
+    set_list_size(state.list_size);
+    const auto* grid_size =
+        std::ranges::find(GridView::kIconSizes, static_cast<float>(state.grid_icon));
+    set_grid_size(grid_size == GridView::kIconSizes.end()
+                      ? GridView::kDefaultSize
+                      : static_cast<std::size_t>(grid_size - GridView::kIconSizes.begin()));
     const auto mode = static_cast<Mode>(state.mode);
     if (current_folder()) {
         set_mode(mode);

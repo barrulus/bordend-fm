@@ -63,6 +63,8 @@ State changed() {
     s.sort_key = SortKey::modified;
     s.sort_descending = true;
     s.details_widths = {80.0F, 170.0F, 240.0F};
+    s.list_size = 3;
+    s.grid_icon = 192;
     s.window_width = 1400;
     s.window_height = 900;
     s.maximized = true;
@@ -323,4 +325,17 @@ TEST_CASE("state: the browser's tabs, kept and brought back as they were") {
     const std::unique_ptr<Browser> empty = make();
     CHECK_FALSE(empty->restore_tabs(
         {{.folder = dir.path / "gone", .mode = State::Mode::grid, .root = {}, .cursor = {}}}, 0));
+}
+
+TEST_CASE("state: the lists' and the grid's size, and what is not one") {
+    const StateResult good = parse("[view]\nlist_size = \"largest\"\ngrid_icon = 48\n");
+    CHECK(good.problems.empty());
+    CHECK(good.state.list_size == 4);
+    CHECK(good.state.grid_icon == 48);
+    const StateResult bad = parse("[view]\nlist_size = \"huge\"\ngrid_icon = 100\n");
+    CHECK(bad.state.list_size == State{}.list_size);
+    CHECK(bad.state.grid_icon == State{}.grid_icon);
+    REQUIRE(bad.problems.size() == 2);
+    CHECK(bad.problems[0].find("view.list_size") != std::string::npos);
+    CHECK(bad.problems[1].find("view.grid_icon") != std::string::npos);
 }

@@ -20,6 +20,11 @@ namespace {
 constexpr std::array kModes{std::pair{"columns", State::Mode::columns},
                             std::pair{"grid", State::Mode::grid},
                             std::pair{"details", State::Mode::details}};
+constexpr std::array kListSizeWords{
+    std::pair{"small", std::size_t{0}}, std::pair{"usual", std::size_t{1}},
+    std::pair{"large", std::size_t{2}}, std::pair{"larger", std::size_t{3}},
+    std::pair{"largest", std::size_t{4}}};
+constexpr std::array kGridIcons{48, 64, 96, 128, 192, 256};  // GridView::kIconSizes
 constexpr std::array kSortKeys{
     std::pair{"name", fs::SortKey::name}, std::pair{"size", fs::SortKey::size},
     std::pair{"modified", fs::SortKey::modified}, std::pair{"type", fs::SortKey::type}};
@@ -205,6 +210,7 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     Reader read{root, source};
     read.word("view.mode", kModes, s.mode);
     read.flag("view.show_hidden", s.show_hidden);
+    read.word("view.list_size", kListSizeWords, s.list_size);
     read.flag("sidebar.visible", s.sidebar_visible);
     read.number("sidebar.width", kSidebarMin, kSidebarMax, s.sidebar_width);
     read.flag("info.visible", s.info_visible);
@@ -219,6 +225,17 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     read.size("window.height", s.window_height);
     read.flag("window.maximized", s.maximized);
     result.problems = read.take();
+    if (const toml::node* grid = root.at_path("view.grid_icon").node()) {
+        const std::optional<std::int64_t> pixels = grid->value<std::int64_t>();
+        if (pixels && std::ranges::find(kGridIcons, *pixels) != kGridIcons.end()) {
+            s.grid_icon = static_cast<std::int32_t>(*pixels);
+        } else {
+            const toml::source_position where = grid->source().begin;
+            result.problems.push_back(std::format(
+                "{}:{}:{}: 'view.grid_icon' must be 48, 64, 96, 128, 192 or 256; using the default",
+                source, where.line, where.column));
+        }
+    }
 
     // [[tab]]: folder, mode, root (the columns'), shown. A tab that cannot be used is left out.
     if (const toml::node* tabs = root.get("tab")) {
@@ -326,6 +343,8 @@ std::string format_state(const State& s) {
                "[view]\n"
                "mode = \"{}\"\n"
                "show_hidden = {}\n"
+               "list_size = \"{}\"\n"
+               "grid_icon = {}\n"
                "\n"
                "[sidebar]\n"
                "visible = {}\n"
@@ -347,11 +366,11 @@ std::string format_state(const State& s) {
                "width = {}\n"
                "height = {}\n"
                "maximized = {}\n",
-               word_of(kModes, s.mode), flag(s.show_hidden), flag(s.sidebar_visible),
-               s.sidebar_width, flag(s.info_visible), s.info_width, flag(s.info_expanded),
-               word_of(kSortKeys, s.sort_key), flag(s.sort_descending), s.details_widths[0],
-               s.details_widths[1], s.details_widths[2], s.window_width, s.window_height,
-               flag(s.maximized)) +
+               word_of(kModes, s.mode), flag(s.show_hidden), word_of(kListSizeWords, s.list_size),
+               s.grid_icon, flag(s.sidebar_visible), s.sidebar_width, flag(s.info_visible),
+               s.info_width, flag(s.info_expanded), word_of(kSortKeys, s.sort_key),
+               flag(s.sort_descending), s.details_widths[0], s.details_widths[1],
+               s.details_widths[2], s.window_width, s.window_height, flag(s.maximized)) +
            tabs;
 }
 

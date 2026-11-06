@@ -16,6 +16,7 @@
 #include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
+#include "nordend/views/list_size.hpp"
 
 namespace nordend::views {
 
@@ -28,7 +29,7 @@ class Column {
 public:
     using Clock = ui::Scroller::Clock;
 
-    static constexpr float kRowHeight = 28.0F;
+    static constexpr float kRowHeight = kListSizes[kUsualListSize].row;  // at the usual size
 
     explicit Column(std::shared_ptr<Folder> folder);
 
@@ -39,6 +40,11 @@ public:
     [[nodiscard]] const std::shared_ptr<Folder>& shared_folder() const noexcept { return folder_; }
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept { return folder_->path(); }
+
+    // The rows' size (Ctrl+plus/minus in the lists); the cursor's row stays where it is on screen.
+    void set_size(const ListSize& size);
+
+    [[nodiscard]] const ListSize& size() const noexcept { return size_; }
 
     // Rows a page key moves: what fits in the last drawn viewport, less one.
     [[nodiscard]] std::size_t page_rows() const;
@@ -86,6 +92,7 @@ private:
     std::vector<float> item_right_;
     std::size_t item_first_{0};
     std::optional<std::size_t> hovered_;
+    ListSize size_{kListSizes[kUsualListSize]};
 };
 
 }  // namespace nordend::views

@@ -1,13 +1,16 @@
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
@@ -23,6 +26,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/list_size.hpp"
 #include "temp_dir.hpp"
 
 using nordend::core::EventLoop;
@@ -408,4 +412,97 @@ TEST_CASE("tabs: the bar with two tabs; a click shows one, its × or a middle cl
     REQUIRE(f.settle());
     CHECK(f.browser.tab_titles() == Names{"a", "more", "sub"});
     CHECK(f.browser.active_tab() == 0);
+}
+
+TEST_CASE("zoom: the lists grow and shrink together, in every tab; the cursor's row stays") {
+    Fixture f;
+    const std::unique_ptr<nordend::ui::Offscreen> gl = offscreen();
+    if (!gl) {
+        return;
+    }
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    nordend::ui::IconSet icons{fonts};
+    const auto draw = [&] {
+        renderer.begin_frame(kWidth, kHeight, 1.0F, {});
+        f.browser.draw(renderer, {0.0F, 0.0F, kWidth, kHeight}, nordend::theme::Palette{}, icons,
+                       Browser::Clock::now());
+        renderer.end_frame();
+    };
+    using nordend::views::kListSizes;
+    using nordend::views::kUsualListSize;
+    // Enough entries to scroll, the cursor far down.
+    for (int i = 0; i < 60; ++i) {
+        std::ofstream{f.a / std::format("file {:02}.txt", i)} << i;
+    }
+    REQUIRE(run_until(
+        f.loop, [&f] { return f.browser.columns().focused_folder()->entries().size() == 62; }));
+    f.browser.set_mode(Browser::Mode::details);
+    REQUIRE(f.settle());
+    draw();
+    CHECK(f.press(key(XKB_KEY_End)));  // the view follows the keyboard: the cursor in sight
+    for (int i = 0; i < 30; ++i) {     // the cursor halfway down the view
+        f.browser.key(key(XKB_KEY_Up), Browser::Clock::now());
+    }
+    const auto still = [&] {  // drawn until the scroll animation has arrived
+        REQUIRE(run_until(f.loop, [&] {
+            draw();
+            return !f.browser.animating();
+        }));
+    };
+    still();
+    const auto anchor = [&f] { return f.browser.details().cursor_anchor(); };
+    REQUIRE(anchor());
+    const float before = anchor().value_or(std::pair{0.0F, 0.0F}).second;
+
+    CHECK(f.press(key(XKB_KEY_plus, kCtrl)));  // larger
+    still();
+    CHECK(f.browser.details().list_size() == kUsualListSize + 1);
+    CHECK(f.browser.columns().list_size() == kUsualListSize + 1);  // the columns too
+    REQUIRE(anchor());
+    // The cursor's row on the same height, give or take a pixel.
+    CHECK(std::abs(anchor().value_or(std::pair{0.0F, 0.0F}).second - before) <= 8.0F);
+    CHECK(f.browser.state().list_size == kUsualListSize + 1);
+
+    // A new tab takes the size; a zoom there reaches the first tab.
+    CHECK(f.press(key(XKB_KEY_t, kCtrl)));
+    CHECK(f.browser.details().list_size() == kUsualListSize + 1);
+    f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = 500.0F, .y = 400.0F},
+                      Browser::Clock::now());
+    f.browser.pointer({.kind = PointerEvent::Kind::scroll,
+                       .x = 500.0F,
+                       .y = 400.0F,
+                       .wheel_y = -1.0F,
+                       .modifiers = kCtrl},
+                      Browser::Clock::now());  // Ctrl+wheel up
+    CHECK(f.browser.details().list_size() == kUsualListSize + 2);
+    f.browser.select_tab(0);
+    CHECK(f.browser.details().list_size() == kUsualListSize + 2);
+
+    // Ctrl+0 back to the usual size; Ctrl+minus never below the smallest.
+    CHECK(f.press(key(XKB_KEY_0, kCtrl)));
+    CHECK(f.browser.details().list_size() == kUsualListSize);
+    for (std::size_t i = 0; i < kListSizes.size() + 2; ++i) {
+        f.press(key(XKB_KEY_minus, kCtrl));
+    }
+    CHECK(f.browser.details().list_size() == 0);
+    f.browser.set_mode(Browser::Mode::columns);
+    REQUIRE(f.settle());
+    CHECK(f.press(key(XKB_KEY_plus, kCtrl)));  // in the columns too
+    CHECK(f.browser.columns().list_size() == 1);
+    CHECK(f.browser.columns().column(0).size() == kListSizes.at(1));
+    CHECK(f.press(key(XKB_KEY_minus, kCtrl)));
+    CHECK(f.browser.details().list_size() == 0);
+
+    // The grid keeps its own size, the window's too.
+    f.browser.set_mode(Browser::Mode::grid);
+    REQUIRE(f.settle());
+    const float grid = f.browser.grid().icon_size();
+    CHECK(f.press(key(XKB_KEY_plus, kCtrl)));
+    CHECK(f.browser.grid().icon_size() > grid);
+    CHECK(f.browser.details().list_size() == 0);  // the lists untouched
+    f.browser.select_tab(1);
+    f.browser.set_mode(Browser::Mode::grid);
+    CHECK(f.browser.grid().icon_size() > grid);
+    CHECK(f.browser.state().grid_icon == static_cast<std::int32_t>(f.browser.grid().icon_size()));
 }

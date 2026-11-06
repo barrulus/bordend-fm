@@ -26,6 +26,7 @@
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
 #include "nordend/views/info_pane.hpp"
+#include "nordend/views/list_size.hpp"
 
 namespace nordend::views {
 
@@ -47,7 +48,7 @@ public:
 
     enum class Field : std::uint8_t { name, size, modified, type };
 
-    static constexpr float kRowHeight = 28.0F;
+    static constexpr float kRowHeight = kListSizes[kUsualListSize].row;  // at the usual size
     static constexpr float kHeaderHeight = 30.0F;
 
     DetailsView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
@@ -92,6 +93,14 @@ public:
 
     // The order as remembered (views::State): by key, reversed or not.
     void set_sort(fs::SortKey key, bool descending);
+
+    // The rows' size (ListSize, kListSizes[index]), as the window sets it: no zoom handler call.
+    void set_list_size(std::size_t index);
+
+    [[nodiscard]] std::size_t list_size() const noexcept { return list_size_; }
+
+    // Ctrl+plus/minus/0 and Ctrl+wheel changed the size: the window makes it every list's.
+    void set_zoom_handler(std::function<void(std::size_t)> zoomed) { zoomed_ = std::move(zoomed); }
 
     // The widths of size, modified and type, as dragged; set_widths keeps each column's minimum.
     [[nodiscard]] std::array<float, 3> widths() const noexcept {
@@ -141,6 +150,10 @@ public:
     [[nodiscard]] bool info_visible() const noexcept { return info_visible_; }
 
 private:
+    void zoom(std::size_t index);
+    // The fixed columns grow with the text: widths_ are at the usual size, shown times this.
+    [[nodiscard]] float width_scale() const;
+    [[nodiscard]] float shown_width(std::size_t column) const;
     void right_click(float x, float y);
 
     // Where each column starts, from the last layout; a narrow table leaves out the type, then
@@ -190,6 +203,10 @@ private:
     const DropMark* drop_{nullptr};
     fs::SortOrder order_;
     std::function<void(const fs::SortOrder&)> sorted_;
+    std::size_t list_size_{kUsualListSize};
+    float zoom_wheel_{0.0F};  // Ctrl+wheel notches not yet turned into a step
+    std::function<void(std::size_t)> zoomed_;
+    ListSize size_{kListSizes[kUsualListSize]};
     ui::Scroller scroller_;
     // Widths of size, modified and type; the name takes the rest.
     std::array<float, 4> widths_{0.0F, 96.0F, 150.0F, 220.0F};

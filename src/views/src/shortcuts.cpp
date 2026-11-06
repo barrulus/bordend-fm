@@ -354,18 +354,18 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_Return, XKB_KEY_KP_Enter, XKB_KEY_Escape}},
 
     // Grid
-    Shortcut{.group = "Grid",
+    Shortcut{.group = "Zoom",
              .keys = "Ctrl++  Ctrl+−",
-             .action = "Larger, smaller",
-             .scope = scope::kGrid,
+             .action = "Larger, smaller (wheel too)",
+             .scope = scope::kViews,
              .modifiers = kCtrl,
              .any_shift = true,
              .keysyms = {XKB_KEY_plus, XKB_KEY_equal, XKB_KEY_KP_Add, XKB_KEY_minus,
                          XKB_KEY_KP_Subtract}},
-    Shortcut{.group = "Grid",
+    Shortcut{.group = "Zoom",
              .keys = "Ctrl+0",
              .action = "Usual size",
-             .scope = scope::kGrid,
+             .scope = scope::kViews,
              .modifiers = kCtrl,
              .keysyms = {XKB_KEY_0, XKB_KEY_KP_0}},
 

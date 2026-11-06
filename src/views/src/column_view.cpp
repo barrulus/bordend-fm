@@ -63,11 +63,32 @@ void ColumnView::set_order(const fs::SortOrder& order) {
     }
 }
 
+void ColumnView::set_list_size(std::size_t index) {
+    list_size_ = std::min(index, kListSizes.size() - 1);
+    for (const Slot& slot : columns_) {
+        slot.column->set_size(kListSizes.at(list_size_));
+    }
+    redraw_();
+}
+
+void ColumnView::zoom(std::size_t index) {
+    index = std::min(index, kListSizes.size() - 1);
+    if (index == list_size_) {
+        return;
+    }
+    set_list_size(index);
+    if (zoomed_) {
+        zoomed_(index);
+    }
+}
+
 std::unique_ptr<Column> ColumnView::make_column(std::shared_ptr<Folder> folder) {
     folder->set_order(order_);
     // The folder reports its cursor changes with its own address.
     folder->set_changed_handler([this, self = folder.get()] { on_cursor_changed(self); });
-    return std::make_unique<Column>(std::move(folder));
+    auto column = std::make_unique<Column>(std::move(folder));
+    column->set_size(kListSizes.at(list_size_));
+    return column;
 }
 
 void ColumnView::open(const std::filesystem::path& directory) {
@@ -516,6 +537,19 @@ void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             update_hover();
             break;
         case Kind::scroll:
+            if (event.modifiers.ctrl && event.wheel_y != 0.0F) {
+                // Ctrl+wheel: up makes the rows bigger, one size per notch.
+                zoom_wheel_ += event.wheel_y;
+                while (zoom_wheel_ <= -1.0F) {
+                    zoom_wheel_ += 1.0F;
+                    zoom(list_size_ + 1);
+                }
+                while (zoom_wheel_ >= 1.0F) {
+                    zoom_wheel_ -= 1.0F;
+                    zoom(list_size_ > 0 ? list_size_ - 1 : 0);
+                }
+                break;
+            }
             if (info_pane_ == nullptr || info_area_.width <= 0.0F ||
                 !info_pane_->scroll(event, now)) {
                 scroll(event, now);
@@ -640,6 +674,28 @@ bool ColumnView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
     const SelectMode mode = select_mode(event.modifiers, SelectMode::keep);
     const bool ctrl = event.modifiers.ctrl;
     switch (event.keysym) {
+        case XKB_KEY_plus:
+        case XKB_KEY_equal:
+        case XKB_KEY_KP_Add:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(list_size_ + 1);
+            break;
+        case XKB_KEY_minus:
+        case XKB_KEY_KP_Subtract:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(list_size_ > 0 ? list_size_ - 1 : 0);
+            break;
+        case XKB_KEY_0:
+        case XKB_KEY_KP_0:
+            if (!ctrl) {
+                return false;
+            }
+            zoom(kUsualListSize);
+            break;
         case XKB_KEY_Down:
             folder.move_cursor(1, mode);
             break;

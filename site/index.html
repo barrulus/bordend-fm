@@ -130,7 +130,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>286 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>288 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -278,6 +278,10 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
     <li><strong>Details</strong> (<kbd>Ctrl</kbd>+<kbd>3</kbd>): a table of names, sizes, dates and
     types. Click a title to sort by it, again to reverse; drag a column's edge to widen it.</li>
   </ul>
+  <p>The columns and the details zoom too: <kbd>Ctrl</kbd>+<kbd>+</kbd>, <kbd>Ctrl</kbd>+<kbd>−</kbd>
+  or <kbd>Ctrl</kbd>+wheel make their rows, icons and text larger or smaller, in five sizes, and
+  <kbd>Ctrl</kbd>+<kbd>0</kbd> goes back to the usual one. The lists share one size and the grid
+  has its own; both are the same in every tab and come back at the next start.</p>
   <p>In any view, the context menu's <strong>Sort By</strong> sorts by name, size, date or type,
   ascending or descending. The order is the same in all three views and in every folder you open,
   and comes back at the next start.</p>
@@ -490,8 +494,8 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   {"group": "Files", "keys": "R  S  Enter", "action": "Name taken: replace, skip, both"},
   {"group": "Files", "keys": "A  Escape", "action": "Name taken: for the rest, stop"},
   {"group": "Files", "keys": "Enter  Escape", "action": "Delete permanently? Yes, no"},
-  {"group": "Grid", "keys": "Ctrl++  Ctrl+−", "action": "Larger, smaller"},
-  {"group": "Grid", "keys": "Ctrl+0", "action": "Usual size"},
+  {"group": "Zoom", "keys": "Ctrl++  Ctrl+−", "action": "Larger, smaller (wheel too)"},
+  {"group": "Zoom", "keys": "Ctrl+0", "action": "Usual size"},
   {"group": "Sidebar", "keys": "↑  ↓  Home  End", "action": "Choose a place"},
   {"group": "Sidebar", "keys": "Enter", "action": "Open it"},
   {"group": "Sidebar", "keys": "Escape", "action": "Back to the view"},

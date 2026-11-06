@@ -65,6 +65,14 @@ public:
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
 
+    // The cells' size (kIconSizes[index]), as the window sets it: no zoom handler call.
+    void set_size_index(std::size_t index);
+
+    [[nodiscard]] std::size_t size_index() const noexcept { return size_; }
+
+    // Ctrl+plus/minus/0 and Ctrl+wheel changed the size: the window makes it every grid's.
+    void set_zoom_handler(std::function<void(std::size_t)> zoomed) { zoomed_ = std::move(zoomed); }
+
     // The order of every folder the grid shows, now and later (the window's: Browser::set_sort).
     void set_order(const fs::SortOrder& order);
 
@@ -172,6 +180,7 @@ private:
     const DropMark* drop_{nullptr};
     ui::Scroller scroller_;
     std::size_t size_{kDefaultSize};
+    std::function<void(std::size_t)> zoomed_;
     std::size_t columns_{1};
     float cell_width_{0.0F};
 

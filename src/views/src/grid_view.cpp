@@ -188,14 +188,25 @@ void GridView::go_up() {
     folder_->select_name(current.filename().string());
 }
 
+void GridView::set_size_index(std::size_t index) {
+    index = std::min(index, kIconSizes.size() - 1);
+    if (index == size_) {
+        return;
+    }
+    keep_place();
+    size_ = index;
+    redraw_();
+}
+
 void GridView::zoom(std::size_t size) {
     size = std::min(size, kIconSizes.size() - 1);
     if (size == size_) {
         return;
     }
-    keep_place();
-    size_ = size;
-    redraw_();
+    set_size_index(size);
+    if (zoomed_) {
+        zoomed_(size_);
+    }
 }
 
 void GridView::set_info_visible(bool visible) {

@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/release-v0.1.0-2a6a9e" alt="release v0.1.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-286%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="286 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-288%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="288 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -67,7 +67,7 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 |---|---|
 | Binary | **3.60 MB** (3.01 MB stripped), x86-64, decoders built in |
 | Libraries | 21 direct; no GTK, no Qt, no GLib |
-| Code | about 36 300 lines of C++20, 11 000 of tests (286 test cases, under ASan and TSan too) |
+| Code | about 36 300 lines of C++20, 11 000 of tests (288 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -155,13 +155,13 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Sort By in the context menu; tabs (a folder, a view and a history each, remembered) |
+| on `main`, next | Sort By in the context menu; tabs (a folder, a view and a history each, remembered); zoom in the columns and the details, the zoom remembered |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
 
 ## What's next
 
-0.1.0 came out after a week of daily use by the author; since then, Sort By in the context menu
-and tabs. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
+0.1.0 came out after a week of daily use by the author; since then, Sort By in the context menu,
+tabs, and zoom in the lists. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
 pane, a queue of operations and batch renaming; photo culling (ratings and colour labels in
 darktable's sidecars, side-by-side comparison, histogram); scripting in Luau; a file chooser for
 other applications; text files in an external editor; translations, Italian first. The full list
