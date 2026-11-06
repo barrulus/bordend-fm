@@ -21,13 +21,13 @@
 > [build it from source](#building); it takes about a minute.
 
 <p align="center">
-  <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-FFF59B?style=for-the-badge&labelColor=0E0E43" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
+  <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-6DBDF0?style=for-the-badge&labelColor=0E1519" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
 </p>
 
 <p align="center">
-  <img src="docs/images/screenshot-columns.png" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right" width="100%">
+  <img src="docs/images/readme-desktop-light.webp" alt="Nordend on the desktop: a grid of raw winter photos, one selected, its preview and EXIF in the info pane" width="100%">
   <br>
-  <sub>The column view on a folder of OM System raw files, in the Noctalia theme on Umbriel.</sub>
+  <sub>The grid on a folder of OM System raw files, in Noctalia's Nord light theme on Umbriel.</sub>
 </p>
 
 <p align="center">
