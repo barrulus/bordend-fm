@@ -4,6 +4,31 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 7.8b: a Void package
+
+**Done**
+- An xbps-src template `nordend` in void-noctalia (`packages/srcpkgs/nordend`, next to noctalia
+  and umbriel): `build_style=cmake`, tests off, `/usr/bin/nordend`, the desktop entry, the icon
+  and the licence; depends on `shared-mime-info` and `hicolor-icon-theme`, the libraries found by
+  xbps-src. 1.1 MB package, 2.6 MB installed.
+- `NORDEND_WERROR` (CMake option, ON by default): the package turns it off, so that a newer
+  compiler's new warning cannot break it.
+- The first package build failed: xbps-src builds with `-D_FORTIFY_SOURCE=2`, which marks
+  `fchmodat` `warn_unused_result`, and `Eraser::empty_folder` ignored its result. Now kept in a
+  `[[maybe_unused]]` local: a failure still shows as the open's error just after. The whole tree
+  built with xbps-src's flags and `-Werror`: no other case. 276 tests.
+
+**Decisions**
+- The short way (the author, 2026-11-06): a Void package only; elsewhere, build from source. A
+  portable Zed-style tarball, an AUR package: later. Flatpak, Snap, AppImage: no (a sandbox
+  works against a file manager).
+
+**Tested by the author** (2026-11-06): installed with `xbps-install`, the `~/.local` copy moved
+aside: Super+E, the launcher with the icon, a folder opened from another app, raw thumbnails,
+Quick Look, a copy, a deletion to the trash.
+
+---
+
 ## 2026-11-06 — The site's own look
 
 **Done**

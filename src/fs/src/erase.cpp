@@ -246,8 +246,10 @@ bool Eraser::empty_folder(int parent, const std::string& name, const struct stat
                           const std::string& shown) {
     constexpr mode_t open_up = S_IRWXU;
     if ((info.st_mode & open_up) != open_up && info.st_uid == geteuid()) {
-        // Read-only folders (a Go module cache): opened up, they are going anyway.
-        fchmodat(parent, name.c_str(), (info.st_mode & 07777U) | open_up, 0);
+        // Read-only folders (a Go module cache): opened up, they are going anyway. A failure shows
+        // as the open's or the removal's error below.
+        [[maybe_unused]] const int opened_up =
+            fchmodat(parent, name.c_str(), (info.st_mode & 07777U) | open_up, 0);
     }
     const int fd = openat(parent, name.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
     if (fd < 0) {

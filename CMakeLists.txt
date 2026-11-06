@@ -18,8 +18,10 @@ endif()
 # ---------------------------------------------------------------------------
 add_library(nordend_warnings INTERFACE)
 add_library(nordend::warnings ALIAS nordend_warnings)
+# NORDEND_WERROR=OFF for package builds: a newer compiler's new warning must not break them.
+option(NORDEND_WERROR "Turn warnings into errors" ON)
 target_compile_options(nordend_warnings INTERFACE
-    -Wall -Wextra -Wpedantic -Werror
+    -Wall -Wextra -Wpedantic $<$<BOOL:${NORDEND_WERROR}>:-Werror>
     -Wshadow -Wnon-virtual-dtor -Wold-style-cast -Woverloaded-virtual
     -Wconversion -Wsign-conversion -Wdouble-promotion
     -Wnull-dereference -Wformat=2 -Wimplicit-fallthrough)
