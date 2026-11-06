@@ -262,9 +262,9 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
-    CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_terminal", "add_bookmark",
-                                         "copy", "cut", "-paste", "rename", "trash", "erase",
-                                         "sort"});
+    CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_tab", "open_terminal",
+                                         "add_bookmark", "copy", "cut", "-paste", "rename", "trash",
+                                         "erase", "sort"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -400,7 +400,7 @@ TEST_CASE("context menu: F4 and Open in Terminal: the cursor's folder, else the 
 
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_Menu)));
-    CHECK(f.menu().items()[2].keys == "F4");
+    CHECK(f.menu().items()[3].keys == "F4");
     f.choose("open_terminal");
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));

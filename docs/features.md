@@ -32,7 +32,9 @@ README's [What's next](../README.md#whats-next).
 - **Tabs** (Ctrl+T): each with its own folder, view and back/forward history. The bar above the
   path shows them when there are two or more: a click shows a tab, its × or a middle click
   closes it, + opens one. Ctrl+Tab and Ctrl+Shift+Tab go round them, Alt+1…9 picks one, Ctrl+W
-  closes the one shown (never the last). The order, hidden files, the sidebar and the info pane
+  closes the one shown (never the last). A middle click on a folder, or the context menu's Open in
+  New Tab (Tabs, for several folders), opens it in a tab behind the one shown; a middle click on
+  a selected folder opens every selected folder. The order, hidden files, the sidebar and the info pane
   are the window's, the same in every tab.
 - **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
   the file types already detected. The status bar has a button for each view.

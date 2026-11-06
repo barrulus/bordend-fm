@@ -265,6 +265,8 @@ public:
     // A new tab on directory, right after the one shown; shown, or left behind it (a middle
     // click on a folder).
     void open_tab(const std::filesystem::path& directory, bool show);
+    // "Open in New Tab(s)": folders behind the tab shown, in their order.
+    void open_tabs(const std::vector<std::filesystem::path>& folders);
     // Ctrl+W, a tab's ×, a middle click on it: the tab closes; the last one stays.
     void close_tab(std::size_t index);
     // A click on a tab, Ctrl+Tab, Ctrl+Shift+Tab, Alt+1…9.
@@ -565,6 +567,8 @@ private:
     [[nodiscard]] MenuItem sort_menu();
     // A new pane at index at, its views wired to the window, sorted and filtered as the window is.
     Pane& add_pane(std::size_t at);
+    // A new tab on directory right after the one shown, which stays shown.
+    void open_tab_behind(const std::filesystem::path& directory);
     // Before another pane is shown: what belongs to the one shown (Quick Look, a menu, a name
     // being edited, a press, a band, the pointer's hover) is let go.
     void leave_pane();

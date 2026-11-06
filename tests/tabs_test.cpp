@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -204,6 +206,68 @@ TEST_CASE("tabs: opened behind the one shown, right after it; a closed tab gives
     CHECK(f.browser.columns().focused_folder()->path() == f.b);
 }
 
+TEST_CASE("tabs: Open in New Tab, one folder or several, behind the tab shown") {
+    Fixture f;
+    fs::create_directories(f.a / "more");
+    REQUIRE(run_until(f.loop, [&f] {
+        const auto& entries = f.browser.columns().focused_folder()->entries();
+        return std::ranges::find(entries, "more", &nordend::fs::Entry::name) != entries.end();
+    }));
+    const auto select = [&f](const Names& names) {
+        const std::shared_ptr<nordend::views::Folder> folder = f.browser.columns().focused_folder();
+        folder->set_cursor(std::nullopt);
+        for (const std::string& name : names) {
+            const auto& entries = folder->entries();
+            const auto it = std::ranges::find(entries, name, &nordend::fs::Entry::name);
+            REQUIRE(it != entries.end());
+            folder->set_cursor(static_cast<std::size_t>(it - entries.begin()),
+                               nordend::views::SelectMode::toggle);
+        }
+    };
+    // The label of the menu's item called id (empty: none), and choosing it.
+    const auto label = [&f](const std::string& id) {
+        for (const nordend::views::MenuItem& each : f.browser.context_menu().items()) {
+            if (each.id == id) {
+                return each.label;
+            }
+        }
+        return std::string{};
+    };
+    const auto choose = [&f](const std::string& id) {
+        std::function<void()> action;
+        for (const nordend::views::MenuItem& each : f.browser.context_menu().items()) {
+            if (each.id == id) {
+                action = each.action;
+            }
+        }
+        f.browser.context_menu().close();
+        REQUIRE(action);
+        action();
+        REQUIRE(f.settle());
+    };
+
+    // A file: no such item. A folder: one tab.
+    select({"one.txt"});
+    f.browser.open_menu(100, 100, false);
+    CHECK(label("open_tab").empty());
+    f.browser.context_menu().close();
+    select({"sub"});
+    f.browser.open_menu(100, 100, false);
+    CHECK(label("open_tab") == "Open in New Tab");
+    choose("open_tab");
+    CHECK(f.browser.tab_titles() == Names{"a", "sub"});
+    CHECK(f.browser.active_tab() == 0);
+
+    // Two folders: two tabs, in their order, right after the one shown.
+    select({"more", "sub"});
+    f.browser.open_menu(100, 100, false);
+    CHECK(label("open_tab") == "Open in New Tabs");
+    choose("open_tab");
+    CHECK(f.browser.tab_titles() == Names{"a", "more", "sub", "sub"});
+    CHECK(f.browser.active_tab() == 0);
+    CHECK(f.browser.status_bar().message() == "Opened 2 folders in new tabs");
+}
+
 TEST_CASE("tabs: closed while a name is edited, the rename still lands") {
     Fixture f;
     CHECK(f.press(key(XKB_KEY_t, kCtrl)));
@@ -289,4 +353,59 @@ TEST_CASE("tabs: the bar with two tabs; a click shows one, its × or a middle cl
     click(bar.add_rect(), PointerButton::left);  // the +
     CHECK(f.browser.tab_count() == 3);
     CHECK(f.browser.active_tab() == 2);
+
+    // A middle click on a folder in a view: a tab behind; on a file, nothing.
+    f.browser.close_tab(2);
+    f.browser.close_tab(1);
+    f.browser.set_mode(Browser::Mode::details);
+    REQUIRE(f.settle());
+    draw();
+    const auto row_of = [&f](const std::string& name) -> std::optional<nordend::ui::Rect> {
+        for (float y = 1.0F; y < kHeight; y += 2.0F) {
+            for (float x = 300.0F; x < kWidth; x += 40.0F) {
+                if (const auto hit = f.browser.details().hit(x, y);
+                    hit && hit->entry && hit->folder->entries()[*hit->entry].name == name) {
+                    return nordend::ui::Rect{x, y, 1.0F, 1.0F};
+                }
+            }
+        }
+        return std::nullopt;
+    };
+    const std::optional<nordend::ui::Rect> sub = row_of("sub");
+    const std::optional<nordend::ui::Rect> one = row_of("one.txt");
+    REQUIRE(sub);
+    REQUIRE(one);
+    click(one.value_or(nordend::ui::Rect{}), PointerButton::middle);
+    CHECK(f.browser.tab_count() == 1);
+    click(sub.value_or(nordend::ui::Rect{}), PointerButton::middle);
+    REQUIRE(f.settle());
+    CHECK(f.browser.tab_titles() == Names{"a", "sub"});
+    CHECK(f.browser.active_tab() == 0);
+    CHECK(f.browser.details().folder()->path() == f.a);  // still here
+
+    // On a folder of the selection: every selected folder, files left out.
+    f.browser.close_tab(1);
+    fs::create_directories(f.a / "more");
+    REQUIRE(run_until(f.loop, [&f] {
+        const auto& entries = f.browser.details().folder()->entries();
+        return std::ranges::find(entries, "more", &nordend::fs::Entry::name) != entries.end();
+    }));
+    REQUIRE(f.settle());
+    draw();
+    const std::shared_ptr<nordend::views::Folder> shown = f.browser.details().folder();
+    shown->set_cursor(std::nullopt);
+    for (const char* name : {"more", "sub", "one.txt"}) {
+        const auto& entries = shown->entries();
+        const auto it = std::ranges::find(entries, std::string{name}, &nordend::fs::Entry::name);
+        REQUIRE(it != entries.end());
+        shown->set_cursor(static_cast<std::size_t>(it - entries.begin()),
+                          nordend::views::SelectMode::toggle);
+    }
+    draw();
+    const std::optional<nordend::ui::Rect> selected = row_of("sub");
+    REQUIRE(selected);
+    click(selected.value_or(nordend::ui::Rect{}), PointerButton::middle);
+    REQUIRE(f.settle());
+    CHECK(f.browser.tab_titles() == Names{"a", "more", "sub"});
+    CHECK(f.browser.active_tab() == 0);
 }

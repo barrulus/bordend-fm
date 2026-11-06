@@ -4,6 +4,28 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 9.1c: folders into tabs, behind the one shown
+
+**Done**
+- A middle click on a folder in any view opens it in a new tab right after the one shown, which
+  stays shown, with a message; on a file, or in the trash, nothing (the views take no middle
+  clicks). On a folder of the selection it opens every selected folder, as the menu does (the
+  author found it opening only the one clicked, 2026-11-06); files in the selection are left out.
+- The context menu of folders: "Open in New Tab", "Open in New Tabs" for several, opened behind
+  in their order (`open_tabs`), with "Opened N folders in new tabs".
+- `open_tab_behind` apart from `open_tab(…, true)`: opening behind never moves the pointer to
+  another view, so the pointer's path does not loop back through `enter_pane` (clang-tidy's
+  misc-no-recursion).
+- Tests: the menu item on a file (none), a folder, two folders; a middle click on a file, on a
+  folder, and on a folder of a selection with a file in the details drawn offscreen. 283 tests,
+  ASan and TSan clean.
+
+**Tested by the author** (2026-11-06): middle clicks on folders and files in the three views,
+Open in New Tab(s) from the menu; after the fix, a middle click on one of three selected folders
+opening all three.
+
+---
+
 ## 2026-11-06 — 9.1b: the tab bar and its keys
 
 **Done**

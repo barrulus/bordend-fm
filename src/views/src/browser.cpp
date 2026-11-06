@@ -164,22 +164,43 @@ void Browser::new_tab() {
 }
 
 void Browser::open_tab(const std::filesystem::path& directory, bool show) {
+    if (!show) {
+        open_tab_behind(directory);
+        return;
+    }
     note_location();  // where the tab shown was, for its history
     const Mode mode = pane().mode;
     const std::size_t from = active_;
-    if (show) {
-        leave_pane();
-    }
+    leave_pane();
     add_pane(from + 1);
     active_ = from + 1;
     pane().mode = mode;
     open(directory);  // into the new pane: its first step
-    if (show) {
-        enter_pane();
-    } else {
-        active_ = from;
-        show_message(std::format("Opened “{}” in a new tab", directory.filename().string()), false);
-        redraw_();
+    enter_pane();
+}
+
+void Browser::open_tab_behind(const std::filesystem::path& directory) {
+    note_location();
+    const Mode mode = pane().mode;
+    const std::size_t from = active_;
+    add_pane(from + 1);
+    active_ = from + 1;
+    pane().mode = mode;
+    open(directory);
+    active_ = from;
+    show_message(std::format("Opened “{}” in a new tab", directory.filename().string()), false);
+    redraw_();
+}
+
+void Browser::open_tabs(const std::vector<std::filesystem::path>& folders) {
+    const std::size_t from = active_;
+    for (std::size_t i = 0; i < folders.size(); ++i) {
+        active_ = from + i;  // the next one goes after the last opened
+        open_tab_behind(folders[i]);
+    }
+    active_ = from;
+    if (folders.size() > 1) {
+        show_message(std::format("Opened {} folders in new tabs", folders.size()), false);
     }
 }
 
@@ -1447,16 +1468,21 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
                      });
         });
     }
-    if (cursor != nullptr && cursor->is_directory() && terminal_) {
-        add("open_terminal", "Open in Terminal", keys_for(Command::open_terminal),
-            [this] { open_terminal(); });
-    }
     const std::size_t count = names.size();
     std::vector<std::filesystem::path> folders;
     for (const fs::Entry& entry : folder->entries()) {
         if (entry.is_directory() && std::ranges::find(names, entry.name) != names.end()) {
             folders.push_back(folder->path() / entry.name);
         }
+    }
+    if (!folders.empty() && folders.size() == count) {
+        // Behind the tab shown, in their order: each right after the one before.
+        add("open_tab", count == 1 ? "Open in New Tab" : "Open in New Tabs", "",
+            [this, folders] { open_tabs(folders); });
+    }
+    if (cursor != nullptr && cursor->is_directory() && terminal_) {
+        add("open_terminal", "Open in Terminal", keys_for(Command::open_terminal),
+            [this] { open_terminal(); });
     }
     if (!folders.empty() && folders.size() == count) {
         add("add_bookmark", "Add to Sidebar", count == 1 ? keys_for(Command::add_bookmark) : "",
@@ -2197,6 +2223,33 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
         }
     } else if (event.kind == Kind::release) {
         button_held_ = false;
+    }
+    if (event.kind == Kind::press && event.button == ui::PointerButton::middle &&
+        pointer_target_ == Target::view) {
+        // A middle click on a folder opens it in a new tab, behind the one shown; the views take
+        // no middle clicks.
+        if (const std::optional<ViewHit> hit = view_hit(event.x, event.y);
+            hit && hit->folder && hit->entry && !hit->folder->is_trash()) {
+            const std::vector<fs::Entry>& entries = hit->folder->entries();
+            if (*hit->entry < entries.size() && entries[*hit->entry].is_directory()) {
+                const fs::Entry& clicked = entries[*hit->entry];
+                // On a selected folder: every selected folder, as "Open in New Tabs".
+                std::vector<std::filesystem::path> folders;
+                if (hit->folder->is_selected(clicked.name)) {
+                    for (const fs::Entry& entry : entries) {
+                        if (entry.is_directory() && hit->folder->is_selected(entry.name)) {
+                            folders.push_back(hit->folder->path() / entry.name);
+                        }
+                    }
+                }
+                if (folders.size() > 1) {
+                    open_tabs(folders);
+                } else {
+                    open_tab_behind(hit->folder->path() / clicked.name);
+                }
+            }
+        }
+        return;
     }
     if (event.kind == Kind::motion && press_ && dnd_.start && button_held_ &&
         pointer_target_ == Target::view &&
