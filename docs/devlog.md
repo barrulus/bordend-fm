@@ -4,6 +4,34 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 8.0: Sort By in the context menu
+
+**Done**
+- The context menu, on an entry and on empty space, ends with a **Sort By** submenu: Name, Size,
+  Modified, Type, then Ascending, Descending; a dot on the order in use. Choosing a field keeps
+  the direction.
+- One order for the window (`Browser::set_sort`, `sort_order()`): the details view owned it and
+  applied it only to the folder it showed; now `ColumnView` and `GridView` keep it too and give it
+  to every folder they open or are handed, so a folder opened in the grid or the columns is sorted
+  the same. A click on a title of the details tells the browser (`DetailsView::set_sort_handler`),
+  which sorts the other views. `state.toml` as before (`sort`, `descending`).
+- `fs::SortOrder` has `==`; `Folder::set_order` does nothing (no re-sort, no jump) when the order
+  is the same.
+- `MenuItem::radio` / `checked`: a panel with radio items keeps room before the labels and draws a
+  dot on the checked ones.
+- Tests: the submenu's items and dots, Size then Descending by keyboard and by action, the grid's
+  folder re-sorted, a folder opened later in the columns sorted so, a title click of the details
+  sorting the grid. Snapshot of the submenu in Nord light and dark. 277 tests.
+- `memory_test`: under the sanitizers the 64 MB block is checked to show by half at least. ASan's
+  allocator gives memory back on its own between the two reads; after the whole suite (some
+  500 MB held) it passed by 90 kB, and this change was enough to tip it.
+
+**Tested by the author** (2026-11-06): Sort By from empty space and from a photo in the grid,
+Modified descending, another folder in the columns sorted so, a title click in the details
+carried to the grid, the keyboard through the submenu, the order back after a restart.
+
+---
+
 ## 2026-11-06 — 7.8c: 0.1.0
 
 **Done**

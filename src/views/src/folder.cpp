@@ -86,6 +86,9 @@ void Folder::selection_changed() {
 }
 
 void Folder::set_order(const fs::SortOrder& order) {
+    if (order == this->order()) {
+        return;  // already so: no re-sort, no jump
+    }
     model_.set_order(order);
     reveal_ = Reveal::jump;
     redraw_();

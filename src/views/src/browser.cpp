@@ -1,6 +1,7 @@
 #include "nordend/views/browser.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
@@ -83,6 +84,10 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     columns_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     grid_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
     details_.set_menu_handler([this](float x, float y) { open_menu(x, y, false); });
+    details_.set_sort_handler([this](const fs::SortOrder& order) {
+        columns_.set_order(order);
+        grid_.set_order(order);
+    });
     sidebar_.set_eject_handler([this](const fs::Place& place) { eject_place(place); });
     columns_.set_cut_marks(&cut_marks_);
     columns_.set_drop_mark(&drop_mark_);
@@ -1330,6 +1335,7 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         count == 1);
     add("trash", "Move to Trash", keys_for(Command::trash), [this] { trash(); });
     add("erase", "Delete Permanently…", keys_for(Command::erase), [this] { erase(); });
+    items.push_back(sort_menu());
     return items;
 }
 
@@ -1415,6 +1421,7 @@ std::vector<MenuItem> Browser::folder_menu() {
             items.push_back(std::move(terminal));
         }
     }
+    items.push_back(sort_menu());
     return items;
 }
 
@@ -1602,6 +1609,56 @@ void Browser::travel(int direction) {
     report_gone();
 }
 
+void Browser::set_sort(fs::SortKey key, bool descending) {
+    details_.set_sort(key, descending);
+    columns_.set_order(details_.order());
+    grid_.set_order(details_.order());
+}
+
+MenuItem Browser::sort_menu() {
+    const fs::SortOrder& now = sort_order();
+    MenuItem sort;
+    sort.id = "sort";
+    sort.label = "Sort By";
+    sort.submenu = true;
+    sort.separator = true;
+    const auto choice = [](std::string id, std::string label, bool checked,
+                           std::function<void()> action, bool separator = false) {
+        MenuItem item;
+        item.id = std::move(id);
+        item.label = std::move(label);
+        item.radio = true;
+        item.checked = checked;
+        item.separator = separator;
+        item.action = std::move(action);
+        return item;
+    };
+
+    struct Key {
+        fs::SortKey key;
+        const char* id;
+        const char* label;
+    };
+
+    constexpr std::array<Key, 4> sort_keys{{
+        {.key = fs::SortKey::name, .id = "sort:name", .label = "Name"},
+        {.key = fs::SortKey::size, .id = "sort:size", .label = "Size"},
+        {.key = fs::SortKey::modified, .id = "sort:modified", .label = "Modified"},
+        {.key = fs::SortKey::type, .id = "sort:type", .label = "Type"},
+    }};
+    for (const Key& choice_of : sort_keys) {
+        sort.children.push_back(
+            choice(choice_of.id, choice_of.label, now.key == choice_of.key,
+                   [this, key = choice_of.key] { set_sort(key, sort_order().descending); }));
+    }
+    sort.children.push_back(choice(
+        "sort:ascending", "Ascending", !now.descending,
+        [this] { set_sort(sort_order().key, false); }, true));
+    sort.children.push_back(choice("sort:descending", "Descending", now.descending,
+                                   [this] { set_sort(sort_order().key, true); }));
+    return sort;
+}
+
 void Browser::set_show_hidden(bool show) {
     show_hidden_ = show;
     columns_.set_show_hidden(show);
@@ -1663,7 +1720,7 @@ void Browser::apply(const State& state) {
     set_info_visible(state.info_visible);
     info_pane_.set_width(state.info_width);
     info_pane_.set_expanded(state.info_expanded);
-    details_.set_sort(state.sort_key, state.sort_descending);
+    set_sort(state.sort_key, state.sort_descending);
     details_.set_widths(state.details_widths);
     const auto mode = static_cast<Mode>(state.mode);
     if (current_folder()) {

@@ -13,6 +13,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/fs/sort.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/icons.hpp"
@@ -85,6 +86,9 @@ public:
     // Dotfiles listed in every column, or left out (hidden at first). Left out, the columns
     // before the focused one keep the hidden entry that leads on, the others move their cursor.
     void set_show_hidden(bool show);
+
+    // The order of every folder the columns show, now and later (the window's: Browser::set_sort).
+    void set_order(const fs::SortOrder& order);
 
     // The folder of the focused column; nullptr before open().
     [[nodiscard]] std::shared_ptr<Folder> focused_folder() const;
@@ -203,6 +207,7 @@ private:
     std::shared_ptr<Folder> adopt_;  // the folder show() unfolds to, used as its column
     bool suspended_{false};
     bool show_hidden_{false};
+    fs::SortOrder order_;
     ui::Scroller scroller_;     // horizontal
     bool reveal_focus_{false};  // glide to show the focused column at the next draw
     float shift_{0.0F};         // added to the offset at the next draw (a column prepended)

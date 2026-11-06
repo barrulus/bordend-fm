@@ -147,6 +147,9 @@ void DetailsView::sort_by(Field field) {
     }
     apply_order();
     redraw_();
+    if (sorted_) {
+        sorted_(order_);
+    }
 }
 
 void DetailsView::set_sort(fs::SortKey key, bool descending) {

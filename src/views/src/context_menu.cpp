@@ -19,6 +19,12 @@ constexpr float kTextSize = 13.0F;
 constexpr float kEdge = 4.0F;     // kept free between a panel and the window's edge
 constexpr float kOverlap = 4.0F;  // a submenu over its menu's side
 constexpr float kRadius = 10.0F;
+constexpr float kMarkWidth = 18.0F;  // before the labels of a panel with radio items
+constexpr float kDot = 6.0F;         // the dot of a checked radio item
+
+bool has_radio(const std::vector<MenuItem>& items) {
+    return std::ranges::any_of(items, &MenuItem::radio);
+}
 
 bool contains(const ui::Rect& rect, float x, float y) {
     return x >= rect.x && x < rect.right() && y >= rect.y && y < rect.bottom();
@@ -268,7 +274,8 @@ ui::Rect ContextMenu::measure(ui::Renderer& renderer, const std::vector<MenuItem
         if (item.submenu) {
             line += kKeysGap + kArrowWidth;
         }
-        width = std::max(width, line + (2.0F * kTextInset));
+        width =
+            std::max(width, line + (2.0F * kTextInset) + (has_radio(items) ? kMarkWidth : 0.0F));
         height += kItemHeight + (item.separator ? kSeparatorHeight : 0.0F);
     }
     return {0.0F, 0.0F, width, height};
@@ -285,6 +292,7 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
                               .border_width = 1.0F,
                               .border = palette.outline_variant});
     rects.clear();
+    const float label_x = panel.x + kTextInset + (has_radio(items) ? kMarkWidth : 0.0F);
     float y = panel.y + kPadding;
     for (std::size_t i = 0; i < items.size(); ++i) {
         const MenuItem& item = items[i];
@@ -318,10 +326,13 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
             keys_width = text_width(renderer, item.keys);
             renderer.draw_text(item.keys, right - keys_width, text_y, kTextSize, dim);
         }
-        const float room =
-            right - keys_width - (panel.x + kTextInset) - (item.keys.empty() ? 0.0F : kKeysGap);
-        renderer.draw_text(item.label, panel.x + kTextInset, text_y, kTextSize, text,
-                           std::max(room, 1.0F));
+        if (item.radio && item.checked) {
+            renderer.draw_box({panel.x + kTextInset + ((kMarkWidth - kDot) / 2.0F) - 3.0F,
+                               y + ((kItemHeight - kDot) / 2.0F), kDot, kDot},
+                              {.fill = text, .radius = ui::Corners::all(kDot / 2.0F)});
+        }
+        const float room = right - keys_width - label_x - (item.keys.empty() ? 0.0F : kKeysGap);
+        renderer.draw_text(item.label, label_x, text_y, kTextSize, text, std::max(room, 1.0F));
         y += kItemHeight;
     }
 }

@@ -248,7 +248,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.press(key(XKB_KEY_Menu)));
     REQUIRE(f.menu().is_open());
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase", "sort"});
     CHECK(f.menu().items()[2].keys == "Ctrl+C");  // from the shortcuts table
     CHECK(f.menu().items()[6].keys == "Delete");
     CHECK(f.press(key(XKB_KEY_Escape)));
@@ -258,12 +258,13 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase", "sort"});
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_terminal", "add_bookmark",
-                                         "copy", "cut", "-paste", "rename", "trash", "erase"});
+                                         "copy", "cut", "-paste", "rename", "trash", "erase",
+                                         "sort"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -272,9 +273,92 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));
     CHECK(ids(f.menu().items()) ==
-          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal"});
+          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal", "sort"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
+}
+
+TEST_CASE("context menu: Sort By sorts every view, and the folders they open later") {
+    Fixture f;
+    // Sizes 1, 30, 200 and 5000 bytes; "sub" stays first, folders before files.
+    std::ofstream{f.photos / "a.txt"} << std::string(5000, 'a');
+    std::ofstream{f.photos / "b.txt"} << std::string(1, 'b');
+    std::ofstream{f.photos / "P1.ORF"} << std::string(200, 'p');
+    std::ofstream{f.photos / "P1.ORF.xmp"} << std::string(30, 'x');
+    fs::create_directories(f.photos / "sub" / "deeper");
+    std::ofstream{f.photos / "sub" / "big"} << std::string(900, 'g');
+    std::ofstream{f.photos / "sub" / "small"} << "s";
+    f.browser.set_mode(Browser::Mode::grid);
+    REQUIRE(run_until(f.loop, [&f] {
+        const auto& entries = f.browser.grid().folder()->entries();
+        const auto a = std::ranges::find(entries, "a.txt", &nordend::fs::Entry::name);
+        return a != entries.end() && a->size == 5000;
+    }));
+    const auto names = [](const Folder& folder) {
+        Names out;
+        for (const nordend::fs::Entry& entry : folder.entries()) {
+            out.push_back(entry.name);
+        }
+        return out;
+    };
+    CHECK(names(*f.browser.grid().folder()) ==
+          Names{"sub", "a.txt", "b.txt", "P1.ORF", "P1.ORF.xmp"});
+
+    // The menu: a submenu with a dot on the order in use, on empty space and on an entry.
+    f.select({});
+    f.browser.open_menu(100, 100, false);
+    const MenuItem& sort = f.menu().items().back();
+    REQUIRE(sort.id == "sort");
+    CHECK(sort.submenu);
+    CHECK(ids(sort.children) == Names{"sort:name", "sort:size", "sort:modified", "sort:type",
+                                      "sort:ascending", "sort:descending"});
+    const auto checked = [](const MenuItem& submenu) {
+        Names out;
+        for (const MenuItem& item : submenu.children) {
+            CHECK(item.radio);
+            if (item.checked) {
+                out.push_back(item.id);
+            }
+        }
+        return out;
+    };
+    CHECK(checked(sort) == Names{"sort:name", "sort:ascending"});
+
+    // Size, then Descending: the grid's folder follows, largest first.
+    f.choose("sort");
+    CHECK(f.press(key(XKB_KEY_Right)));  // into the submenu, on Name
+    CHECK(f.press(key(XKB_KEY_Down)));
+    CHECK(f.press(key(XKB_KEY_Return)));  // Size
+    CHECK_FALSE(f.menu().is_open());
+    CHECK(names(*f.browser.grid().folder()) ==
+          Names{"sub", "b.txt", "P1.ORF.xmp", "P1.ORF", "a.txt"});
+    f.select({"a.txt"});
+    f.browser.open_menu(100, 100, false);
+    CHECK(checked(f.menu().items().back()) == Names{"sort:size", "sort:ascending"});
+    f.menu().items().back().children.back().action();  // Descending
+    f.menu().close();
+    CHECK(names(*f.browser.grid().folder()) ==
+          Names{"sub", "a.txt", "P1.ORF", "P1.ORF.xmp", "b.txt"});
+    CHECK(f.browser.state().sort_key == nordend::fs::SortKey::size);
+    CHECK(f.browser.state().sort_descending);
+
+    // A folder opened afterwards, in the columns, is sorted so too; the details show it.
+    f.browser.open(f.photos / "sub");
+    f.browser.set_mode(Browser::Mode::columns);
+    REQUIRE(f.settle());
+    REQUIRE(run_until(
+        f.loop, [&f] { return f.browser.columns().focused_folder()->entries().size() == 3; }));
+    CHECK(names(*f.browser.columns().focused_folder()) == Names{"deeper", "big", "small"});
+    CHECK(f.browser.details().order().key == nordend::fs::SortKey::size);
+
+    // A click on a title of the details sorts the other views too.
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.details().sort_by(nordend::views::DetailsView::Field::name);  // name, ascending
+    f.browser.set_mode(Browser::Mode::grid);
+    f.browser.open(f.photos);
+    REQUIRE(f.settle());
+    CHECK(names(*f.browser.grid().folder()) ==
+          Names{"sub", "a.txt", "b.txt", "P1.ORF", "P1.ORF.xmp"});
 }
 
 TEST_CASE("context menu: Open With lists the applications and opens the selection with one") {

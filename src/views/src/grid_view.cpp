@@ -42,10 +42,15 @@ GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryW
       redraw_{std::move(redraw)},
       thumbnails_{thumbnails},
       info_pane_{info_pane},
-      set_cursor_{std::move(set_cursor)} {}
+      set_cursor_{std::move(set_cursor)} {
+    order_.mime = mime_.get();
+}
 
 void GridView::show(std::shared_ptr<Folder> folder) {
     folder_ = std::move(folder);
+    if (folder_) {
+        folder_->set_order(order_);
+    }
     scroller_.jump_to(0.0F);
     anchor_.reset();
     hovered_.reset();
@@ -125,6 +130,14 @@ void GridView::band_scroll(const Folder& folder, float pixels) {
     if (folder_.get() == &folder) {
         scroller_.jump_to(scroller_.offset() + pixels);
         redraw_();
+    }
+}
+
+void GridView::set_order(const fs::SortOrder& order) {
+    order_ = order;
+    order_.mime = mime_.get();
+    if (folder_) {
+        folder_->set_order(order_);
     }
 }
 

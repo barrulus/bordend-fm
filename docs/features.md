@@ -26,6 +26,9 @@ README's [What's next](../README.md#whats-next).
 - **Details** (Ctrl+3): a table of name, size, date and type. Click a title to sort by it and
   click again to reverse; drag a column's edge to widen it. By size, folders keep their name
   order; by type, unknown types come last. The order you choose is used in the other views too.
+- **Sort By** in the context menu (on a file or on empty space), in every view: name, size,
+  modified or type, ascending or descending, a dot on the order in use. One order for the whole
+  window: every folder in every view is sorted so, and it comes back at the next start.
 - **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
   the file types already detected. The status bar has a button for each view.
 

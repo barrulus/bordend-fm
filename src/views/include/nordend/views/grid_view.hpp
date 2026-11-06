@@ -13,6 +13,7 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/fs/sort.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/icons.hpp"
@@ -63,6 +64,9 @@ public:
 
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
+
+    // The order of every folder the grid shows, now and later (the window's: Browser::set_sort).
+    void set_order(const fs::SortOrder& order);
 
     // Where a drag over the window would drop (the browser's).
     void set_drop_mark(const DropMark* drop) { drop_ = drop; }
@@ -164,6 +168,7 @@ private:
 
     std::shared_ptr<Folder> folder_;
     bool show_hidden_{false};
+    fs::SortOrder order_;
     const DropMark* drop_{nullptr};
     ui::Scroller scroller_;
     std::size_t size_{kDefaultSize};

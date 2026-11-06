@@ -31,7 +31,9 @@ ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::Direct
       mime_{std::move(mime)},
       redraw_{std::move(redraw)},
       set_cursor_{std::move(set_cursor)},
-      info_pane_{info_pane} {}
+      info_pane_{info_pane} {
+    order_.mime = mime_.get();
+}
 
 ColumnView::~ColumnView() = default;
 
@@ -47,7 +49,16 @@ void ColumnView::set_show_hidden(bool show) {
     }
 }
 
+void ColumnView::set_order(const fs::SortOrder& order) {
+    order_ = order;
+    order_.mime = mime_.get();
+    for (const Slot& slot : columns_) {
+        slot.column->folder().set_order(order_);
+    }
+}
+
 std::unique_ptr<Column> ColumnView::make_column(std::shared_ptr<Folder> folder) {
+    folder->set_order(order_);
     // The folder reports its cursor changes with its own address.
     folder->set_changed_handler([this, self = folder.get()] { on_cursor_changed(self); });
     return std::make_unique<Column>(std::move(folder));

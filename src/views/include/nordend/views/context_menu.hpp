@@ -20,8 +20,10 @@ struct MenuItem {       // NOLINT(misc-no-recursion): a submenu's items are Menu
     std::string label;  // "Open With"
     std::string keys;   // the shortcut shown at the right ("Ctrl+C"); may be empty
     bool enabled{true};
-    bool separator{false};   // a line above it
-    bool submenu{false};     // opens children instead of running action
+    bool separator{false};  // a line above it
+    bool submenu{false};    // opens children instead of running action
+    bool radio{false};      // one of a choice ("Sort By": Name, Size…): a dot when checked
+    bool checked{false};
     std::string empty_text;  // a submenu without children shows it, dimmed ("Loading…")
     std::vector<MenuItem> children;
     std::function<void()> action;  // runs once the menu has closed

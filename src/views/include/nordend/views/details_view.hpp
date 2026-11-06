@@ -80,8 +80,13 @@ public:
                                                         const ui::Rect& content) const;
     void band_scroll(const Folder& folder, float pixels);
 
-    // Sorts by field: ascending, or reversed when it is the field already sorted by.
+    // Sorts by field: ascending, or reversed when it is the field already sorted by; tells the
+    // sort handler (the browser, which sorts the other views the same way).
     void sort_by(Field field);
+
+    void set_sort_handler(std::function<void(const fs::SortOrder&)> handler) {
+        sorted_ = std::move(handler);
+    }
 
     [[nodiscard]] const fs::SortOrder& order() const noexcept { return order_; }
 
@@ -184,6 +189,7 @@ private:
     bool show_hidden_{false};
     const DropMark* drop_{nullptr};
     fs::SortOrder order_;
+    std::function<void(const fs::SortOrder&)> sorted_;
     ui::Scroller scroller_;
     // Widths of size, modified and type; the name takes the rest.
     std::array<float, 4> widths_{0.0F, 96.0F, 150.0F, 220.0F};

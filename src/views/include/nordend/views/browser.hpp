@@ -172,6 +172,12 @@ public:
 
     [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
 
+    // The window's order, the same in every view and every folder they show: from the context
+    // menu's "Sort By", or a click on a title of the details.
+    void set_sort(fs::SortKey key, bool descending);
+
+    [[nodiscard]] const fs::SortOrder& sort_order() const noexcept { return details_.order(); }
+
     [[nodiscard]] Mode mode() const noexcept { return mode_; }
 
     // The info pane in the grid and the details, one setting for both (shown at start); the
@@ -531,6 +537,7 @@ private:
     [[nodiscard]] static std::vector<std::string> targets(const Folder& folder);
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
     [[nodiscard]] std::vector<MenuItem> folder_menu();
+    [[nodiscard]] MenuItem sort_menu();
 
     core::EventLoop& loop_;
     core::WorkerPool& pool_;

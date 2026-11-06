@@ -29,6 +29,8 @@ struct SortOrder {
     // Strict weak order on entries; ties on size, date or type fall back to the name. By size,
     // directories compare by name among themselves.
     [[nodiscard]] bool operator()(const Entry& a, const Entry& b) const noexcept;
+
+    [[nodiscard]] bool operator==(const SortOrder&) const = default;
 };
 
 // A directory's entries kept sorted while they arrive in chunks. Hidden entries (dotfiles) can be
