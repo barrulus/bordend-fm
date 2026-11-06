@@ -27,15 +27,15 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/readme-desktop-light.webp" alt="Nordend on the desktop: a grid of raw winter photos, one selected, its preview and EXIF in the info pane" width="100%">
+  <img src="docs/images/readme-grid-light.webp" alt="Nordend on the desktop with three tabs: a grid of raw photos of a snowy summit, one selected, its preview and EXIF in the info pane" width="100%">
   <br>
-  <sub>The grid on a folder of OM System raw files, in Noctalia's Nord light theme on Umbriel.</sub>
+  <sub>The grid on a folder of OM System raw files, three tabs open, in Noctalia's Nord light theme on Umbriel.</sub>
 </p>
 
 <p align="center">
-  <img src="docs/images/screenshot-quick-look.png" alt="Quick Look showing a raw photo of a rocky summit in the snow over the column view" width="100%">
+  <img src="docs/images/readme-columns-dark.webp" alt="Nordend in a dark theme: the column view five folders deep in a source tree, a text file's first lines in the info pane" width="100%">
   <br>
-  <sub>Quick Look (<kbd>Space</kbd>) on the same raw file.</sub>
+  <sub>The columns deep in a source tree, a text file's first lines in the info pane, in Nord dark.</sub>
 </p>
 
 ## Why Nordend

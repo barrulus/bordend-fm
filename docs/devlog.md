@@ -4,6 +4,21 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — New screenshots for the README and the site
+
+**Done**
+- From the author's five new desktop shots (Noctalia's Nord, 2560x1440, with tabs): the README
+  opens with the grid on raw photos (light) and the columns deep in a source tree (dark); the
+  site's overview shows the columns on a folder of photos and Quick Look on a source file. WebP:
+  66-142 kB each. The details on `node_modules` left out.
+- Blurred before anything left the machine: the media title and the Wi-Fi name in the bar (all
+  five), a folder named after a person in the columns shot.
+- The old `screenshot-columns.png`, `screenshot-quick-look.png` and `readme-desktop-light.webp`
+  removed; the Pages workflow copies only `docs/images/*.webp` now (with no PNG left, `cp *.png`
+  would have failed the deploy).
+
+---
+
 ## 2026-11-06 — 8.1b: a zoom per tab
 
 **Done**
