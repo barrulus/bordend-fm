@@ -11,6 +11,8 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
   per tab (8.1, 8.1b), with the new screenshots. The README's Versions table and badge, the
   site's badge, notice, install note and roadmap say so. The tag goes on this commit; the Void
   template moves to it in the next one, as for 0.1.0.
+- Tagged `v0.2.0` on `ed8f10a` by the author; the template (void-noctalia and `packaging/void`)
+  on the tag's tarball, built with xbps-src: `nordend-0.2.0_1`.
 
 ---
 
