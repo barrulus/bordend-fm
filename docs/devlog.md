@@ -4,6 +4,16 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 0.3.0
+
+**Done**
+- Version 0.3.0: the command palette (8a), finding files (8b), the icon in the accent (9.2). The
+  README's Versions table, badge and notice, the site's badge, notice, install note and roadmap,
+  and features.md say so. The tag goes on this commit; the Void template moves to it in the next
+  one, as for 0.1.0 and 0.2.0.
+
+---
+
 ## 2026-11-06 — 8b: finding files (Ctrl+F)
 
 **Done**

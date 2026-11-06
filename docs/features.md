@@ -368,6 +368,7 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-0.2.0 is out (Sort By, tabs, zoom in the lists), after the first release, 0.1.0. Coming, roughly in this order: a
-command palette (Ctrl+K), a dual pane, photo culling. See the README's
+0.3.0 is out (the command palette, finding files, the icon in the accent), after 0.2.0 (Sort By,
+tabs, zoom in the lists) and the first release, 0.1.0. Coming, roughly in this order: a dual
+pane, a queue of operations and batch renaming, photo culling. See the README's
 [What's next](../README.md#whats-next).
