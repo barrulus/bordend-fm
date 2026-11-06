@@ -1,3 +1,5 @@
+<p align="center"><img src="data/nordend.svg" width="96" height="96" alt=""></p>
+
 <h1 align="center">Nordend</h1>
 
 <p align="center">
@@ -101,9 +103,8 @@ and tools: [install](https://pankaspe.github.io/nordend-fm/#install),
 
 ## What's next
 
-1. **A week of daily use** by the author, every bug found fixed; along the way a terminal in a
-   folder (<kbd>F4</kbd>) and rubber-band selection with the mouse, both done.
-2. **Release 0.1.0**, with a Void Linux package and Nordend's own icon.
+1. **Release 0.1.0**, with a Void Linux package and Nordend's own icon. A week of daily use by
+   the author came first (done: no bugs found, memory steady).
 
 Then, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); tabs
 (<kbd>Ctrl</kbd>+<kbd>T</kbd>), a dual pane and batch renaming; photo culling (ratings and colour

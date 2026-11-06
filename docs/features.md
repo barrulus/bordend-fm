@@ -251,6 +251,9 @@ README's [What's next](../README.md#whats-next).
 
 ## Looks
 
+- Its own icon: a folder with the Nordend's snowy summit, in one ice-blue hue
+  (`share/icons/hicolor/scalable/apps/nordend.svg`, named after the app id), shown by docks,
+  launchers and menus on any desktop.
 - Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
   raw files and darktable sidecars have their own icons. The icons are compiled into the
   program (a 14 KB subset of the official Tabler font), so they show on any desktop.

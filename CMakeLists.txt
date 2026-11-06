@@ -178,3 +178,5 @@ endif()
 install(TARGETS nordend RUNTIME DESTINATION bin)
 # The desktop entry (app id "nordend"): menus, and the default for folders (inode/directory).
 install(FILES data/nordend.desktop DESTINATION share/applications)
+# Its icon, named after the app id (the desktop entry's Icon=nordend).
+install(FILES data/nordend.svg DESTINATION share/icons/hicolor/scalable/apps)

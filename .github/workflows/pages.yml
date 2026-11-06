@@ -1,11 +1,11 @@
-# Publishes the site (site/, with the screenshots from docs/images) to GitHub Pages:
+# Publishes the site (site/, with the screenshots from docs/images and the icon from data/) to GitHub Pages:
 # https://pankaspe.github.io/nordend-fm/
 name: Site
 
 on:
   push:
     branches: [main]
-    paths: ["site/**", "docs/images/**", ".github/workflows/pages.yml"]
+    paths: ["site/**", "docs/images/**", "data/nordend.svg", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -28,6 +28,7 @@ jobs:
           mkdir -p _site/images
           cp site/* _site/
           cp docs/images/*.png _site/images/
+          cp data/nordend.svg _site/
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site

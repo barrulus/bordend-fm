@@ -95,13 +95,9 @@ a:hover {
 }
 
 .brand .mark {
-    display: inline-block;
-    width: 0.75rem;
-    height: 0.75rem;
-    border-radius: 3px;
-    background: var(--primary);
-    box-shadow: 0.35rem 0.35rem 0 var(--secondary);
-    margin-right: 0.45rem;
+    width: 1.6rem;
+    height: 1.6rem;
+    align-self: center;
 }
 
 .badge {

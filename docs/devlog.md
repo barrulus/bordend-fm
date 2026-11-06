@@ -4,6 +4,59 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 7.8a: Nordend's own icon
+
+**Done**
+- `data/nordend.svg`: a folder with the Nordend's summit on its front, in one hue ("ice":
+  `#6dbdf0` front, `#3f8cc4` tab, `#2a6a9e` mountain, white snow), no background tile.
+  Installed as `share/icons/hicolor/scalable/apps/nordend.svg`; the desktop entry says
+  `Icon=nordend` (was `folder`). `desktop-file-validate` clean.
+- The site: favicon and the brand mark in the header are the icon (the two squares are gone);
+  the Pages workflow copies it from `data/`. The README shows it above the title.
+
+**Decisions**
+- Three concepts drawn (folder with summit, ridge under a moon, two folders as the site's mark);
+  the author chose the folder with the summit. On a Noctalia-blue tile first; the author asked
+  for none: Nordend works well with Noctalia but is its own project. Four hues tried on dark and
+  light backgrounds at 200/48/24 px; a graphite mountain vanished on dark backgrounds, so the
+  mountain is the hue's dark tone. The author chose "ice".
+- An icon that follows the desktop's accent is not possible with an installed icon (docks read
+  the file themselves; only `-symbolic` icons are recoloured, in one colour): ROADMAP 9.2, after
+  0.1.0, Nordend writing a recoloured copy into `~/.local/share/icons` (whether docks reload it
+  *to be verified*).
+
+**Tested by the author** (2026-11-06): after reinstalling, the icon shows in Noctalia's launcher.
+
+---
+
+## 2026-11-06 — 7.7: a week of daily use, closed
+
+**Done**
+- The author used Nordend as the file manager from 2026-11-01 to 2026-11-06 (Super+E, default
+  for folders), with 7.7a (terminal in a folder) and 7.7b (rubber band) added along the way.
+  No bugs found.
+
+**Measured** (`~/nordend-rss.log`, `smaps_rollup` of each `nordend` every 10 minutes, 112 lines,
+about 15 sessions, some 20 hours open)
+- Anonymous memory 23.7-26.6 MB per session, flat: the longest session (2026-11-04, 5 hours)
+  stayed at 26 512 kB to the byte; short sessions grow 0.1-1 MB in the first minutes (thumbnails,
+  glyphs), then stop. Two windows at once behave like two single sessions.
+- One step: 2026-11-05 11:40-11:50, 24.7 → 48.9 MB anonymous (RSS 108.8 → 135.3 MB), then flat
+  to the end (49.8 MB). The author was scrolling Quick Look through a folder of Olympus ORFs, then
+  opened one and closed it. `QuickLook::close()` drops every slot; what stays is memory malloc
+  keeps in the workers' arenas after the decode buffers under the 16 MB mmap threshold are freed:
+  the same residue as 6.3c (111 → 143 MB after Quick Look in the author's run). A step, not a
+  slope: not a leak. `malloc_trim(0)` was already measured to give little back after Quick Look
+  (6.3b): not added.
+
+**Decisions**
+- The memory logger (`~/.local/bin/nordend-rss-log`, user service `~/.config/service/nordend-rss`)
+  stays on through development, so every installed version is watched (the author's choice).
+
+**Tested by the author** (2026-11-06): the whole week; the log read together.
+
+---
+
 ## 2026-11-04 — 7.7b: rubber-band selection with the mouse
 
 **Done**
