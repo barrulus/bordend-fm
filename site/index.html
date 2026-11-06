@@ -14,7 +14,7 @@
 
 <header class="top">
   <a class="brand" href="#overview"><img class="mark" src="nordend.svg" width="22" height="22" alt="">Nordend</a>
-  <span class="badge">pre-release</span>
+  <a class="badge" href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0">v0.1.0</a>
   <span class="spacer"></span>
   <a class="github" href="https://github.com/pankaspe/nordend-fm">GitHub</a>
   <button class="theme-toggle" type="button">Light</button>
@@ -53,10 +53,9 @@
   renderer for text, icons, scrolling and animation.</p>
 
   <div class="notice">
-    <p><strong>Pre-release.</strong> Nordend has not been released yet: there are no packages and
-    no tagged versions. To try it, <a href="#install">build it from source</a>; it takes about a
-    minute.
-    The first release will be 0.1.0.</p>
+    <p><strong>0.1.0, the first release.</strong> Young software, used every day by its author. To
+    try it, <a href="#install">build it from source</a>; it takes about a
+    minute.</p>
   </div>
 
   <div class="buttons">
@@ -161,14 +160,15 @@ cmake --build build
   the same libraries; their names differ and have not been tried yet.</p>
 
   <h3 id="install/desktop">Install it for your user</h3>
-  <p>This puts <code>nordend</code> in <code>~/.local/bin</code> and its desktop entry in
-  <code>~/.local/share/applications</code>, so menus and launchers find it:</p>
+  <p>This puts <code>nordend</code> in <code>~/.local/bin</code>, its desktop entry in
+  <code>~/.local/share/applications</code> and its icon in <code>~/.local/share/icons</code>, so
+  menus and launchers find it:</p>
   <pre><code>cmake --install build --prefix ~/.local --strip</code></pre>
   <p>To open folders in Nordend from other applications (a browser's "Show in folder",
   <code>xdg-open</code>), make it the default for folders:</p>
   <pre><code>xdg-mime default nordend.desktop inode/directory</code></pre>
   <p>Then bind it to a key in your compositor. In Umbriel's <code>config.toml</code>:</p>
-  <pre><code>"Mod+E" = { action = "spawn:nordend", repeat = false }</code></pre>
+  <pre><code>"Mod+E" = { action = "spawn nordend", repeat = false }</code></pre>
 
   <h3 id="install/command-line">Command line</h3>
   <div class="table"><table>
@@ -666,15 +666,18 @@ double_click_distance = 4</code></pre>
 
   <h3 id="roadmap/now">Now</h3>
   <ol>
-    <li><strong>Release 0.1.0</strong>, with a Void Linux package and Nordend's own icon. A week
-    of daily use by the author came first, with a memory log: done, no bugs found, memory
-    steady.</li>
+    <li><strong>Tabs</strong> (<kbd>Ctrl</kbd>+<kbd>T</kbd>): a new tab on the folder shown,
+    <kbd>Ctrl</kbd>+<kbd>W</kbd>, <kbd>Ctrl</kbd>+<kbd>Tab</kbd>, <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>,
+    a middle click on a folder; each tab with its own history and view, remembered at the next
+    start.</li>
   </ol>
+  <p>0.1.0, the first release, came out after a week of daily use by the author, with a memory
+  log: no bugs found, memory steady.</p>
 
-  <h3 id="roadmap/later">After the first release</h3>
+  <h3 id="roadmap/later">Later</h3>
   <ul>
     <li>A command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search</li>
-    <li>Tabs first (<kbd>Ctrl</kbd>+<kbd>T</kbd>), then a dual pane, a queue of operations with its undo history, batch renaming</li>
+    <li>A dual pane, a queue of operations with its undo history, batch renaming</li>
     <li>Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
     comparison, EXIF and histogram</li>
     <li>Scripting in Luau</li>

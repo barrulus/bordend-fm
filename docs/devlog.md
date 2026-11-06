@@ -4,6 +4,21 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 7.8c: 0.1.0
+
+**Done**
+- Version 0.1.0 (`nordend --version`). The README's and the site's pre-release notices now say
+  0.1.0 is the first release, young software used every day by its author; the README badge
+  and the site's header badge link to the release. "Now" in the README and the site's roadmap:
+  tabs. The site's Umbriel bind uses the current syntax (`spawn nordend`; `spawn:nordend` is
+  dropped silently by today's Umbriel) and says the install puts the icon in place too.
+
+**Decisions**
+- The tag goes on this commit; a public copy of the Void template, pinned to the tag's tarball,
+  comes in the next one (it cannot be part of the commit it checksums).
+
+---
+
 ## 2026-11-06 — Pictures in the guide
 
 **Done**

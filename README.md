@@ -9,17 +9,16 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-pre--alpha-orange" alt="status: pre-alpha">
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0"><img src="https://img.shields.io/badge/release-v0.1.0-2a6a9e" alt="release v0.1.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-276%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="276 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
-> [!IMPORTANT]
-> **Pre-release.** Nordend has not been released yet: there are no packages and no tagged
-> versions. To try it, [build it from source](#building); it takes about a minute. The first
-> release will be 0.1.0.
+> [!NOTE]
+> **0.1.0, the first release.** Young software, used every day by its author. To try it,
+> [build it from source](#building); it takes about a minute.
 
 <p align="center">
   <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-FFF59B?style=for-the-badge&labelColor=0E0E43" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
@@ -102,11 +101,10 @@ and tools: [install](https://pankaspe.github.io/nordend-fm/#install),
 
 ## What's next
 
-1. **Release 0.1.0**, with a Void Linux package and Nordend's own icon. A week of daily use by
-   the author came first (done: no bugs found, memory steady).
+0.1.0 is out, after a week of daily use by the author. Next: **tabs** (<kbd>Ctrl</kbd>+<kbd>T</kbd>).
 
-Then, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); tabs
-(<kbd>Ctrl</kbd>+<kbd>T</kbd>), a dual pane and batch renaming; photo culling (ratings and colour
+Then, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual pane and
+batch renaming; photo culling (ratings and colour
 labels in darktable's sidecars, comparison, histogram); scripting in Luau; a file chooser for
 other applications; text files in an external editor; translations, Italian first. The full list
 is on the [roadmap](https://pankaspe.github.io/nordend-fm/#roadmap).

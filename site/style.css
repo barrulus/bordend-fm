@@ -171,6 +171,15 @@ main h2:focus {
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    text-decoration: none;
+}
+
+a.badge {
+    text-transform: none;
+}
+
+a.badge:hover {
+    border-color: var(--warm);
 }
 
 .top .spacer {

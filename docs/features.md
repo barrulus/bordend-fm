@@ -145,7 +145,7 @@ README's [What's next](../README.md#whats-next).
   programs receive the files as file URIs and paths (Firefox, terminals), only to copy: Nordend
   never deletes its files because another program says it took them. Files dragged from another
   program (Firefox's downloads) are copied; a web address is not a file. Near the top or bottom of
-  a list the drag scrolls it. Opening a folder by hovering over it comes after the first release.
+  a list the drag scrolls it. Opening a folder by hovering over it comes later.
 - **The system clipboard**, with other programs:
   - files copied or cut in Nordend paste in other programs: a file manager, Firefox (an upload, a
     message), a terminal or an editor (their paths); Nordend offers them as
@@ -233,7 +233,7 @@ README's [What's next](../README.md#whats-next).
   A right click on a favourite removes it. They are the GTK bookmarks: other file managers and
   the Open dialogs of other apps (Firefox's) show them too. The file is written all at once on a
   worker, keeping what Nordend does not touch (remote bookmarks, labels, order); a folder already
-  there is not added twice. Reordering and renaming come after the first release.
+  there is not added twice. Reordering and renaming come later.
 - **Breadcrumb:** the folder's path as a row of clickable steps, starting from your home. A long
   path is shortened from the left.
 - **Status bar:** item count, selection, free space on the disk (updated after a copy into the
@@ -322,5 +322,5 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-A week of daily use, then the first release. See the README's
+0.1.0, the first release, is out; tabs come next. See the README's
 [What's next](../README.md#whats-next).
