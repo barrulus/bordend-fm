@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nordend</title>
-<meta name="description" content="Nordend: a fast, native file manager for Wayland, made for photographers and the Noctalia desktop. C++20 on Wayland and OpenGL ES, no GTK, no Qt.">
+<meta name="description" content="Nordend: a fast, native file manager for Wayland, made for photographers, at home on any desktop and on Noctalia. C++20 on Wayland and OpenGL ES, no GTK, no Qt.">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="nordend.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
   <a class="brand" href="#overview"><img class="mark" src="nordend.svg" width="22" height="22" alt="">Nordend</a>
@@ -32,13 +33,23 @@
   <a href="#roadmap">Roadmap</a>
 </nav>
 
-<main>
+<main id="main" tabindex="-1">
 
 <!-- ============================================================== Overview -->
 <section class="page" id="overview">
+  <div class="hero">
+  <svg class="contours" viewBox="0 0 600 300" aria-hidden="true">
+    <path d="M330 300C330 190 400 120 470 110S600 140 600 140"/>
+    <path d="M380 300C380 210 430 160 480 152S600 180 600 180"/>
+    <path d="M430 300C430 235 465 200 500 196S600 220 600 220"/>
+    <path d="M280 300C270 160 360 70 460 60S600 90 600 90"/>
+    <path d="M230 300C210 130 320 25 450 12S600 40 600 40"/>
+    <path d="M500 300C500 270 520 250 540 248S600 262 600 262"/>
+  </svg>
+  <p class="kicker">Nordend · 4609 m</p>
   <h1>A fast, native file manager for Wayland</h1>
-  <p class="lead">Made for photographers and the <a href="https://github.com/noctalia-dev">Noctalia</a>
-  desktop. <strong>No GTK, no Qt:</strong> C++20 straight on Wayland and OpenGL ES, with its own
+  <p class="lead">Made for photographers. At home on any Wayland desktop, and right at home on
+  <a href="https://github.com/noctalia-dev">Noctalia</a>. <strong>No GTK, no Qt:</strong> C++20 straight on Wayland and OpenGL ES, with its own
   renderer for text, icons, scrolling and animation.</p>
 
   <div class="notice">
@@ -53,6 +64,22 @@
     <a class="button" href="#guide">Read the guide</a>
     <a class="button" href="https://github.com/pankaspe/nordend-fm">Source on GitHub</a>
   </div>
+  <svg class="ridge" viewBox="0 0 800 140" aria-hidden="true">
+    <defs>
+      <radialGradient id="glow" cx="0.54" cy="0.85" r="0.5">
+        <stop offset="0" class="glow-in"/><stop offset="1" class="glow-out"/>
+      </radialGradient>
+      <linearGradient id="rock" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" class="rock-top"/><stop offset="1" class="rock-bottom"/>
+      </linearGradient>
+    </defs>
+    <ellipse cx="430" cy="110" rx="330" ry="110" fill="url(#glow)"/>
+    <path class="far" d="M0 140V104L60 92L120 100L190 78L240 88L300 70L350 84L420 76L470 90L540 72L600 86L660 80L720 96L800 88V140Z"/>
+    <path class="near" d="M0 140V122L80 110L150 118L230 88L280 100L340 52L372 66L410 20L438 40L462 30L520 74L560 68L640 104L700 98L800 116V140Z" fill="url(#rock)"/>
+    <path class="crest" d="M0 122L80 110L150 118L230 88L280 100L340 52L372 66L410 20L438 40L462 30L520 74L560 68L640 104L700 98L800 116"/>
+    <path class="snow" d="M410 20L438 40L462 30L475 40L463 37L452 45L440 43L428 48L416 40L405 45L397 36Z"/>
+  </svg>
+  </div>
 
   <figure class="shot">
     <img src="images/screenshot-columns.png" width="2560" height="1440" alt="Nordend's column view on a folder of OM System raw photos, the photo and its EXIF in the pane at the right">
@@ -63,8 +90,8 @@
   <h2>Why Nordend</h2>
   <div class="cards">
     <div class="card"><h3>No toolkit at all</h3><p>Nordend talks to the compositor directly. It
-    belongs to the Noctalia family (Noctalia Shell, the Umbriel compositor) and wears your Noctalia
-    theme, live; elsewhere it takes your desktop's light or dark style and accent colour.</p></div>
+    takes your desktop's light or dark style and accent colour; on Noctalia it wears your Noctalia
+    theme, live.</p></div>
     <div class="card"><h3>Photos first</h3><p>Thumbnails, the preview pane and Quick Look read the
     previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm, Panasonic,
     Hasselblad), upright, with the shot's EXIF and your darktable rating.</p></div>
@@ -640,7 +667,7 @@ double_click_distance = 4</code></pre>
 <footer>
   Nordend is free software under the
   <a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT license</a>.
-  Part of the <a href="https://github.com/noctalia-dev">Noctalia</a> family.
+  Named after the Nordend, 4609 m, a summit of Monte Rosa on the Swiss–Italian border.
   Source, issues and history on <a href="https://github.com/pankaspe/nordend-fm">GitHub</a>.
 </footer>
 

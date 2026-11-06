@@ -4,6 +4,38 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — The site's own look
+
+**Done**
+- `site/style.css`: alpine colours taken from the icon instead of Noctalia's palette: night at
+  altitude (`#0e1519`, granite surfaces) and snow (`#f7fafb`), ice as the accent (`#6dbdf0` /
+  `#2a6a9e`), a warm alpenglow (`#f2906b` / `#c2562e`) only on the badge, the kicker and the
+  glow behind the summit. The active page in the navigation is a bar of ice, not a filled block.
+- The overview opens with faint contour lines, a kicker "Nordend · 4609 m" and, under the
+  buttons, a ridge in two planes with a snowy summit (inline SVG, colours from the theme). The
+  numbers "At a glance" read like an altimeter: big tabular monospace digits.
+- Words: Nordend is its own project, at home on any desktop and right at home on Noctalia; "part
+  of the Noctalia family" is gone from the site, the README and features. The footer says where
+  the name comes from.
+
+- Sharper corners (asked by the author): 4 px for boxes, cards, tables and screenshots, 3 px for
+  buttons, navigation, code, keys and the badge (were 6-12 px and a pill).
+- Accessibility: every text pair at 4.5:1 or more (the light theme's alpenglow was 4.29, now
+  `#b04a24` at 5.2); button and key borders at 3:1 or more (`--outline-strong` was 2.3 dark,
+  1.9 light); a focus ring on everything that takes focus; a "Skip to content" link (focuses
+  `main` without touching the hash, which chooses the page); choosing a page focuses its title;
+  the header buttons at least 36 px high; the badge and stat labels a little larger; the active
+  page outlined in forced-colours mode; `prefers-reduced-motion` honoured.
+
+**Decisions**
+- The author asked for a site with a soul of its own, away from Noctalia's colours. Alpine (from
+  the icon and the name) chosen over a darkroom look (18 % grey, safelight red). Still only system
+  fonts, no CDN.
+
+**Tested by the author** (2026-11-06): both themes from the screenshots, before committing.
+
+---
+
 ## 2026-11-06 — 7.8a: Nordend's own icon
 
 **Done**

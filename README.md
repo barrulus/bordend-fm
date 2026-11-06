@@ -3,8 +3,8 @@
 <h1 align="center">Nordend</h1>
 
 <p align="center">
-  <b>A fast, native file manager for Wayland, made for photographers and the
-  <a href="https://github.com/noctalia-dev">Noctalia</a> desktop.</b><br>
+  <b>A fast, native file manager for Wayland, made for photographers.<br>
+  At home on any Wayland desktop, and right at home on <a href="https://github.com/noctalia-dev">Noctalia</a>.</b><br>
   No GTK, no Qt: C++20 straight on Wayland and OpenGL ES.
 </p>
 
@@ -40,9 +40,8 @@
 ## Why Nordend
 
 Nordend talks to the compositor directly, with **no toolkit at all**: text, icons, scrolling and
-animations come from its own renderer. It belongs to the Noctalia family (Noctalia Shell, the
-Umbriel compositor) and wears your Noctalia theme, live; elsewhere it takes your desktop's light
-or dark style and accent colour.
+animations come from its own renderer. It takes your desktop's light or dark style and accent
+colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Noctalia theme, live.
 
 - **Photos first.** Thumbnails, the preview pane and Quick Look read the previews cameras store
   in their raw files, with the shot's EXIF and your darktable rating; darktable sidecars travel

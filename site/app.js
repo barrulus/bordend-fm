@@ -55,7 +55,25 @@ function show() {
         window.scrollTo(0, 0);
     }
 }
-addEventListener("hashchange", show);
+// After choosing a page (not at load), focus its title, so that a screen reader reads where it is
+// and the next Tab starts from the page.
+// The skip link focuses the page without touching the hash, which chooses the page.
+document.querySelector(".skip").addEventListener("click", (event) => {
+    event.preventDefault();
+    document.getElementById("main").focus();
+});
+
+addEventListener("hashchange", () => {
+    show();
+    const target = decodeURIComponent(location.hash.slice(1));
+    const page = document.querySelector(".page.active");
+    const anchor = target.includes("/") ? document.getElementById(target) : null;
+    const heading = anchor ?? page?.querySelector("h1, h2");
+    if (heading) {
+        heading.setAttribute("tabindex", "-1");
+        heading.focus({ preventScroll: true });
+    }
+});
 
 // Shortcuts: "Ctrl+Shift+Z" becomes three keys; two spaces separate alternatives ("F1  ?").
 function chord(text) {

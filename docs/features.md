@@ -9,9 +9,9 @@ README's [What's next](../README.md#whats-next).
 
 - A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
   boxes, text, icons and images. **No GTK, no Qt, no GLib.**
-- Part of the Noctalia family (Noctalia Shell, the Umbriel compositor): it wears the Noctalia
-  theme and the same line icons, and Umbriel draws its title bar. Elsewhere (GNOME, weston)
-  Nordend draws its own.
+- Its own project, at home on any Wayland desktop. On Noctalia (Noctalia Shell, the Umbriel
+  compositor) it wears the Noctalia theme and the same line icons, and Umbriel draws its title
+  bar; elsewhere (GNOME, weston) Nordend draws its own.
 - One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
   nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
 
