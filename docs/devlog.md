@@ -4,6 +4,21 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — Pictures in the guide
+
+**Done**
+- Eight pictures on the site's Guide page, each in Noctalia's Nord light and dark: the shortcuts
+  overlay, the three views side by side, the sidebar, the info pane, Quick Look, a copy in
+  progress. The site shows the ones for its own theme (`.themed`, `.for-dark` / `.for-light`);
+  a click opens one full size. WebP, 1600 px wide, 15-106 kB each (1.1 MB for all sixteen);
+  `loading="lazy"` but the first, so the other theme's are never fetched.
+- Drawn with `nordend-snapshot` (1600x1000 at scale 1.5) on a demo home with neutral names and
+  sixteen OM-1 raw files from the Piramide Vincent (Monte Rosa), checked first: mountains only, no
+  GPS coordinates, and the info pane shows no serial numbers. The demo lives on DATA so the status
+  bar shows a real disk. The Pages workflow copies `docs/images/*.webp` too.
+
+---
+
 ## 2026-11-06 — 7.8b: a Void package
 
 **Done**

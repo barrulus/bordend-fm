@@ -457,6 +457,38 @@ kbd {
     box-shadow: var(--shadow);
 }
 
+/* Pictures in both themes: the one for the theme shown */
+:root[data-theme="light"] .themed .for-dark,
+:root:not([data-theme="light"]) .themed .for-light {
+    display: none;
+}
+
+.themed a {
+    display: block;
+}
+
+.gallery {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.gallery .shot {
+    margin: 0;
+}
+
+.gallery .shot figcaption {
+    text-align: center;
+    margin-top: 0.4rem;
+}
+
+@media (max-width: 860px) {
+    .gallery {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .shot figcaption {
     margin-top: 0.6rem;
     color: var(--muted);
