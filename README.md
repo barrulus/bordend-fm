@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0"><img src="https://img.shields.io/badge/release-v0.2.0-2a6a9e" alt="release v0.2.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-289%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="289 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-298%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="298 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -27,15 +27,9 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/readme-grid-light.webp" alt="Nordend on the desktop with three tabs: a grid of raw photos of a snowy summit, one selected, its preview and EXIF in the info pane" width="100%">
+  <img src="docs/images/readme-screenshot.webp" alt="Nordend in a light theme: the column view in a folder of photos exported from darktable, the context menu open on one with Open With, its preview and EXIF in the info pane" width="100%">
   <br>
-  <sub>The grid on a folder of OM System raw files, three tabs open, in Noctalia's Nord light theme on Umbriel.</sub>
-</p>
-
-<p align="center">
-  <img src="docs/images/readme-columns-dark.webp" alt="Nordend in a dark theme: the column view five folders deep in a source tree, a text file's first lines in the info pane" width="100%">
-  <br>
-  <sub>The columns deep in a source tree, a text file's first lines in the info pane, in Nord dark.</sub>
+  <sub>The columns in a folder of photos exported from darktable, two tabs open, the context menu and the info pane with the photo's EXIF.</sub>
 </p>
 
 ## Why Nordend
@@ -67,7 +61,7 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 |---|---|
 | Binary | **3.60 MB** (3.01 MB stripped), x86-64, decoders built in |
 | Libraries | 21 direct; no GTK, no Qt, no GLib |
-| Code | about 36 300 lines of C++20, 11 000 of tests (289 test cases, under ASan and TSan too) |
+| Code | about 36 300 lines of C++20, 11 000 of tests (298 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -155,7 +149,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | — |
+| on `main`, next | Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
 
