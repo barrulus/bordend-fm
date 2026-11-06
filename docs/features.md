@@ -269,6 +269,14 @@ README's [What's next](../README.md#whats-next).
 - Its own icon: a folder with the Nordend's snowy summit, in one ice-blue hue
   (`share/icons/hicolor/scalable/apps/nordend.svg`, named after the app id), shown by docks,
   launchers and menus on any desktop.
+- **The icon follows the accent:** Nordend writes its icon in the desktop's accent (Noctalia's
+  primary colour, else GNOME's or Plasma's accent from the portal) to
+  `~/.local/share/icons/hicolor/scalable/apps/nordend.svg`, which docks and launchers read before
+  the installed one, and rewrites it when the accent changes, only when it changes. The three
+  tones keep the ice icon's lightness and steps in OKLCH, with the accent's hue and chroma (held
+  to what the icon can carry); the snow stays white. No accent, or `icon.follow_accent = false`:
+  the copy is taken away (installed under `~/.local`, the ice icon is written back). An icon not
+  written by Nordend at that path is never touched.
 - Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
   raw files and darktable sidecars have their own icons. The icons are compiled into the
   program (a 14 KB subset of the official Tabler font), so they show on any desktop.
@@ -307,12 +315,12 @@ go back to the system.
 
 ## Settings
 
-- `~/.config/nordend/config.toml`: font family, monospace font, double-click time and distance
-  ([example](config.example.toml)). `nordend --check-config` reports every problem with its
+- `~/.config/nordend/config.toml`: font family, monospace font, double-click time and distance,
+  the icon in the accent ([example](config.example.toml)). `nordend --check-config` reports every problem with its
   line.
 - No settings window: the defaults are the system's fonts (fontconfig's `sans-serif` and
   `monospace`) and the desktop's colours, and the few settings live in the file.
-  `config.toml` is followed while Nordend runs: the double click changes at once, the fonts at
+  `config.toml` is followed while Nordend runs: the double click and the icon change at once, the fonts at
   the next start; a file with problems keeps the settings in use, with the problems in the log.
 - **`nordend --about`**: Nordend's version and commit, the distribution, the kernel, the
   desktop, the versions of Noctalia and Umbriel when they are running (asked of the very

@@ -111,6 +111,16 @@ public:
         out = value->get();
     }
 
+    void read_bool(const toml::node& node, const std::string& path, bool& out) {
+        const auto* value = node.as_boolean();
+        if (value == nullptr) {
+            report(node.source(), std::format("'{}' must be true or false, got {}; using {}", path,
+                                              type_name(node), out));
+            return;
+        }
+        out = value->get();
+    }
+
     void read_int(const toml::node& node, const std::string& path, int min, int max, int& out) {
         const auto* value = node.as_integer();
         if (value == nullptr) {
@@ -158,6 +168,12 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
                   }},
                  {"double_click_distance", [&](const toml::node& value, const std::string& path) {
                       reader.read_int(value, path, 0, 50, config.pointer.double_click_distance);
+                  }}});
+        } else if (key.str() == "icon") {
+            reader.read_section(
+                node, "icon",
+                {{"follow_accent", [&](const toml::node& value, const std::string& path) {
+                      reader.read_bool(value, path, config.icon.follow_accent);
                   }}});
         } else {
             reader.report(key.source(),

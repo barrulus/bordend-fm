@@ -1,8 +1,8 @@
 # Nordend configuration: ~/.config/nordend/config.toml ($XDG_CONFIG_HOME/nordend/config.toml).
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting Nordend: nordend --check-config
-# Nordend reads the file again when it changes: the double click at once, the fonts at the next
-# start.
+# Nordend reads the file again when it changes: the double click and the icon at once, the fonts
+# at the next start.
 
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
@@ -15,3 +15,9 @@ monospace = "monospace"
 double_click_ms = 400
 # ...and closer than this (logical pixels, 0-50) make a double click.
 double_click_distance = 4
+
+[icon]
+# Nordend's icon in the desktop's accent colour (Noctalia's colours, GNOME's or Plasma's accent):
+# Nordend writes it to ~/.local/share/icons/hicolor/scalable/apps/nordend.svg, where the dock and
+# the launcher look first. false takes it away and leaves the installed icon.
+follow_accent = true

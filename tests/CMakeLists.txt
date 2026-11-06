@@ -1,6 +1,7 @@
 add_executable(nordend-tests
     main.cpp
     about_test.cpp
+    app_icon_test.cpp
     breadcrumb_test.cpp
     clipboard_test.cpp
     column_view_test.cpp
@@ -49,7 +50,8 @@ target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
             NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
-            NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/index.html")
+            NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/index.html"
+            NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg")
 if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()

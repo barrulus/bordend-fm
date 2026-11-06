@@ -28,6 +28,7 @@ void check_defaults(const Config& config) {
     CHECK(config.font.monospace == defaults.font.monospace);
     CHECK(config.pointer.double_click_ms == defaults.pointer.double_click_ms);
     CHECK(config.pointer.double_click_distance == defaults.pointer.double_click_distance);
+    CHECK(config.icon.follow_accent == defaults.icon.follow_accent);
 }
 
 bool contains(const std::string& text, std::string_view part) {
@@ -84,12 +85,16 @@ monospace = "JetBrains Mono"
 [pointer]
 double_click_ms = 250
 double_click_distance = 0
+
+[icon]
+follow_accent = false
 )");
     CHECK(result.problems.empty());
     CHECK(result.config.font.family == "Inter:weight=medium");
     CHECK(result.config.font.monospace == "JetBrains Mono");
     CHECK(result.config.pointer.double_click_ms == 250);
     CHECK(result.config.pointer.double_click_distance == 0);
+    CHECK_FALSE(result.config.icon.follow_accent);
 }
 
 TEST_CASE("dotted keys work like sections") {
@@ -134,12 +139,17 @@ double_click_distance = 4.5
 
 [font]
 family = 12
+
+[icon]
+follow_accent = "no"
 )");
-    REQUIRE(result.problems.size() == 3);
+    REQUIRE(result.problems.size() == 4);
     CHECK(result.problems[0] ==
           "test.toml:2:19: 'pointer.double_click_ms' must be an integer, got a string; using 400");
     CHECK(contains(result.problems[1], "got a number with decimals"));
     CHECK(contains(result.problems[2], "'font.family' must be a string, got an integer"));
+    CHECK(result.problems[3] ==
+          "test.toml:9:17: 'icon.follow_accent' must be true or false, got a string; using true");
     check_defaults(result.config);
 }
 

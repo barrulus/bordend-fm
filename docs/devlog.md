@@ -4,6 +4,51 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 9.2: the icon follows the accent
+
+**Done**
+- `theme::app_icon_tones(accent)`: the three tones in OKLCH. Each keeps the ice icon's lightness
+  (front 0.767, tab 0.617, mountain 0.508) and its small steps of chroma and hue from the front;
+  hue and chroma come from the accent, chroma held to 0.16 (GNOME's orange would glow). The ice
+  front as accent gives back `#6dbdf0`, `#3f8cc4`, `#2a6a9e` exactly; the snow stays white.
+- `app_icon_svg(nullopt)` is `data/nordend.svg` byte for byte (tested against the file); with an
+  accent the comment says "written by Nordend", which is how Nordend tells its own file.
+- `sync_app_icon(place, accent)` on a worker (`AppIconKeeper`: one job at a time, the latest
+  accent wins): writes `$XDG_DATA_HOME/icons/hicolor/scalable/apps/nordend.svg` atomically, only
+  when its text changes; without an accent takes Nordend's copy away; never touches an icon that is
+  not Nordend's. When the running binary's prefix holds its icon at that same path (the author's
+  `cmake --install --prefix ~/.local`), the ice icon is written back instead of removed, and that
+  file may be overwritten.
+- `Theme::accent()`: colors.toml's primary, else the portal's accent; none with the default
+  palette or a desktop without an accent (the ice icon then). Followed at start, on every theme
+  change and on a config.toml reload.
+- `config.toml`: `[icon] follow_accent = true` (new `read_bool`); example, site and features
+  updated. OKLCH conversions moved from `desktop.cpp` to a private `oklch.hpp/.cpp`.
+- 9 new tests (298); ASan and TSan clean; clang-tidy and clang-format clean.
+
+**Measured**
+- Noctalia (source at `f90f230`): `IconThemePollSource` watches the icon folders with inotify
+  (`IN_CLOSE_WRITE`/`IN_MOVED_TO` of an `.svg`), invalidates the resolver after 100 ms and
+  rebuilds the dock's items, which reload the image: the dock should change without a restart.
+  *To be verified live.* GNOME Shell and Plasma: *to be verified in the VM* (Plasma's icon cache
+  may need a restart).
+- Ten accents rendered and looked at: every one keeps the icon's contrast; Noctalia's default
+  yellow becomes olive (`#c0b65d`), as yellow cannot stay bright at the front's lightness.
+
+**Tested by the author** (2026-11-06): everything works; Noctalia's dock changes the icon live
+when the colour scheme changes, `follow_accent = false` puts the ice icon back and `true` brings
+the accent back. GNOME and Plasma still to be tried in the VM.
+
+The README now opens with a single screenshot of the author's (`readme-screenshot.webp`: the
+columns in a folder of darktable exports, the context menu, the info pane), three folder names
+with people's names blurred; the two earlier README images removed.
+
+**Open**
+- An icon left in `~/.local/share/icons` after the Void package is removed (until
+  `follow_accent = false` with Nordend running, or by hand).
+
+---
+
 ## 2026-11-06 — 0.2.0
 
 **Done**

@@ -21,8 +21,15 @@ struct Config {
         int double_click_distance{4};  // ... and closer than this, in logical pixels
     };
 
+    struct Icon {
+        // Nordend's icon in the desktop's accent, written to ~/.local/share/icons (ROADMAP 9.2);
+        // false takes it away and leaves the installed one.
+        bool follow_accent{true};
+    };
+
     Font font;
     Pointer pointer;
+    Icon icon;
 };
 
 struct ConfigResult {

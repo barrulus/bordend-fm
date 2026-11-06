@@ -35,6 +35,10 @@ public:
 
     [[nodiscard]] const Palette& palette() const noexcept { return palette_; }
 
+    // The accent the palette follows: colors.toml's primary, else the desktop's own accent;
+    // nullopt with the default palette or a desktop that gives none (ROADMAP 9.2).
+    [[nodiscard]] std::optional<Color> accent() const;
+
     // Reads the file again; public so the reload rules can be tested without inotify.
     void reload();
 

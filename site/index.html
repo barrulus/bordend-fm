@@ -130,7 +130,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>289 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>298 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -515,7 +515,7 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   <h3 id="configuration/config">config.toml</h3>
   <p><code>~/.config/nordend/config.toml</code> (or <code>$XDG_CONFIG_HOME/nordend/config.toml</code>).
   Every key is optional; a bad value is reported in the log and keeps its default. Nordend reads the
-  file again when it changes: the double click at once, the fonts at the next start.
+  file again when it changes: the double click and the icon at once, the fonts at the next start.
   <code>nordend --check-config</code> checks a file without starting Nordend.</p>
   <div class="table"><table>
     <tr><th>Key</th><th>Default</th><th>Meaning</th></tr>
@@ -523,6 +523,7 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
     <tr><td><code>font.monospace</code></td><td><code>"monospace"</code></td><td>The same for text previews</td></tr>
     <tr><td><code>pointer.double_click_ms</code></td><td><code>400</code></td><td>Two presses closer than this (milliseconds, 100-2000)...</td></tr>
     <tr><td><code>pointer.double_click_distance</code></td><td><code>4</code></td><td>...and closer than this (logical pixels, 0-50) make a double click</td></tr>
+    <tr><td><code>icon.follow_accent</code></td><td><code>true</code></td><td>Nordend's icon in the desktop's accent colour, for the dock and the launcher (see <a href="#configuration/colours">Colours</a>); <code>false</code> takes it away</td></tr>
   </table></div>
   <pre><code>[font]
 family = "sans-serif"
@@ -530,7 +531,10 @@ monospace = "monospace"
 
 [pointer]
 double_click_ms = 400
-double_click_distance = 4</code></pre>
+double_click_distance = 4
+
+[icon]
+follow_accent = true</code></pre>
   <p>The commented example is <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/config.example.toml">docs/config.example.toml</a>.</p>
 
   <h3 id="configuration/colours">Colours</h3>
@@ -539,12 +543,18 @@ double_click_distance = 4</code></pre>
   Nordend uses that palette and follows every change live. Without it, Nordend follows the desktop's light
   or dark style and accent colour through the freedesktop portal (GNOME, Plasma); with no portal,
   Noctalia's default palette.</p>
+  <p>Nordend's icon follows the same accent: Nordend writes a copy in your accent's hue to
+  <code>~/.local/share/icons/hicolor/scalable/apps/nordend.svg</code>, where docks and launchers
+  look before the installed one, and rewrites it when the accent changes (Noctalia's dock picks it
+  up at once). With no accent to follow, or <code>icon.follow_accent = false</code>, the copy goes
+  and the installed ice-blue icon is back. An icon of your own at that path is never touched.</p>
 
   <h3 id="configuration/files">Files Nordend reads and writes</h3>
   <div class="table"><table>
     <tr><th>What</th><th>Where</th></tr>
     <tr><td>Settings</td><td><code>~/.config/nordend/config.toml</code></td></tr>
     <tr><td>Colours</td><td><code>~/.config/nordend/colors.toml</code></td></tr>
+    <tr><td>The icon in your accent</td><td><code>~/.local/share/icons/hicolor/scalable/apps/nordend.svg</code> (<code>$XDG_DATA_HOME</code>)</td></tr>
     <tr><td>How Nordend was left</td><td><code>~/.local/state/nordend/state.toml</code> (<code>$XDG_STATE_HOME</code>)</td></tr>
     <tr><td>Thumbnails</td><td><code>~/.cache/thumbnails</code>, the freedesktop cache shared with other applications</td></tr>
     <tr><td>Trash</td><td>The freedesktop trash: <code>~/.local/share/Trash</code>, and a <code>.Trash-UID</code> folder on other disks</td></tr>

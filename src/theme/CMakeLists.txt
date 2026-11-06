@@ -1,5 +1,7 @@
 add_library(nordend_theme
+    src/app_icon.cpp
     src/desktop.cpp
+    src/oklch.cpp
     src/palette.cpp
     src/theme.cpp)
 add_library(nordend::theme ALIAS nordend_theme)

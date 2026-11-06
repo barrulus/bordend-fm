@@ -40,6 +40,13 @@ void Theme::set_desktop(std::optional<Desktop> desktop) {
     changed();
 }
 
+std::optional<Color> Theme::accent() const {
+    if (from_file_) {
+        return palette_.primary.with_alpha(1.0F);
+    }
+    return desktop_ ? desktop_->accent : std::nullopt;
+}
+
 Palette Theme::fallback() const { return desktop_ ? desktop_palette(*desktop_) : Palette{}; }
 
 void Theme::changed() {

@@ -38,6 +38,7 @@
 #include "nordend/platform/opener.hpp"
 #include "nordend/platform/portal.hpp"
 #include "nordend/platform/udisks.hpp"
+#include "nordend/theme/app_icon.hpp"
 #include "nordend/theme/theme.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/activation.hpp"
@@ -386,7 +387,6 @@ int main(int argc, char** argv) {
                            .maximized = remembered.state.maximized,
                            .background = theme.palette().surface,
                            .force_client_decorations = client_decorations_forced()}};
-        theme.set_change_handler([&] { window.set_background(theme.palette().surface); });
         startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -399,6 +399,17 @@ int main(int argc, char** argv) {
         });
 
         core::WorkerPool pool{loop};
+        // Nordend's icon in the desktop's accent (ROADMAP 9.2), written on a worker.
+        bool follow_accent = config.icon.follow_accent;
+        theme::AppIconKeeper app_icon{pool, theme::default_app_icon_place()};
+        const auto update_icon = [&] {
+            app_icon.follow(follow_accent ? theme.accent() : std::nullopt);
+        };
+        theme.set_change_handler([&] {
+            window.set_background(theme.palette().surface);
+            update_icon();
+        });
+        update_icon();
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
         ui::Activation activation{display, loop};
@@ -409,9 +420,11 @@ int main(int argc, char** argv) {
         // config.toml is followed while Nordend runs: the double click changes at once, the
         // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
-        const auto apply_config = [&seat](const core::Config& fresh) {
+        const auto apply_config = [&](const core::Config& fresh) {
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
+            follow_accent = fresh.icon.follow_accent;
+            update_icon();
         };
         // Writes state.toml as things change; the window's size is the one it has when neither
         // maximized, fullscreen nor tiled, so a maximized window comes back to it.
