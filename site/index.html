@@ -13,26 +13,46 @@
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="top">
-  <a class="brand" href="#overview"><img class="mark" src="nordend.svg" width="22" height="22" alt="">Nordend</a>
+  <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+  <a class="brand" href="#overview"><img class="mark" src="nordend.svg" width="26" height="26" alt="">Nordend</a>
   <a class="badge" href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0">v0.3.0</a>
   <span class="spacer"></span>
-  <a class="github" href="https://github.com/pankaspe/nordend-fm">GitHub</a>
-  <button class="theme-toggle" type="button">Light</button>
+  <a class="github" href="https://github.com/pankaspe/nordend-fm"><span>Source on </span>GitHub</a>
+  <button class="icon-button theme-toggle" type="button">Light</button>
 </header>
 
 <div class="layout">
-<nav class="nav" aria-label="Pages">
-  <a href="#overview">Overview</a>
-  <a href="#install">Install</a>
-  <a href="#guide">Guide</a>
-  <a href="#shortcuts">Shortcuts</a>
-  <a href="#configuration">Configuration</a>
-  <a href="#performance">Performance</a>
-  <a href="#compatibility">Compatibility</a>
-  <a href="#architecture">Architecture</a>
-  <a href="#roadmap">Roadmap</a>
+<nav class="nav" id="nav" aria-label="Documentation">
+  <div class="search" role="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <label class="visually-hidden" for="filter">Search the documentation</label>
+    <input id="filter" type="search" placeholder="Search the docs" autocomplete="off">
+  </div>
+  <h2>Get started</h2>
+  <ul>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#install">Install</a></li>
+  </ul>
+  <h2>Use it</h2>
+  <ul>
+    <li><a href="#guide">Guide</a></li>
+    <li><a href="#shortcuts">Keyboard shortcuts</a></li>
+    <li><a href="#configuration">Configuration</a></li>
+  </ul>
+  <h2>Under the hood</h2>
+  <ul>
+    <li><a href="#performance">Performance</a></li>
+    <li><a href="#compatibility">Compatibility</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+  </ul>
+  <h2>Project</h2>
+  <ul>
+    <li><a href="#roadmap">Roadmap</a></li>
+  </ul>
+  <p class="no-match" hidden>Nothing found.</p>
 </nav>
 
+<div class="content">
 <main id="main" tabindex="-1">
 
 <!-- ============================================================== Overview -->
@@ -83,9 +103,9 @@
   </div>
 
   <figure class="shot">
-    <img src="images/screenshot-columns.webp" width="2560" height="1440" alt="Nordend's column view with three tabs, walking down to a folder of photos, one selected, its preview and EXIF in the pane at the right">
-    <figcaption>The column view with three tabs open: a folder of photos, the picture and the shot's
-    EXIF in the info pane, in Noctalia's Nord light theme on Umbriel.</figcaption>
+    <img src="images/shot-grid-dark.webp" width="1920" height="1348" alt="Nordend's grid in a dark theme: six black-and-white photos of snowy summits exported from darktable, the folder's details in the pane at the right">
+    <figcaption>The grid on a folder of photos exported from darktable, in Nordend's own dark
+    palette on Umbriel.</figcaption>
   </figure>
 
   <h2>Why Nordend</h2>
@@ -110,11 +130,26 @@
     deleted for good, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> for the last operation.</p></div>
   </div>
 
-  <figure class="shot">
-    <img src="images/screenshot-quick-look-text.webp" width="2560" height="1440" alt="Quick Look showing a C++ source file with line numbers over the dimmed window">
-    <figcaption>Quick Look (<kbd>Space</kbd>) on a source file: a page you scroll, with line numbers;
-    on a photo, the camera's full preview in a fraction of a second.</figcaption>
-  </figure>
+  <h2>A quick tour</h2>
+  <div class="gallery">
+    <figure class="shot">
+      <a href="images/shot-columns-dark.webp"><img src="images/shot-columns-dark.webp" width="1920" height="1326" loading="lazy" alt="The column view in a dark theme, six folders deep in a source tree, a text file's first lines in the info pane"></a>
+      <figcaption>Columns, deep in a source tree</figcaption>
+    </figure>
+    <figure class="shot">
+      <a href="images/shot-details-light.webp"><img src="images/shot-details-light.webp" width="1820" height="1281" loading="lazy" alt="The details view in a light theme: a table of photos with sizes and dates, the selected photo and its EXIF in the info pane"></a>
+      <figcaption>Details, with the photo's EXIF</figcaption>
+    </figure>
+    <figure class="shot">
+      <a href="images/shot-quick-look.webp"><img src="images/shot-quick-look.webp" width="1778" height="1268" loading="lazy" alt="Quick Look of an OM System raw file: alpenglow on clouds over a snowy ridge and a dark forest, its name, size and pixel size below"></a>
+      <figcaption>Quick Look of a raw photo</figcaption>
+    </figure>
+    <figure class="shot">
+      <a href="images/shot-shortcuts.webp"><img src="images/shot-shortcuts.webp" width="1244" height="700" loading="lazy" alt="The keyboard shortcuts card in a light theme, in three columns of groups"></a>
+      <figcaption><kbd>F1</kbd>: every key at a glance</figcaption>
+    </figure>
+  </div>
+  <p>Click a picture to see it full size.</p>
 
   <h2>At a glance</h2>
   <div class="stats">
@@ -431,6 +466,10 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   and the other tabs as "Tab 2: …". The letters are matched in order anywhere, so
   <code>nf</code> finds New Folder and <code>gdo</code> Go to Downloads; with nothing typed, the
   ones you used last come first.</p>
+  <figure class="shot small">
+    <img src="images/shot-palette.webp" width="648" height="395" loading="lazy" alt="The command palette in a light theme: a search field over a list of commands, each with its shortcut at the right">
+    <figcaption><kbd>Ctrl</kbd>+<kbd>K</kbd>: the commands that can be used now, with their keys.</figcaption>
+  </figure>
 
   <h3 id="guide/find">Finding files</h3>
   <p><kbd>Ctrl</kbd>+<kbd>F</kbd> opens the same card on every file and folder under the folder
@@ -459,6 +498,10 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   <h2>Keyboard shortcuts</h2>
   <p class="lead">The same list Nordend shows with <kbd>F1</kbd>, taken from the table Nordend works
   from (a test keeps them equal).</p>
+  <figure class="shot">
+    <a href="images/shot-shortcuts.webp"><img src="images/shot-shortcuts.webp" width="1244" height="700" loading="lazy" alt="The keyboard shortcuts card inside Nordend, in a light theme, in three columns of groups"></a>
+    <figcaption>Inside Nordend: <kbd>F1</kbd> or <kbd>?</kbd>.</figcaption>
+  </figure>
   <div class="shortcut-groups" id="shortcut-groups">
     <p>The shortcuts are drawn by JavaScript; inside Nordend, press <kbd>F1</kbd>.</p>
   </div>
@@ -790,8 +833,7 @@ follow_accent = true</code></pre>
   </table></div>
 </section>
 
-</main>
-</div>
+<nav class="pager" aria-label="Previous and next page"></nav>
 
 <footer>
   Nordend is free software under the
@@ -799,6 +841,11 @@ follow_accent = true</code></pre>
   Named after the Nordend, 4609 m, a summit of Monte Rosa on the Swiss–Italian border.
   Source, issues and history on <a href="https://github.com/pankaspe/nordend-fm">GitHub</a>.
 </footer>
+</main>
+
+<aside class="toc" aria-label="On this page"></aside>
+</div>
+</div>
 
 <script src="app.js"></script>
 </body>

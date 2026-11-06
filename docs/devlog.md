@@ -4,6 +4,38 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — The site, as documentation
+
+**Done** (asked by the author: "più carino", full-width with a sidebar, Nordend's colours, easier
+to read, like browsing documentation)
+- Layout: a top bar (menu on narrow screens, brand, version, GitHub, theme), a full-height
+  sidebar with the pages in four groups (Get started, Use it, Under the hood, Project) and, under
+  the page shown, its sections; the page in a 52rem column; "On this page" at the right from
+  1360 px, following the reading (IntersectionObserver); previous and next at the bottom; a "#"
+  link beside every section title. Below 960 px the sidebar is a drawer behind "Menu".
+- Search at the top of the sidebar: every word typed must start a word of the page or section
+  (`raw` finds "raw files", not "draw"); `/` focuses it, Enter goes to the first hit, Escape
+  clears; `?q=…` in the address opens the site with that search (a search to share).
+- Colours: the "Nordend" palette the author made for Noctalia (void-noctalia
+  `config/noctalia/palettes/Nordend.json`): dark page `#1a1918`, sidebar `#232322`, ice
+  `#7fc0ea`; light page `#eeeceb`, sidebar `#e3e1df`, `#256292`. The alpenglow
+  (`mTertiary`) only in the hero's kicker and glow.
+- Pictures: the author's six new shots (WebP, 12-102 kB, metadata stripped; no people's names,
+  no bar): the overview's grid (dark) and a tour gallery (columns dark, details light, Quick Look
+  of a raw, F1), the palette in the guide, F1 on the shortcuts page. The old
+  `screenshot-columns.webp` and `screenshot-quick-look-text.webp` removed. The 16 guide pictures
+  made again with the Nordend palette: `noctalia theme --theme-json Nordend.json --default-mode
+  dark|light -r ~/.config/noctalia/templates/nordend:OUT` renders Nordend's colors.toml for each
+  mode (the light one is byte for byte the author's live file), then the usual snapshot recipe.
+  NB the demo's state now has the info pane visible: `Ctrl+2` gives the grid with the pane,
+  `Ctrl+2,Ctrl+I` without (names swapped accordingly).
+- Looked at in headless Firefox: overview (dark), guide (light, the gallery loaded), shortcuts
+  (dark), 420 px wide, three searches. The shortcut data block is unchanged (site test green).
+  `firefox --screenshot` with a `#page/section` address renders from the document's top while the
+  sticky bars follow the scroll: not a site bug.
+
+---
+
 ## 2026-11-06 — 0.3.0
 
 **Done**
