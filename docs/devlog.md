@@ -4,6 +4,26 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 8.1b: a zoom per tab
+
+**Done**
+- The zoom is the tab's (the author's choice, after 8.1): a view's zoom goes to its own pane only
+  (the two lists together, the grid apart). A new tab starts with the zoom of the tab it comes
+  from (`add_pane` copies from the tab shown).
+- `State::Tab` has `list_size` and `grid_icon`, both optional: written for every tab; a tab read
+  without them (written before) takes the window's `[view]` values, which stay for a start with
+  one tab. `restore_tabs` gives each tab its own; `Browser::grid_index(pixels)`.
+- `set_list_size` / `set_grid_size` now set the tab shown's.
+- Tests: a zoom in one tab leaving the other as it was, the grid apart, each tab's sizes in the
+  state and back in a new browser; a tab without sizes taking the window's. 289 tests, ASan and
+  TSan clean.
+
+**Tested by the author** (2026-11-06): a zoom per tab, a new tab starting with the zoom of the
+one it comes from, Ctrl+0 in one tab only, two grids of different sizes, each tab's zoom back
+after a restart.
+
+---
+
 ## 2026-11-06 — 8.1: zoom in the lists
 
 **Done**

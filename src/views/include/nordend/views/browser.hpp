@@ -174,11 +174,13 @@ public:
     // menu's "Sort By", or a click on a title of the details.
     void set_sort(fs::SortKey key, bool descending);
 
-    // The lists' rows (columns and details) and the grid's cells, the same in every tab:
-    // Ctrl+plus/minus/0, Ctrl+wheel (ROADMAP 8.1). Indexes into kListSizes and
-    // GridView::kIconSizes.
+    // The tab shown's lists' rows (columns and details) and grid cells: Ctrl+plus/minus/0,
+    // Ctrl+wheel (ROADMAP 8.1), each tab its own; a new tab takes the one it comes from. Indexes
+    // into kListSizes and GridView::kIconSizes.
     void set_list_size(std::size_t index);
     void set_grid_size(std::size_t index);
+    // The index of a grid icon size in pixels (the usual one when it is not one of them).
+    [[nodiscard]] static std::size_t grid_index(std::int32_t pixels);
 
     [[nodiscard]] const fs::SortOrder& sort_order() const noexcept {
         return pane().details.order();

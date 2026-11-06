@@ -464,7 +464,7 @@ TEST_CASE("zoom: the lists grow and shrink together, in every tab; the cursor's 
     CHECK(std::abs(anchor().value_or(std::pair{0.0F, 0.0F}).second - before) <= 8.0F);
     CHECK(f.browser.state().list_size == kUsualListSize + 1);
 
-    // A new tab takes the size; a zoom there reaches the first tab.
+    // A new tab takes the size of the one it comes from; a zoom there is its own.
     CHECK(f.press(key(XKB_KEY_t, kCtrl)));
     CHECK(f.browser.details().list_size() == kUsualListSize + 1);
     f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = 500.0F, .y = 400.0F},
@@ -477,7 +477,8 @@ TEST_CASE("zoom: the lists grow and shrink together, in every tab; the cursor's 
                       Browser::Clock::now());  // Ctrl+wheel up
     CHECK(f.browser.details().list_size() == kUsualListSize + 2);
     f.browser.select_tab(0);
-    CHECK(f.browser.details().list_size() == kUsualListSize + 2);
+    CHECK(f.browser.details().list_size() == kUsualListSize + 1);  // as it was
+    CHECK(f.browser.columns().list_size() == kUsualListSize + 1);
 
     // Ctrl+0 back to the usual size; Ctrl+minus never below the smallest.
     CHECK(f.press(key(XKB_KEY_0, kCtrl)));
@@ -494,15 +495,34 @@ TEST_CASE("zoom: the lists grow and shrink together, in every tab; the cursor's 
     CHECK(f.press(key(XKB_KEY_minus, kCtrl)));
     CHECK(f.browser.details().list_size() == 0);
 
-    // The grid keeps its own size, the window's too.
+    // The grid keeps its own size, a tab's too.
     f.browser.set_mode(Browser::Mode::grid);
     REQUIRE(f.settle());
     const float grid = f.browser.grid().icon_size();
     CHECK(f.press(key(XKB_KEY_plus, kCtrl)));
     CHECK(f.browser.grid().icon_size() > grid);
     CHECK(f.browser.details().list_size() == 0);  // the lists untouched
+    const auto zoomed = static_cast<std::int32_t>(f.browser.grid().icon_size());
     f.browser.select_tab(1);
     f.browser.set_mode(Browser::Mode::grid);
-    CHECK(f.browser.grid().icon_size() > grid);
-    CHECK(f.browser.state().grid_icon == static_cast<std::int32_t>(f.browser.grid().icon_size()));
+    CHECK(f.browser.grid().icon_size() == grid);  // the other tab's grid as it was
+    CHECK(f.browser.details().list_size() == kUsualListSize + 2);
+
+    // Each tab's zoom in the state, back as it was.
+    const nordend::views::State state = f.browser.state();
+    REQUIRE(state.tabs.size() == 2);
+    CHECK(state.tabs[0].list_size == std::optional<std::size_t>{0});
+    CHECK(state.tabs[0].grid_icon == std::optional<std::int32_t>{zoomed});
+    CHECK(state.tabs[1].list_size == std::optional<std::size_t>{kUsualListSize + 2});
+    CHECK(state.tabs[1].grid_icon == std::optional<std::int32_t>{static_cast<std::int32_t>(grid)});
+    Browser again{f.loop,    f.pool,
+                  f.watcher, nordend::fs::MimeDatabase::load(),
+                  [] {},     [](CursorShape /*shape*/) {}};
+    again.apply(state);
+    REQUIRE(again.restore_tabs(state.tabs, state.shown_tab));
+    REQUIRE(run_until(f.loop, [&again] { return !again.loading(); }));
+    CHECK(again.details().list_size() == kUsualListSize + 2);
+    again.select_tab(0);
+    CHECK(again.details().list_size() == 0);
+    CHECK(static_cast<std::int32_t>(again.grid().icon_size()) == zoomed);
 }

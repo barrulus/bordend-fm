@@ -112,9 +112,14 @@ Pane& Browser::add_pane(std::size_t at) {
     wire(added.grid);
     wire(added.details);
     // A zoom is the window's: every list, or every grid, takes the size.
-    added.columns.set_zoom_handler([this](std::size_t index) { set_list_size(index); });
-    added.details.set_zoom_handler([this](std::size_t index) { set_list_size(index); });
-    added.grid.set_zoom_handler([this](std::size_t index) { set_grid_size(index); });
+    // A zoom is the tab's: its two lists take the size (the grid has its own).
+    Pane* const zoomed = &added;
+    const auto lists = [zoomed](std::size_t index) {
+        zoomed->columns.set_list_size(index);
+        zoomed->details.set_list_size(index);
+    };
+    added.columns.set_zoom_handler(lists);
+    added.details.set_zoom_handler(lists);
     // A click on a title of the details sorts the whole window.
     added.details.set_sort_handler([this](const fs::SortOrder& order) {
         for (const std::unique_ptr<Pane>& each : panes_) {
@@ -123,15 +128,17 @@ Pane& Browser::add_pane(std::size_t at) {
             each->grid.set_order(each->details.order());
         }
     });
-    if (panes_.size() > 1) {  // as the others: the window's order and column widths
-        const Pane& first = *panes_[at == 0 ? 1 : 0];
-        added.details.set_sort(first.details.order().key, first.details.order().descending);
+    if (panes_.size() > 1) {
+        // The window's order and column widths; the zoom of the tab it comes from (the one shown,
+        // which the insertion after it did not move).
+        const Pane& from = *panes_[at <= active_ ? active_ + 1 : active_];
+        added.details.set_sort(from.details.order().key, from.details.order().descending);
         added.columns.set_order(added.details.order());
         added.grid.set_order(added.details.order());
-        added.details.set_widths(first.details.widths());
-        added.columns.set_list_size(first.details.list_size());
-        added.details.set_list_size(first.details.list_size());
-        added.grid.set_size_index(first.grid.size_index());
+        added.details.set_widths(from.details.widths());
+        added.columns.set_list_size(from.details.list_size());
+        added.details.set_list_size(from.details.list_size());
+        added.grid.set_size_index(from.grid.size_index());
     }
     added.columns.set_show_hidden(show_hidden_);
     added.grid.set_show_hidden(show_hidden_);
@@ -1783,16 +1790,17 @@ void Browser::travel(int direction) {
 }
 
 void Browser::set_list_size(std::size_t index) {
-    for (const std::unique_ptr<Pane>& each : panes_) {
-        each->columns.set_list_size(index);
-        each->details.set_list_size(index);
-    }
+    pane().columns.set_list_size(index);
+    pane().details.set_list_size(index);
 }
 
-void Browser::set_grid_size(std::size_t index) {
-    for (const std::unique_ptr<Pane>& each : panes_) {
-        each->grid.set_size_index(index);
-    }
+void Browser::set_grid_size(std::size_t index) { pane().grid.set_size_index(index); }
+
+std::size_t Browser::grid_index(std::int32_t pixels) {
+    const auto* found = std::ranges::find(GridView::kIconSizes, static_cast<float>(pixels));
+    return found == GridView::kIconSizes.end()
+               ? GridView::kDefaultSize
+               : static_cast<std::size_t>(found - GridView::kIconSizes.begin());
 }
 
 void Browser::set_sort(fs::SortKey key, bool descending) {
@@ -1911,13 +1919,17 @@ State Browser::state() const {
             State::Tab tab{.folder = folder->path(),
                            .mode = static_cast<State::Mode>(each.mode),
                            .root = {},
-                           .cursor = {}};
+                           .cursor = {},
+                           .list_size = {},
+                           .grid_icon = {}};
             if (each.mode == Mode::columns && each.columns.column_count() > 0) {
                 tab.root = each.columns.column(0).folder().path();
             }
             if (const fs::Entry* entry = folder->cursor_entry()) {
                 tab.cursor = entry->name;
             }
+            tab.list_size = each.details.list_size();
+            tab.grid_icon = static_cast<std::int32_t>(each.grid.icon_size());
             if (i == active_) {
                 state.shown_tab = state.tabs.size();
             }
@@ -1932,6 +1944,9 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
         std::error_code error;
         return !path.empty() && std::filesystem::is_directory(path, error);
     };
+    // Tabs written before they had a zoom of their own take the window's (apply()).
+    const std::size_t window_list = pane().details.list_size();
+    const std::size_t window_grid = pane().grid.size_index();
     std::size_t restored = 0;
     std::size_t to_show = 0;
     for (std::size_t i = 0; i < tabs.size(); ++i) {
@@ -1957,6 +1972,8 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
                 opened->select_name(tab.cursor);
             }
         }
+        set_list_size(tab.list_size.value_or(window_list));
+        set_grid_size(tab.grid_icon ? grid_index(*tab.grid_icon) : window_grid);
         note_location();
         if (i == shown) {
             to_show = restored;
@@ -1983,11 +2000,7 @@ void Browser::apply(const State& state) {
     info_pane_.set_expanded(state.info_expanded);
     set_sort(state.sort_key, state.sort_descending);
     set_list_size(state.list_size);
-    const auto* grid_size =
-        std::ranges::find(GridView::kIconSizes, static_cast<float>(state.grid_icon));
-    set_grid_size(grid_size == GridView::kIconSizes.end()
-                      ? GridView::kDefaultSize
-                      : static_cast<std::size_t>(grid_size - GridView::kIconSizes.begin()));
+    set_grid_size(grid_index(state.grid_icon));
     const auto mode = static_cast<Mode>(state.mode);
     if (current_folder()) {
         set_mode(mode);

@@ -292,6 +292,26 @@ StateResult parse_state(std::string_view text, std::string_view source) {
                     }
                     tab.cursor = std::string{*given};
                 }
+                if (const toml::node* size = table->get("list_size")) {
+                    const std::optional<std::string_view> word = size->value<std::string_view>();
+                    const auto* found = std::ranges::find_if(
+                        kListSizeWords, [&](const auto& pair) { return word == pair.first; });
+                    if (found == kListSizeWords.end()) {
+                        problem(
+                            *size,
+                            R"('list_size' must be one of "small", "usual", "large", "larger", "largest")");
+                        continue;
+                    }
+                    tab.list_size = found->second;
+                }
+                if (const toml::node* grid = table->get("grid_icon")) {
+                    const std::optional<std::int64_t> pixels = grid->value<std::int64_t>();
+                    if (!pixels || std::ranges::find(kGridIcons, *pixels) == kGridIcons.end()) {
+                        problem(*grid, "'grid_icon' must be 48, 64, 96, 128, 192 or 256");
+                        continue;
+                    }
+                    tab.grid_icon = static_cast<std::int32_t>(*pixels);
+                }
                 if ((*table)["shown"].value_or(false)) {
                     s.shown_tab = s.tabs.size();
                 }
@@ -332,6 +352,12 @@ std::string format_state(const State& s) {
         }
         if (!tab.cursor.empty()) {
             tabs += std::format("cursor = {}\n", toml_string(tab.cursor));
+        }
+        if (tab.list_size && *tab.list_size < kListSizeWords.size()) {
+            tabs += std::format("list_size = \"{}\"\n", word_of(kListSizeWords, *tab.list_size));
+        }
+        if (tab.grid_icon) {
+            tabs += std::format("grid_icon = {}\n", *tab.grid_icon);
         }
         if (i == s.shown_tab) {
             tabs += "shown = true\n";

@@ -29,15 +29,15 @@ README's [What's next](../README.md#whats-next).
 - **Zoom in the lists** too: Ctrl+plus, Ctrl+minus or Ctrl+wheel make the rows of the columns and
   the details larger or smaller (five sizes: row, icon and text grow together, the details' other
   columns with them), Ctrl+0 the usual size; the cursor's row stays where it is on screen. The
-  lists share one size, the grid keeps its own; both are the window's, in every tab, and come
-  back at the next start.
+  lists share one size, the grid keeps its own. Each tab has its own zoom (a new tab starts with
+  the one it comes from), remembered with the tabs.
 - **Sort By** in the context menu (on a file or on empty space), in every view: name, size,
   modified or type, ascending or descending, a dot on the order in use. One order for the whole
   window: every folder in every view is sorted so, and it comes back at the next start.
 - **Tabs** (Ctrl+T): each with its own folder, view and back/forward history. The bar above the
   path shows them when there are two or more: a click shows a tab, its × or a middle click
   closes it, + opens one. Ctrl+Tab and Ctrl+Shift+Tab go round them, Alt+1…9 picks one, Ctrl+W
-  closes the one shown (never the last). A middle click on a folder, or the context menu's Open in
+  closes the one shown (never the last). Each tab keeps its own zoom too. A middle click on a folder, or the context menu's Open in
   New Tab (Tabs, for several folders), opens it in a tab behind the one shown; a middle click on
   a selected folder opens every selected folder. The order, hidden files, the sidebar and the info pane
   are the window's, the same in every tab.

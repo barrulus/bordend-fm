@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <memory>
 #include <string>
@@ -204,12 +205,21 @@ TEST_CASE("state: tabs written and read back, odd names too; one not UTF-8 left 
     s.tabs = {{.folder = "/home/me/Pictures",
                .mode = State::Mode::columns,
                .root = "/home/me",
-               .cursor = "P1 \"2\".ORF"},
+               .cursor = "P1 \"2\".ORF",
+               .list_size = 3,
+               .grid_icon = 192},
               {.folder = "/home/me/a \"quoted\" \\ name\twith tab/città",
                .mode = State::Mode::grid,
                .root = {},
-               .cursor = {}},
-              {.folder = "/mnt/x", .mode = State::Mode::details, .root = {}, .cursor = {}}};
+               .cursor = {},
+               .list_size = {},
+               .grid_icon = {}},
+              {.folder = "/mnt/x",
+               .mode = State::Mode::details,
+               .root = {},
+               .cursor = {},
+               .list_size = {},
+               .grid_icon = {}}};
     s.shown_tab = 1;
     const std::string text = format_state(s);
     const StateResult back = parse(text);
@@ -218,11 +228,18 @@ TEST_CASE("state: tabs written and read back, odd names too; one not UTF-8 left 
 
     // TOML holds only UTF-8: a tab on a name that is not is not written.
     State odd;
-    odd.tabs = {{.folder = "/home/me/ok", .mode = State::Mode::grid, .root = {}, .cursor = {}},
+    odd.tabs = {{.folder = "/home/me/ok",
+                 .mode = State::Mode::grid,
+                 .root = {},
+                 .cursor = {},
+                 .list_size = {},
+                 .grid_icon = {}},
                 {.folder = std::string{"/home/me/\xff\xfe"},
                  .mode = State::Mode::grid,
                  .root = {},
-                 .cursor = {}}};
+                 .cursor = {},
+                 .list_size = {},
+                 .grid_icon = {}}};
     odd.shown_tab = 0;
     const StateResult kept = parse(format_state(odd));
     CHECK(kept.problems.empty());
@@ -323,8 +340,13 @@ TEST_CASE("state: the browser's tabs, kept and brought back as they were") {
 
     // Nothing left to restore: false, and the start opens its folder.
     const std::unique_ptr<Browser> empty = make();
-    CHECK_FALSE(empty->restore_tabs(
-        {{.folder = dir.path / "gone", .mode = State::Mode::grid, .root = {}, .cursor = {}}}, 0));
+    CHECK_FALSE(empty->restore_tabs({{.folder = dir.path / "gone",
+                                      .mode = State::Mode::grid,
+                                      .root = {},
+                                      .cursor = {},
+                                      .list_size = {},
+                                      .grid_icon = {}}},
+                                    0));
 }
 
 TEST_CASE("state: the lists' and the grid's size, and what is not one") {
@@ -338,4 +360,41 @@ TEST_CASE("state: the lists' and the grid's size, and what is not one") {
     REQUIRE(bad.problems.size() == 2);
     CHECK(bad.problems[0].find("view.list_size") != std::string::npos);
     CHECK(bad.problems[1].find("view.grid_icon") != std::string::npos);
+}
+
+TEST_CASE("state: a tab written before tabs had a zoom takes the window's") {
+    const TempDir dir;
+    std::filesystem::create_directories(dir.path / "a");
+    std::filesystem::create_directories(dir.path / "b");
+    const StateResult read =
+        parse(std::format(R"([view]
+list_size = "larger"
+grid_icon = 128
+
+[[tab]]
+folder = "{}"
+mode = "details"
+
+[[tab]]
+folder = "{}"
+mode = "details"
+list_size = "small"
+shown = true
+)",
+                          (dir.path / "a").string(), (dir.path / "b").string()));
+    REQUIRE(read.problems.empty());
+    CHECK_FALSE(read.state.tabs[0].list_size);
+    EventLoop loop;
+    nordend::core::WorkerPool pool{loop, 2};
+    nordend::fs::DirectoryWatcher watcher{loop};
+    Browser browser{loop,    pool,
+                    watcher, nordend::fs::MimeDatabase::load(),
+                    [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
+    browser.apply(read.state);
+    REQUIRE(browser.restore_tabs(read.state.tabs, read.state.shown_tab));
+    REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
+    CHECK(browser.details().list_size() == 0);  // "small", its own
+    browser.select_tab(0);
+    CHECK(browser.details().list_size() == 3);  // "larger", the window's
+    CHECK(browser.grid().icon_size() == 128.0F);
 }

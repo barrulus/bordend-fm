@@ -130,7 +130,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>288 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>289 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -281,7 +281,8 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   <p>The columns and the details zoom too: <kbd>Ctrl</kbd>+<kbd>+</kbd>, <kbd>Ctrl</kbd>+<kbd>−</kbd>
   or <kbd>Ctrl</kbd>+wheel make their rows, icons and text larger or smaller, in five sizes, and
   <kbd>Ctrl</kbd>+<kbd>0</kbd> goes back to the usual one. The lists share one size and the grid
-  has its own; both are the same in every tab and come back at the next start.</p>
+  has its own. Each tab keeps its own zoom (a new tab starts with the one it comes from), and it
+  comes back at the next start.</p>
   <p>In any view, the context menu's <strong>Sort By</strong> sorts by name, size, date or type,
   ascending or descending. The order is the same in all three views and in every folder you open,
   and comes back at the next start.</p>

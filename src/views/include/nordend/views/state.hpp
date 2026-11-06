@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -49,6 +50,9 @@ struct State {
         Mode mode{Mode::columns};
         std::filesystem::path root;  // the columns' first folder; empty in the other views
         std::string cursor;          // the name under the cursor in folder; empty: none
+        // The tab's zoom; none (a tab written before): the window's list_size and grid_icon.
+        std::optional<std::size_t> list_size;
+        std::optional<std::int32_t> grid_icon;
 
         bool operator==(const Tab&) const = default;
     };
