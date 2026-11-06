@@ -11,6 +11,10 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
   README's Versions table, badge and notice, the site's badge, notice, install note and roadmap,
   and features.md say so. The tag goes on this commit; the Void template moves to it in the next
   one, as for 0.1.0 and 0.2.0.
+- Tagged `v0.3.0` on `653d4db` by the author, GitHub release published by the author; the
+  template (void-noctalia and `packaging/void`) on the tag's tarball (sha256 `5a08c204…74c1b8`),
+  built with xbps-src: `nordend-0.3.0_1` (no `=> ERROR` in the log; /usr/bin/nordend, the
+  desktop entry, the icon, the licence).
 
 ---
 
