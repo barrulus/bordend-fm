@@ -4,6 +4,34 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 9.1d: tabs remembered
+
+**Done**
+- `State::tabs` (with two tabs or more; one tab writes none, so Super+E still opens Home):
+  `[[tab]]` tables with `folder`, `mode`, `root` (the columns' first folder) and `cursor` (the
+  name under the cursor), `shown = true` on the tab that was shown. At most 64.
+- Written as TOML basic strings (quotes, backslashes, control characters escaped); TOML holds
+  only UTF-8, so a tab on a name that is not well-formed UTF-8 is not written (`valid_utf8`:
+  no stray, overlong or surrogate sequences).
+- Read back with each problem said where it is and the tab left out: a folder or root not
+  absolute, an unknown mode, a cursor with a slash, a tab that is not a table.
+- `Browser::state()` lists the tabs; `restore_tabs(tabs, shown)` opens them as they were: the
+  columns unfold from their root down to the cursor (the focus where it was), the grid and the
+  details put the cursor back; folders gone meanwhile (an unplugged disk) are left out; false when
+  none is left. `main` calls it only at a start without a folder, after `apply()`; with a folder
+  (xdg-open, "Show in folder") one tab on it, as decided with the author.
+- `StateKeeper` moves the state it is given (clang-tidy, now that it holds a list).
+- Tests: written and read back with odd names (quotes, backslash, a tab, "città", a cursor with
+  quotes); a name not UTF-8 left out; four bad tabs reported at their lines; the browser's tabs
+  through the file into a new browser, the columns unfolded to the same focus, a folder gone left
+  out, nothing left giving false. 286 tests, ASan and TSan clean.
+
+**Tested by the author** (2026-11-06): three tabs (columns two levels down, grid with the cursor
+on a photo, details), the middle one shown, back after a restart with Super+E as they were; a
+folder given opening alone; one tab starting at Home.
+
+---
+
 ## 2026-11-06 — 9.1c: folders into tabs, behind the one shown
 
 **Done**

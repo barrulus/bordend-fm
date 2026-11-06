@@ -128,7 +128,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>283 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>286 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -415,7 +415,9 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   follows the desktop's light or dark style and accent colour, live too. Where the compositor draws
   no title bar Nordend draws its own; where it offers no cursor shapes Nordend draws them from your
   cursor theme. The view, the order, hidden files, the sidebar, the info pane, column widths and the
-  window's size come back at the next start.</p>
+  window's size come back at the next start; so do your tabs, each with its folder, view and
+  cursor, when Nordend starts without a folder (a folder given, by "Show in folder" for example,
+  opens alone).</p>
 </section>
 
 <!-- ============================================================== Shortcuts -->

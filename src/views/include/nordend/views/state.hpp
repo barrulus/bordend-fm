@@ -37,6 +37,23 @@ struct State {
     std::int32_t window_height{640};
     bool maximized{false};
 
+    // The tabs when there were two or more (ROADMAP 9.1d), restored when Nordend starts without
+    // a folder; empty with one tab. Each has its folder and view; in the columns, the first
+    // column's folder too, so they unfold again from there.
+    struct Tab {
+        std::filesystem::path folder;
+        Mode mode{Mode::columns};
+        std::filesystem::path root;  // the columns' first folder; empty in the other views
+        std::string cursor;          // the name under the cursor in folder; empty: none
+
+        bool operator==(const Tab&) const = default;
+    };
+
+    static constexpr std::size_t kMaxTabs = 64;
+
+    std::vector<Tab> tabs;
+    std::size_t shown_tab{0};  // which of tabs was shown
+
     bool operator==(const State&) const = default;
 };
 

@@ -1,6 +1,8 @@
 #include "nordend/views/state.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <mutex>
@@ -106,6 +108,63 @@ private:
     std::vector<std::string> problems_;
 };
 
+// A TOML basic string: quotes, backslashes and control characters escaped. text must be UTF-8.
+std::string toml_string(std::string_view text) {
+    std::string out{"\""};
+    for (const char c : text) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (c == '"' || c == '\\') {
+            out += '\\';
+            out += c;
+        } else if (byte < 0x20U || byte == 0x7FU) {
+            out += std::format("\\u{:04X}", static_cast<unsigned>(byte));
+        } else {
+            out += c;
+        }
+    }
+    out += '"';
+    return out;
+}
+
+// Well-formed UTF-8 (TOML text is): no stray, overlong or surrogate sequences.
+bool valid_utf8(std::string_view text) {
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        std::size_t length = 1;
+        std::uint32_t point = lead;
+        if (lead >= 0xF0U && lead <= 0xF4U) {
+            length = 4;
+            point = lead & 0x07U;
+        } else if (lead >= 0xE0U) {
+            length = 3;
+            point = lead & 0x0FU;
+        } else if (lead >= 0xC2U && lead <= 0xDFU) {
+            length = 2;
+            point = lead & 0x1FU;
+        } else if (lead >= 0x80U) {
+            return false;
+        }
+        if (i + length > text.size()) {
+            return false;
+        }
+        for (std::size_t k = 1; k < length; ++k) {
+            const auto next = static_cast<unsigned char>(text[i + k]);
+            if ((next & 0xC0U) != 0x80U) {
+                return false;
+            }
+            point = (point << 6U) | (next & 0x3FU);
+        }
+        constexpr std::array<std::uint32_t, 5> least{0, 0, 0x80, 0x800, 0x10000};
+        if (point < least.at(length) || point > 0x10FFFFU ||
+            (point >= 0xD800U && point <= 0xDFFFU)) {
+            return false;
+        }
+        i += length;
+    }
+    return true;
+}
+
 template <typename T, std::size_t N>
 const char* word_of(const std::array<std::pair<const char*, T>, N>& words, T value) {
     for (const auto& [text, meaning] : words) {
@@ -160,6 +219,69 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     read.size("window.height", s.window_height);
     read.flag("window.maximized", s.maximized);
     result.problems = read.take();
+
+    // [[tab]]: folder, mode, root (the columns'), shown. A tab that cannot be used is left out.
+    if (const toml::node* tabs = root.get("tab")) {
+        const auto problem = [&](const toml::node& node, std::string_view what) {
+            const toml::source_position where = node.source().begin;
+            result.problems.push_back(std::format("{}:{}:{}: {}; that tab is left out", source,
+                                                  where.line, where.column, what));
+        };
+        const toml::array* list = tabs->as_array();
+        if (list == nullptr) {
+            problem(*tabs, "'tab' must be a list of tables ([[tab]])");
+        } else {
+            for (const toml::node& node : *list) {
+                const toml::table* table = node.as_table();
+                if (table == nullptr) {
+                    problem(node, "a tab must be a table");
+                    continue;
+                }
+                if (s.tabs.size() == State::kMaxTabs) {
+                    problem(node, std::format("more than {} tabs", State::kMaxTabs));
+                    break;
+                }
+                State::Tab tab;
+                const std::optional<std::string_view> folder =
+                    (*table)["folder"].value<std::string_view>();
+                if (!folder || folder->empty() || folder->front() != '/') {
+                    problem(node, "'folder' must be an absolute path");
+                    continue;
+                }
+                tab.folder = std::filesystem::path{*folder};
+                if (const toml::node* mode = table->get("mode")) {
+                    const std::optional<std::string_view> word = mode->value<std::string_view>();
+                    const auto* found = std::ranges::find_if(
+                        kModes, [&](const auto& pair) { return word == pair.first; });
+                    if (found == kModes.end()) {
+                        problem(*mode, R"('mode' must be one of "columns", "grid", "details")");
+                        continue;
+                    }
+                    tab.mode = found->second;
+                }
+                if (const toml::node* from = table->get("root")) {
+                    const std::optional<std::string_view> given = from->value<std::string_view>();
+                    if (!given || given->empty() || given->front() != '/') {
+                        problem(*from, "'root' must be an absolute path");
+                        continue;
+                    }
+                    tab.root = std::filesystem::path{*given};
+                }
+                if (const toml::node* name = table->get("cursor")) {
+                    const std::optional<std::string_view> given = name->value<std::string_view>();
+                    if (!given || given->find('/') != std::string_view::npos) {
+                        problem(*name, "'cursor' must be a name in the folder");
+                        continue;
+                    }
+                    tab.cursor = std::string{*given};
+                }
+                if ((*table)["shown"].value_or(false)) {
+                    s.shown_tab = s.tabs.size();
+                }
+                s.tabs.push_back(std::move(tab));
+            }
+        }
+    }
     return result;
 }
 
@@ -178,37 +300,59 @@ StateResult load_state(const std::filesystem::path& path) {
 
 std::string format_state(const State& s) {
     const auto flag = [](bool value) { return value ? "true" : "false"; };
+    std::string tabs;
+    for (std::size_t i = 0; i < s.tabs.size(); ++i) {
+        const State::Tab& tab = s.tabs[i];
+        const std::string folder = tab.folder.string();
+        const std::string root = tab.root.string();
+        if (!valid_utf8(folder) || !valid_utf8(root) || !valid_utf8(tab.cursor)) {
+            continue;  // TOML holds only UTF-8: a tab on such a name is not remembered
+        }
+        tabs += std::format("\n[[tab]]\nfolder = {}\nmode = \"{}\"\n", toml_string(folder),
+                            word_of(kModes, tab.mode));
+        if (!root.empty()) {
+            tabs += std::format("root = {}\n", toml_string(root));
+        }
+        if (!tab.cursor.empty()) {
+            tabs += std::format("cursor = {}\n", toml_string(tab.cursor));
+        }
+        if (i == s.shown_tab) {
+            tabs += "shown = true\n";
+        }
+    }
     return std::format(
-        "# How Nordend was left, read at start. Written by Nordend: no need to edit it.\n"
-        "\n"
-        "[view]\n"
-        "mode = \"{}\"\n"
-        "show_hidden = {}\n"
-        "\n"
-        "[sidebar]\n"
-        "visible = {}\n"
-        "width = {}\n"
-        "\n"
-        "[info]\n"
-        "visible = {}\n"
-        "width = {}\n"
-        "expanded = {}\n"
-        "\n"
-        "[details]\n"
-        "sort = \"{}\"\n"
-        "descending = {}\n"
-        "size_width = {}\n"
-        "modified_width = {}\n"
-        "type_width = {}\n"
-        "\n"
-        "[window]\n"
-        "width = {}\n"
-        "height = {}\n"
-        "maximized = {}\n",
-        word_of(kModes, s.mode), flag(s.show_hidden), flag(s.sidebar_visible), s.sidebar_width,
-        flag(s.info_visible), s.info_width, flag(s.info_expanded), word_of(kSortKeys, s.sort_key),
-        flag(s.sort_descending), s.details_widths[0], s.details_widths[1], s.details_widths[2],
-        s.window_width, s.window_height, flag(s.maximized));
+               "# How Nordend was left, read at start. Written by Nordend: no need to edit it.\n"
+               "\n"
+               "[view]\n"
+               "mode = \"{}\"\n"
+               "show_hidden = {}\n"
+               "\n"
+               "[sidebar]\n"
+               "visible = {}\n"
+               "width = {}\n"
+               "\n"
+               "[info]\n"
+               "visible = {}\n"
+               "width = {}\n"
+               "expanded = {}\n"
+               "\n"
+               "[details]\n"
+               "sort = \"{}\"\n"
+               "descending = {}\n"
+               "size_width = {}\n"
+               "modified_width = {}\n"
+               "type_width = {}\n"
+               "\n"
+               "[window]\n"
+               "width = {}\n"
+               "height = {}\n"
+               "maximized = {}\n",
+               word_of(kModes, s.mode), flag(s.show_hidden), flag(s.sidebar_visible),
+               s.sidebar_width, flag(s.info_visible), s.info_width, flag(s.info_expanded),
+               word_of(kSortKeys, s.sort_key), flag(s.sort_descending), s.details_widths[0],
+               s.details_widths[1], s.details_widths[2], s.window_width, s.window_height,
+               flag(s.maximized)) +
+           tabs;
 }
 
 // Writes in generation order: one older than the last written is dropped.
@@ -235,7 +379,7 @@ StateKeeper::StateKeeper(core::EventLoop& loop, core::WorkerPool& pool, std::fil
       path_{std::move(path)},
       delay_{delay},
       saved_{saved},
-      current_{saved},
+      current_{std::move(saved)},
       file_{std::make_shared<File>()} {
     file_->path = path_;
 }

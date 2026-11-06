@@ -198,6 +198,10 @@ public:
     [[nodiscard]] State state() const;
     // Before open(): the view comes up in the remembered mode; afterwards, as if chosen.
     void apply(const State& state);
+    // At a start without a folder, after apply() and instead of open(): the tabs as they were
+    // left (State::tabs), the one shown then shown again; folders gone meanwhile are left out.
+    // false when none is left: open() the start folder then.
+    bool restore_tabs(const std::vector<State::Tab>& tabs, std::size_t shown);
 
     [[nodiscard]] bool sidebar_visible() const noexcept { return sidebar_visible_; }
 

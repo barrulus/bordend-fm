@@ -1879,7 +1879,71 @@ State Browser::state() const {
     state.sort_key = pane().details.order().key;
     state.sort_descending = pane().details.order().descending;
     state.details_widths = pane().details.widths();
+    if (panes_.size() > 1) {  // one tab: nothing to restore, the start folder is the start's
+        for (std::size_t i = 0; i < panes_.size() && i < State::kMaxTabs; ++i) {
+            const Pane& each = *panes_[i];
+            const std::shared_ptr<Folder> folder = folder_of(each);
+            if (!folder || folder->is_trash()) {
+                continue;
+            }
+            State::Tab tab{.folder = folder->path(),
+                           .mode = static_cast<State::Mode>(each.mode),
+                           .root = {},
+                           .cursor = {}};
+            if (each.mode == Mode::columns && each.columns.column_count() > 0) {
+                tab.root = each.columns.column(0).folder().path();
+            }
+            if (const fs::Entry* entry = folder->cursor_entry()) {
+                tab.cursor = entry->name;
+            }
+            if (i == active_) {
+                state.shown_tab = state.tabs.size();
+            }
+            state.tabs.push_back(std::move(tab));
+        }
+    }
     return state;
+}
+
+bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t shown) {
+    const auto folder_there = [](const std::filesystem::path& path) {
+        std::error_code error;
+        return !path.empty() && std::filesystem::is_directory(path, error);
+    };
+    std::size_t restored = 0;
+    std::size_t to_show = 0;
+    for (std::size_t i = 0; i < tabs.size(); ++i) {
+        const State::Tab& tab = tabs[i];
+        if (!folder_there(tab.folder)) {
+            continue;  // gone meanwhile (an unplugged disk): left out
+        }
+        if (restored > 0) {
+            add_pane(restored);
+        }
+        active_ = restored;
+        pane().mode = static_cast<Mode>(tab.mode);
+        const std::filesystem::path relative = tab.folder.lexically_relative(tab.root);
+        if (pane().mode == Mode::columns && folder_there(tab.root) && !relative.empty() &&
+            *relative.begin() != "..") {
+            // The columns unfold as they were, down to the cursor in the folder shown.
+            pane().columns.reveal(tab.root,
+                                  tab.cursor.empty() ? tab.folder : tab.folder / tab.cursor);
+        } else {
+            open(tab.folder);
+            if (const std::shared_ptr<Folder> opened = current_folder();
+                opened && !tab.cursor.empty()) {
+                opened->select_name(tab.cursor);
+            }
+        }
+        note_location();
+        if (i == shown) {
+            to_show = restored;
+        }
+        ++restored;
+    }
+    active_ = std::min(to_show, panes_.size() - 1);
+    redraw_();
+    return restored > 0;
 }
 
 void Browser::apply(const State& state) {

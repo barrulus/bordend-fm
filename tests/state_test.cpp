@@ -4,8 +4,10 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <doctest/doctest.h>
 
@@ -193,4 +195,132 @@ TEST_CASE("StateKeeper: one write after the last change, flush writes what is le
     keeper.flush();  // at exit: written now, not after the delay
     CHECK(load_state(file).state == third);
     CHECK(load_state(file).problems.empty());
+}
+
+TEST_CASE("state: tabs written and read back, odd names too; one not UTF-8 left out") {
+    State s = changed();
+    s.tabs = {{.folder = "/home/me/Pictures",
+               .mode = State::Mode::columns,
+               .root = "/home/me",
+               .cursor = "P1 \"2\".ORF"},
+              {.folder = "/home/me/a \"quoted\" \\ name\twith tab/città",
+               .mode = State::Mode::grid,
+               .root = {},
+               .cursor = {}},
+              {.folder = "/mnt/x", .mode = State::Mode::details, .root = {}, .cursor = {}}};
+    s.shown_tab = 1;
+    const std::string text = format_state(s);
+    const StateResult back = parse(text);
+    CHECK(back.problems.empty());
+    CHECK(back.state == s);
+
+    // TOML holds only UTF-8: a tab on a name that is not is not written.
+    State odd;
+    odd.tabs = {{.folder = "/home/me/ok", .mode = State::Mode::grid, .root = {}, .cursor = {}},
+                {.folder = std::string{"/home/me/\xff\xfe"},
+                 .mode = State::Mode::grid,
+                 .root = {},
+                 .cursor = {}}};
+    odd.shown_tab = 0;
+    const StateResult kept = parse(format_state(odd));
+    CHECK(kept.problems.empty());
+    REQUIRE(kept.state.tabs.size() == 1);
+    CHECK(kept.state.tabs[0].folder == "/home/me/ok");
+}
+
+TEST_CASE("state: a tab that cannot be used is left out, and said where") {
+    const StateResult result = parse(R"([[tab]]
+folder = "relative/path"
+
+[[tab]]
+folder = "/ok"
+mode = "tree"
+
+[[tab]]
+folder = "/fine"
+mode = "details"
+root = "nope"
+
+[[tab]]
+folder = "/kept"
+mode = "grid"
+shown = true
+)");
+    REQUIRE(result.state.tabs.size() == 1);
+    CHECK(result.state.tabs[0].folder == "/kept");
+    CHECK(result.state.tabs[0].mode == State::Mode::grid);
+    CHECK(result.state.shown_tab == 0);
+    REQUIRE(result.problems.size() == 3);
+    CHECK(result.problems[0].starts_with("state.toml:1:"));
+    CHECK(result.problems[1].starts_with("state.toml:6:"));
+    CHECK(result.problems[2].starts_with("state.toml:11:"));
+
+    const StateResult wrong = parse("tab = 3\n");
+    CHECK(wrong.state.tabs.empty());
+    CHECK(wrong.problems.size() == 1);
+}
+
+TEST_CASE("state: the browser's tabs, kept and brought back as they were") {
+    const TempDir dir;
+    std::filesystem::create_directories(dir.path / "a" / "deep" / "er");
+    std::filesystem::create_directories(dir.path / "b");
+    std::filesystem::create_directories(dir.path / "gone");
+    EventLoop loop;
+    nordend::core::WorkerPool pool{loop, 2};
+    nordend::fs::DirectoryWatcher watcher{loop};
+    const auto make = [&] {
+        return std::make_unique<Browser>(
+            loop, pool, watcher, nordend::fs::MimeDatabase::load(), [] {},
+            [](nordend::ui::CursorShape /*shape*/) {});
+    };
+    State saved;
+    {
+        const std::unique_ptr<Browser> browser = make();
+        browser->open(dir.path / "a");
+        REQUIRE(run_until(loop, [&] { return !browser->loading(); }));
+        CHECK(browser->state().tabs.empty());  // one tab: nothing to restore
+        browser->reveal(dir.path / "a", dir.path / "a" / "deep" / "er");  // a > deep > er
+        REQUIRE(run_until(loop, [&] {
+            return !browser->loading() && !browser->columns().revealing() &&
+                   browser->columns().column_count() >= 2;
+        }));
+        const std::filesystem::path focused = browser->columns().focused_folder()->path();
+        CHECK(focused.string().starts_with((dir.path / "a").string()));
+        browser->open_tab(dir.path / "gone", false);
+        browser->open_tab(dir.path / "b", true);
+        browser->set_mode(Browser::Mode::grid);
+        REQUIRE(run_until(loop, [&] { return !browser->loading(); }));
+        saved = browser->state();
+    }
+    REQUIRE(saved.tabs.size() == 3);
+    CHECK(saved.tabs[0].mode == State::Mode::columns);
+    CHECK(saved.tabs[0].root == dir.path / "a");
+    CHECK(saved.tabs[1].folder == dir.path / "b");
+    CHECK(saved.tabs[1].mode == State::Mode::grid);
+    CHECK(saved.tabs[2].folder == dir.path / "gone");
+    CHECK(saved.shown_tab == 1);
+    // Through the file, as at the next start.
+    const StateResult read = parse(format_state(saved));
+    REQUIRE(read.problems.empty());
+    std::filesystem::remove(dir.path / "gone");
+
+    const std::unique_ptr<Browser> browser = make();
+    browser->apply(read.state);
+    REQUIRE(browser->restore_tabs(read.state.tabs, read.state.shown_tab));
+    REQUIRE(run_until(loop, [&] { return !browser->loading(); }));
+    CHECK(browser->tab_count() == 2);  // "gone" is gone
+    CHECK(browser->active_tab() == 1);
+    CHECK(browser->tab_titles().size() == 2);
+    CHECK(browser->tab_titles()[0] == saved.tabs[0].folder.filename().string());
+    CHECK(browser->tab_titles()[1] == "b");
+    CHECK(browser->mode() == Browser::Mode::grid);
+    browser->select_tab(0);
+    CHECK(browser->mode() == Browser::Mode::columns);
+    REQUIRE(run_until(loop, [&] { return browser->columns().column_count() >= 2; }));
+    CHECK(browser->columns().column(0).folder().path() == dir.path / "a");
+
+    // Nothing left to restore: false, and the start opens its folder.
+    const std::unique_ptr<Browser> empty = make();
+    CHECK_FALSE(empty->restore_tabs(
+        {{.folder = dir.path / "gone", .mode = State::Mode::grid, .root = {}, .cursor = {}}}, 0));
 }

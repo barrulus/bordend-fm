@@ -321,8 +321,10 @@ go back to the system.
 - **Remembered from one start to the next** (`~/.local/state/nordend/state.toml`, written by
   Nordend): the view, the details' order and column widths, hidden files shown or not, the
   sidebar and the info pane (shown, width, "More details"), the window's size and whether it was
-  maximized. Not the last folder (Nordend opens Home, or the folder given) nor the back/forward
-  history. A broken file only means the defaults.
+  maximized; with two tabs or more, the tabs (each one's folder, view, cursor and, in the columns,
+  where they start) and which was shown, back when Nordend starts without a folder (Super+E;
+  folders gone meanwhile are left out). With one tab, not the last folder: Nordend opens Home, or
+  the folder given. Not the back/forward history. A broken file only means the defaults.
 
 ## Standards it follows
 

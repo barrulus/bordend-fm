@@ -528,7 +528,12 @@ int main(int argc, char** argv) {
                 });
             }
             columns->apply(remembered.state);
-            columns->open(start_folder(start_dir));
+            // Without a folder (Super+E) the tabs come back as they were left; with one
+            // (xdg-open, "Show in folder") a single tab on it (ROADMAP 9.1d).
+            if (!start_dir.empty() ||
+                !columns->restore_tabs(remembered.state.tabs, remembered.state.shown_tab)) {
+                columns->open(start_folder(start_dir));
+            }
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
         // The sidebar's places, kept current as things are mounted and bookmarked (ROADMAP 5.9),
