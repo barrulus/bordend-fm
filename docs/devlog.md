@@ -4,6 +4,32 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 9.1a: a pane, ready for tabs
+
+**Done**
+- `views::Pane` (`pane.hpp`): the column view, the grid and the details of one place, which is
+  shown (`ViewMode`) and its history (`HistoryStep`, `here`). The browser keeps a list of panes and
+  shows one (`pane()`, `active_`); everything else stays the window's: the sidebar, the info pane,
+  the status bar, Quick Look, the dialogs, the transfers, undo. `Browser::Mode` and
+  `Browser::Step` are now names for `ViewMode` and `HistoryStep`, so callers and tests are
+  unchanged.
+- `Browser::add_pane()` makes a pane and wires its views to the window (open, edit slot, menu,
+  drop and cut marks), with the window's order, hidden files, info pane and column widths.
+  `set_sort`, `set_show_hidden`, `set_info_visible` and `apply(State)` go over every pane; a click
+  on a title of the details sorts every pane. `panes_` sits where the views were, so the order in
+  which things are destroyed is the same (the transfers' thread stops first).
+- `update_band` and `scroll_band` keep a reference to the band once checked (clang-tidy could not
+  see it stay set across the calls to `pane()`).
+
+**Measured**: nothing to measure; the same 277 tests pass (also under ASan and TSan), and
+snapshots of the columns, the grid, the details and Quick Look match this morning's to the pixel
+but for the free space in the status bar.
+
+**Tested by the author** (2026-11-06): everything as before (views, history, Sort By, hidden
+files, info pane, rubber band, copy, paste, undo, state at the next start).
+
+---
+
 ## 2026-11-06 — 8.0: Sort By in the context menu
 
 **Done**

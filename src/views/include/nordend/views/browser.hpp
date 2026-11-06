@@ -38,6 +38,7 @@
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/name_editor.hpp"
+#include "nordend/views/pane.hpp"
 #include "nordend/views/quick_look.hpp"
 #include "nordend/views/shortcuts.hpp"
 #include "nordend/views/shortcuts_overlay.hpp"
@@ -119,7 +120,7 @@ class Browser {
 public:
     using Clock = ui::Scroller::Clock;
 
-    enum class Mode : std::uint8_t { columns, grid, details };
+    using Mode = ViewMode;
 
     // thumbnails: the cache the grid takes its thumbnails from; nullptr shows icons only.
     Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
@@ -145,11 +146,7 @@ public:
 
     void set_mode(Mode mode);
 
-    // A folder opened, as the history keeps it: where the cursor was when it was left.
-    struct Step {
-        std::filesystem::path folder;
-        std::string cursor;
-    };
+    using Step = HistoryStep;
 
     static constexpr std::size_t kHistorySize = 100;
 
@@ -160,10 +157,10 @@ public:
     void back();
     void forward();
 
-    [[nodiscard]] const std::vector<Step>& history() const noexcept { return history_; }
+    [[nodiscard]] const std::vector<Step>& history() const noexcept { return pane().history; }
 
     // Where history() is now.
-    [[nodiscard]] std::size_t history_index() const noexcept { return here_; }
+    [[nodiscard]] std::size_t history_index() const noexcept { return pane().here; }
 
     // Ctrl+H: dotfiles listed in every view, or left out (at start). Left out, they leave the
     // selection, so nothing acts on what is not seen, and the cursor moves off them; the hidden
@@ -176,9 +173,11 @@ public:
     // menu's "Sort By", or a click on a title of the details.
     void set_sort(fs::SortKey key, bool descending);
 
-    [[nodiscard]] const fs::SortOrder& sort_order() const noexcept { return details_.order(); }
+    [[nodiscard]] const fs::SortOrder& sort_order() const noexcept {
+        return pane().details.order();
+    }
 
-    [[nodiscard]] Mode mode() const noexcept { return mode_; }
+    [[nodiscard]] Mode mode() const noexcept { return pane().mode; }
 
     // The info pane in the grid and the details, one setting for both (shown at start); the
     // columns always show it.
@@ -259,11 +258,16 @@ public:
     // is on its way (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
-    [[nodiscard]] ColumnView& columns() noexcept { return columns_; }
+    // The pane shown (a tab, ROADMAP 9.1): its views, mode and history.
+    [[nodiscard]] Pane& pane() noexcept { return *panes_[active_]; }
 
-    [[nodiscard]] GridView& grid() noexcept { return grid_; }
+    [[nodiscard]] const Pane& pane() const noexcept { return *panes_[active_]; }
 
-    [[nodiscard]] DetailsView& details() noexcept { return details_; }
+    [[nodiscard]] ColumnView& columns() noexcept { return pane().columns; }
+
+    [[nodiscard]] GridView& grid() noexcept { return pane().grid; }
+
+    [[nodiscard]] DetailsView& details() noexcept { return pane().details; }
 
     [[nodiscard]] QuickLook& quick_look() noexcept { return quick_look_; }
 
@@ -538,6 +542,8 @@ private:
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
     [[nodiscard]] std::vector<MenuItem> folder_menu();
     [[nodiscard]] MenuItem sort_menu();
+    // A new pane, its views wired to the window, sorted and filtered as the window is.
+    Pane& add_pane();
 
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
@@ -553,9 +559,11 @@ private:
                                                 // found
     std::unique_ptr<Thumbnails> thumbnails_;    // before the views that draw them
     InfoPane info_pane_;                        // the same: every view draws it
-    ColumnView columns_;                        // before grid_: grid folders may report to it
-    GridView grid_;
-    DetailsView details_;
+    fs::DirectoryWatcher& watcher_;
+    std::shared_ptr<const fs::MimeDatabase> mime_;
+    // Here, before the window's parts and the transfers: destroyed after them, as the views were.
+    std::vector<std::unique_ptr<Pane>> panes_;
+    std::size_t active_{0};
     QuickLook quick_look_;
     Sidebar sidebar_;
     Breadcrumb breadcrumb_;
@@ -569,12 +577,9 @@ private:
     std::size_t menu_loads_{0};         // applications and templates being looked for
     std::vector<std::function<void()>> menu_loaders_;  // started once the menu is open
     ui::Rect view_area_{};                             // where the view was last drawn
-    Mode mode_{Mode::columns};
     bool info_visible_{true};
     bool sidebar_visible_{true};
     bool show_hidden_{false};
-    std::vector<Step> history_;
-    std::size_t here_{0};
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};
     bool button_held_{false};  // since a press: the pointer stays with its target
