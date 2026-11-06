@@ -93,6 +93,15 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Command palette (ROADMAP 8a)
+
+### 2026-11-06: filtering
+
+`tests/command_palette_test.cpp` ("filtering 500 items…"): 500 items of about 40 characters,
+"photos" typed a letter at a time, every item matching; each key re-scores all 500 with fzy and
+sorts them. **0.10-0.15 ms a key** in the Release build (target < 1 ms), 2.3 ms under ASan,
+3.8 ms under TSan. The palette itself offers about 50 items plus the places and tabs.
+
 ## Binary
 
 ### 2026-11-01: start-up and Quick Look timings (7.6)

@@ -56,6 +56,7 @@ enum class Command : std::uint8_t {
     next_tab,
     previous_tab,
     select_tab,  // Alt+1…9: the digit says which
+    command_palette,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

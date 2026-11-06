@@ -67,6 +67,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
       conflict_{redraw},
       confirm_{redraw},
       menu_{std::move(redraw)},
+      palette_{redraw_},
       trash_model_{loop, pool, watcher, std::move(mime)},
       transfers_{loop,
                  [this](const fs::TransferRequest& request, const fs::TransferProgress& progress) {
@@ -79,6 +80,13 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                      transfer_done(request, result);
                  }} {
     add_pane(0);
+    palette_.set_chosen_handler([this](const std::string& id) {
+        std::erase(palette_recent_, id);
+        palette_recent_.insert(palette_recent_.begin(), id);
+        if (palette_recent_.size() > State::kMaxRecent) {
+            palette_recent_.resize(State::kMaxRecent);
+        }
+    });
     sidebar_.set_eject_handler([this](const fs::Place& place) { eject_place(place); });
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
     sidebar_.set_menu_handler(
@@ -524,7 +532,12 @@ void Browser::paste_text() {
                              return;
                          }
                          --operations_;
-                         if (text) {
+                         if (!text) {
+                             return;
+                         }
+                         if (palette_.is_open()) {
+                             palette_.paste(*text);
+                         } else {
                              editor_.paste(*text);
                          }
                      });
@@ -1909,6 +1922,7 @@ State Browser::state() const {
     state.details_widths = pane().details.widths();
     state.list_size = pane().details.list_size();
     state.grid_icon = static_cast<std::int32_t>(pane().grid.icon_size());
+    state.palette_recent = palette_recent_;
     if (panes_.size() > 1) {  // one tab: nothing to restore, the start folder is the start's
         for (std::size_t i = 0; i < panes_.size() && i < State::kMaxTabs; ++i) {
             const Pane& each = *panes_[i];
@@ -1987,6 +2001,7 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
 
 void Browser::apply(const State& state) {
     show_hidden_ = state.show_hidden;
+    palette_recent_ = state.palette_recent;
     for (const std::unique_ptr<Pane>& each : panes_) {
         each->columns.set_show_hidden(state.show_hidden);
         each->grid.set_show_hidden(state.show_hidden);
@@ -2100,6 +2115,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     quick_look_.draw(renderer, bounds, palette, icons, now);
     shortcuts_.draw(renderer, bounds, palette);
     menu_.draw(renderer, bounds, palette);
+    palette_.draw(renderer, bounds, palette);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
     confirm_.draw(renderer, bounds, palette);
     if (thumbnails_) {
@@ -2202,6 +2218,12 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (confirm_.is_open()) {
         return hand(confirm_.clickable_at(x, y));
     }
+    if (palette_.is_open()) {
+        if (palette_.field_bounds().contains(x, y)) {
+            return Shape::text;
+        }
+        return palette_.list_bounds().contains(x, y) ? Shape::pointer : Shape::standard;
+    }
     if (menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open()) {
         return Shape::standard;
     }
@@ -2225,8 +2247,8 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
 
 void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (event.kind == ui::PointerEvent::Kind::release &&
-        (conflict_.is_open() || confirm_.is_open() || menu_.is_open() || shortcuts_.is_open() ||
-         quick_look_.is_open())) {
+        (conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
+         shortcuts_.is_open() || quick_look_.is_open())) {
         // Taken by what the press opened (a menu from a right click): the button is up all the
         // same, and the next press finds its target again.
         button_held_ = false;
@@ -2239,6 +2261,14 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
     }
     if (confirm_.is_open()) {
         confirm_.pointer(event);
+        return;
+    }
+    if (palette_.is_open()) {
+        palette_.pointer(event);  // a click outside closes it and does nothing else
+        if (event.kind != ui::PointerEvent::Kind::leave) {
+            pointer_x_ = event.x;
+            pointer_y_ = event.y;
+        }
         return;
     }
     if (menu_.is_open()) {
@@ -3130,6 +3160,17 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
     if (confirm_.is_open()) {
         return confirm_.key(event);
     }
+    if (palette_.is_open()) {
+        if (command_for(event) == Command::command_palette) {
+            palette_.close();  // Ctrl+K again
+        } else if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+                   (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
+            paste_text();
+        } else {
+            palette_.key(event);  // every key is the palette's meanwhile
+        }
+        return true;
+    }
     if (menu_.is_open()) {
         return menu_.key(event);  // every key is the menu's meanwhile
     }
@@ -3306,6 +3347,9 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::open_terminal:
             open_terminal();
+            break;
+        case Command::command_palette:
+            open_palette();
             break;
     }
 }

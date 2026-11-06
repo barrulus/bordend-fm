@@ -4,6 +4,59 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 8a: the command palette (Ctrl+K)
+
+**Decisions** (with the author, the same day)
+- ROADMAP 8 split: 8a the command palette (Ctrl+K), 8b finding files under the folder (Ctrl+F);
+  together they make 0.3.0. Ctrl+K holds commands, places and tabs; the recently used (ten) are
+  remembered in `state.toml`.
+- fzy 1.1 vendored in `third_party/fzy` (the author's OK): the matcher only, unmodified, compiled
+  as C without our warnings; listed in `THIRD_PARTY.md` with sha256. Noctalia's launcher uses the
+  same release.
+
+**Done**
+- `views::fuzzy_score` / `fuzzy_positions` over fzy: case-insensitive (the query lowercased, as
+  Noctalia does, since fzy widens only lowercase), bytes as they are for UTF-8, infinities made
+  finite so they sort.
+- `views::CommandPalette`: a card at the top centre (600 px, up to ten rows, fewer in a short
+  window), a `TextField`, the list re-scored on every edit and stable-sorted (equal scores keep
+  the items' order); with nothing typed, the recent first. Matched letters in `primary`; the
+  highlighted row in `hover`/`on_hover` like the context menu. Keys: arrows, Page Up/Down, Enter,
+  Escape; Tab swallowed; Ctrl+V pastes (first line, no control characters). Pointer: the row
+  under it highlighted, a click runs, the wheel scrolls, a click outside closes. The pointer
+  shape: text over the field, a hand over the rows.
+- `Browser::palette_items()` (new `browser_palette.cpp`): commands through `run(Command)`, the
+  keys the views handle themselves (zoom, Select All, parent) as the same key sent to the view,
+  the menus' actions (Sort by…, New Empty File, Restore, Empty Trash, Open in New Tab, Eject or
+  Unmount), places as "Go to …", other tabs as "Tab N: …" (not remembered), Quit (main gives a
+  handler). Only what can be used now: no Paste without something to paste, no Rename… for two
+  entries, no "Show Grid" in the grid, labels that say what happens ("Hide Hidden Files").
+  "Open With…" fills the palette again with the applications, found as the menu finds them.
+- Ctrl+K in the shortcut table (General), on the site's shortcut list; the palette takes every
+  key and click while open, after the conflict and confirm cards, before the context menu (which
+  it closes). `State::palette_recent` → `[palette] recent = [...]`.
+- 9 new tests (307): fzy ranking, the widget's keys and filter, the browser (Ctrl+K, every
+  command offered somewhere, items doing what their keys do, recent through state.toml). Tests
+  pressing every key close the palette in their reset. ASan and TSan clean, snapshot too.
+
+**Measured**
+- Filtering 500 items: 0.10-0.15 ms a key (Release), target < 1 ms (`benchmarks.md`).
+- Snapshots looked at, dark and light, empty and with "new" and "godo" typed.
+
+**Tested by the author** (2026-11-06): everything works ("molto utile").
+
+**Slip**
+- I overwrote `tests/palette_test.cpp` (the colour palette's tests) with the new tests; restored
+  from git at once (no difference left), the new tests are in `command_palette_test.cpp`.
+
+**Open**
+- "New File" from a template is not in the palette (the templates are looked for on a worker;
+  the context menu has them).
+- No icon before the items (the Tabler subset has no generic command icons; adding some means
+  rebuilding the font subset).
+
+---
+
 ## 2026-11-06 — 9.2: the icon follows the accent
 
 **Done**

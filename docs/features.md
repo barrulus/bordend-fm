@@ -232,6 +232,17 @@ README's [What's next](../README.md#whats-next).
 
 ## Finding your way
 
+- **Command palette** (Ctrl+K): a card at the top of the window; type a few letters of anything
+  Nordend can do and Enter runs it. Every command is there, the ones with a shortcut (shown at the
+  right) and the ones only in menus (Sort by…, Open With…, New Empty File, Empty Trash, Eject,
+  Zoom, Select All, Quit); only what can be used at that moment is offered ("Paste" with
+  something to paste, "Rename…" with one entry). The sidebar's places are there as "Go to …" and
+  the other tabs as "Tab 2: …". The letters are matched in order anywhere (fzy, as Noctalia's
+  launcher): "nf" finds New Folder, "gdo" Go to Downloads; the matched letters show in the accent.
+  With nothing typed, the ten most recently used come first, remembered in `state.toml`. ↑ ↓
+  and Page Up/Down move, Enter runs, Escape or Ctrl+K again closes; the mouse works too. Each item
+  goes the same way as its key or menu item, so they never differ. "Open With…" lists the
+  applications in the palette itself.
 - **Sidebar:** your home and its folders (Downloads, Pictures… in your language, from
   `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
   the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.

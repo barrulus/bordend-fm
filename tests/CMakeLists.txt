@@ -5,6 +5,7 @@ add_executable(nordend-tests
     breadcrumb_test.cpp
     clipboard_test.cpp
     column_view_test.cpp
+    command_palette_test.cpp
     config_test.cpp
     desktop_palette_test.cpp
     context_menu_test.cpp

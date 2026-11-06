@@ -62,6 +62,10 @@ struct State {
     std::vector<Tab> tabs;
     std::size_t shown_tab{0};  // which of tabs was shown
 
+    // The command palette's recently used items (their ids), most recent first (ROADMAP 8a).
+    static constexpr std::size_t kMaxRecent = 10;
+    std::vector<std::string> palette_recent;
+
     bool operator==(const State&) const = default;
 };
 

@@ -130,6 +130,7 @@ struct Fixture {
         browser.quick_look().close();
         browser.shortcuts_overlay().close();
         browser.context_menu().close();
+        browser.command_palette().close();
         browser.confirm_dialog().close();
         browser.sidebar().set_focused(false);
         make_files();

@@ -28,6 +28,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/views/breadcrumb.hpp"
 #include "nordend/views/column_view.hpp"
+#include "nordend/views/command_palette.hpp"
 #include "nordend/views/confirm_dialog.hpp"
 #include "nordend/views/conflict_dialog.hpp"
 #include "nordend/views/context_menu.hpp"
@@ -411,6 +412,24 @@ public:
 
     [[nodiscard]] ContextMenu& context_menu() noexcept { return menu_; }
 
+    // Ctrl+K (ROADMAP 8a): the command palette with palette_items(), the recently used first.
+    void open_palette();
+
+    // What the palette offers now: every command that can be used here (the shortcuts' and the
+    // menus'), each going the way its key or menu item goes; the sidebar's places ("Go to …");
+    // the other tabs ("Tab 2: …").
+    [[nodiscard]] std::vector<PaletteItem> palette_items();
+
+    [[nodiscard]] CommandPalette& command_palette() noexcept { return palette_; }
+
+    // The palette's recently used items, most recent first (state.toml).
+    [[nodiscard]] const std::vector<std::string>& palette_recent() const noexcept {
+        return palette_recent_;
+    }
+
+    // Quits Nordend (the palette's "Quit"; Ctrl+Q is the app's). Without one, no "Quit".
+    void set_quit_handler(std::function<void()> quit) { quit_ = std::move(quit); }
+
     // "New File": makes name (from a template when from is set) in the folder shown, puts the
     // cursor on it and edits its name.
     void new_file(const std::string& name, const std::filesystem::path& from);
@@ -530,6 +549,8 @@ private:
     void report_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     // Ctrl+V in the name's field: the clipboard's text.
     void paste_text();
+    // "Open With…" in the palette: the palette again, with the applications for the cursor's entry.
+    void open_with_palette();
     void erase_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     // Opens the card for request (erase or empty_trash), adds up what it removes on a worker and
     // submits it once confirmed and added up; after runs when it is confirmed.
@@ -618,6 +639,9 @@ private:
     ConflictDialog conflict_;
     ConfirmDialog confirm_;
     ContextMenu menu_;
+    CommandPalette palette_;
+    std::vector<std::string> palette_recent_;
+    std::function<void()> quit_;
     std::uint64_t menu_generation_{0};  // a submenu found late fills only the menu it was for
     std::size_t menu_loads_{0};         // applications and templates being looked for
     std::vector<std::function<void()>> menu_loaders_;  // started once the menu is open

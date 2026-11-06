@@ -488,6 +488,10 @@ int main(int argc, char** argv) {
                 });
             columns->set_terminal_handler(
                 [&](const std::filesystem::path& directory) { opener->open_terminal(directory); });
+            columns->set_quit_handler([&] {
+                log::info("quit from the command palette");
+                loop.quit(0);
+            });
             if (clipboard.available()) {
                 columns->set_system_clipboard({
                     .offer =

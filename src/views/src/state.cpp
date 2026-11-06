@@ -237,6 +237,23 @@ StateResult parse_state(std::string_view text, std::string_view source) {
         }
     }
 
+    // [palette] recent: a list of ids; what is not a string is left out.
+    if (const toml::node* recent = root.at_path("palette.recent").node()) {
+        if (const toml::array* list = recent->as_array()) {
+            for (const toml::node& id : *list) {
+                const std::optional<std::string_view> value = id.value<std::string_view>();
+                if (value && !value->empty() && s.palette_recent.size() < State::kMaxRecent) {
+                    s.palette_recent.emplace_back(*value);
+                }
+            }
+        } else {
+            const toml::source_position where = recent->source().begin;
+            result.problems.push_back(
+                std::format("{}:{}:{}: 'palette.recent' must be a list of strings; left out",
+                            source, where.line, where.column));
+        }
+    }
+
     // [[tab]]: folder, mode, root (the columns'), shown. A tab that cannot be used is left out.
     if (const toml::node* tabs = root.get("tab")) {
         const auto problem = [&](const toml::node& node, std::string_view what) {
@@ -337,6 +354,13 @@ StateResult load_state(const std::filesystem::path& path) {
 
 std::string format_state(const State& s) {
     const auto flag = [](bool value) { return value ? "true" : "false"; };
+    std::string recent;
+    for (std::size_t i = 0; i < s.palette_recent.size() && i < State::kMaxRecent; ++i) {
+        if (valid_utf8(s.palette_recent[i])) {
+            recent +=
+                std::format("{}{}", recent.empty() ? "" : ", ", toml_string(s.palette_recent[i]));
+        }
+    }
     std::string tabs;
     for (std::size_t i = 0; i < s.tabs.size(); ++i) {
         const State::Tab& tab = s.tabs[i];
@@ -391,12 +415,15 @@ std::string format_state(const State& s) {
                "[window]\n"
                "width = {}\n"
                "height = {}\n"
-               "maximized = {}\n",
+               "maximized = {}\n"
+               "\n"
+               "[palette]\n"
+               "recent = [{}]\n",
                word_of(kModes, s.mode), flag(s.show_hidden), word_of(kListSizeWords, s.list_size),
                s.grid_icon, flag(s.sidebar_visible), s.sidebar_width, flag(s.info_visible),
                s.info_width, flag(s.info_expanded), word_of(kSortKeys, s.sort_key),
                flag(s.sort_descending), s.details_widths[0], s.details_widths[1],
-               s.details_widths[2], s.window_width, s.window_height, flag(s.maximized)) +
+               s.details_widths[2], s.window_width, s.window_height, flag(s.maximized), recent) +
            tabs;
 }
 
