@@ -16,6 +16,7 @@
 
 #include "draw_helpers.hpp"
 #include "nordend/core/file.hpp"
+#include "nordend/core/memory.hpp"
 #include "nordend/fs/erase.hpp"
 #include "nordend/fs/icon.hpp"
 #include "nordend/fs/operations.hpp"
@@ -85,6 +86,12 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
         palette_recent_.insert(palette_recent_.begin(), id);
         if (palette_recent_.size() > State::kMaxRecent) {
             palette_recent_.resize(State::kMaxRecent);
+        }
+    });
+    palette_.set_close_handler([this] {
+        if (finder_) {
+            finder_.reset();  // its paths go, and the memory they took back to the system
+            core::give_back_free_memory();
         }
     });
     sidebar_.set_eject_handler([this](const fs::Place& place) { eject_place(place); });
@@ -293,6 +300,10 @@ std::vector<std::string> Browser::memory_lines() const {
         return std::format("{:.1f} MB", static_cast<double>(bytes) / 1e6);
     };
     std::vector<std::string> lines;
+    if (finder_) {
+        lines.push_back(
+            std::format("finding files: {} paths, {}", finder_->entries(), mb(finder_->bytes())));
+    }
     if (thumbnails_) {
         const Thumbnails::Usage usage = thumbnails_->usage();
         lines.push_back(
@@ -2070,6 +2081,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     if (!sidebar_drawn_ && sidebar_.focused()) {
         sidebar_.set_focused(false);  // no room for it: the keyboard goes back to the view
     }
+    settle_found(now);
     const std::shared_ptr<Folder> folder = current_folder();
     if (sidebar_drawn_) {
         sidebar_.draw(renderer, {bounds.x, bounds.y, sidebar_width, bounds.height}, palette, icons,
@@ -2156,6 +2168,9 @@ bool Browser::animating() const {
 }
 
 bool Browser::loading() const {
+    if (finder_ && (finder_->scanning() || finder_->matching())) {
+        return true;
+    }
     if (operations_ > 0 || menu_loads_ > 0 || transfers_.pending() > 0 || quick_look_.loading() ||
         info_pane_.loading() || status_bar_.loading()) {
         return true;
@@ -2246,6 +2261,9 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
 }
 
 void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    if (event.kind == ui::PointerEvent::Kind::press) {
+        found_after_.reset();
+    }
     if (event.kind == ui::PointerEvent::Kind::release &&
         (conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
          shortcuts_.is_open() || quick_look_.is_open())) {
@@ -3160,9 +3178,18 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
     if (confirm_.is_open()) {
         return confirm_.key(event);
     }
+    found_after_.reset();  // a key while a file found is on its way: it stays shown, no more
     if (palette_.is_open()) {
-        if (command_for(event) == Command::command_palette) {
-            palette_.close();  // Ctrl+K again
+        const Command command = command_for(event);
+        if (command == Command::command_palette || command == Command::find_files) {
+            // The same key closes it; the other switches.
+            const bool files = palette_.external();
+            palette_.close();
+            if (command == Command::find_files && !files) {
+                open_finder();
+            } else if (command == Command::command_palette && files) {
+                open_palette();
+            }
         } else if (event.modifiers == ui::Modifiers{.ctrl = true} &&
                    (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
             paste_text();
@@ -3350,6 +3377,9 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::command_palette:
             open_palette();
+            break;
+        case Command::find_files:
+            open_finder();
             break;
     }
 }

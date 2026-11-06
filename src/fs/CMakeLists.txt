@@ -10,7 +10,8 @@ add_library(nordend_fs
     src/sort.cpp
     src/transfer.cpp
     src/transfer_queue.cpp
-    src/trash.cpp)
+    src/trash.cpp
+    src/walk.cpp)
 add_library(nordend::fs ALIAS nordend_fs)
 
 target_include_directories(nordend_fs PUBLIC include)

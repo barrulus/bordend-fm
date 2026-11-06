@@ -21,6 +21,8 @@ constexpr float kTextSize = 13.0F;
 constexpr float kTextInset = 12.0F;
 constexpr float kKeysGap = 32.0F;
 constexpr float kRadius = 12.0F;
+constexpr float kStatusHeight = 24.0F;  // the dim line under the list (finding files)
+constexpr float kStatusText = 12.0F;
 
 bool contains(const ui::Rect& rect, float x, float y) {
     return x >= rect.x && x < rect.right() && y >= rect.y && y < rect.bottom();
@@ -51,9 +53,59 @@ void CommandPalette::open(std::vector<PaletteItem> items, const std::vector<std:
         }
     }
     field_.set_text({});
+    query_changed_ = nullptr;
+    status_.clear();
+    moved_ = false;
     open_ = true;
     panel_ = {};
     filter();
+    redraw_();
+}
+
+void CommandPalette::open_external(std::string placeholder,
+                                   std::function<void(const std::string&)> query_changed) {
+    items_.clear();
+    recent_.clear();
+    shown_.clear();
+    highlighted_.reset();
+    first_ = 0;
+    placeholder_ = std::move(placeholder);
+    field_.set_text({});
+    query_changed_ = std::move(query_changed);
+    status_.clear();
+    moved_ = false;
+    open_ = true;
+    panel_ = {};
+    redraw_();
+}
+
+void CommandPalette::set_results(std::vector<PaletteItem> items, std::string status) {
+    if (!open_) {
+        return;
+    }
+    std::string kept;
+    if (moved_ && highlighted_ && *highlighted_ < shown_.size()) {
+        kept = items_[shown_[*highlighted_]].id;
+    }
+    items_ = std::move(items);
+    status_ = std::move(status);
+    shown_.resize(items_.size());
+    for (std::size_t i = 0; i < shown_.size(); ++i) {
+        shown_[i] = i;
+    }
+    highlighted_.reset();
+    if (!kept.empty()) {
+        const auto it = std::ranges::find(items_, kept, &PaletteItem::id);
+        if (it != items_.end()) {
+            highlighted_ = static_cast<std::size_t>(it - items_.begin());
+        }
+    }
+    if (!highlighted_) {
+        moved_ = false;
+        first_ = 0;
+        highlighted_ = shown_.empty() ? std::nullopt : std::optional<std::size_t>{0};
+    }
+    scroll_to_highlight();
     redraw_();
 }
 
@@ -66,8 +118,13 @@ void CommandPalette::close() {
     shown_.clear();
     recent_.clear();
     highlighted_.reset();
+    query_changed_ = nullptr;
+    status_.clear();
     panel_ = {};
     redraw_();
+    if (closed_) {
+        closed_();
+    }
 }
 
 void CommandPalette::set_query(std::string query) {
@@ -93,6 +150,11 @@ void CommandPalette::paste(std::string_view text) {
 }
 
 void CommandPalette::filter() {
+    if (query_changed_) {
+        moved_ = false;
+        query_changed_(field_.text());  // the results come through set_results()
+        return;
+    }
     shown_.clear();
     const std::string& query = field_.text();
     if (query.empty()) {
@@ -127,6 +189,7 @@ void CommandPalette::move_highlight(std::ptrdiff_t rows) {
     const auto last = static_cast<std::ptrdiff_t>(shown_.size()) - 1;
     const std::ptrdiff_t at = highlighted_ ? static_cast<std::ptrdiff_t>(*highlighted_) : 0;
     highlighted_ = static_cast<std::size_t>(std::clamp(at + rows, std::ptrdiff_t{0}, last));
+    moved_ = true;
     scroll_to_highlight();
     redraw_();
 }
@@ -143,19 +206,28 @@ void CommandPalette::scroll_to_highlight() {
     }
 }
 
-void CommandPalette::choose(std::size_t row) {
+void CommandPalette::choose(std::size_t row, int how) {
     if (row >= shown_.size()) {
         return;
     }
+    const PaletteItem& chosen = items_[shown_[row]];
+    std::function<void()> run = chosen.action;
+    if (how == 1) {
+        run = chosen.quick_look;
+    } else if (how == 2 && chosen.open) {
+        run = chosen.open;
+    }
+    if (!run) {
+        return;
+    }
     // The palette closes first: the action may open it again (Open With…) or anything else.
-    PaletteItem item = std::move(items_[shown_[row]]);
+    const std::string id = chosen.id;
+    const bool remember = chosen.remember;
     close();
-    if (item.remember && chosen_) {
-        chosen_(item.id);
+    if (remember && chosen_) {
+        chosen_(id);
     }
-    if (item.action) {
-        item.action();
-    }
+    run();
 }
 
 void CommandPalette::choose_highlighted() {
@@ -175,8 +247,18 @@ bool CommandPalette::key(const ui::KeyEvent& event) {
             return true;
         case XKB_KEY_Return:
         case XKB_KEY_KP_Enter:
-            choose_highlighted();
+            if (highlighted_) {
+                choose(*highlighted_, event.modifiers == ui::Modifiers{.shift = true} ? 2 : 0);
+            }
             return true;
+        case XKB_KEY_space:
+            if (external() && event.modifiers == ui::Modifiers{}) {
+                if (highlighted_) {
+                    choose(*highlighted_, 1);  // Quick Look; spaces mean nothing to the matching
+                }
+                return true;
+            }
+            break;
         case XKB_KEY_Up:
             move_highlight(-1);
             return true;
@@ -257,11 +339,15 @@ bool CommandPalette::pointer(const ui::PointerEvent& event) {
     return true;
 }
 
-void CommandPalette::draw_label(ui::Renderer& renderer, std::string_view label, float x, float y,
-                                float room, ui::Color text, ui::Color matched) const {
-    const std::vector<std::size_t> positions = fuzzy_positions(field_.text(), label);
+void CommandPalette::draw_label(ui::Renderer& renderer, std::string_view label, bool path, float x,
+                                float y, float room, ui::Color text, ui::Color matched) const {
+    FuzzyQuery query{field_.text()};
+    const std::vector<std::size_t> positions =
+        path ? query.path_positions(label) : query.positions(label);
     if (positions.empty() || text_width(renderer, label, kTextSize) > room) {
-        renderer.draw_text(label, x, y, kTextSize, text, room);  // too long: no highlight
+        // Too long: no highlight; a path keeps its start and its name.
+        renderer.draw_text(label, x, y, kTextSize, text, room,
+                           path ? ui::Ellipsis::middle : ui::Ellipsis::end);
         return;
     }
     // Runs of matched and unmatched characters, each in its colour; a matched byte takes its
@@ -299,7 +385,8 @@ void CommandPalette::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const float width = std::min(kWidth, std::max(bounds.width - (2.0F * kEdge), 1.0F));
     const float top = bounds.y + std::min(kTop, std::max(bounds.height / 10.0F, kEdge));
     // As many rows as the window has room for, up to kVisibleRows; one at least ("No matches").
-    const float fixed = (2.0F * kPadding) + kFieldHeight + kGap;
+    const float status = status_.empty() ? 0.0F : kStatusHeight;
+    const float fixed = (2.0F * kPadding) + kFieldHeight + kGap + status;
     const float room = bounds.bottom() - kEdge - top - fixed;
     rows_in_sight_ = std::clamp<std::size_t>(
         static_cast<std::size_t>(std::max(room, 0.0F) / kRowHeight), 1, kVisibleRows);
@@ -332,10 +419,19 @@ void CommandPalette::draw(ui::Renderer& renderer, const ui::Rect& bounds,
 
     list_ = {panel_.x + 4.0F, field_rect_.bottom() + kGap, panel_.width - 8.0F,
              static_cast<float>(rows) * kRowHeight};
+    if (!status_.empty()) {
+        renderer.draw_text(status_, list_.x + kTextInset,
+                           list_.bottom() + ((kStatusHeight - kStatusText) / 2.0F) - 2.0F,
+                           kStatusText, palette.on_surface_variant,
+                           list_.width - (2.0F * kTextInset));
+    }
     if (shown_.empty()) {
-        renderer.draw_text("No matches", list_.x + kTextInset,
-                           list_.y + ((kRowHeight - kTextSize) / 2.0F) - 2.0F, kTextSize,
-                           palette.outline);
+        // Finding files: nothing yet while the folder is being listed.
+        if (!external() || !field_.text().empty()) {
+            renderer.draw_text("No matches", list_.x + kTextInset,
+                               list_.y + ((kRowHeight - kTextSize) / 2.0F) - 2.0F, kTextSize,
+                               palette.outline);
+        }
         return;
     }
     renderer.push_clip(list_);
@@ -360,8 +456,8 @@ void CommandPalette::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         }
         const float label_x = rect.x + kTextInset;
         // On the accent the row is one colour: the matched letters stand out in the other rows.
-        draw_label(renderer, item.label, label_x, text_y, std::max(right - label_x, 1.0F), text,
-                   matched);
+        draw_label(renderer, item.label, item.path, label_x, text_y,
+                   std::max(right - label_x, 1.0F), text, matched);
     }
     renderer.pop_clip();
 }

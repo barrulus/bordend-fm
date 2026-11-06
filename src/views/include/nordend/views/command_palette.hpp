@@ -24,6 +24,11 @@ struct PaletteItem {
     std::string keys;     // the shortcut shown at the right ("Ctrl+T"); may be empty
     bool remember{true};  // goes into the recently used (not a tab: its number changes)
     std::function<void()> action;  // runs once the palette has closed
+    // A file found (ROADMAP 8b): the label is a path, matched by name first and shortened in the
+    // middle; Space runs quick_look, Shift+Enter open (both once the palette has closed).
+    bool path{false};
+    std::function<void()> quick_look;
+    std::function<void()> open;
 };
 
 // The command palette (Ctrl+K, ROADMAP 8a): a card at the top of the window with a field and the
@@ -47,9 +52,26 @@ public:
     // recent: ids, most recent first. placeholder: the empty field's dim text.
     void open(std::vector<PaletteItem> items, const std::vector<std::string>& recent,
               std::string placeholder);
+    // Results from elsewhere (finding files): every edit of the query goes to query_changed, and
+    // set_results() fills the list.
+    void open_external(std::string placeholder,
+                       std::function<void(const std::string& query)> query_changed);
+
+    // The list, best first, and a dim line under it ("Searching… 1 234 items"). The highlight
+    // stays on the item it was moved to while that item is still there, else on the first.
+    void set_results(std::vector<PaletteItem> items, std::string status);
+
     void close();
 
     [[nodiscard]] bool is_open() const noexcept { return open_; }
+
+    // Open with results from elsewhere.
+    [[nodiscard]] bool external() const noexcept { return open_ && query_changed_ != nullptr; }
+
+    [[nodiscard]] const std::string& status() const noexcept { return status_; }
+
+    // Called once the palette has closed, whatever closed it.
+    void set_close_handler(std::function<void()> handler) { closed_ = std::move(handler); }
 
     // Called with an item's id just before its action runs (the recent list).
     void set_chosen_handler(std::function<void(const std::string& id)> handler) {
@@ -96,13 +118,18 @@ private:
     void filter();
     void move_highlight(std::ptrdiff_t rows);
     void scroll_to_highlight();
-    void choose(std::size_t row);
+    // how: 0 the action, 1 quick_look, 2 open.
+    void choose(std::size_t row, int how = 0);
     [[nodiscard]] std::optional<std::size_t> row_at(float x, float y) const;
-    void draw_label(ui::Renderer& renderer, std::string_view label, float x, float y, float room,
-                    ui::Color text, ui::Color matched) const;
+    void draw_label(ui::Renderer& renderer, std::string_view label, bool path, float x, float y,
+                    float room, ui::Color text, ui::Color matched) const;
 
     std::function<void()> redraw_;
     std::function<void(const std::string&)> chosen_;
+    std::function<void()> closed_;
+    std::function<void(const std::string&)> query_changed_;
+    std::string status_;
+    bool moved_{false};  // the highlight was moved by hand
     bool open_{false};
     std::vector<PaletteItem> items_;
     std::vector<std::size_t> recent_;  // indexes into items_, most recent first

@@ -4,6 +4,49 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 8b: finding files (Ctrl+F)
+
+**Done**
+- `fs::walk`: breadth first with `openat`/`fdopendir`/`readdir` and `d_type` (one `fstatat` per
+  folder, for its device), relative paths in `PathBatch` (one buffer and an end offset per path,
+  shrunk to fit before it is handed over), links listed but never followed, other file systems
+  not entered, dotfiles left out unless asked, cancellable between folders. Limits: 300 000
+  entries (truncated, said in the status), depth 64.
+- `views::FileFinder`: the walk streamed from a worker (`submit_streaming`), batches kept as
+  `shared_ptr<const PathBatch>`; a query is matched on all the workers (the batches dealt out in
+  shares), each share keeping its best 200 in a heap, merged on the loop; new batches are matched
+  as they come; a new query cancels the old jobs (generation). Nothing typed: the first 200
+  entries, the nearest. `status()`: "Searching… N items", "N items", "Stopped at N items".
+- `FuzzyQuery` (prepared once per job): spaces in a query are dropped (so Space can stay Quick
+  Look, the ROADMAP's choice, and "monte rosa" still finds Monte Rosa); `path_score` ranks a match
+  in the name above any that needs the folders; `path_positions` highlights the name when it
+  matches there.
+- `CommandPalette::open_external` / `set_results` / status line / close handler; path items are
+  shortened in the middle; Space runs `quick_look`, Shift+Enter `open`; the highlight follows the
+  item it was moved to while results keep coming.
+- `Browser`: Ctrl+F (`Command::find_files`, also "Find Files…" in the palette), Ctrl+F again
+  closes, Ctrl+K switches and back. `show_found`: in the columns `reveal` from the first column
+  when the file is inside it (the way stays), else from the folder searched; in the grid and the
+  details the file's folder opens with the cursor on it. Quick Look and Open wait for the cursor
+  to land (`settle_found`, run by `draw()`), and a key or a click meanwhile forgets them. The
+  finder goes when the card closes, then `core::give_back_free_memory()` (`malloc_trim`). Not in
+  the trash. `loading()` counts the finder; the memory report has a line for it.
+- New tool `nordend-bench-find`; 9 new tests (316). ASan and TSan clean (the finder tests five
+  times under TSan, the benchmark and a snapshot under both).
+
+**Measured** (`benchmarks.md`)
+- `DATA/dev`, 273 187 entries: first results 8 ms, whole listing 0.44 s, a new query over all of
+  them 6-14 ms; 23 MB of paths; anonymous memory back to 2.9 MB after closing (30.3 with them).
+- Snapshots looked at, dark (nothing typed: folders first, the nearest) and light ("vinc17").
+
+**Tested by the author** (2026-11-06): everything works.
+
+**Open**
+- Cold-cache numbers: the author's run.
+- Results do not follow changes on disk while the card is open (listed once).
+
+---
+
 ## 2026-11-06 — 8a: the command palette (Ctrl+K)
 
 **Decisions** (with the author, the same day)

@@ -49,6 +49,10 @@ struct MemoryReport {
 // it first thing in main(), before any thread starts.
 void give_back_large_blocks();
 
+// Hands the free memory at the top of every malloc arena back to the system (malloc_trim): after
+// letting go of many small blocks at once, such as the paths of finding files.
+void give_back_free_memory();
+
 // Reads it now (a few files of /proc; a few milliseconds).
 [[nodiscard]] MemoryReport read_memory_report();
 

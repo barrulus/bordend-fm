@@ -47,7 +47,10 @@ std::vector<PaletteItem> Browser::palette_items() {
                          .label = std::move(label),
                          .keys = std::move(keys),
                          .remember = remember,
-                         .action = std::move(action)});
+                         .action = std::move(action),
+                         .path = false,
+                         .quick_look = {},
+                         .open = {}});
     };
     // A command goes the way its key goes: through run().
     const auto command = [&](Command which, const char* id, std::string label) {
@@ -245,6 +248,9 @@ std::vector<PaletteItem> Browser::palette_items() {
     }
 
     // Nordend.
+    if (folder && !in_trash) {
+        command(Command::find_files, "find_files", "Find Files…");
+    }
     command(Command::show_shortcuts, "show_shortcuts", "Keyboard Shortcuts");
     if (quit_) {
         add("command:quit", "Quit", "Ctrl+Q", [this] { quit_(); });
@@ -290,9 +296,11 @@ void Browser::open_with_palette() {
                                       .label = app.is_default ? app.name + " (default)" : app.name,
                                       .keys = {},
                                       .remember = false,
-                                      .action = [this, directory, files, id = app.id] {
-                                          open_with_(directory, files, id);
-                                      }});
+                                      .action = [this, directory, files,
+                                                 id = app.id] { open_with_(directory, files, id); },
+                                      .path = false,
+                                      .quick_look = {},
+                                      .open = {}});
                  }
                  if (items.empty()) {
                      show_message("No applications open it", false);
@@ -300,6 +308,111 @@ void Browser::open_with_palette() {
                  }
                  palette_.open(std::move(items), {}, "Open with…");
              });
+}
+
+void Browser::open_finder() {
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder) {
+        return;
+    }
+    if (folder->is_trash()) {
+        show_message("Files are not looked for in the trash", false);
+        return;
+    }
+    menu_.close();
+    shortcuts_.close();
+    palette_.close();
+    finder_ = std::make_unique<FileFinder>(pool_, [this] { refresh_found(); });
+    const std::filesystem::path root = folder->path();
+    std::string name = root.filename().string();
+    if (name.empty()) {
+        name = root.string();  // "/"
+    }
+    palette_.open_external(std::format("Find in {}", name), [this](const std::string& query) {
+        if (finder_) {
+            finder_->set_query(query);
+        }
+    });
+    finder_->start(root, show_hidden_);
+    refresh_found();
+}
+
+void Browser::refresh_found() {
+    if (!finder_ || !palette_.external()) {
+        return;
+    }
+    const std::filesystem::path& root = finder_->root();
+    std::vector<PaletteItem> items;
+    items.reserve(finder_->results().size());
+    for (const FoundFile& found : finder_->results()) {
+        const auto then = [this, root, path = found.path](FoundAction after) {
+            return [this, root, path, after] { show_found(root, path, after); };
+        };
+        items.push_back({.id = "file:" + found.path,
+                         .label = found.path,
+                         .keys = found.directory ? "Folder" : "",
+                         .remember = false,
+                         .action = then(FoundAction::show),
+                         .path = true,
+                         .quick_look = then(FoundAction::quick_look),
+                         .open = then(FoundAction::open)});
+    }
+    palette_.set_results(std::move(items), finder_->status());
+}
+
+void Browser::show_found(const std::filesystem::path& root, const std::string& relative,
+                         FoundAction after) {
+    const std::filesystem::path target = root / relative;
+    const std::filesystem::path parent = target.parent_path();
+    quick_look_.close();
+    if (pane().mode == Mode::columns) {
+        // From the columns' first folder when the file is inside it: the way there stays.
+        std::filesystem::path from = root;
+        if (pane().columns.column_count() > 0) {
+            const std::filesystem::path first = pane().columns.column(0).folder().path();
+            const auto [in_first, in_target] = std::ranges::mismatch(first, target);
+            if (in_first == first.end()) {
+                from = first;
+            }
+        }
+        pane().columns.reveal(from, target);
+        redraw_();
+    } else {
+        open(parent);
+        if (const std::shared_ptr<Folder> shown = current_folder()) {
+            shown->select_name(target.filename().string());
+        }
+    }
+    note_location();
+    found_after_.reset();
+    if (after != FoundAction::show) {
+        found_after_ =
+            FoundAfter{.folder = parent, .name = target.filename().string(), .action = after};
+    }
+}
+
+void Browser::settle_found(Clock::time_point now) {
+    if (!found_after_) {
+        return;
+    }
+    const std::shared_ptr<Folder> folder = current_folder();
+    if (!folder || folder->path() != found_after_->folder || folder->cursor_pending()) {
+        return;  // still on its way
+    }
+    const FoundAfter after = *found_after_;
+    found_after_.reset();
+    const fs::Entry* const cursor = folder->cursor_entry();
+    if (cursor == nullptr || cursor->name != after.name) {
+        return;  // gone meanwhile
+    }
+    if (after.action == FoundAction::quick_look) {
+        quick_look_.open(folder, now);
+    } else if (!open_selection() && cursor->is_directory()) {
+        ui::KeyEvent enter;  // a folder: into it
+        enter.keysym = XKB_KEY_Return;
+        view_key(enter, now);
+    }
+    redraw_();
 }
 
 }  // namespace nordend::views

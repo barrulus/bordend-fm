@@ -102,6 +102,24 @@ the tool now stops a run after 10 s of silence.
 sorts them. **0.10-0.15 ms a key** in the Release build (target < 1 ms), 2.3 ms under ASan,
 3.8 ms under TSan. The palette itself offers about 50 items plus the places and tabs.
 
+## Finding files (ROADMAP 8b)
+
+### 2026-11-06: `nordend-bench-find`, warm caches
+
+`nordend-bench-find [--hidden] [--runs N] DIR QUERY...`: FileFinder on the worker pool (8
+workers), the query set as the listing starts (typed as the card opens); then the same query
+again over the whole list.
+
+| Folder | Entries | First results | Whole listing | A new query over all | Paths |
+|---|---:|---:|---:|---:|---:|
+| `DATA/dev` (source trees, node_modules) | 273 187 | **8.2-8.7 ms** | 435-446 ms | 6-14 ms | 23.1 MB |
+| `/` (its own file system only), hidden included | 106 674 | 21 ms | 448 ms | 3 ms | 6.2 MB |
+
+Target: first results < 50 ms on ~100 000 entries. Anonymous memory: 1.6 MB at start, 30.3 MB
+with the 273 000 paths, **2.9 MB** once the finder is gone and `malloc_trim` has run. Before
+shrinking each batch to its contents the paths took 32.7 MB (doubling growth). Cold caches:
+*to be measured by the author* (`drop_caches` before a `--runs 1`).
+
 ## Binary
 
 ### 2026-11-01: start-up and Quick Look timings (7.6)

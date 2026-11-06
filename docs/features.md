@@ -243,6 +243,16 @@ README's [What's next](../README.md#whats-next).
   and Page Up/Down move, Enter runs, Escape or Ctrl+K again closes; the mouse works too. Each item
   goes the same way as its key or menu item, so they never differ. "Open With…" lists the
   applications in the palette itself.
+- **Find files** (Ctrl+F): the same card, on every file and folder under the folder you are in,
+  at any depth. They are listed once, nearest first, on a worker (273 000 entries in under half a
+  second), and what you type is matched against their paths on all the workers, a new letter
+  cancelling the search before: the first results show in about 8 ms. A match in a file's name
+  ranks above one that needs its folders, so "vinc17" finds `Piramide Vincent/_7230017.ORF`;
+  spaces in what you type do not count. Enter shows the file in the view (the columns unfold down
+  to it), Space opens it in Quick Look, Shift+Enter in its application. Hidden files are left out
+  unless Ctrl+H shows them; links are not followed and other disks mounted inside are not entered;
+  the search stops at 300 000 entries and says so. The memory the paths took (about 85 bytes
+  each) goes back to the system when the card closes.
 - **Sidebar:** your home and its folders (Downloads, Pictures… in your language, from
   `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
   the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.

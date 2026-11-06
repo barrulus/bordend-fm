@@ -87,7 +87,14 @@ std::vector<PaletteItem> plain_items(const std::vector<std::string>& names) {
     std::vector<PaletteItem> items;
     items.reserve(names.size());
     for (const std::string& name : names) {
-        items.push_back({.id = name, .label = name, .keys = {}, .remember = true, .action = {}});
+        items.push_back({.id = name,
+                         .label = name,
+                         .keys = {},
+                         .remember = true,
+                         .action = {},
+                         .path = false,
+                         .quick_look = {},
+                         .open = {}});
     }
     return items;
 }
@@ -342,6 +349,7 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::close_tab, "close_tab"},
         {Command::next_tab, "next_tab"},
         {Command::previous_tab, "previous_tab"},
+        {Command::find_files, "find_files"},
     };
     for (const nordend::views::Shortcut& shortcut : nordend::views::shortcuts()) {
         if (not_in_palette.contains(shortcut.command)) {

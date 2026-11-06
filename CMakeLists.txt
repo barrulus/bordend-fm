@@ -116,6 +116,11 @@ target_link_libraries(nordend-snapshot
 add_executable(nordend-bench-dir src/tools/bench_dir.cpp)
 target_link_libraries(nordend-bench-dir PRIVATE nordend::core nordend::fs nordend::warnings)
 
+# Development tool: finding files benchmark (ROADMAP 8b). Not installed.
+add_executable(nordend-bench-find src/tools/bench_find.cpp)
+target_link_libraries(nordend-bench-find PRIVATE nordend::core nordend::fs nordend::views
+                                                 nordend::warnings)
+
 # Development tool: start-up benchmark, runs nordend and times each step of its start
 # (ROADMAP 7.6). Not installed.
 add_executable(nordend-bench-start src/tools/bench_start.cpp)

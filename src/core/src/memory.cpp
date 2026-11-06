@@ -225,4 +225,6 @@ std::vector<std::string> describe(const MemoryReport& report) {
     return lines;
 }
 
+void give_back_free_memory() { malloc_trim(0); }
+
 }  // namespace nordend::core

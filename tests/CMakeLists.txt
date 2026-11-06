@@ -40,6 +40,7 @@ add_executable(nordend-tests
     title_bar_test.cpp
     erase_test.cpp
     erase_view_test.cpp
+    file_finder_test.cpp
     transfer_test.cpp
     trash_test.cpp
     trash_view_test.cpp

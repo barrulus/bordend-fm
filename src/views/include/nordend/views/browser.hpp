@@ -36,6 +36,7 @@
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/drop_mark.hpp"
 #include "nordend/views/file_clipboard.hpp"
+#include "nordend/views/file_finder.hpp"
 #include "nordend/views/grid_view.hpp"
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/name_editor.hpp"
@@ -427,6 +428,25 @@ public:
         return palette_recent_;
     }
 
+    // Ctrl+F (ROADMAP 8b): the palette finds files under the folder shown, matched by their paths.
+    void open_finder();
+
+    // While finding files: the finder (tests); nullptr otherwise.
+    [[nodiscard]] FileFinder* file_finder() noexcept { return finder_.get(); }
+
+    // What happens once a file found is shown: nothing more, Quick Look, or its application.
+    enum class FoundAction : std::uint8_t { show, quick_look, open };
+
+    // Shows root/relative in the view: the columns unfold down to it (from their first folder
+    // when it is inside it), the grid and the details open its folder; the cursor on it. Then
+    // after, once it is there (settle_found()).
+    void show_found(const std::filesystem::path& root, const std::string& relative,
+                    FoundAction after);
+
+    // Runs show_found()'s action once its folder is shown with the cursor on the file; draw()
+    // calls it, tests too. A key or a click meanwhile forgets it.
+    void settle_found(Clock::time_point now);
+
     // Quits Nordend (the palette's "Quit"; Ctrl+Q is the app's). Without one, no "Quit".
     void set_quit_handler(std::function<void()> quit) { quit_ = std::move(quit); }
 
@@ -551,6 +571,8 @@ private:
     void paste_text();
     // "Open With…" in the palette: the palette again, with the applications for the cursor's entry.
     void open_with_palette();
+    // The palette's list from the finder's results.
+    void refresh_found();
     void erase_done(const fs::TransferRequest& request, const fs::TransferResult& result);
     // Opens the card for request (erase or empty_trash), adds up what it removes on a worker and
     // submits it once confirmed and added up; after runs when it is confirmed.
@@ -641,6 +663,15 @@ private:
     ContextMenu menu_;
     CommandPalette palette_;
     std::vector<std::string> palette_recent_;
+    std::unique_ptr<FileFinder> finder_;  // while finding files
+
+    struct FoundAfter {
+        std::filesystem::path folder;
+        std::string name;
+        FoundAction action{FoundAction::show};
+    };
+
+    std::optional<FoundAfter> found_after_;
     std::function<void()> quit_;
     std::uint64_t menu_generation_{0};  // a submenu found late fills only the menu it was for
     std::size_t menu_loads_{0};         // applications and templates being looked for

@@ -119,7 +119,7 @@
   <div class="stats">
     <div class="stat"><span class="value">128 ms</span><span class="what">cold start to the first frame on screen</span></div>
     <div class="stat"><span class="value">0.7 ms</span><span class="what">first entries of a 10 000-file folder</span></div>
-    <div class="stat"><span class="value">3.0 MB</span><span class="what">stripped binary, decoders built in</span></div>
+    <div class="stat"><span class="value">3.2 MB</span><span class="what">stripped binary, decoders built in</span></div>
     <div class="stat"><span class="value">0 CPU</span><span class="what">while nothing moves on screen</span></div>
   </div>
   <div class="table"><table>
@@ -130,7 +130,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>307 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>316 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -431,6 +431,14 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   <code>nf</code> finds New Folder and <code>gdo</code> Go to Downloads; with nothing typed, the
   ones you used last come first.</p>
 
+  <h3 id="guide/find">Finding files</h3>
+  <p><kbd>Ctrl</kbd>+<kbd>F</kbd> opens the same card on every file and folder under the folder
+  you are in, at any depth. Type a few letters of a name, or of its folders too:
+  <code>vinc17</code> finds <code>Piramide Vincent/_7230017.ORF</code>. <kbd>Enter</kbd> shows
+  it in the view, <kbd>Space</kbd> opens it in Quick Look, <kbd>Shift</kbd>+<kbd>Enter</kbd> in
+  its application. The first results show in a few milliseconds even under a quarter of a million
+  files.</p>
+
   <h3 id="guide/menu">The context menu</h3>
   <p>A right click, a two-finger tap, <kbd>Menu</kbd> or <kbd>Shift</kbd>+<kbd>F10</kbd>. Every
   action in it shows its shortcut.</p>
@@ -465,6 +473,7 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   {"group": "General", "keys": "Ctrl+D", "action": "Add the folder to the sidebar"},
   {"group": "General", "keys": "F6", "action": "Into the sidebar and out"},
   {"group": "General", "keys": "Ctrl+K", "action": "Command palette"},
+  {"group": "General", "keys": "Ctrl+F", "action": "Find files in the folder"},
   {"group": "General", "keys": "F1  ?", "action": "These shortcuts"},
   {"group": "General", "keys": "Menu  Shift+F10", "action": "Context menu"},
   {"group": "General", "keys": "Ctrl+Q", "action": "Quit"},
@@ -715,11 +724,11 @@ follow_accent = true</code></pre>
 
   <h3 id="architecture/quality">Quality</h3>
   <ul>
-    <li>274 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    <li>316 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
     before every commit; clang-tidy and clang-format on every change.</li>
     <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
     surfaceless EGL context, without a window.</li>
-    <li>Vendored code (the wuffs decoders, a subset of Tabler Icons, Noctalia's default palette) is
+    <li>Vendored code (the wuffs decoders, fzy's matcher, a subset of Tabler Icons, Noctalia's default palette) is
     listed with its origin and license in
     <a href="https://github.com/pankaspe/nordend-fm/blob/main/THIRD_PARTY.md">THIRD_PARTY.md</a>.</li>
   </ul>
@@ -734,14 +743,12 @@ follow_accent = true</code></pre>
 
   <h3 id="roadmap/now">Now</h3>
   <ol>
-    <li><strong>Finding files</strong> (<kbd>Ctrl</kbd>+<kbd>F</kbd>): fuzzy search of every file
-    under the folder, on a worker, results as they come</li>
     <li><strong>A dual pane</strong>, a queue of operations with its undo history, batch
     renaming</li>
   </ol>
   <p>0.1.0, the first release, came out after a week of daily use by the author, with a memory
   log: no bugs found, memory steady. 0.2.0 added Sort By in the context menu, tabs and zoom in the
-  lists; the command palette is on <code>main</code> for 0.3.0.</p>
+  lists; the command palette and finding files are on <code>main</code> for 0.3.0.</p>
 
   <h3 id="roadmap/later">Later</h3>
   <ul>
@@ -775,6 +782,7 @@ follow_accent = true</code></pre>
     <tr><td>Sort By</td><td>Name, size, date or type from the context menu, the same in every view</td></tr>
     <tr><td>Tabs</td><td>A folder, a view and a history each; middle click and Open in New Tab; remembered at the next start</td></tr>
     <tr><td>Icon in the accent</td><td>Nordend's icon follows the desktop's accent colour, live in Noctalia's dock</td></tr>
+    <tr><td>Finding files</td><td><kbd>Ctrl</kbd>+<kbd>F</kbd>: every file under the folder, fuzzy-matched on all the workers, first results in about 8 ms among 273 000</td></tr>
     <tr><td>Command palette</td><td><kbd>Ctrl</kbd>+<kbd>K</kbd>: every command, place and tab, fuzzy-matched with fzy, the recently used first</td></tr>
     <tr><td>Zoom in the lists</td><td>Five sizes in the columns and the details; each tab its own zoom</td></tr>
   </table></div>

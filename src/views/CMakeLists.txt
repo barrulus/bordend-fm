@@ -22,6 +22,7 @@ add_library(nordend_views
     src/draw_helpers.cpp
     src/folder.cpp
     src/format.cpp
+    src/file_finder.cpp
     src/fuzzy.cpp
     src/grid_view.cpp
     src/info_pane.cpp
