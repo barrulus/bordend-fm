@@ -146,6 +146,18 @@ xdg-mime default nordend.desktop inode/directory
 Configuration, the command line and the development tools are on the
 [site](https://pankaspe.github.io/nordend-fm/#install).
 
+## Versions
+
+Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features
+you can see; a **patch** (0.2.1) only fixes things. 1.0.0 will come once Nordend has been its
+author's everyday file manager for a while and its files (`config.toml`, `state.toml`) have
+settled.
+
+| Version | What it brought |
+|---|---|
+| on `main`, next | Sort By in the context menu; tabs (a folder, a view and a history each, remembered) |
+| [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
+
 ## What's next
 
 0.1.0 came out after a week of daily use by the author; since then, Sort By in the context menu
