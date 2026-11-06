@@ -52,6 +52,10 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                       go_to(folder, child);
                   },
                   home_directory()},
+      tab_bar_{redraw,
+               {.select = [this](std::size_t index) { select_tab(index); },
+                .close = [this](std::size_t index) { close_tab(index); },
+                .add = [this] { new_tab(); }}},
       status_bar_{loop, pool, redraw,
                   [this](std::size_t view) { set_mode(static_cast<Mode>(view)); },
                   [this] { shortcuts_.open(); }},
@@ -74,7 +78,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
                  [this](const fs::TransferRequest& request, const fs::TransferResult& result) {
                      transfer_done(request, result);
                  }} {
-    add_pane();
+    add_pane(0);
     sidebar_.set_eject_handler([this](const fs::Place& place) { eject_place(place); });
     status_bar_.set_cancel_handler([this] { cancel_transfer(); });
     sidebar_.set_menu_handler(
@@ -90,10 +94,13 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
     trash_model_.open(fs::trash_path());
 }
 
-Pane& Browser::add_pane() {
-    panes_.push_back(std::make_unique<Pane>(loop_, pool_, watcher_, mime_, redraw_, resize_cursor(),
-                                            thumbnails_.get(), &info_pane_));
-    Pane& added = *panes_.back();
+Pane& Browser::add_pane(std::size_t at) {
+    at = std::min(at, panes_.size());
+    const auto it =
+        panes_.insert(panes_.begin() + static_cast<std::ptrdiff_t>(at),
+                      std::make_unique<Pane>(loop_, pool_, watcher_, mime_, redraw_,
+                                             resize_cursor(), thumbnails_.get(), &info_pane_));
+    Pane& added = **it;
     const auto wire = [this](auto& view) {
         view.set_open_handler([this] { open_selection(); });
         view.set_edit_slot(&editor_.slot());
@@ -113,7 +120,7 @@ Pane& Browser::add_pane() {
         }
     });
     if (panes_.size() > 1) {  // as the others: the window's order and column widths
-        const Pane& first = *panes_.front();
+        const Pane& first = *panes_[at == 0 ? 1 : 0];
         added.details.set_sort(first.details.order().key, first.details.order().descending);
         added.columns.set_order(added.details.order());
         added.grid.set_order(added.details.order());
@@ -125,6 +132,117 @@ Pane& Browser::add_pane() {
     added.grid.set_info_visible(info_visible_);
     added.details.set_info_visible(info_visible_);
     return added;
+}
+
+void Browser::leave_pane() {
+    quick_look_.close();
+    if (menu_.is_open()) {
+        menu_.close();
+    }
+    if (editor_.active()) {
+        editor_.confirm();  // as a click elsewhere: the name typed is kept
+    }
+    press_.reset();
+    band_press_.reset();
+    end_band();
+    if (pointer_target_ == Target::view) {
+        view_pointer({.kind = ui::PointerEvent::Kind::leave}, Clock::now());
+    }
+}
+
+void Browser::enter_pane() {
+    if (pointer_inside_ && !button_held_) {
+        dispatch_pointer({.kind = ui::PointerEvent::Kind::motion, .x = pointer_x_, .y = pointer_y_},
+                         Clock::now());
+    }
+    redraw_();
+}
+
+void Browser::new_tab() {
+    const std::shared_ptr<Folder> shown = current_folder();
+    open_tab(shown ? shown->path() : home_directory(), true);
+}
+
+void Browser::open_tab(const std::filesystem::path& directory, bool show) {
+    note_location();  // where the tab shown was, for its history
+    const Mode mode = pane().mode;
+    const std::size_t from = active_;
+    if (show) {
+        leave_pane();
+    }
+    add_pane(from + 1);
+    active_ = from + 1;
+    pane().mode = mode;
+    open(directory);  // into the new pane: its first step
+    if (show) {
+        enter_pane();
+    } else {
+        active_ = from;
+        show_message(std::format("Opened “{}” in a new tab", directory.filename().string()), false);
+        redraw_();
+    }
+}
+
+void Browser::close_tab(std::size_t index) {
+    if (panes_.size() <= 1 || index >= panes_.size()) {
+        return;  // the last tab stays: Ctrl+W does nothing then
+    }
+    const bool shown = index == active_;
+    if (shown) {
+        leave_pane();
+    }
+    panes_.erase(panes_.begin() + static_cast<std::ptrdiff_t>(index));
+    if (active_ > index || active_ >= panes_.size()) {
+        --active_;  // the one after it takes its place, or the one before when it was the last
+    }
+    if (shown) {
+        enter_pane();
+    } else {
+        redraw_();
+    }
+}
+
+void Browser::select_tab(std::size_t index) {
+    if (index >= panes_.size() || index == active_) {
+        return;
+    }
+    note_location();
+    leave_pane();
+    active_ = index;
+    enter_pane();
+}
+
+std::shared_ptr<Folder> Browser::folder_of(const Pane& pane) {
+    switch (pane.mode) {
+        case Mode::grid:
+            return pane.grid.folder();
+        case Mode::details:
+            return pane.details.folder();
+        case Mode::columns:
+            break;
+    }
+    return pane.columns.focused_folder();
+}
+
+std::vector<std::string> Browser::tab_titles() const {
+    const std::filesystem::path home = home_directory();
+    std::vector<std::string> titles;
+    titles.reserve(panes_.size());
+    for (const std::unique_ptr<Pane>& each : panes_) {
+        const std::shared_ptr<Folder> folder = folder_of(*each);
+        if (!folder) {
+            titles.emplace_back();
+        } else if (folder->is_trash()) {
+            titles.emplace_back("Trash");
+        } else if (folder->path() == home) {
+            titles.emplace_back("Home");
+        } else if (!folder->path().has_relative_path()) {
+            titles.push_back(folder->path().string());  // the root
+        } else {
+            titles.push_back(folder->path().filename().string());
+        }
+    }
+    return titles;
 }
 
 std::vector<std::string> Browser::memory_lines() const {
@@ -1813,8 +1931,15 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     } else {
         sidebar_.not_drawn();
     }
-    const ui::Rect view{bounds.x + sidebar_width, bounds.y, bounds.width - sidebar_width,
-                        bounds.height};
+    ui::Rect view{bounds.x + sidebar_width, bounds.y, bounds.width - sidebar_width, bounds.height};
+    if (panes_.size() > 1 && view.height > TabBar::kHeight + kTitleHeight) {
+        tab_bar_.draw(renderer, {view.x, view.y, view.width, TabBar::kHeight}, palette, icons,
+                      tab_titles(), active_);
+        view.y += TabBar::kHeight;
+        view.height -= TabBar::kHeight;
+    } else {
+        tab_bar_.not_drawn();
+    }
     const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - kTitleHeight));
     if (folder) {
         breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
@@ -1955,6 +2080,9 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (sidebar_drawn_ && sidebar_.claims(x, y)) {
         return hand(sidebar_.clickable_at(x, y));
     }
+    if (tab_bar_.claims(x, y)) {
+        return hand(tab_bar_.clickable_at(x, y));
+    }
     if (breadcrumb_.claims(x, y)) {
         return hand(breadcrumb_.clickable_at(x, y));
     }
@@ -2050,6 +2178,8 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
         Target target = Target::view;
         if (sidebar_drawn_ && sidebar_.claims(event.x, event.y)) {
             target = Target::sidebar;
+        } else if (tab_bar_.claims(event.x, event.y)) {
+            target = Target::tabs;
         } else if (breadcrumb_.claims(event.x, event.y)) {
             target = Target::breadcrumb;
         } else if (status_bar_.claims(event.x, event.y)) {
@@ -2269,6 +2399,9 @@ void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::
             break;
         case Target::status_bar:
             status_bar_.pointer(event);
+            break;
+        case Target::tabs:
+            tab_bar_.pointer(event);
             break;
     }
 }
@@ -2816,17 +2949,7 @@ void Browser::view_pointer(const ui::PointerEvent& event, Clock::time_point now)
     }
 }
 
-std::shared_ptr<Folder> Browser::current_folder() const {
-    switch (pane().mode) {
-        case Mode::grid:
-            return pane().grid.folder();
-        case Mode::details:
-            return pane().details.folder();
-        case Mode::columns:
-            break;
-    }
-    return pane().columns.focused_folder();
-}
+std::shared_ptr<Folder> Browser::current_folder() const { return folder_of(pane()); }
 
 bool Browser::key(const ui::KeyEvent& event, Clock::time_point now) {
     note_location();  // the cursor of the folder the key may leave
@@ -2876,6 +2999,11 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
             shortcuts_.close();
         }
         return true;  // nothing under them reacts meanwhile
+    }
+    if (command == Command::select_tab) {
+        // Alt+1…9: the keysyms 1 to 9 follow each other.
+        select_tab(static_cast<std::size_t>(event.keysym - XKB_KEY_1));
+        return true;
     }
     if (quick_look_.is_open()) {
         if (command == Command::quick_look ||
@@ -2999,6 +3127,20 @@ void Browser::run(Command command, Clock::time_point now) {
         case Command::toggle_hidden:
             set_show_hidden(!show_hidden_);
             break;
+        case Command::new_tab:
+            new_tab();
+            break;
+        case Command::close_tab:
+            close_tab(active_);
+            break;
+        case Command::next_tab:
+            select_tab((active_ + 1) % panes_.size());
+            break;
+        case Command::previous_tab:
+            select_tab((active_ + panes_.size() - 1) % panes_.size());
+            break;
+        case Command::select_tab:
+            break;  // take_key: it needs the digit
         case Command::add_bookmark:
             if (const std::shared_ptr<Folder> shown = current_folder()) {
                 add_to_sidebar({shown->path()});

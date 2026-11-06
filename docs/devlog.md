@@ -4,6 +4,45 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-06 — 9.1b: the tab bar and its keys
+
+**Done**
+- `views::TabBar`: above the path while there are two tabs or more; the tabs share the width
+  (90-240 px), named after their folder (Home, Trash, / for the root), the one shown in the view's
+  colour and open onto the path below. A click shows a tab, its × (on the tab shown and the one
+  under the pointer) or a middle click closes it, the + after the last opens one (two bars: the
+  icon font has no plus).
+- `Browser`: `new_tab` (Ctrl+T: the folder shown, the same view, shown at once), `open_tab(dir,
+  show)` (right after the tab shown; behind it, with a message, for 9.1c), `close_tab` (Ctrl+W:
+  nothing on the last tab; the one after takes the place of the tab shown, or the one before),
+  `select_tab` (Ctrl+Tab, Ctrl+Shift+Tab round, Alt+1…9), `tab_titles`, `folder_of(pane)`.
+  Before another pane shows, `leave_pane` closes Quick Look and a menu, confirms a name being
+  edited (as a click elsewhere), drops a press or a band and the view's hover; `enter_pane` gives
+  the new view the pointer. The bar takes the pointer before the path (`Target::tabs`) and shows
+  a hand on what a click acts on.
+- Shortcuts: a "Tabs" group (overlay: the second of two columns, the third of three; the site's
+  table from the same data). Alt+1…9 needs the digit: `take_key` turns it into the index.
+- `~ColumnView` unhooks its folders' cursor handler: a folder can outlive its columns now that a
+  tab closes while the app runs (held by a rename on its way). A test moves the cursor of a folder
+  kept past its tab: without the unhook ASan reports a heap-use-after-free in
+  `ColumnView::on_cursor_changed`.
+- Tests (`tabs_test.cpp`, 5): the keys and the last tab staying, a view and a history per tab with
+  the window's order and hidden files, tabs opened behind, closing the tab shown or another, a tab
+  closed during a rename, the bar drawn offscreen (clicks, ×, middle click, +, the hand, the path
+  below it). Snapshot of three tabs, Nord light and dark. 282 tests, ASan and TSan clean.
+
+**Decisions**
+- Ctrl+W while a name is edited is the field's, as every key then; the tab's × closes it, keeping
+  the name typed.
+- No reordering of tabs by dragging yet; not in the step.
+
+**Tested by the author** (2026-11-06): Ctrl+T, the titles following the folder, Ctrl+Tab,
+Ctrl+Shift+Tab, Alt+1/2, a view and a history per tab, +, ×, middle click, Ctrl+W (not the
+last), Sort By and Ctrl+H in every tab, Quick Look and the menu let go on a switch, a rename kept
+when its tab's × closes it.
+
+---
+
 ## 2026-11-06 — 9.1a: a pane, ready for tabs
 
 **Done**

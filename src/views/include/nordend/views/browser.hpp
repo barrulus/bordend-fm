@@ -45,6 +45,7 @@
 #include "nordend/views/sidebar.hpp"
 #include "nordend/views/state.hpp"
 #include "nordend/views/status_bar.hpp"
+#include "nordend/views/tab_bar.hpp"
 #include "nordend/views/thumbnails.hpp"
 #include "nordend/views/undo.hpp"
 
@@ -257,6 +258,26 @@ public:
     // The view shown is still loading, its thumbnails are being made, or a new folder or a rename
     // is on its way (snapshots, tests).
     [[nodiscard]] bool loading() const;
+
+    // Tabs (ROADMAP 9.1), a pane each; the bar above the path shows them while there are two or
+    // more. Ctrl+T: a new tab on the folder shown, in the same view, shown at once.
+    void new_tab();
+    // A new tab on directory, right after the one shown; shown, or left behind it (a middle
+    // click on a folder).
+    void open_tab(const std::filesystem::path& directory, bool show);
+    // Ctrl+W, a tab's ×, a middle click on it: the tab closes; the last one stays.
+    void close_tab(std::size_t index);
+    // A click on a tab, Ctrl+Tab, Ctrl+Shift+Tab, Alt+1…9.
+    void select_tab(std::size_t index);
+
+    [[nodiscard]] std::size_t tab_count() const noexcept { return panes_.size(); }
+
+    [[nodiscard]] std::size_t active_tab() const noexcept { return active_; }
+
+    // Each tab's name: its folder's (Home, Trash, / for the root).
+    [[nodiscard]] std::vector<std::string> tab_titles() const;
+
+    [[nodiscard]] TabBar& tab_bar() noexcept { return tab_bar_; }
 
     // The pane shown (a tab, ROADMAP 9.1): its views, mode and history.
     [[nodiscard]] Pane& pane() noexcept { return *panes_[active_]; }
@@ -531,7 +552,7 @@ private:
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // Who gets the pointer: the view, the sidebar or the breadcrumb above the view.
-    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar };
+    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar, tabs };
 
     void send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now);
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -542,8 +563,15 @@ private:
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
     [[nodiscard]] std::vector<MenuItem> folder_menu();
     [[nodiscard]] MenuItem sort_menu();
-    // A new pane, its views wired to the window, sorted and filtered as the window is.
-    Pane& add_pane();
+    // A new pane at index at, its views wired to the window, sorted and filtered as the window is.
+    Pane& add_pane(std::size_t at);
+    // Before another pane is shown: what belongs to the one shown (Quick Look, a menu, a name
+    // being edited, a press, a band, the pointer's hover) is let go.
+    void leave_pane();
+    // After: the view shown finds the pointer where it is.
+    void enter_pane();
+    // The folder a pane's view shows (the focused column's).
+    [[nodiscard]] static std::shared_ptr<Folder> folder_of(const Pane& pane);
 
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
@@ -567,6 +595,7 @@ private:
     QuickLook quick_look_;
     Sidebar sidebar_;
     Breadcrumb breadcrumb_;
+    TabBar tab_bar_;
     StatusBar status_bar_;
     ShortcutsOverlay shortcuts_;
     NameEditor editor_;

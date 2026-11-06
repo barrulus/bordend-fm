@@ -128,7 +128,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
     priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>277 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>282 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -291,6 +291,15 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   many items there are, what is selected and how much space is left, and switches views with a
   click.</p>
 
+  <h3 id="guide/tabs">Tabs</h3>
+  <p><kbd>Ctrl</kbd>+<kbd>T</kbd> opens a tab on the folder you are in, in the same view. Each tab
+  keeps its own folder, view and back and forward history; the order, hidden files, the sidebar
+  and the info pane are the same in all of them. With two tabs or more a bar above the path shows
+  them: click one to show it, its × or a middle click closes it, + opens a new one.
+  <kbd>Ctrl</kbd>+<kbd>Tab</kbd> and <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> go round
+  them, <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd> picks one, <kbd>Ctrl</kbd>+<kbd>W</kbd> closes
+  the one shown, never the last.</p>
+
   <h3 id="guide/selecting">Moving and selecting</h3>
   <p>Click, <kbd>Ctrl</kbd>+click, <kbd>Shift</kbd>+click, or the keyboard alone:
   <kbd>Shift</kbd>+arrows for a range, <kbd>Ctrl</kbd>+arrows to move without selecting and
@@ -446,6 +455,10 @@ NORDEND_LOG=debug ./build/nordend ~/Pictures
   {"group": "Selecting", "keys": "Ctrl+Space", "action": "Select or unselect"},
   {"group": "Selecting", "keys": "Ctrl+A", "action": "Select all"},
   {"group": "Selecting", "keys": "Escape", "action": "Back to one entry"},
+  {"group": "Tabs", "keys": "Ctrl+T", "action": "New tab"},
+  {"group": "Tabs", "keys": "Ctrl+W", "action": "Close the tab"},
+  {"group": "Tabs", "keys": "Ctrl+Tab  Ctrl+Shift+Tab", "action": "Next tab, previous"},
+  {"group": "Tabs", "keys": "Alt+1…9", "action": "Tab 1 to 9"},
   {"group": "Files", "keys": "F2", "action": "Rename"},
   {"group": "Files", "keys": "Ctrl+Shift+N", "action": "New folder"},
   {"group": "Files", "keys": "Ctrl+C", "action": "Copy"},

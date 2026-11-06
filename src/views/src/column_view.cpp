@@ -35,7 +35,13 @@ ColumnView::ColumnView(core::EventLoop& loop, core::WorkerPool& pool, fs::Direct
     order_.mime = mime_.get();
 }
 
-ColumnView::~ColumnView() = default;
+ColumnView::~ColumnView() {
+    // A folder may outlive its columns (held by a rename on its way, when a tab closes): it must
+    // not report to them any more.
+    for (const Slot& slot : columns_) {
+        slot.column->folder().set_changed_handler(nullptr);
+    }
+}
 
 std::unique_ptr<Column> ColumnView::make_column(const std::filesystem::path& directory) {
     return make_column(

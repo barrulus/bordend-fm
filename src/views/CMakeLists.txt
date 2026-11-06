@@ -20,6 +20,7 @@ add_library(nordend_views
     src/sidebar.cpp
     src/status_bar.cpp
     src/state.cpp
+    src/tab_bar.cpp
     src/title_bar.cpp
     src/quick_look.cpp
     src/thumbnails.cpp

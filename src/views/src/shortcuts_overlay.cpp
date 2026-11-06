@@ -34,13 +34,13 @@ using Layout = std::array<Column, 3>;
 // group.
 constexpr Layout kTwoColumns{{
     {"General", "Moving", "Grid", "Quick Look", ""},
-    {"Selecting", "Files", "Sidebar", "", ""},
+    {"Selecting", "Files", "Sidebar", "Tabs", ""},
     {"", "", "", "", ""},
 }};
 constexpr Layout kThreeColumns{{
     {"General", "Grid", "Quick Look", "", ""},
     {"Moving", "Selecting", "Sidebar", "", ""},
-    {"Files", "", "", "", ""},
+    {"Files", "Tabs", "", "", ""},
 }};
 
 std::string upper(std::string_view text) {

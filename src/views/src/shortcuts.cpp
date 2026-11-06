@@ -9,6 +9,7 @@ namespace {
 constexpr ui::Modifiers kCtrl{.ctrl = true};
 constexpr ui::Modifiers kShift{.shift = true};
 constexpr ui::Modifiers kAlt{.alt = true};
+constexpr ui::Modifiers kCtrlShift{.ctrl = true, .shift = true};
 
 // The keys that move the cursor; Left and Right move it only in the grid (in the columns and the
 // details they go up and in), but Shift and Ctrl work with all of them.
@@ -204,6 +205,51 @@ constexpr std::array kShortcuts{
              .action = "Back to one entry",
              .scope = scope::kViews,
              .keysyms = {XKB_KEY_Escape}},
+
+    // Tabs
+    Shortcut{.group = "Tabs",
+             .keys = "Ctrl+T",
+             .action = "New tab",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_t, XKB_KEY_T},
+             .command = Command::new_tab},
+    Shortcut{.group = "Tabs",
+             .keys = "Ctrl+W",
+             .action = "Close the tab",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_w, XKB_KEY_W},
+             .command = Command::close_tab},
+    Shortcut{.group = "Tabs",
+             .keys = "Ctrl+Tab  Ctrl+Shift+Tab",
+             .action = "Next tab, previous",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_Tab},
+             .command = Command::next_tab},
+    Shortcut{.group = "Tabs",
+             .keys = "",
+             .action = "Previous tab",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kCtrlShift,
+             .keysyms = {XKB_KEY_ISO_Left_Tab, XKB_KEY_Tab},
+             .command = Command::previous_tab},
+    Shortcut{.group = "Tabs",
+             .keys = "Alt+1…9",
+             .action = "Tab 1 to 9",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_1, XKB_KEY_2, XKB_KEY_3, XKB_KEY_4, XKB_KEY_5, XKB_KEY_6,
+                         XKB_KEY_7, XKB_KEY_8},
+             .command = Command::select_tab},
+    Shortcut{.group = "Tabs",
+             .keys = "",
+             .action = "Tab 9",
+             .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_9},
+             .command = Command::select_tab},
 
     // Files
     Shortcut{.group = "Files",

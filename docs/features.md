@@ -29,6 +29,11 @@ README's [What's next](../README.md#whats-next).
 - **Sort By** in the context menu (on a file or on empty space), in every view: name, size,
   modified or type, ascending or descending, a dot on the order in use. One order for the whole
   window: every folder in every view is sorted so, and it comes back at the next start.
+- **Tabs** (Ctrl+T): each with its own folder, view and back/forward history. The bar above the
+  path shows them when there are two or more: a click shows a tab, its × or a middle click
+  closes it, + opens one. Ctrl+Tab and Ctrl+Shift+Tab go round them, Alt+1…9 picks one, Ctrl+W
+  closes the one shown (never the last). The order, hidden files, the sidebar and the info pane
+  are the window's, the same in every tab.
 - **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
   the file types already detected. The status bar has a button for each view.
 

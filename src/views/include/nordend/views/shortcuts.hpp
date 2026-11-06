@@ -51,6 +51,11 @@ enum class Command : std::uint8_t {
     toggle_hidden,
     add_bookmark,
     open_terminal,
+    new_tab,
+    close_tab,
+    next_tab,
+    previous_tab,
+    select_tab,  // Alt+1…9: the digit says which
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.
