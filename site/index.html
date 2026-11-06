@@ -53,13 +53,14 @@
   renderer for text, icons, scrolling and animation.</p>
 
   <div class="notice">
-    <p><strong>0.1.0, the first release.</strong> Young software, used every day by its author. To
-    try it, <a href="#install">build it from source</a>; it takes about a
-    minute.</p>
+    <p><strong>Young software, used every day by its author.</strong> The first release, 0.1.0,
+    came out on 2026-11-06; since then <code>main</code> has gained tabs and Sort By. On Void Linux,
+    <a href="#install/void-package">install it as a package</a>; anywhere else,
+    <a href="#install/source">build it from source</a> in about a minute.</p>
   </div>
 
   <div class="buttons">
-    <a class="button primary" href="#install">Build and install</a>
+    <a class="button primary" href="#install">Install</a>
     <a class="button" href="#guide">Read the guide</a>
     <a class="button" href="https://github.com/pankaspe/nordend-fm">Source on GitHub</a>
   </div>
@@ -94,9 +95,10 @@
     <div class="card"><h3>Photos first</h3><p>Thumbnails, the preview pane and Quick Look read the
     previews cameras store in their raw files (OM System, Canon, Nikon, Sony, Fujifilm, Panasonic,
     Hasselblad), upright, with the shot's EXIF and your darktable rating.</p></div>
-    <div class="card"><h3>Three views of one folder</h3><p>Finder-style columns to walk a tree from
+    <div class="card"><h3>Three views, in tabs</h3><p>Finder-style columns to walk a tree from
     the keyboard, a thumbnail grid to see a folder of photos, a details table to compare sizes and
-    dates. Switching keeps your place and your selection.</p></div>
+    dates. Switching keeps your place and your selection; tabs keep several folders open, and come
+    back at the next start.</p></div>
     <div class="card"><h3>Small, fast, measured</h3><p>A 3 MB binary that starts in 128 ms from a
     cold cache, shows a 10 000-file folder at once and uses no CPU at all while nothing moves.
     Every number has a <a href="#performance">benchmark</a>.</p></div>
@@ -135,9 +137,9 @@
 
 <!-- ============================================================== Install -->
 <section class="page" id="install">
-  <h2>Build and install</h2>
-  <p>Nordend builds with CMake and a C++20 compiler (developed with
-  GCC 14), in about a minute on an 8-core CPU.</p>
+  <h2>Install</h2>
+  <p class="lead">On Void Linux, as a package. Anywhere else, from source: CMake and a C++20
+  compiler (developed with GCC 14), about a minute on an 8-core CPU.</p>
 
   <h3 id="install/requirements">Requirements</h3>
   <ul>
@@ -146,7 +148,30 @@
     <li>A GPU driver with OpenGL ES 3.0 (Mesa).</li>
   </ul>
 
-  <h3 id="install/void">Build on Void Linux</h3>
+  <h3 id="install/void-package">On Void Linux: a package</h3>
+  <p>Nordend is developed on Void, and comes with an xbps-src template in
+  <a href="https://github.com/pankaspe/nordend-fm/tree/main/packaging/void"><code>packaging/void</code></a>.
+  It builds the latest release into a package that puts <code>nordend</code>, its desktop entry
+  and its icon under <code>/usr</code>:</p>
+  <pre><code># 1. void-packages, once (skip if you already have a checkout)
+git clone --depth 1 https://github.com/void-linux/void-packages
+cd void-packages
+./xbps-src binary-bootstrap
+
+# 2. Nordend's template, then the package
+git clone --depth 1 https://github.com/pankaspe/nordend-fm /tmp/nordend-fm
+cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
+./xbps-src pkg nordend
+sudo xbps-install -R hostdir/binpkgs nordend</code></pre>
+  <div class="notice">
+    <p>The package is the latest release, <strong>0.1.0</strong>. Tabs and Sort By are on
+    <code>main</code> and come with the next release; to have them now,
+    <a href="#install/source">build from source</a>.</p>
+  </div>
+
+  <h3 id="install/source">From source</h3>
+  <p>On Void Linux the packages are these. On other distributions install the development packages
+  of the same libraries; their names differ and have not been tried yet.</p>
   <pre><code>sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
@@ -156,23 +181,9 @@ cd nordend-fm
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend            # your home folder; ./build/nordend ~/Pictures for another one</code></pre>
-  <p>Nordend is developed on Void Linux. On other distributions install the development packages of
-  the same libraries; their names differ and have not been tried yet.</p>
 
-  <h3 id="install/void-package">A package on Void Linux</h3>
-  <p>An xbps-src template is in <a href="https://github.com/pankaspe/nordend-fm/tree/main/packaging/void"><code>packaging/void</code></a>.
-  It builds the release into a package that puts <code>nordend</code>, its desktop entry and its
-  icon under <code>/usr</code>:</p>
-  <pre><code>git clone --depth 1 https://github.com/void-linux/void-packages
-cd void-packages
-./xbps-src binary-bootstrap
-git clone --depth 1 https://github.com/pankaspe/nordend-fm /tmp/nordend-fm
-cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
-./xbps-src pkg nordend
-sudo xbps-install -R hostdir/binpkgs nordend</code></pre>
-
-  <h3 id="install/desktop">Install it for your user</h3>
-  <p>This puts <code>nordend</code> in <code>~/.local/bin</code>, its desktop entry in
+  <h3 id="install/desktop">Install the build for your user</h3>
+  <p>Built from source, this puts <code>nordend</code> in <code>~/.local/bin</code>, its desktop entry in
   <code>~/.local/share/applications</code> and its icon in <code>~/.local/share/icons</code>, so
   menus and launchers find it:</p>
   <pre><code>cmake --install build --prefix ~/.local --strip</code></pre>
@@ -698,18 +709,15 @@ double_click_distance = 4</code></pre>
 
   <h3 id="roadmap/now">Now</h3>
   <ol>
-    <li><strong>Tabs</strong> (<kbd>Ctrl</kbd>+<kbd>T</kbd>): a new tab on the folder shown,
-    <kbd>Ctrl</kbd>+<kbd>W</kbd>, <kbd>Ctrl</kbd>+<kbd>Tab</kbd>, <kbd>Alt</kbd>+<kbd>1</kbd>…<kbd>9</kbd>,
-    a middle click on a folder; each tab with its own history and view, remembered at the next
-    start.</li>
+    <li><strong>A command palette</strong> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search</li>
+    <li><strong>A dual pane</strong>, a queue of operations with its undo history, batch
+    renaming</li>
   </ol>
   <p>0.1.0, the first release, came out after a week of daily use by the author, with a memory
-  log: no bugs found, memory steady.</p>
+  log: no bugs found, memory steady. Since then: Sort By in the context menu, and tabs.</p>
 
   <h3 id="roadmap/later">Later</h3>
   <ul>
-    <li>A command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) with fuzzy search</li>
-    <li>A dual pane, a queue of operations with its undo history, batch renaming</li>
     <li>Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
     comparison, EXIF and histogram</li>
     <li>Scripting in Luau</li>
@@ -735,6 +743,9 @@ double_click_distance = 4</code></pre>
     <tr><td>Compatibility</td><td>Own icons, title bar and cursor where the desktop has none; the desktop's colours; GNOME, Plasma, niri</td></tr>
     <tr><td>Remembered state</td><td>View, order, panes, column widths, window size; pointer shapes; <code>nordend --about</code></td></tr>
     <tr><td>Benchmarks</td><td>Every target of the design measured and met</td></tr>
+    <tr><td>Release 0.1.0</td><td>A week of daily use; Nordend's own icon; a Void Linux package</td></tr>
+    <tr><td>Sort By</td><td>Name, size, date or type from the context menu, the same in every view</td></tr>
+    <tr><td>Tabs</td><td>A folder, a view and a history each; middle click and Open in New Tab; remembered at the next start</td></tr>
   </table></div>
 </section>
 

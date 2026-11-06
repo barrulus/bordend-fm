@@ -334,5 +334,6 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-0.1.0, the first release, is out; tabs come next. See the README's
+0.1.0, the first release, is out; since then, Sort By and tabs. Coming, roughly in this order: a
+command palette (Ctrl+K), a dual pane, photo culling. See the README's
 [What's next](../README.md#whats-next).

@@ -17,8 +17,10 @@
 </p>
 
 > [!NOTE]
-> **0.1.0, the first release.** Young software, used every day by its author. To try it,
-> [build it from source](#building); it takes about a minute.
+> **Young software, used every day by its author.** The first release, 0.1.0, came out on
+> 2026-11-06; since then `main` has gained **tabs** and **Sort By** from the context menu.
+> On Void Linux, [install it as a package](#on-void-linux); anywhere else,
+> [build it from source](#from-source) in about a minute.
 
 <p align="center">
   <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-6DBDF0?style=for-the-badge&labelColor=0E1519" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
@@ -47,7 +49,10 @@ colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Nocta
   with their photo through every rename, copy, move and trip to the trash.
 - **Three views of the same folder.** Columns, a thumbnail grid and a details table
   (<kbd>Ctrl</kbd>+<kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>); switching keeps your place and your
-  selection.
+  selection. Sort by name, size, date or type from the context menu, in every view.
+- **Tabs.** <kbd>Ctrl</kbd>+<kbd>T</kbd>, or a middle click on a folder to open it behind the
+  one you are in; each tab keeps its folder, view and history, and they all come back at the next
+  start.
 - **Small and fast, and measured.** A 3 MB binary, a 10 000-file folder in 0.7 ms, a raw photo
   in Quick Look in under 100 ms, and no CPU at all while nothing moves.
 - **Careful with your files.** Nothing overwritten without asking, nothing half-copied under a
@@ -60,9 +65,9 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 
 | | |
 |---|---|
-| Binary | **3.54 MB** (2.96 MB stripped), x86-64, decoders built in |
+| Binary | **3.60 MB** (3.01 MB stripped), x86-64, decoders built in |
 | Libraries | 21 direct; no GTK, no Qt, no GLib |
-| Code | about 35 300 lines of C++20, 10 400 of tests (286 test cases, under ASan and TSan too) |
+| Code | about 36 300 lines of C++20, 11 000 of tests (286 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -80,33 +85,73 @@ The design's four targets, measured on 2026-11-01 (Ryzen 7 5700G, RX 6650 XT, SA
 More on the [site](https://pankaspe.github.io/nordend-fm/#performance), every method in
 [docs/benchmarks.md](docs/benchmarks.md).
 
-## Building
+## Install
 
-Void Linux package names:
+Nordend needs Linux with a Wayland compositor that offers xdg-shell (developed on Umbriel, also
+tried on GNOME, Plasma and niri) and a GPU driver with OpenGL ES 3.0 (Mesa).
+
+### On Void Linux
+
+Nordend is developed on Void, and comes with an xbps-src template in
+[`packaging/void`](packaging/void). It builds the latest release into a package that puts
+`nordend`, its desktop entry and its icon under `/usr`:
+
+```sh
+# 1. void-packages, once (skip if you already have a checkout)
+git clone --depth 1 https://github.com/void-linux/void-packages
+cd void-packages
+./xbps-src binary-bootstrap
+
+# 2. Nordend's template, then the package
+git clone --depth 1 https://github.com/pankaspe/nordend-fm /tmp/nordend-fm
+cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
+./xbps-src pkg nordend
+sudo xbps-install -R hostdir/binpkgs nordend
+```
+
+The package is the latest release, **0.1.0**. Tabs and Sort By are on `main` and come with the
+next release; to have them now, build from source.
+
+### From source
+
+On Void Linux the packages are these; elsewhere, the development packages of the same libraries
+(their names differ and have not been tried yet):
 
 ```sh
 sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
     libwebp-devel libjxl-devel exiv2-devel zlib-devel sdbus-c++-devel
+git clone https://github.com/pankaspe/nordend-fm
+cd nordend-fm
 cmake -B build -G Ninja
 cmake --build build
 ./build/nordend            # your home folder, or ./build/nordend ~/Pictures
-cmake --install build --prefix ~/.local --strip   # nordend and its desktop entry
+cmake --install build --prefix ~/.local --strip   # nordend, its desktop entry and icon
 ```
 
-On Void Linux there is also an xbps-src template in [`packaging/void`](packaging/void).
-Needs a Wayland compositor with xdg-shell. Default for folders, configuration, development builds
-and tools: [install](https://pankaspe.github.io/nordend-fm/#install),
-[configuration](https://pankaspe.github.io/nordend-fm/#configuration).
+### Then
+
+Make it the default for folders (a browser's "Show in folder", `xdg-open`) and give it a key:
+
+```sh
+xdg-mime default nordend.desktop inode/directory
+```
+
+```toml
+# Umbriel's config.toml; other compositors have their own way
+"Mod+E" = { action = "spawn nordend", repeat = false }
+```
+
+Configuration, the command line and the development tools are on the
+[site](https://pankaspe.github.io/nordend-fm/#install).
 
 ## What's next
 
-0.1.0 is out, after a week of daily use by the author. Next: **tabs** (<kbd>Ctrl</kbd>+<kbd>T</kbd>).
-
-Then, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual pane and
-batch renaming; photo culling (ratings and colour
-labels in darktable's sidecars, comparison, histogram); scripting in Luau; a file chooser for
+0.1.0 came out after a week of daily use by the author; since then, Sort By in the context menu
+and tabs. Coming, roughly in this order: a command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>); a dual
+pane, a queue of operations and batch renaming; photo culling (ratings and colour labels in
+darktable's sidecars, side-by-side comparison, histogram); scripting in Luau; a file chooser for
 other applications; text files in an external editor; translations, Italian first. The full list
 is on the [roadmap](https://pankaspe.github.io/nordend-fm/#roadmap).
 
