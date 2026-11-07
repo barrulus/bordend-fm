@@ -24,6 +24,9 @@ inline constexpr std::uint32_t kGoodbyeMagic = 0x4E504259;   // "NPBY"
 
 inline constexpr std::size_t kMaxDetail = 1024;
 
+// The helper's exit status when it could not build its cage: it never works without one.
+inline constexpr int kSandboxFailedExit = 3;
+
 struct Request {
     std::uint32_t magic{kRequestMagic};
     std::uint32_t max_width{0};

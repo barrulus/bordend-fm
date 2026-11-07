@@ -88,7 +88,9 @@ README's [What's next](../README.md#whats-next).
   (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
 - **Pictures made apart:** the libraries that read photos (exiv2, libwebp, libjxl, wuffs on your
   files) run in small `nordend-preview` processes, not in Nordend: a file that crashes or hangs
-  one costs only its preview ("Preview unavailable"), and Nordend carries on. They start when a
+  one costs only its preview ("Preview unavailable"), and Nordend carries on. Each one lives in
+  a cage of Nordend's own (seccomp and landlock, no library): it cannot open a file, reach the
+  network, start a program or signal another one, and has at most 4 GiB of memory. They start when a
   picture is first needed (at most one per worker), give their memory back after a quiet second,
   and Nordend closes them after 30 s without work.
 - **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look

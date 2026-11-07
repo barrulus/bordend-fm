@@ -54,8 +54,8 @@ private:
 
     [[nodiscard]] std::optional<Helper> take();
     void give_back(Helper helper);
-    void discard(Helper helper);
-    void close_idle();  // the reaper thread: closes and waits for helpers idle too long
+    int discard(Helper helper);  // its wait status
+    void close_idle();           // the reaper thread: closes and waits for helpers idle too long
     [[nodiscard]] std::optional<Helper> spawn() const;
     Outcome ask(Helper helper, int file, const image::LoadRequest& request,
                 image::Loaded& out) const;

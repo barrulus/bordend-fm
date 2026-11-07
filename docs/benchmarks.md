@@ -93,6 +93,16 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## The helper's cage (ROADMAP 2b-2)
+
+### 2026-11-07
+
+Same throwaway programs as for 2b-1, three rounds each: a 48x32 PNG through a helper that has to
+start 5.25-5.59 ms (3.6-4.1 ms before the cage), through a running one 0.07-0.16 ms; a 1920x1440
+ORF through a running helper 64.0-65.3 ms; 16 ORF thumbnails on 8 threads and 8 helpers
+185.2-187.3 ms once running (204-206 ms with the helpers starting). A helper run with no socket,
+start to exit (warm-up and cage included): 5.77 ms median of 20.
+
 ## Pictures in a helper (ROADMAP 2b-1)
 
 ### 2026-11-07: throwaway programs linked against the build's libraries

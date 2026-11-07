@@ -8,17 +8,23 @@
 #include <charconv>
 #include <csignal>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <malloc.h>
 #include <poll.h>
+#include <string>
 #include <string_view>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #include "nordend/image/load.hpp"
 #include "protocol.hpp"
+#include "sandbox.hpp"
+#include "warm_up.hpp"
 
+namespace isolate = nordend::isolate;
 namespace protocol = nordend::isolate::protocol;
 namespace image = nordend::image;
 
@@ -83,6 +89,29 @@ void answer(int socket, int file, const protocol::Request& request) {
     }
 }
 
+// Each kind of picture once, from a memfd, before the cage closes: whatever the libraries load
+// on first use (exiv2's XMP parser, libjxl's tables...) is loaded now.
+void warm_up() {
+    for (std::size_t i = 0; i < isolate::kWarmUpCount; ++i) {
+        const isolate::WarmUpPicture& picture = isolate::kWarmUp[i];  // NOLINT: generated array
+        const int fd = ::memfd_create(picture.name, MFD_CLOEXEC);
+        if (fd < 0) {
+            continue;
+        }
+        if (::write(fd, picture.data, picture.size) == static_cast<ssize_t>(picture.size)) {
+            static_cast<void>(image::load(fd, 64, 64));
+        }
+        ::close(fd);
+    }
+    ::malloc_trim(0);
+}
+
+bool debug_log() {
+    const char* level = std::getenv("NORDEND_LOG");  // NOLINT(concurrency-mt-unsafe): one thread
+    return level != nullptr &&
+           (std::string_view{level} == "debug" || std::string_view{level} == "trace");
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -100,6 +129,26 @@ int main(int argc, char** argv) {
     // read. (Not PR_SET_PDEATHSIG: that follows the thread that started the helper, and
     // Nordend's threads come and go.)
     std::signal(SIGPIPE, SIG_IGN);  // NOLINT(cert-err33-c): nothing to check
+
+    const pid_t pid = ::getpid();  // asked now: getpid is not allowed in the cage
+    warm_up();
+    const char* report = std::getenv("NORDEND_SANDBOX_REPORT");  // NOLINT(concurrency-mt-unsafe)
+    const bool reporting = report != nullptr && std::string_view{report} == "1";
+    const isolate::SandboxStatus sandbox =
+        isolate::enter_sandbox(reporting ? isolate::Unexpected::report : isolate::Unexpected::kill);
+    if (!sandbox.seccomp) {
+        std::fprintf(stderr, "nordend-preview: sandbox could not be set up: %s\n",
+                     sandbox.error.c_str());
+        return protocol::kSandboxFailedExit;
+    }
+    if (debug_log()) {
+        std::fprintf(stderr, "nordend-preview %d: seccomp on, landlock %s, limits %s\n",
+                     static_cast<int>(pid),
+                     sandbox.landlock_abi > 0
+                         ? ("ABI " + std::to_string(sandbox.landlock_abi)).c_str()
+                         : "not available",
+                     sandbox.limited ? "set" : "not set");
+    }
     const int socket = protocol::kSocketFd;
     // After a picture, memory is given back once a second passes without another (a burst of
     // thumbnails keeps its buffers: trimming after each one cost a 1920x1440 ORF 64 -> 85 ms);

@@ -62,18 +62,26 @@ namespace {
 
 // Closes a helper's socket (it leaves at its next read), makes sure it is gone, and waits for it:
 // nothing left behind, not even a zombie.
-void end(pid_t pid, int socket) {
+// Returns its wait status.
+int end(pid_t pid, int socket) {
     ::close(socket);
+    // A helper that has already left keeps its exit status: killing a zombie changes nothing.
     ::kill(pid, SIGKILL);
     int status = 0;
     while (::waitpid(pid, &status, 0) < 0 && errno == EINTR) {
     }
+    return status;
 }
 
 }  // namespace
 
 Helpers::Helpers(HelperOptions options)
-    : options_{std::move(options)}, reaper_{[this] { close_idle(); }} {}
+    : options_{std::move(options)}, reaper_{[this] { close_idle(); }} {
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+    // Sanitizer builds (tests, snapshots) decode several times slower.
+    options_.timeout *= 5;
+#endif
+}
 
 Helpers::~Helpers() {
     {
@@ -205,13 +213,14 @@ void Helpers::give_back(Helper helper) {
     idle_changed_.notify_one();
 }
 
-void Helpers::discard(Helper helper) {
-    end(helper.pid, helper.socket);
+int Helpers::discard(Helper helper) {
+    const int status = end(helper.pid, helper.socket);
     {
         const std::scoped_lock lock{mutex_};
         --count_;
     }
     freed_.notify_one();
+    return status;
 }
 
 Helpers::Outcome Helpers::ask(Helper helper, int file, const image::LoadRequest& request,
@@ -325,7 +334,12 @@ image::Loaded Helpers::load(const image::LoadRequest& request) {
             give_back(*helper);
             break;
         }
-        discard(*helper);
+        const int status = discard(*helper);
+        if (WIFEXITED(status) && WEXITSTATUS(status) == protocol::kSandboxFailedExit) {
+            result = failed(image::Failure::unavailable,
+                            "the preview helper could not set up its sandbox");
+            break;
+        }
         if (outcome == Outcome::failed) {
             break;
         }

@@ -4,6 +4,63 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — The helper's cage (ROADMAP 2b-2)
+
+**Tested by the author** (2026-11-07): the raw sample folder in Quick Look; every helper logged
+"seccomp on, landlock ABI 7, limits set"; `/proc/PID/status` of a live helper: NoNewPrivs 1,
+Seccomp 2, Seccomp_filters 1; `/proc/PID/limits`: 32 open files, 4294967296 bytes of address
+space. (A first try failed on my test plan: an expected value in parentheses after a fish
+command, and a helper closed by the reaper between pgrep and grep; `pgrep -n` since.)
+
+**Done** (proposal approved by the author: 4 GiB, EACCES for open, probe for tests only,
+`NORDEND_SANDBOX_REPORT`)
+- `src/isolate/src/sandbox.{hpp,cpp}`, our own code, no library. In order, once the helper has
+  decoded its warm-up pictures:
+  - resource limits: no core dumps, 32 descriptors, 4 GiB of address space (not under the
+    sanitizers, whose shadow memory is terabytes);
+  - `PR_SET_NO_NEW_PRIVS`, then landlock with no rule: no file system (every access right of the
+    running ABI), no TCP bind/connect (ABI 4+), no abstract unix sockets or signals outward (ABI
+    6+); the attribute's size follows the kernel's ABI. This machine: ABI 7 (we use up to 6);
+  - seccomp, a BPF filter written here: other architectures' calls and x32 killed; allowed:
+    read, pread64, write, recvmsg, sendmsg, ppoll/poll, lseek, close, fcntl, fstat, mmap, munmap,
+    mremap, mprotect, brk, madvise, memfd_create, ftruncate, futex, getrandom, clock_gettime,
+    rt_sigreturn, rt_sigprocmask, exit, exit_group; newfstatat only with AT_EMPTY_PATH (glibc's
+    fstat, never a path); open/openat/openat2 fail with EACCES; anything else kills the process
+    (SIGSYS). The syscall list came from strace on JPEG, PNG, WebP, JPEG XL, ORF and DNG: no
+    decoder starts a thread (libjxl without a runner, libwebp with use_threads = 0).
+- Warm-up: nine tiny fixture pictures (PNG, GIF, two JPEGs with EXIF, WebP still and animated,
+  JPEG XL, the TIFF preview; 24 KB) generated into the helper at configure time by pure CMake
+  (`file(READ … HEX)`), decoded from memfds before the cage closes.
+- A helper that cannot build its cage exits with status 3 (`kSandboxFailedExit`); Nordend reads
+  it when it reaps the helper: "the preview helper could not set up its sandbox". Landlock missing
+  is not fatal (seccomp alone already forbids opening files); with `NORDEND_LOG=debug` each helper
+  says "seccomp on, landlock ABI N, limits set".
+- `NORDEND_SANDBOX_REPORT=1`: the filter traps instead of killing; the handler writes the call's
+  number to stderr and makes it fail with ENOSYS (checked: "system call not allowed: 41" for a
+  socket).
+- ASan builds: LeakSanitizer checks at exit with a tracer (clone + ptrace), which the cage
+  forbids; `__lsan_is_turned_off()` returns 1 in the caged processes only. A few extra calls are
+  allowed in sanitizer builds only (sigaltstack, gettid, …, and pipe2 and ioctl: ASan checks
+  whether memory is readable through a pipe; an ASan snapshot showed "Preview unavailable"
+  everywhere until `NORDEND_SANDBOX_REPORT=1` named them, 16 and 293). The helpers' timeout is
+  five times longer in sanitizer builds (a TSan snapshot timed out on the ORF).
+- One slip of mine caught before running: the debug line asked `getpid()` after the cage closed
+  (not allowed, the helper would have died); the pid is now read before.
+- Tests: `tests/sandbox_test.cpp` with `tests/sandbox_probe.cpp` (`nordend-sandbox-probe`, not
+  installed): what a picture needs works; open and stat of a path give EACCES; socket, exec and
+  fork die with SIGSYS; 5 GiB are refused; landlock alone refuses a file and a TCP connection.
+  `helpers: a helper without its cage never works` (fake helper "no-sandbox").
+
+**Measured**
+- All 165 pictures (the raw sample folder, the demo ORFs and the fixtures, at 128, 1024 and
+  2880 px) through the caged helper with `NORDEND_SANDBOX_REPORT=1`: identical to the in-process
+  pictures, no call reported.
+- Starting a helper: 5.3-5.6 ms to the first tiny picture (3.6-4.1 before the warm-up and the
+  cage); a 1920x1440 ORF through a running helper 64-65 ms (unchanged); 16 ORF thumbnails on 8
+  helpers 185-187 ms (unchanged).
+
+---
+
 ## 2026-11-07 — Pictures made in a helper process (ROADMAP 2b-1)
 
 **Done**

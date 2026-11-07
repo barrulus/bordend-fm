@@ -113,6 +113,14 @@ TEST_CASE("helpers: a helper that crashes, hangs or talks nonsense is let go of"
     }
 }
 
+TEST_CASE("helpers: a helper without its cage never works, and Nordend says why") {
+    isolate::Helpers helpers{fake("no-sandbox")};
+    const image::Loaded loaded = helpers.load(request(kData / "blocks.png"));
+    CHECK(loaded.failure == Failure::unavailable);
+    CHECK(loaded.detail == "the preview helper could not set up its sandbox");
+    CHECK(helpers.running() == 0);
+}
+
 TEST_CASE("helpers: no helper, no picture, and nothing parsed here instead") {
     isolate::HelperOptions missing;
     missing.program = "/nonexistent/nordend-preview";

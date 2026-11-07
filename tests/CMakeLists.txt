@@ -19,6 +19,7 @@ add_executable(nordend-tests
     format_test.cpp
     icon_test.cpp
     helpers_test.cpp
+    sandbox_test.cpp
     image_test.cpp
     load_test.cpp
     memory_test.cpp
@@ -57,7 +58,13 @@ add_executable(nordend-fake-preview fake_preview_helper.cpp
                                     ${PROJECT_SOURCE_DIR}/src/isolate/src/protocol.cpp)
 target_include_directories(nordend-fake-preview PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
 target_link_libraries(nordend-fake-preview PRIVATE nordend::warnings)
-add_dependencies(nordend-tests nordend-preview nordend-fake-preview)
+
+# The sandbox probe: the preview helper's cage, then one forbidden (or allowed) thing.
+add_executable(nordend-sandbox-probe sandbox_probe.cpp
+                                     ${PROJECT_SOURCE_DIR}/src/isolate/src/sandbox.cpp)
+target_include_directories(nordend-sandbox-probe PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
+target_link_libraries(nordend-sandbox-probe PRIVATE nordend::warnings)
+add_dependencies(nordend-tests nordend-preview nordend-fake-preview nordend-sandbox-probe)
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
@@ -65,7 +72,8 @@ target_compile_definitions(nordend-tests
             NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/index.html"
             NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg"
             NORDEND_PREVIEW_HELPER="$<TARGET_FILE:nordend-preview>"
-            NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>")
+            NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>"
+            NORDEND_SANDBOX_PROBE="$<TARGET_FILE:nordend-sandbox-probe>")
 if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()

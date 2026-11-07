@@ -1,7 +1,8 @@
 // A preview helper that misbehaves on purpose, for tests/helpers_test.cpp. Its last argument
 // says how: crash (aborts on a request), hang (never answers), garbage (answers nonsense),
 // big-lie (claims a picture larger than the memfd it sends), goodbye (says goodbye instead of
-// answering, as a helper leaving after its idle time would).
+// answering, as a helper leaving after its idle time would), no-sandbox (exits as a helper that
+// could not build its cage).
 #include <array>
 #include <csignal>
 #include <cstdlib>
@@ -16,8 +17,11 @@
 namespace protocol = nordend::isolate::protocol;
 
 int main(int argc, char** argv) {
-    const std::string_view mode{
-        argv[argc - 1]};            // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    const std::string_view mode{argv[argc - 1]};
+    if (mode == "no-sandbox") {
+        return protocol::kSandboxFailedExit;  // as a helper that could not build its cage
+    }
     std::signal(SIGPIPE, SIG_IGN);  // NOLINT(cert-err33-c)
     while (true) {
         const std::optional<protocol::Packet> packet =
