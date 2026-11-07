@@ -10,6 +10,10 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 - Release 0.3.1 (fixes only): the raw previews of the step below. CMake version, README (badge,
   note, install note, Versions, What's next), site (badge, notice, install note, roadmap),
   features.md Next.
+- Tagged `v0.3.1` on `183a2b0` by the author, GitHub release published by the author; the
+  template (void-noctalia and `packaging/void`) on the tag's tarball (sha256 `6f5a7e45…094ac1`),
+  built with xbps-src: `nordend-0.3.1_1` (no `=> ERROR` in the log; /usr/bin/nordend, the
+  desktop entry, the icon, the licence). The site shows v0.3.1 (Pages run green in 23 s).
 
 **Decisions** (with the author, the same evening)
 - Nordend's philosophy, stated by the author: a native C++ file manager made for Noctalia Shell,
