@@ -4,6 +4,168 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — DNG fuzzing and timings (ROADMAP 2d-3)
+
+**Tested by the author** (2026-11-07, installed build, fresh cache): "funziona tutto". In his
+Quick Look (about 1200 px) the M240 took 183 ms (it was 274-323), the Canon 105 ms; the other raws
+as before.
+
+**Decisions** (with the author): the "sharp at 100 %" of 2d's "done when" moved to step 6, with
+the zoom (a full-resolution demosaic there).
+
+**Done**
+- A work limit found before fuzzing, by reading: the lossless JPEG decoder filled data that
+  ended early with zeros, so a 1 kB DNG could claim a 200 MP strip (200 million values decoded
+  from nothing, and up to 200 MB allocated by `develop()` before reading a byte). Now every value
+  costs at least a bit, as in any lossless JPEG: `find_raw` refuses a compressed strip or tile
+  under a byte per 8 values, an uncompressed one shorter than its rows, and any not in the file,
+  before anything is allocated; `decode_lossless` refuses a stream too short for its frame.
+- Fuzz targets `nordend-fuzz-dng` (container, levels, colour, sensor data, development to a
+  64x64 box) and `nordend-fuzz-ljpeg`; seeds from `tests/fuzz/make_dng_seeds.py` (six small
+  DNGs: 16-bit and packed 12-bit strips, 8-bit with a linearization table, lossless JPEG strip
+  and tiles, linear raw with a tone curve) and the 12 lossless JPEG fixtures.
+- Quicker (`docs/benchmarks.md`): developed straight to the size shown (half-size blocks
+  averaged by area on linear light into the box: no picture in between, no `scale_to_fit`; a
+  straight path when nothing is reduced), Huffman tables of 12 kB (canonical decoding for codes
+  over 11 bits) instead of 140 kB, the colour loop without branches on the data (tone curve as
+  one line through the largest and smallest colour, `maxss`/`minss`, indexes limited as
+  integers).
+
+**Measured**: fuzzing an hour on 2 processes each: `nordend-fuzz-dng` 30.9 million inputs,
+`nordend-fuzz-ljpeg` 60.7 million (plus a 5-minute run of each before, 1.9 million each): no
+crash, timeout or out-of-memory. Quick Look (offscreen, 2560x1440): DJI 249 -> 169-187 ms, Canon
+110 ms, M240 296 -> 256-262 ms with its thumbnail cached (aimed at: 250; its lossless JPEG,
+one stream, is 100 ms of it).
+
+**Open**: the M240 a few ms over 250 in Quick Look; the 70 ms from `load()` to the screen are
+the same for every format (the memfd-per-helper proposal would cut ~10 of them).
+
+---
+
+## 2026-11-07 — DNGs developed to look at (ROADMAP 2d-2)
+
+**Tested by the author** (2026-11-07, installed build, fresh cache): "tutto perfetto". His
+Quick Look asked about 1200 px, so the DJI (960) and the Canon (1024) kept their previews by the
+4/3 rule; the M240 developed in 274-323 ms (its thumbnail 172 ms the first time), the M8 in 90
+ms; the Samsung S22 and the GX20 on their full previews; the other raws as before.
+
+**Decisions** (with the author)
+- Developed only when the previews are too small: when the largest would be stretched more than
+  4/3 to fill the box asked (either way round). Quick Look at 2560x1440 develops the DJI, the
+  Canon, the M240 and the M8; the Samsung S22 and the GX20 keep their full-size previews; the DJI
+  (960) and the Canon (1024) keep theirs for thumbnails, the M240 (160) is developed for them.
+- The look: the file's ProfileToneCurve when it has one, else a light curve of ours; no exposure
+  of our own beyond BaselineExposure ("stiamo leggeri": the author, looking at the DJI next to its
+  preview and darktable, which adds about +0.7 EV by default).
+- Tone curves applied as Adobe's DNG SDK does (RefBaselineRGBTone: the largest and smallest
+  colour through the curve, the middle one kept between them), not colour by colour, which made
+  the DJI's sky an inky blue. In linear sRGB (Adobe works in ProPhoto): a difference noted.
+
+**Done**
+- `src/formats/image/src/dng/colour.{hpp,cpp}`: the DNG specification's colour (chapter 6): the
+  neutral (AsShotNeutral, else AsShotWhiteXY, else D65), its temperature found by iterating
+  (McCamy's CCT), ColorMatrix/CameraCalibration/ForwardMatrix of the two illuminants mixed by
+  inverse temperature (the DNG SDK's temperatures for the EXIF light sources), AnalogBalance;
+  forward matrix when there is one, else the inverse colour matrix and a Bradford adaptation to
+  D50; then XYZ (D50) to linear sRGB. BaselineExposure + BaselineExposureOffset (clamped to +-4
+  EV); ProfileToneCurve read and checked.
+- `src/formats/image/src/dng/develop.{hpp,cpp}`: `develop()`: Bayer 2x2 blocks (or 2x2 linear
+  raw pixels) averaged into one pixel, m x m blocks into one when the box asked is small (only
+  the thumbnails so far: at 2560x1440 m stays 1); black with its repeat and its per-row and
+  per-column deltas, scaled to the white level as the specification says; white balance with
+  every colour clipped at 1 (a sensor full in every colour stays white); one matrix with the
+  neutral and the exposure in it; the tone curve; sRGB through a table; default crop; IFD0's
+  orientation. Rows two at a time from the bands of 2d-1. A usual-case path for Bayer files
+  whose black repeats in 2x2 (all six samples), the general one otherwise; `minss`/`maxss`
+  through SSE intrinsics (GCC makes std::min/max of floats into a dozen instructions).
+- `load()`: a DNG whose previews are not enough is developed; when that fails for any reason
+  the previews are used as before. `nordend-decode --raw` also times the development.
+- `tiff::Source::read_into` (a kept buffer: no zeroing, no allocation per band); 16-bit
+  samples in the machine's byte order copied with memcpy.
+- Tests: colour (a camera seeing linear sRGB gives the identity through both the colour and
+  the forward matrix; a neutral is white; two illuminants pick the nearer; exposure; no matrix),
+  development of DNGs built in the test (18 % grey gives 118 at every pixel; the look keeps it
+  grey; a full sensor stays white; black per row; active area and default crop; m x m blocks;
+  what is refused), `load()` developing a DNG whose 16x16 preview is too small for 64 and
+  keeping it for 16, and the six real DNGs developed without the look next to LibRaw's
+  `dcraw_process` (half size, camera white balance, sRGB, no automatic brightness, clipped): a
+  16x12 grid of mean colours, mean difference 0.1-1.7 levels, worst cell 14.
+
+**Measured** (`docs/benchmarks.md`): Quick Look (offscreen, helpers caged, 2560x1440) from
+Space to the sharp picture: DJI 249 ms, Canon 110, M240 296 (its thumbnail was being developed
+at the same time). In one process: `load()` M240 216 ms, DJI 195, of which the final
+`scale_to_fit` 27-43 ms.
+
+**Slips** (mine): two tests wrong at first, not the code (the per-row black scaled against a
+fixed range, the specification wants white minus the whole black; the test's signed fractions
+over 10^7 overflowed past 214); `std::clamp` and an unsigned 64-bit conversion cost three
+times what they should in the colour loop; the per-colour tone curve (above).
+
+**Open**: M240 in Quick Look above the 250 ms aimed at: the final scaling (27-43 ms) could be
+folded into the development, and the colour stage vectorised (to be proposed). The DJI's
+corners are dark: its GainMap is 2d-4. The light curve itself was looked at on four files next
+to darktable and kept as it is.
+
+---
+
+## 2026-11-07 — DNG sensor data, our own reader (ROADMAP 2d-1)
+
+**Tested by the author** (2026-11-07): the three DNGs moved into `raw_test_photo_new`; the
+`dng:*` tests (LibRaw comparison included) and the whole suite green; `nordend-decode --raw` on
+every DNG as expected.
+
+**Decisions** (with the author)
+- 2d as proposed, updated after the author's three new DNGs (Samsung S22 Ultra, DJI Mavic Air 2,
+  Canon 350D through Adobe's converter): the Samsung carries a full-size JPEG preview and will
+  never need developing; the DJI (960x720 preview of 48 MP) and the Canon (1024x683) will, like
+  the M240 (160 px) and the M8 (320 px). Added to the plan: the DJI's OpcodeList3 (GainMap +
+  WarpRectilinear) as 2d-4 right after 2d-3; ProfileToneCurve when the file has one;
+  CameraCalibration in the colour chain; linear raw (3 samples) read too.
+- LibRaw (`libraw-devel`, installed by the author) is the reference for the tests only: found
+  by pkg-config (`libraw_r`), linked into `nordend-tests` when present, never into Nordend or
+  the helper.
+- The author's DNGs go in one folder with the other raws (`NORDEND_RAW_SAMPLES`); the LibRaw
+  test reads every `.dng` there, whatever its name.
+
+**Done**
+- `src/formats/image/src/dng/ljpeg.{hpp,cpp}`: lossless JPEG (SOF3) of our own: 2-16 bits, 1-4
+  components 1x1, one interleaved scan, predictors 1-7, point transform, restart intervals of
+  whole lines (others refused), byte stuffing; tables and lengths checked; data that ends early
+  decodes as zeros; lines given one at a time to a callback. Huffman: an 11-bit table that
+  gives the decoded difference directly when code and extra bits fit, an 11-bit table of codes,
+  a 16-bit one for the long codes, on the heap.
+- `src/formats/image/src/dng/raw.{hpp,cpp}`: `find_raw` (the main IFD: NewSubfileType 0, CFA
+  or LinearRaw, the largest, in IFD0's chain and its SubIFDs), `Raw` (size, samples, bits,
+  compression, CFA pattern through CFAPlaneColor, linearization table, black level with its
+  repeat and deltas, white level, ActiveArea, DefaultCrop), `read_rows` (bands: 64 rows of a
+  taller strip, a strip, a row of tiles; uncompressed strips read by pread a band at a time,
+  lossless JPEG strips decoded straight into bands, so a sensor is never whole in memory),
+  `read_all` for tests and tools. Uncompressed 8 and 16 bits in the file's byte order, other
+  depths packed highest bit first, rows on whole bytes. Not read (reason given, the preview
+  stays): Deflate, JPEG XL, lossy JPEG, floats, more than 16 bits, planes, non-rectangular CFAs.
+- `tiff::Ifd::reals` (integers, RATIONAL, SRATIONAL, FLOAT, DOUBLE) and the DNG tags.
+- `nordend-decode`: a camera raw now shows what `load()` shows (its largest preview), not the
+  first image of its TIFF structure (it showed the DJI's 160x120 thumbnail); `--raw OUT.pnm`
+  reads a DNG's sensor data, prints the time and writes the stored values as 16-bit PNM.
+- Tests (`tests/dng_test.cpp`): 12 lossless JPEGs made by libjpeg-turbo 3 (`tests/data/image/
+  dng/make.sh`: grey 8/12/16 bits, predictors 1-7, point transform, restarts, RGB 14 bits) equal
+  to djpeg's decoding; cut and byte-flipped streams; DNGs built in the test (8/10/12/14/16-bit
+  strips, linearization and levels, lossless JPEG tiles cut at the edges, linear raw in two
+  strips, a reader that stops, what is refused, a file cut anywhere). `tests/dng_libraw_test.cpp`:
+  the six DNGs (M240, M8, GX20, DJI, Canon, Samsung) equal LibRaw's values at every site.
+
+**Measured** (`docs/benchmarks.md`): sensor data read 2-4 times faster than LibRaw's `unpack`;
+M240 134 ms, Samsung 179, Canon 46, DJI 74, M8 18, GX20 38. The decoder alone on the M240's
+strip went from 191 to 99 ms with the tables above.
+
+**Slips** (mine, fixed before the tests ran): the first Huffman tables lived inside the headers
+struct, four of 140 kB on the stack; a negative difference divided by 256 rounded the wrong way
+in the throwaway benchmark (the checksum showed it at once).
+
+**Open**: nothing is shown differently yet: development comes in 2d-2.
+
+---
+
 ## 2026-11-07 — A home page, the documentation under /docs, a new message
 
 **Decisions** (with the author)
@@ -32,6 +194,10 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 ---
 
 ## 2026-11-07 — Our own TIFF reader (ROADMAP 2c)
+
+**Open** (the author checks it as he uses Nordend): Quick Look neighbours made in advance that
+took 4.5-4.7 s while the fuzzers and a game held the CPU; to look at again on an idle machine
+(Space and the arrows in a folder of ORFs, the "made in advance" lines with NORDEND_LOG=debug).
 
 **Tested by the author** (2026-11-07): the 12 TIFFs of `fotografia/tiff_test_pictures` in the
 grid and Quick Look (21 ms for 707x397 to 553 ms for 5600x4200; the JPEG one too), the caged

@@ -3,6 +3,10 @@
 # into the isolated helper (and tests and development tools), never into Nordend.
 add_library(nordend_formats_image
     src/decode.cpp
+    src/dng/colour.cpp
+    src/dng/develop.cpp
+    src/dng/ljpeg.cpp
+    src/dng/raw.cpp
     src/fd_file.cpp
     src/jpeg_segments.cpp
     src/jxl_decoder.cpp

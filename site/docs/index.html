@@ -266,6 +266,10 @@ cmake --build build-tsan
 # Unit tests (needs doctest-devel), in any build directory
 ctest --test-dir build
 
+# Optional, tests only: with libraw-devel installed, the DNG reader is checked against LibRaw
+# on every .dng in a folder of camera raws (LibRaw is never linked into Nordend)
+NORDEND_RAW_SAMPLES=~/raw-samples ./build/tests/nordend-tests -tc="dng:*"
+
 # Render the test scene offscreen, no window: &lt;out.ppm&gt; [width height scale [colors.toml]]
 ./build/nordend-snapshot scene.ppm 960 820 1.5
 
@@ -797,8 +801,9 @@ follow_accent = true</code></pre>
   <h3 id="roadmap/now">Now</h3>
   <ol>
     <li><strong>Image previews</strong>: one path for every format; file parsers in an isolated
-    helper (seccomp, landlock, no network); our own TIFF and DNG decoders. Raw files keep showing
-    the JPEG their camera stored; one without a readable preview says so.</li>
+    helper (seccomp, landlock, no network); our own TIFF and DNG decoders (done: a DNG with only a
+    small preview is developed by Nordend; next: fuzzing, the DNG lens corrections). Raw files keep
+    showing the JPEG their camera stored; one without a readable preview says so.</li>
     <li><strong>Text previews</strong>: syntax highlighting in your theme's colours, selecting and
     copying</li>
     <li><strong>Other formats</strong>, one at a time</li>

@@ -29,6 +29,9 @@ public:
 
     // Exactly length bytes from offset; empty when they are not all there.
     [[nodiscard]] std::vector<std::uint8_t> read(std::uint64_t offset, std::size_t length) const;
+    // Exactly to.size() bytes from offset into to (a buffer kept between reads); false when they
+    // are not all there.
+    [[nodiscard]] bool read_into(std::uint64_t offset, std::span<std::uint8_t> to) const;
 
     [[nodiscard]] bool has(std::uint64_t offset, std::uint64_t length) const {
         return offset <= size_ && length <= size_ - offset;
@@ -131,6 +134,11 @@ public:
     // The raw bytes of a tag's values (any type), at most max_bytes; empty otherwise.
     [[nodiscard]] std::vector<std::uint8_t> bytes(std::uint16_t tag,
                                                   std::size_t max_bytes = 1U << 20) const;
+    // The values of a numeric tag as reals (integers, RATIONAL, SRATIONAL, FLOAT, DOUBLE; a
+    // fraction over zero is 0), at most max_count of them; empty when missing, of another type,
+    // out of the data or more than max_count.
+    [[nodiscard]] std::vector<double> reals(std::uint16_t tag,
+                                            std::size_t max_count = 1U << 20) const;
 
     [[nodiscard]] const Container& container() const { return container_; }
 
@@ -166,7 +174,34 @@ inline constexpr std::uint16_t kSubIfds = 330;
 inline constexpr std::uint16_t kExtraSamples = 338;
 inline constexpr std::uint16_t kSampleFormat = 339;
 inline constexpr std::uint16_t kJpegTables = 347;
+inline constexpr std::uint16_t kCfaRepeatPatternDim = 33421;
+inline constexpr std::uint16_t kCfaPattern = 33422;
 inline constexpr std::uint16_t kDngVersion = 50706;
+inline constexpr std::uint16_t kCfaPlaneColor = 50710;
+inline constexpr std::uint16_t kCfaLayout = 50711;
+inline constexpr std::uint16_t kLinearizationTable = 50712;
+inline constexpr std::uint16_t kBlackLevelRepeatDim = 50713;
+inline constexpr std::uint16_t kBlackLevel = 50714;
+inline constexpr std::uint16_t kBlackLevelDeltaH = 50715;
+inline constexpr std::uint16_t kBlackLevelDeltaV = 50716;
+inline constexpr std::uint16_t kWhiteLevel = 50717;
+inline constexpr std::uint16_t kDefaultCropOrigin = 50719;
+inline constexpr std::uint16_t kDefaultCropSize = 50720;
+inline constexpr std::uint16_t kColorMatrix1 = 50721;
+inline constexpr std::uint16_t kColorMatrix2 = 50722;
+inline constexpr std::uint16_t kCameraCalibration1 = 50723;
+inline constexpr std::uint16_t kCameraCalibration2 = 50724;
+inline constexpr std::uint16_t kAnalogBalance = 50727;
+inline constexpr std::uint16_t kAsShotNeutral = 50728;
+inline constexpr std::uint16_t kAsShotWhiteXy = 50729;
+inline constexpr std::uint16_t kBaselineExposure = 50730;
+inline constexpr std::uint16_t kCalibrationIlluminant1 = 50778;
+inline constexpr std::uint16_t kCalibrationIlluminant2 = 50779;
+inline constexpr std::uint16_t kActiveArea = 50829;
+inline constexpr std::uint16_t kProfileToneCurve = 50940;
+inline constexpr std::uint16_t kForwardMatrix1 = 50964;
+inline constexpr std::uint16_t kForwardMatrix2 = 50965;
+inline constexpr std::uint16_t kBaselineExposureOffset = 51109;
 }  // namespace tag
 
 }  // namespace nordend::formats::image::tiff

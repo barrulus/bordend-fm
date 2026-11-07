@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "dng/develop.hpp"
 #include "fd_file.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/formats/image/preview.hpp"
@@ -94,6 +95,21 @@ Failure failure_of(Problem problem) {
             return Failure::unreadable;
     }
     return Failure::damaged;
+}
+
+// Whether a preview of width x height is enough for a box of max_width x max_height: it would be
+// stretched at most 4/3 to fill it (either way round: the picture may be turned). A DNG with
+// none enough is developed from its sensor data.
+bool enough(std::uint32_t width, std::uint32_t height, std::uint32_t max_width,
+            std::uint32_t max_height) {
+    if (width == 0 || height == 0) {
+        return false;
+    }
+    const double long_side = std::max(width, height);
+    const double short_side = std::min(width, height);
+    const double stretch = std::min(std::max(max_width, max_height) / long_side,
+                                    std::min(max_width, max_height) / short_side);
+    return stretch <= 4.0 / 3.0;
 }
 
 Loaded failed(Failure failure, std::string detail) {
@@ -182,7 +198,25 @@ Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height) {
         result.from_preview = true;
         return true;
     };
-    if (!preview.data.empty() && std::max(preview.width, preview.height) >= side) {
+    // A DNG whose previews are too small: developed (Nordend's own code), else the previews.
+    if (picture.empty() && kind == Kind::container && sniff(head) == Format::tiff &&
+        !enough(preview.width, preview.height, max_width, max_height)) {
+        const tiff::Source source{*file};
+        if (const std::optional<tiff::Container> container = tiff::Container::open(source)) {
+            std::string why;
+            Problem problem{};
+            if (std::optional<dng::Developed> developed = dng::develop(
+                    *container, {.look = true, .max_width = max_width, .max_height = max_height},
+                    why, problem)) {
+                picture = std::move(developed->image);
+                orientation = developed->orientation;
+                result.full_width = developed->full_width;
+                result.full_height = developed->full_height;
+            }
+        }
+    }
+    if (picture.empty() && !preview.data.empty() &&
+        std::max(preview.width, preview.height) >= side) {
         from_preview();
     }
     if (picture.empty() && (kind == Kind::image || kind == Kind::jpeg)) {

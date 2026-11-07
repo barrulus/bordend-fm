@@ -14,6 +14,7 @@ add_executable(nordend-tests
     drag_drop_test.cpp
     directory_model_test.cpp
     directory_test.cpp
+    dng_test.cpp
     event_loop_test.cpp
     file_watcher_test.cpp
     format_test.cpp
@@ -53,8 +54,18 @@ add_executable(nordend-tests
     xcursor_test.cpp)
 target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::thumbs nordend::preview nordend::isolate nordend::platform doctest::doctest nordend::warnings)
 
-# The helper protocol's private header, for its tests.
-target_include_directories(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
+# The helper protocol's private header, for its tests; the image family's private readers (TIFF,
+# DNG, lossless JPEG), for theirs.
+target_include_directories(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src
+                                                 ${PROJECT_SOURCE_DIR}/src/formats/image/src)
+
+# LibRaw, when installed, as the reference for the DNG reader's values (tests only: never linked
+# into Nordend or its helper).
+pkg_check_modules(LIBRAW QUIET IMPORTED_TARGET libraw_r)
+if(LIBRAW_FOUND)
+    target_sources(nordend-tests PRIVATE dng_libraw_test.cpp)
+    target_link_libraries(nordend-tests PRIVATE PkgConfig::LIBRAW)
+endif()
 
 # A preview helper that misbehaves on purpose (crash, hang, nonsense), and the real one, for
 # tests/helpers_test.cpp.

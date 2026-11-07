@@ -114,7 +114,9 @@
     <p>TIFF (LZW, Deflate, PackBits, JPEG, tiles, BigTIFF), PGM and PPM are read by code written
     for Nordend, checked pixel for pixel against libtiff and fuzzed. PNG, JPEG and GIF go through
     <a href="https://github.com/google/wuffs">wuffs</a>, memory-safe by construction. Raw files
-    show the JPEG their camera stored: the camera's own rendering, exposure and colour.</p>
+    show the JPEG their camera stored: the camera's own rendering, exposure and colour. A DNG
+    whose stored previews are too small is developed by Nordend's own reader, read identically
+    to LibRaw, with the file's own colour.</p>
   </div>
   <ul class="formats" aria-label="What Quick Look and the thumbnails show">
     <li>TIFF</li><li>BigTIFF</li><li>PNG</li><li>JPEG</li><li>GIF</li><li>WebP</li>

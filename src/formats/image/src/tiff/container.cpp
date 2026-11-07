@@ -23,6 +23,18 @@ std::vector<std::uint8_t> Source::read(std::uint64_t offset, std::size_t length)
     return {start, start + static_cast<std::ptrdiff_t>(length)};
 }
 
+bool Source::read_into(std::uint64_t offset, std::span<std::uint8_t> to) const {
+    if (!has(offset, to.size())) {
+        return false;
+    }
+    if (file_ != nullptr) {
+        const std::optional<std::size_t> got = file_->read_into(offset, to);
+        return got && *got == to.size();
+    }
+    std::copy_n(bytes_.begin() + static_cast<std::ptrdiff_t>(offset), to.size(), to.begin());
+    return true;
+}
+
 std::size_t type_size(std::uint16_t type) noexcept {
     switch (static_cast<Type>(type)) {
         case Type::uint8:
@@ -238,6 +250,99 @@ std::vector<std::uint64_t> Ifd::numbers(std::uint16_t tag, std::size_t max_count
             return {};
         }
         out.push_back(*value);
+    }
+    return out;
+}
+
+std::vector<double> Ifd::reals(std::uint16_t tag, std::size_t max_count) const {
+    const Entry* entry = find(tag);
+    if (entry == nullptr || entry->count == 0 || entry->count > max_count) {
+        return {};
+    }
+    const auto type = static_cast<Type>(entry->type);
+    if (is_integer(type)) {
+        const std::vector<std::uint8_t> raw = bytes(tag, max_count * type_size(entry->type));
+        const std::size_t size = type_size(entry->type);
+        if (raw.size() != entry->count * size) {
+            return {};
+        }
+        std::vector<double> out;
+        out.reserve(static_cast<std::size_t>(entry->count));
+        const bool is_signed = type == Type::sint8 || type == Type::sint16 ||
+                               type == Type::sint32 || type == Type::sint64;
+        for (std::size_t i = 0; i < raw.size(); i += size) {
+            const std::span<const std::uint8_t> one = std::span{raw}.subspan(i, size);
+            std::uint64_t value = 0;
+            std::int64_t signed_value = 0;
+            switch (size) {
+                case 1:
+                    value = one[0];
+                    signed_value = value >= 0x80 ? static_cast<std::int64_t>(value) - 0x100
+                                                 : static_cast<std::int64_t>(value);
+                    break;
+                case 2:
+                    value = container_.u16(one);
+                    signed_value = static_cast<std::int16_t>(value);
+                    break;
+                case 4:
+                    value = container_.u32(one);
+                    signed_value = static_cast<std::int32_t>(value);
+                    break;
+                default:
+                    value = container_.u64(one);
+                    signed_value = static_cast<std::int64_t>(value);
+                    break;
+            }
+            out.push_back(is_signed ? static_cast<double>(signed_value)
+                                    : static_cast<double>(value));
+        }
+        return out;
+    }
+    if (type != Type::rational && type != Type::srational && type != Type::float32 &&
+        type != Type::float64) {
+        return {};
+    }
+    const std::size_t size = type_size(entry->type);
+    const std::vector<std::uint8_t> raw = bytes(tag, max_count * size);
+    if (raw.size() != entry->count * size) {
+        return {};
+    }
+    std::vector<double> out;
+    out.reserve(static_cast<std::size_t>(entry->count));
+    for (std::size_t i = 0; i < raw.size(); i += size) {
+        const std::span<const std::uint8_t> one = std::span{raw}.subspan(i, size);
+        switch (type) {
+            case Type::rational: {
+                const std::uint32_t denominator = container_.u32(one.subspan(4, 4));
+                out.push_back(denominator == 0 ? 0.0
+                                               : static_cast<double>(container_.u32(one)) /
+                                                     static_cast<double>(denominator));
+                break;
+            }
+            case Type::srational: {
+                const auto numerator = static_cast<std::int32_t>(container_.u32(one));
+                const auto denominator =
+                    static_cast<std::int32_t>(container_.u32(one.subspan(4, 4)));
+                out.push_back(denominator == 0 ? 0.0
+                                               : static_cast<double>(numerator) /
+                                                     static_cast<double>(denominator));
+                break;
+            }
+            case Type::float32: {
+                const std::uint32_t bits = container_.u32(one);
+                float value = 0.0F;
+                std::memcpy(&value, &bits, sizeof value);
+                out.push_back(static_cast<double>(value));
+                break;
+            }
+            default: {
+                const std::uint64_t bits = container_.u64(one);
+                double value = 0.0;
+                std::memcpy(&value, &bits, sizeof value);
+                out.push_back(value);
+                break;
+            }
+        }
     }
     return out;
 }

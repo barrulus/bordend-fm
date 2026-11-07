@@ -93,6 +93,85 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## DNG development made quicker (ROADMAP 2d-3)
+
+### 2026-11-07
+
+Same methods as 2d-2 below. Quick Look (offscreen, helpers caged, 2560x1440, three runs each):
+
+| File | 2d-2 | 2d-3 |
+|---|---|---|
+| DJI FC3170 | 249 ms | 169-187 ms |
+| Canon 350D | 110 ms | 110 ms |
+| Leica M240 (thumbnail cached) | 296 ms (thumbnail made at once) | 256-262 ms |
+
+`load(fd, 2560, 1440)` in one process, best of 3: DJI 195 -> 126 ms, M240 216 -> 184 ms, Canon
+-> 75 ms, M8 -> 62 ms. What did it:
+- Developing straight to the size shown: the half-size blocks averaged by area (as
+  `scale_to_fit` does, but on linear light) into the box, the colour then worked out for the
+  pixels shown only: no 48 MB picture in between, no `scale_to_fit` (27-43 ms).
+- Huffman tables of 12 kB (an 11-bit lookup and the canonical codes for the long ones) instead
+  of 140 kB: the Canon's 150 tiles each built two (callgrind: 128 million instructions of
+  memset and fill).
+- No branches on the data in the colour loop: `maxss`/`minss` for the largest and smallest
+  colour, the tone curve as one line through them (no sorting), table indexes limited as
+  integers.
+
+Fuzzing (`build-fuzz`, clang, libFuzzer + ASan + UBSan, an hour, 2 processes each):
+`nordend-fuzz-dng` 30.9 million inputs (about 8 500 a second), `nordend-fuzz-ljpeg` 60.7 million
+(about 16 800 a second); no crash, timeout or out-of-memory.
+
+Left: the M240's lossless JPEG (one strip, no restart markers: one stream, one core) is about
+100 ms of its 184; from `load()` to the screen another 70 ms (helper, transfer, upload), as for
+every format.
+
+## DNGs developed (ROADMAP 2d-2)
+
+### 2026-11-07
+
+Quick Look, `nordend-snapshot --columns DIR --reveal FILE --keys "Ctrl+2,space" ... 2560 1440 1`
+with `NORDEND_LOG=debug` (Release, helpers caged; the "on screen ... after it was asked for"
+line); and `load(fd, 2560, 1440)` in one process (a throwaway program, median of 3, file in the
+page cache):
+
+| File | Developed to | Quick Look | `load()` | of which `develop()` | `scale_to_fit` |
+|---|---|---|---|---|---|
+| DJI FC3170 (48 MP, uncompressed) | 4000x3000 -> 1920x1440 | 249 ms | 195 ms | 153 ms | 41-43 ms |
+| Leica M240 (24 MP, lossless JPEG) | 2988x1996 -> 2156x1440 | 296 ms | 216 ms | 170 ms | 27 ms |
+| Canon 350D (8 MP, lossless JPEG tiles) | 1728x1152 | 110 ms | | 56-61 ms | |
+| Leica M8 (10 MP, 8 bit) | 1958x1317 | | | 41 ms | |
+
+`develop()` includes reading the sensor (DJI 11 ms of bands, M240 117 ms, Canon 33 ms). The M240
+was measured while its thumbnail (developed too: its preview is 160 px) was being made. Steps of
+the DJI's development: 220 -> 203 ms with a 32-bit index into the curve table (callgrind: the
+unsigned 64-bit conversion took 13 instructions a colour), -> 153 ms with `minss`/`maxss`.
+
+Against LibRaw's development (`dcraw_process`, half size, camera white balance, sRGB, no
+automatic brightness), ours without the look, 16x12 grid of mean colours: DJI 1.2 levels of 255
+on average (worst cell 11.3), M240 0.4 (1.5), M8 0.1 (1.4), GX20 1.7 (14.0), Samsung S22 0.7
+(4.7), Canon 0.9 (3.9).
+
+## DNG sensor data, our own reader (ROADMAP 2d-1)
+
+### 2026-11-07
+
+`nordend-decode --runs 5 --raw /dev/null FILE`, Release build, median of 4 runs after the first
+(file in the page cache): every value of the sensor read and linearized into one buffer
+(`read_all`). LibRaw 0.21.4: best of 3 `unpack()` in a throwaway program (`g++ -O2`).
+
+| File | Sensor | Storage | Ours | LibRaw |
+|---|---|---|---|---|
+| Leica M240 | 5984x4000 CFA | lossless JPEG, 16 bit, one strip | 134 ms | 521 ms |
+| Samsung S22 Ultra | 4000x3000 linear raw | lossless JPEG, 3 x 16 bit, one strip | 179 ms | 649 ms |
+| Canon 350D (Adobe) | 3516x2328 CFA | lossless JPEG, 12 bit, 256x240 tiles | 46 ms | 168 ms |
+| DJI FC3170 | 8000x6000 CFA | uncompressed 16 bit, one strip | 74 ms | 186 ms |
+| Leica M8 | 3920x2638 CFA | uncompressed 8 bit + linearization | 18 ms | 83 ms |
+| Samsung GX20 | 4864x3136 CFA | uncompressed 12 bit, packed | 38 ms | 137 ms |
+
+The lossless JPEG decoder alone (a throwaway program on the M240's strip, 27 MB, in memory): 191
+ms with a 16-bit lookup table, 161 ms with an 11-bit first level, 99 ms when that level also
+holds the decoded difference (most codes and their extra bits fit in 11 bits).
+
 ## TIFF, our own reader (ROADMAP 2c)
 
 ### 2026-11-07

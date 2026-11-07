@@ -153,6 +153,7 @@ target_link_libraries(nordend-watch PRIVATE nordend::core nordend::fs nordend::w
 # Development tool: decodes images, prints sizes and timings (ROADMAP 5.1). Not installed.
 add_executable(nordend-decode src/tools/decode.cpp)
 target_link_libraries(nordend-decode PRIVATE nordend::core nordend::formats::image nordend::warnings)
+target_include_directories(nordend-decode PRIVATE ${PROJECT_SOURCE_DIR}/src/formats/image/src)
 
 # Development tool: thumbnails through the freedesktop cache (ROADMAP 5.2). Not installed.
 add_executable(nordend-thumb src/tools/thumb.cpp)

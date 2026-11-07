@@ -79,7 +79,14 @@ README's [What's next](../README.md#whats-next).
 - **Raw files from many cameras:** OM System and Olympus ORF (including the maker-note preview),
   Canon CR2, Nikon NEF and TIFF, Sony ARW, Fujifilm RAF, Panasonic RW2 (cropped to the shot's
   aspect ratio), Samsung SRW, Epson ERF, Hasselblad 3FR and DNG (including previews stored as a
-  JPEG inside a TIFF: full size in a Samsung GX20's DNG). Each is shown upright, in the shape it
+  JPEG inside a TIFF: full size in a Samsung GX20's DNG). A DNG whose previews are too small for
+  where it is shown (more than 4/3 stretched: Leica M240 and M8, DJI drones, files from Adobe's
+  converter) is developed by Nordend's own reader instead: lossless JPEG or uncompressed sensor
+  data (8-16 bit, strips or tiles, linear raw too), black and white levels, the camera's white
+  balance with highlights kept white, the file's colour matrices for the shot's light, its
+  baseline exposure and tone curve (else a light curve of Nordend's), the default crop, at half
+  size or smaller, straight to the size shown; in Quick Look in about 105 ms (Canon) to 260 ms
+  (M240 at 2560x1440). Each is shown upright, in the shape it
   was shot, without the black bars some cameras put on their thumbnails; a preview the camera
   stored broken is passed over for the next one. Formats with no preview Nordend can read (Sigma
   X3F, old Panasonic RAW) say so in Quick Look.
