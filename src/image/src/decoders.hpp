@@ -9,6 +9,9 @@
 
 namespace nordend::image::detail {
 
+// The error every decoder gives for an image over DecodeOptions::max_pixels.
+inline constexpr const char* kTooLarge = "image too large";
+
 // PNG, JPEG and GIF (first frame), with wuffs.
 void decode_wuffs(std::span<const std::uint8_t> data, const DecodeOptions& options,
                   Decoded& result);

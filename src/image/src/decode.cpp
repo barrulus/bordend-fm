@@ -195,10 +195,12 @@ Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options)
             break;
         case Format::unknown:
             result.error = data.empty() ? "empty file" : "not an image format Nordend decodes";
+            result.problem = data.empty() ? Problem::damaged : Problem::unknown_format;
             return result;
     }
     if (!result.error.empty()) {
         result.image = {};
+        result.problem = result.error == detail::kTooLarge ? Problem::too_large : Problem::damaged;
         return result;
     }
     if (options.apply_orientation) {
@@ -213,6 +215,7 @@ Decoded decode_file(const std::filesystem::path& path, const DecodeOptions& opti
     if (error) {
         Decoded result;
         result.error = error.message();
+        result.problem = Problem::unreadable;
         return result;
     }
     // The head first: a file of a format not decoded here (a raw file of 50 MB) is not read.
@@ -227,6 +230,7 @@ Decoded decode_file(const std::filesystem::path& path, const DecodeOptions& opti
     if (!read(0, head)) {
         Decoded result;
         result.error = "cannot read the file";
+        result.problem = Problem::unreadable;
         return result;
     }
     if (sniff(data) == Format::unknown) {
@@ -236,6 +240,7 @@ Decoded decode_file(const std::filesystem::path& path, const DecodeOptions& opti
     if (!read(head, size - head)) {
         Decoded result;
         result.error = "cannot read the file";
+        result.problem = Problem::unreadable;
         return result;
     }
     return decode(data, options);

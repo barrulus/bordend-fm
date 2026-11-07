@@ -14,9 +14,8 @@
 #include <utility>
 #include <vector>
 
+#include "nordend/image/load.hpp"
 #include "nordend/image/png.hpp"
-#include "nordend/image/preview.hpp"
-#include "nordend/image/scale.hpp"
 #include "nordend/thumbs/md5.hpp"
 
 namespace nordend::thumbs {
@@ -149,40 +148,6 @@ Size size_for(std::uint32_t side) noexcept {
     return Size::xx_large;
 }
 
-bool can_make(std::string_view mime) noexcept {
-    static constexpr std::array<std::string_view, 30> kTypes{"image/png",
-                                                             "image/jpeg",
-                                                             "image/gif",
-                                                             "image/webp",
-                                                             "image/jxl",
-                                                             "image/tiff",
-                                                             "image/x-adobe-dng",
-                                                             "image/x-canon-cr2",
-                                                             "image/x-canon-cr3",
-                                                             "image/x-canon-crw",
-                                                             "image/x-dcraw",
-                                                             "image/x-fuji-raf",
-                                                             "image/x-kodak-dcr",
-                                                             "image/x-kodak-k25",
-                                                             "image/x-kodak-kdc",
-                                                             "image/x-minolta-mrw",
-                                                             "image/x-nikon-nef",
-                                                             "image/x-nikon-nrw",
-                                                             "image/x-olympus-orf",
-                                                             "image/x-panasonic-raw",
-                                                             "image/x-panasonic-raw2",
-                                                             "image/x-panasonic-rw",
-                                                             "image/x-panasonic-rw2",
-                                                             "image/x-pentax-pef",
-                                                             "image/x-portable-graymap",
-                                                             "image/x-portable-pixmap",
-                                                             "image/x-sigma-x3f",
-                                                             "image/x-sony-arw",
-                                                             "image/x-sony-sr2",
-                                                             "image/x-sony-srf"};
-    return std::ranges::find(kTypes, mime) != kTypes.end();
-}
-
 std::string_view source_name(Source source) noexcept {
     switch (source) {
         case Source::cache:
@@ -254,53 +219,17 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
         return failure("a thumbnail itself");  // the spec: never thumbnail the cache
     }
     const std::uint32_t side = pixels(size);
-
-    // A preview the file carries, when it is big enough or the file cannot be decoded at all
-    // (a raw file); else the whole image.
-    image::Image picture;
-    std::uint8_t orientation = 1;
-    Source source = Source::failed;
-    std::string error;
-    const image::EmbeddedPreview preview = image::embedded_preview(file, side);
-    const bool preview_enough = std::max(preview.width, preview.height) >= side;
-    if (!preview.data.empty() && preview_enough) {
-        image::Decoded decoded = image::decode_preview(preview);
-        if (decoded.error.empty()) {
-            picture = std::move(decoded.image);
-            orientation = preview.orientation;
-            source = Source::preview;
-        }
-    }
-    if (picture.empty()) {
-        image::Decoded decoded = image::decode_file(file, {.apply_orientation = false});
-        if (decoded.error.empty()) {
-            picture = std::move(decoded.image);
-            orientation = decoded.orientation;
-            source = Source::decoded;
-        } else if (!preview.data.empty()) {
-            // Not decodable (a raw file): the largest preview there is will do.
-            image::Decoded small = image::decode_preview(preview);
-            if (small.error.empty()) {
-                picture = std::move(small.image);
-                orientation = preview.orientation;
-                source = Source::preview;
-            }
-        }
-        if (picture.empty()) {
-            error = decoded.error;
-        }
-    }
-    if (picture.empty()) {
+    image::Loaded loaded = image::load({.path = file, .max_width = side, .max_height = side});
+    if (loaded.failure != image::Failure::none) {
         // Remembered, so that it is not tried again until the file changes.
         const image::Image blank{.width = 1, .height = 1, .rgba = {0, 0, 0, 0}};
         static_cast<void>(store(fail_path(file), blank, uri, mtime));
-        return failure(error.empty() ? "no image in the file" : error);
+        return failure(std::string{loaded.error()} + " (" + loaded.detail + ")");
     }
-    // Scaled first, turned after: the turn costs little at thumbnail size.
-    image::Image thumbnail =
-        image::apply_orientation(image::scale_to_fit(picture, side, side), orientation);
-    static_cast<void>(store(path_for(file, size), thumbnail, uri, mtime));
-    return {.image = std::move(thumbnail), .source = source, .error = {}};
+    static_cast<void>(store(path_for(file, size), loaded.image, uri, mtime));
+    return {.image = std::move(loaded.image),
+            .source = loaded.from_preview ? Source::preview : Source::decoded,
+            .error = {}};
 }
 
 }  // namespace nordend::thumbs

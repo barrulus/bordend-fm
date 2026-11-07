@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — One path for every picture (ROADMAP 2a)
+
+**Tested by the author** (2026-11-07): thumbnails and Quick Look on the raw sample folder and the
+author's ORF and JPEG folders, the plain reasons, a PNG named `.jpg`.
+
+**Done**
+- `image::load(LoadRequest) -> Loaded` (`nordend/image/load.hpp`) is the only way a file becomes a
+  picture: thumbnails (`thumbs::Cache::make`) and Quick Look (the image provider) both call it.
+  `image::load_to_fit` / `Fitted` and the copy of the same steps in `Cache::make` are gone
+  (`fit.cpp` deleted). The request and the result are plain data, ready to cross a process
+  boundary in 2b.
+- The format comes from the first bytes (64 KiB read once), not the name: PNG, GIF, WebP, JPEG
+  XL, PGM/PPM are decoded whole and **never reach exiv2**; a JPEG asks exiv2 for a stored preview
+  only when it has EXIF (a camera's); TIFF and the raw formats built like it (ORF, RW2, old
+  Panasonic RAW), RAF, CR3, CRW and MRW use stored previews only, no pointless whole-file decode;
+  Sigma X3F is refused at once (exiv2 does not read it); anything else that a raw MIME type led
+  here still goes to exiv2.
+- Failures are a type, `image::Failure` (unknown_format, no_readable_preview, too_large, damaged,
+  unreadable), each with one sentence (`failure_message`) shown the same everywhere; the
+  technical reason stays in `Loaded::detail` and goes to the log (`NORDEND_LOG=debug`,
+  "preview: …"). Decoders now report `Decoded::problem`, and the four spellings of "too large"
+  became one (`detail::kTooLarge`).
+- `thumbs::can_make` became `image::may_show` (the list lives with the image code).
+- Tests: `tests/load_test.cpp` (every fixture through `load` gives the same pixels as its
+  thumbnail; a PNG named .jpg, a JPEG named .png, a WebP named .orf all show; empty, noise, huge,
+  cut short, missing and X3F files give their own failure; exiv2 is not called for PNG, GIF, WebP,
+  JPEG XL, PGM/PPM or a JPEG without EXIF, counted by `embedded_preview_reads()`).
+
+**Measured** (benchmarks.md "One path for every picture")
+- Thumbnails at 128 px, median of 7: unchanged within noise (PNG 2400x1600 177.3 → 175.5 ms, the
+  exiv2 open saved; ORF 7.6 → 7.8 ms, the 64 KiB head read). Quick Look of an ORF in the
+  offscreen snapshot (2560x1440, scale 1): 105-107 ms before, 103-105 ms after.
+- The gain of this step is fewer parser runs on outside files (safety) and one place for the
+  logic, not speed.
+
+**Refactors** (asked by the author after the test)
+- The preview choice in `preview.cpp` is one list in order of preference
+  (`order_by_preference`: JPEGs large enough smallest first, TIFFs large enough smallest first,
+  then the largest, a JPEG before a TIFF of the same size; stable, so ties keep the file's order),
+  tried until one is usable. The two-pass `choose()` and its retry loop are gone (17 lines in, 42
+  out). Checked: `nordend-thumb` at the four sizes on the 55 sample and fixture files picks the
+  same preview at the same size as before; only the failure sentences differ (2a).
+- One reading of the file per picture: **measured, not done**. `strace` on one ORF thumbnail: 7
+  opens, about 130 system calls on the file, of which ours are 2 opens (the 64 KiB head and the
+  Olympus preview); the rest is exiv2 (lseek, reads, an mmap of the whole file). Sharing one
+  buffer among our own steps saves well under 0.2 ms of 7.8; feeding exiv2 from memory would mean
+  reading or mapping the whole raw (a mapped file cut short while read kills the process with
+  SIGBUS). Moved into 2e: our own reader opens the file once, with pread.
+
+---
+
 ## 2026-11-07 — Nordend 0.3.1
 
 **Done**

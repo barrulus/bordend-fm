@@ -136,7 +136,7 @@ TEST_CASE("preview: the provider for a type") {
     CHECK(std::holds_alternative<preview::Info>(content_of("text/plain", fake)));
     CHECK(std::holds_alternative<preview::Info>(content_of("application/zip", json)));
     CHECK(std::holds_alternative<preview::Info>(content_of("inode/directory", dir.path)));
-    CHECK(std::holds_alternative<nordend::image::Fitted>(
+    CHECK(std::holds_alternative<nordend::image::Loaded>(
         content_of("image/png", fs::path{NORDEND_TEST_DATA} / "image" / "blocks.png")));
     // A type not known yet gets the card until it is.
     CHECK(std::holds_alternative<preview::Info>(

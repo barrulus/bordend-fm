@@ -37,7 +37,7 @@ public:
             return AllocPixbufResult(std::string{"the image has no pixels"});
         }
         if (std::uint64_t{width} * height > max_pixels_) {
-            return AllocPixbufResult(std::string{"the image is too large"});
+            return AllocPixbufResult(std::string{kTooLarge});
         }
         const std::uint64_t length = config.pixcfg.pixbuf_len();
         if (length != std::uint64_t{width} * height * 4) {

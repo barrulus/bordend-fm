@@ -84,7 +84,11 @@ README's [What's next](../README.md#whats-next).
   stored broken is passed over for the next one. Formats with no preview Nordend can read (Sigma
   X3F, old Panasonic RAW) say so in Quick Look.
 - **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
-  (8 and 16 bits), with EXIF orientation.
+  (8 and 16 bits), with EXIF orientation. The format is told by the file's bytes, not its name
+  (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
+- **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look
+  and everywhere else: not a kind Nordend shows, no readable preview in a raw file, too large,
+  damaged, or unreadable.
 - **Shared freedesktop thumbnail cache:** thumbnails go where GNOME, KDE and other apps look for
   them, byte-compatible, so they are made once for all of them. Files that fail are remembered.
 - **Quick Look** (Space): the photo fills the window, raw files included. An ORF fitted to a

@@ -93,6 +93,30 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## One path for every picture (ROADMAP 2a)
+
+### 2026-11-07: before and after `image::load`
+
+`nordend-thumb --size normal --make FILE` (128 px), fresh cache each round, 7 rounds, median and
+minimum, Release build; the same runner (a throwaway Python script) on the binary of `0dc49bc`
+and on the new one:
+
+| File | Before | After |
+|---|---|---|
+| 2400x1600 PNG (plasma noise) | 177.3 ms | 175.5 ms |
+| the same as JPEG q85 | 34.3 ms | 34.3 ms |
+| the same as WebP q85 | 61.7 ms | 61.8 ms |
+| `shot.jpg` (fixture, OM-1 EXIF) | 0.6 ms | 0.6 ms |
+| OM-1 ORF | 7.6 ms | 7.8 ms |
+| Nikon NEF (8280 px) | 8.0 ms | 8.2 ms |
+| Samsung GX20 DNG | 133.4 ms | 134.8 ms |
+| Hasselblad CFV PPM (4096x4096) | 217.6 ms | 216.4 ms |
+
+Quick Look of `_7230017.ORF` in `nordend-snapshot` (offscreen, 2560x1440 at scale 1,
+`NORDEND_LOG=debug`, "on screen" time), 5 runs: 105.1-107.2 ms before (`0dc49bc`, built in a
+worktree), 103.1-104.9 ms after. Not comparable with the on-screen 82-96 ms of 7.6 (another
+size and no compositor).
+
 ## Raw previews (ROADMAP 1, 0.3.1)
 
 ### 2026-11-07: `nordend-thumb`, the new sample folder

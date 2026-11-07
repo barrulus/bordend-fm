@@ -10,7 +10,7 @@
 
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/mime.hpp"
-#include "nordend/image/fit.hpp"
+#include "nordend/image/load.hpp"
 #include "nordend/image/photo.hpp"
 
 // What Quick Look shows for a file, made on a worker. One provider per kind of file (DESIGN,
@@ -36,7 +36,7 @@ struct Info {
     std::string error;                       // the file could not be examined
 };
 
-using Content = std::variant<image::Fitted, Text, Info>;
+using Content = std::variant<image::Loaded, Text, Info>;
 
 // What a provider makes: the alternative of Content it returns (Text may become Info: a "text"
 // file with NUL bytes in it).

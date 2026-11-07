@@ -33,7 +33,7 @@ void decode_jxl(std::span<const std::uint8_t> data, const DecodeOptions& options
                     return;
                 }
                 if (std::uint64_t{info.xsize} * info.ysize > options.max_pixels) {
-                    result.error = "the image is too large";
+                    result.error = kTooLarge;
                     return;
                 }
                 image.width = info.xsize;

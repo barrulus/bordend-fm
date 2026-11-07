@@ -11,7 +11,7 @@
 #include <doctest/doctest.h>
 
 #include "nordend/image/decode.hpp"
-#include "nordend/image/fit.hpp"
+#include "nordend/image/load.hpp"
 #include "nordend/image/photo.hpp"
 #include "nordend/image/png.hpp"
 #include "nordend/image/preview.hpp"
@@ -446,8 +446,9 @@ TEST_CASE("image: raw samples of other cameras" *
         INFO(std::string{kWithPreview.at(i)});
         REQUIRE(std::filesystem::exists(kRawSamples / kWithPreview.at(i)));
         CHECK(preview(kWithPreview.at(i), 256).data.empty());
-        CHECK(image::load_to_fit(kRawSamples / kWithPreview.at(i), 800, 600).error ==
-              "No preview Nordend can show in this file");
+        CHECK(image::load(
+                  {.path = kRawSamples / kWithPreview.at(i), .max_width = 800, .max_height = 600})
+                  .failure == image::Failure::no_readable_preview);
     }
     // Hasselblad's CFV sample is a plain 8-bit PPM.
     const image::Decoded cfv = image::decode_file(kRawSamples / "RAW_HASSELBLAD_CFV.PPM");

@@ -81,7 +81,7 @@ void decode_pnm(std::span<const std::uint8_t> data, const DecodeOptions& options
         return;
     }
     if (std::uint64_t{*width} * *height > options.max_pixels) {
-        result.error = "image too large";
+        result.error = kTooLarge;
         return;
     }
     const std::size_t sample = *maxval > 255 ? 2 : 1;

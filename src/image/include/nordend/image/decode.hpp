@@ -34,15 +34,19 @@ struct DecodeOptions {
     bool apply_orientation{true};
 };
 
+// What kind of problem a failed decode met.
+enum class Problem : std::uint8_t { none, unknown_format, too_large, damaged, unreadable };
+
 struct Decoded {
     Image image;  // empty on failure
     Format format{Format::unknown};
     std::uint8_t orientation{1};  // EXIF orientation found in the file, 1-8 (1: as stored)
-    std::string error;            // why it failed; empty on success
+    std::string error;            // why it failed, in the decoder's words; empty on success
+    Problem problem{Problem::none};
 };
 
-// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame) or JPEG XL image. Never throws for
-// bad input: problems land in error. Thread-safe: call it from workers.
+// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame), JPEG XL, PGM or PPM image. Never
+// throws for bad input: problems land in error. Thread-safe: call it from workers.
 [[nodiscard]] Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options = {});
 
 // Reads the file and decodes it.

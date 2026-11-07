@@ -44,7 +44,7 @@ void decode_webp(std::span<const std::uint8_t> data, const DecodeOptions& option
     const auto width = static_cast<std::uint32_t>(features.width);
     const auto height = static_cast<std::uint32_t>(features.height);
     if (std::uint64_t{width} * height > options.max_pixels) {
-        result.error = "the image is too large";
+        result.error = kTooLarge;
         return;
     }
     const WebPData webp{.bytes = data.data(), .size = data.size()};

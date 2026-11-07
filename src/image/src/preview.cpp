@@ -6,6 +6,7 @@
 #include <fstream>
 #include <mutex>
 #include <optional>
+#include <tuple>
 #include <utility>
 
 #include "exiv2_init.hpp"
@@ -165,30 +166,18 @@ std::optional<SensorCrop> panasonic_crop(const std::filesystem::path& path) {
     return crop;
 }
 
-// Among the candidates that pass the filter: the smallest whose long side is at least
-// min_long_side, else the largest.
-template <typename Filter>
-std::optional<std::size_t> choose(const std::vector<Candidate>& candidates,
-                                  std::uint32_t min_long_side, Filter filter) {
-    std::optional<std::size_t> best;
-    for (std::size_t i = 0; i < candidates.size(); ++i) {
-        if (!filter(candidates[i])) {
-            continue;
+// The order the candidates are tried in: JPEGs large enough, smallest first; then TIFFs large
+// enough (raw RGB, large on disk, and only some can be read), smallest first; then, when none is
+// large enough, the largest, a JPEG before a TIFF of the same size. Ties keep the file's order.
+void order_by_preference(std::vector<Candidate>& candidates, std::uint32_t min_long_side) {
+    const auto key = [min_long_side](const Candidate& c) {
+        const std::uint32_t side = c.long_side();
+        if (side >= min_long_side) {
+            return std::tuple{c.tiff ? 1 : 0, std::int64_t{side}, 0};
         }
-        if (!best) {
-            best = i;
-            continue;
-        }
-        const std::uint32_t side = candidates[i].long_side();
-        const std::uint32_t best_side = candidates[*best].long_side();
-        const bool enough = side >= min_long_side;
-        const bool best_enough = best_side >= min_long_side;
-        if ((enough && (!best_enough || side < best_side)) ||
-            (!enough && !best_enough && side > best_side)) {
-            best = i;
-        }
-    }
-    return best;
+        return std::tuple{2, -std::int64_t{side}, c.tiff ? 1 : 0};
+    };
+    std::ranges::stable_sort(candidates, {}, key);
 }
 
 }  // namespace
@@ -251,27 +240,12 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
                 return (a > b ? a - b : b - a) * 50 > b;
             });
         }
-        // A JPEG, unless none is big enough and a TIFF is bigger: TIFF previews are raw RGB,
-        // large on disk, and only some can be read. One that turns out broken (Samsung EX2F's
-        // 640x360 JPEG stops before its end) is dropped and the choice made again.
+        // Tried in order; one that turns out broken (Samsung EX2F's 640x360 JPEG stops before
+        // its end) is passed over for the next.
+        order_by_preference(candidates, min_long_side);
         std::vector<std::uint8_t> data;
         std::optional<Candidate> picked;
-        while (!candidates.empty() && !picked) {
-            std::optional<std::size_t> best =
-                choose(candidates, min_long_side, [](const Candidate& c) { return !c.tiff; });
-            if (!best || candidates[*best].long_side() < min_long_side) {
-                const std::optional<std::size_t> tiff =
-                    choose(candidates, min_long_side, [](const Candidate& c) { return c.tiff; });
-                if (tiff &&
-                    (!best || candidates[*tiff].long_side() > candidates[*best].long_side())) {
-                    best = tiff;
-                }
-            }
-            if (!best) {
-                break;
-            }
-            Candidate chosen = candidates[*best];
-            candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(*best));
+        for (Candidate chosen : candidates) {
             if (chosen.property) {
                 const Exiv2::PreviewImage preview =
                     previews.getPreviewImage(properties.at(*chosen.property));
@@ -298,6 +272,7 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
                 chosen.tiff ? detail::TiffReader::open(data).has_value() : detail::whole_jpeg(data);
             if (usable) {
                 picked = chosen;
+                break;
             }
         }
         if (!picked) {

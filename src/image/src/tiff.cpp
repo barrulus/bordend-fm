@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "decoders.hpp"
+
 namespace nordend::image::detail {
 namespace {
 
@@ -131,7 +133,7 @@ void decode_tiff_rgb8(std::span<const std::uint8_t> data, const DecodeOptions& o
         return;
     }
     if (std::uint64_t{width} * height > options.max_pixels) {
-        result.error = "image too large";
+        result.error = kTooLarge;
         return;
     }
     const std::uint32_t rows_per_strip = tiff->number(ifd, kRowsPerStrip).value_or(height);

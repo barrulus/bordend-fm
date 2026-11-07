@@ -10,6 +10,7 @@
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
 #include "nordend/fs/icon.hpp"
+#include "nordend/image/load.hpp"
 #include "nordend/ui/text_field.hpp"
 #include "nordend/views/format.hpp"
 
@@ -328,7 +329,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             typed.mime = folder_->mime_of(entry);
             const ui::Texture* thumbnail = nullptr;
             if (thumbnails_ != nullptr && !entry.is_directory() &&
-                thumbs::can_make(mime_->name(typed.mime))) {
+                image::may_show(mime_->name(typed.mime))) {
                 thumbnail =
                     thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
             }

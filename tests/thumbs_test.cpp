@@ -61,14 +61,6 @@ TEST_CASE("thumbs: sizes") {
     CHECK(thumbs::directory_name(thumbs::Size::x_large) == "x-large");
 }
 
-TEST_CASE("thumbs: made for the image formats Nordend decodes and for raw files") {
-    CHECK(thumbs::can_make("image/jpeg"));
-    CHECK(thumbs::can_make("image/x-olympus-orf"));
-    CHECK(thumbs::can_make("image/tiff"));  // Nikon TIFF, Hasselblad 3FR
-    CHECK_FALSE(thumbs::can_make("image/svg+xml"));
-    CHECK_FALSE(thumbs::can_make("text/plain"));
-}
-
 TEST_CASE("thumbs: made once, then read from the cache until the file changes") {
     TempDir dir;
     const fs::path photo = dir.path / "photo one.jpg";

@@ -256,11 +256,11 @@ const preview::Content* QuickLook::content() const {
 
 std::optional<std::pair<std::uint32_t, std::uint32_t>> QuickLook::image_size() const {
     const preview::Content* const shown = content();
-    const auto* const fitted = shown == nullptr ? nullptr : std::get_if<image::Fitted>(shown);
-    if (fitted == nullptr || fitted->image.empty()) {
+    const auto* const loaded = shown == nullptr ? nullptr : std::get_if<image::Loaded>(shown);
+    if (loaded == nullptr || loaded->image.empty()) {
         return std::nullopt;
     }
-    return std::pair{fitted->image.width, fitted->image.height};
+    return std::pair{loaded->image.width, loaded->image.height};
 }
 
 void QuickLook::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -301,15 +301,15 @@ void QuickLook::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
 void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
                            const theme::Palette& palette, ui::IconSet& icons,
                            const fs::Entry& entry, Slot& slot, float fade) {
-    auto* const fitted = slot.content ? std::get_if<image::Fitted>(slot.content.get()) : nullptr;
+    auto* const loaded = slot.content ? std::get_if<image::Loaded>(slot.content.get()) : nullptr;
     // Upload what arrived: the sharp image replaces the thumbnail. The pixels are on the GPU now:
     // they go (the size stays, for the caption).
-    if (fitted != nullptr && !fitted->image.empty() && !slot.image_texture) {
+    if (loaded != nullptr && !loaded->image.empty() && !slot.image_texture) {
         slot.image_texture = std::make_unique<ui::Texture>(
-            fitted->image.width, fitted->image.height, fitted->image.rgba);
-        std::vector<std::uint8_t>{}.swap(fitted->image.rgba);
+            loaded->image.width, loaded->image.height, loaded->image.rgba);
+        std::vector<std::uint8_t>{}.swap(loaded->image.rgba);
         log::debug("quick look: {} {}x{} on screen {:.1f} ms after it was asked for{}", entry.name,
-                   fitted->image.width, fitted->image.height, since(slot.requested),
+                   loaded->image.width, loaded->image.height, since(slot.requested),
                    slot.in_advance ? " (made in advance, as a neighbour)" : "");
         if (slot.thumbnail_texture) {
             retired_.push_back(std::move(slot.thumbnail_texture));
@@ -331,8 +331,8 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
         slot.image_texture ? slot.image_texture.get() : slot.thumbnail_texture.get();
 
     std::string caption = entry.name;
-    if (fitted != nullptr && fitted->full_width > 0) {
-        caption += std::format("   {} × {}", fitted->full_width, fitted->full_height);
+    if (loaded != nullptr && loaded->full_width > 0) {
+        caption += std::format("   {} × {}", loaded->full_width, loaded->full_height);
     }
     caption += "   " + format_size(entry.size);
     if (texture == nullptr) {
@@ -343,8 +343,8 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
         const float y = area.y + ((area.height - kCardIcon) / 2.0F);
         icons.draw(renderer, fs::icon_name(*mime_, typed), x, y, kCardIcon,
                    palette.on_surface_variant.with_alpha(fade));
-        if (fitted != nullptr && !fitted->error.empty()) {
-            draw_centered(renderer, fitted->error, area, y + kCardIcon + 16.0F, 13.0F,
+        if (loaded != nullptr && !loaded->error().empty()) {
+            draw_centered(renderer, loaded->error(), area, y + kCardIcon + 16.0F, 13.0F,
                           palette.error.with_alpha(fade));
         }
     } else {
@@ -517,8 +517,8 @@ QuickLook::Usage QuickLook::usage() const {
         }
         usage.pixel_bytes += slot.thumbnail_pixels ? slot.thumbnail_pixels->rgba.size() : 0;
         if (slot.content) {
-            if (const auto* fitted = std::get_if<image::Fitted>(slot.content.get())) {
-                usage.pixel_bytes += fitted->image.rgba.size();
+            if (const auto* loaded = std::get_if<image::Loaded>(slot.content.get())) {
+                usage.pixel_bytes += loaded->image.rgba.size();
             }
         }
     }
