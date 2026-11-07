@@ -17,6 +17,7 @@
 #include "jpeg_segments.hpp"
 #include "nordend/formats/image/preview.hpp"
 #include "nordend/picture/scale.hpp"
+#include "tiff/decode.hpp"
 
 namespace nordend::formats::image {
 
@@ -32,11 +33,12 @@ constexpr std::size_t kHead = std::size_t{64} * 1024;
 
 // What a file is, from its first bytes.
 enum class Kind : std::uint8_t {
-    image,      // PNG, GIF, WebP, JPEG XL, PGM/PPM: decoded whole, never a stored preview
-    jpeg,       // decoded whole; a camera's (with EXIF) may carry a larger preview first
-    container,  // TIFF and the raw formats built like it, RAF, CR3, CRW, MRW: previews only
-    no_reader,  // a raw format exiv2 does not read (Sigma X3F)
-    unknown,    // nothing known: only a camera raw's MIME type led here, so exiv2 may know it
+    image,       // PNG, GIF, WebP, JPEG XL, PGM/PPM: decoded whole, never a stored preview
+    jpeg,        // decoded whole; a camera's (with EXIF) may carry a larger preview first
+    container,   // TIFF and the raw formats built like it, RAF, CR3, CRW, MRW: previews only
+    plain_tiff,  // a TIFF that is not a camera raw: decoded here, read piece by piece
+    no_reader,   // a raw format exiv2 does not read (Sigma X3F)
+    unknown,     // nothing known: only a camera raw's MIME type led here, so exiv2 may know it
 };
 
 bool starts_with(std::span<const std::uint8_t> data, std::string_view prefix) {
@@ -55,13 +57,14 @@ Kind kind_of(std::span<const std::uint8_t> head) {
         case Format::jxl:
         case Format::pnm:
             return Kind::image;
+        case Format::tiff:  // a raw or a plain TIFF: told apart in load(), which has the file
         case Format::unknown:
             break;
     }
     using namespace std::string_view_literals;
     // TIFF (also DNG, NEF, CR2, ARW, PEF, SRW, 3FR, ERF), ORF, RW2 and old Panasonic RAW.
     for (const std::string_view magic :
-         {"II*\0"sv, "MM\0*"sv, "IIRO"sv, "IIRS"sv, "MMOR"sv, "IIU\0"sv}) {
+         {"II*\0"sv, "MM\0*"sv, "II+\0"sv, "MM\0+"sv, "IIRO"sv, "IIRS"sv, "MMOR"sv, "IIU\0"sv}) {
         if (starts_with(head, magic)) {
             return Kind::container;
         }
@@ -129,7 +132,11 @@ Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height) {
         return failed(file->size() == 0 ? Failure::damaged : Failure::unreadable,
                       file->size() == 0 ? "empty file" : "cannot read the file");
     }
-    const Kind kind = kind_of(head);
+    Kind kind = kind_of(head);
+    if (kind == Kind::container && sniff(head) == Format::tiff &&
+        !tiff::is_camera_raw(tiff::Source{*file})) {
+        kind = Kind::plain_tiff;
+    }
     if (kind == Kind::no_reader) {
         return failed(Failure::no_readable_preview, "a raw format Nordend does not read");
     }
@@ -138,7 +145,25 @@ Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height) {
     const std::uint32_t side = std::max(max_width, max_height);
     Image picture;
     std::uint8_t orientation = 1;
+    std::optional<Failure> tiff_failure;  // a TIFF that did not decode, if previews fail too
 
+    if (kind == Kind::plain_tiff) {
+        Decoded decoded = tiff::decode(tiff::Source{*file}, {.apply_orientation = false});
+        if (decoded.error.empty()) {
+            picture = std::move(decoded.image);
+            orientation = decoded.orientation;
+            result.full_width = picture.width;
+            result.full_height = picture.height;
+        } else if (decoded.problem == Problem::too_large) {
+            return failed(Failure::too_large, std::move(decoded.error));
+        } else {
+            // Not a TIFF this reader shows: maybe a camera raw it did not recognise, whose
+            // stored previews still show it.
+            kind = Kind::container;
+            tiff_failure = failure_of(decoded.problem);
+            result.detail = std::move(decoded.error);
+        }
+    }
     // A preview the file carries: camera JPEGs (only those with EXIF can have one) and raw files.
     EmbeddedPreview preview;
     const bool camera_jpeg = kind == Kind::jpeg && detail::jpeg_exif(head).has_value();
@@ -184,6 +209,9 @@ Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height) {
             std::string detail = preview.error;
             if (detail.empty()) {
                 detail = result.detail.empty() ? "no preview in the file" : result.detail;
+            }
+            if (tiff_failure) {
+                return failed(*tiff_failure, std::move(detail));
             }
             return failed(
                 kind == Kind::unknown ? Failure::unknown_format : Failure::no_readable_preview,

@@ -47,9 +47,10 @@ colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Nocta
 - **Safe with what it reads.** Files that come from outside are read by `nordend-preview`, a
   small helper process in a cage of Nordend's own (seccomp and landlock: no files, no network,
   no programs). A broken or hostile file costs at most its preview; Nordend carries on.
-- **Careful readers.** PNG, JPEG and GIF are read by [wuffs](https://github.com/google/wuffs),
-  memory-safe by construction; PGM and PPM by code written for Nordend. Raw files show the JPEG
-  their camera stored, so the camera's own rendering.
+- **Its own readers.** TIFF (LZW, Deflate, PackBits, JPEG, tiles, BigTIFF), PGM and PPM are
+  read by code written for Nordend, checked pixel for pixel against libtiff and fuzzed; PNG, JPEG
+  and GIF by [wuffs](https://github.com/google/wuffs), memory-safe by construction. Raw files
+  show the JPEG their camera stored, so the camera's own rendering.
 - **Photos and their editors.** Thumbnails, the info pane and Quick Look with the shot's EXIF
   and rating; darktable sidecars travel with their photo through every rename, copy, move and
   trip to the trash.
@@ -72,8 +73,8 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
   scrollable page; the arrows walk the folder
 - **Raw files:** the previews cameras embed in ORF, CR2, NEF, ARW, RAF, RW2, SRW, DNG, 3FR
   (exiv2), upright and cropped to the shot; EXIF in the info pane
-- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and PGM and PPM with Nordend's own
-  reader; thumbnails in the shared freedesktop cache
+- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and TIFF, PGM and PPM with Nordend's own
+  readers; thumbnails in the shared freedesktop cache
 - **Isolated reading:** every picture is made in a caged helper process, never in Nordend
 - **darktable:** sidecars follow their photo everywhere; ratings shown
 - **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
@@ -187,7 +188,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Pictures made apart: the libraries that read photos run in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock: no files, no network, no programs), so a file that crashes or hangs one costs only its preview, and Nordend itself no longer loads exiv2, libjxl or libwebp (21 libraries down to 17, 2.5 ms less to load them); one path for every picture: the format is told by the file's bytes, not its name; exiv2 is no longer run on PNG, GIF, WebP, JPEG XL, PGM/PPM or JPEGs without EXIF; a file that cannot be shown says why in a plain sentence |
+| on `main`, next | TIFF with Nordend's own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, grey, RGB, YCbCr, palette, CMYK, alpha, tiles), identical to libtiff on 36 test files and 12 real ones; pictures made apart: the libraries that read photos run in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock: no files, no network, no programs), so a file that crashes or hangs one costs only its preview, and Nordend itself no longer loads exiv2, libjxl or libwebp (21 libraries down to 17, 2.5 ms less to load them); one path for every picture: the format is told by the file's bytes, not its name; exiv2 is no longer run on PNG, GIF, WebP, JPEG XL, PGM/PPM or JPEGs without EXIF; a file that cannot be shown says why in a plain sentence |
 | [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |

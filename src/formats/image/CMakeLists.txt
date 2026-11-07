@@ -10,7 +10,9 @@ add_library(nordend_formats_image
     src/photo.cpp
     src/pnm.cpp
     src/preview.cpp
-    src/tiff.cpp
+    src/tiff/codecs.cpp
+    src/tiff/container.cpp
+    src/tiff/decode.cpp
     src/webp_decoder.cpp
     src/wuffs_decoder.cpp)
 add_library(nordend::formats::image ALIAS nordend_formats_image)
@@ -18,4 +20,4 @@ add_library(nordend::formats::image ALIAS nordend_formats_image)
 target_include_directories(nordend_formats_image PUBLIC include)
 target_link_libraries(nordend_formats_image
     PUBLIC nordend::picture
-    PRIVATE PkgConfig::WEBP PkgConfig::JXL PkgConfig::EXIV2 nordend::warnings)
+    PRIVATE PkgConfig::WEBP PkgConfig::JXL PkgConfig::EXIV2 PkgConfig::ZLIB nordend::warnings)

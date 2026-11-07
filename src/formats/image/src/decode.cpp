@@ -10,7 +10,7 @@
 
 #include "decoders.hpp"
 #include "jpeg_segments.hpp"
-#include "tiff.hpp"
+#include "tiff/decode.hpp"
 
 namespace nordend::formats::image {
 namespace {
@@ -31,7 +31,6 @@ constexpr std::array<std::uint8_t, 4> kWebp{'W', 'E', 'B', 'P'};
 constexpr std::array<std::uint8_t, 6> kExif{'E', 'x', 'i', 'f', 0, 0};
 constexpr std::array<std::uint8_t, 4> kTiffLittle{'I', 'I', 42, 0};
 constexpr std::array<std::uint8_t, 4> kTiffBig{'M', 'M', 0, 42};
-constexpr std::uint16_t kOrientationTag = 0x0112;
 constexpr std::size_t kSniffBytes = 16;  // enough for sniff()
 
 // The EXIF orientation of a JPEG: wuffs does not report JPEG metadata, so it is read from the
@@ -57,6 +56,8 @@ std::string_view format_name(Format format) noexcept {
             return "JPEG XL";
         case Format::pnm:
             return "PNM";
+        case Format::tiff:
+            return "TIFF";
         case Format::unknown:
             break;
     }
@@ -84,6 +85,12 @@ Format sniff(std::span<const std::uint8_t> head) noexcept {
         (head[2] == ' ' || head[2] == '\t' || head[2] == '\n' || head[2] == '\r')) {
         return Format::pnm;
     }
+    // TIFF and BigTIFF, either byte order.
+    if (head.size() >= 4 &&
+        ((head[0] == 'I' && head[1] == 'I' && (head[2] == 42 || head[2] == 43) && head[3] == 0) ||
+         (head[0] == 'M' && head[1] == 'M' && head[2] == 0 && (head[3] == 42 || head[3] == 43)))) {
+        return Format::tiff;
+    }
     return Format::unknown;
 }
 
@@ -94,11 +101,11 @@ std::uint8_t exif_orientation(std::span<const std::uint8_t> exif) noexcept {
     if (!starts_with(exif, kTiffLittle) && !starts_with(exif, kTiffBig)) {
         return 1;
     }
-    const std::optional<detail::TiffReader> tiff = detail::TiffReader::open(exif);
-    if (!tiff) {
-        return 1;
-    }
-    const std::uint32_t value = tiff->number(tiff->first_ifd(), kOrientationTag).value_or(1);
+    const tiff::Source source{exif};
+    const std::optional<tiff::Container> container = tiff::Container::open(source);
+    const std::optional<tiff::Ifd> first =
+        container ? container->ifd(container->first_ifd()) : std::nullopt;
+    const std::uint64_t value = first ? first->number(tiff::tag::kOrientation).value_or(1) : 1;
     return value >= 1 && value <= 8 ? static_cast<std::uint8_t>(value) : 1;
 }
 
@@ -122,6 +129,9 @@ Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options)
             break;
         case Format::pnm:
             detail::decode_pnm(data, options, result);
+            break;
+        case Format::tiff:
+            result = tiff::decode(tiff::Source{data}, options);
             break;
         case Format::unknown:
             result.error = data.empty() ? "empty file" : "not an image format Nordend decodes";

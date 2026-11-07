@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
+#include <exception>
 #include <exiv2/exiv2.hpp>
 #include <fcntl.h>
 #include <mutex>
@@ -16,7 +17,7 @@
 #include "fd_file.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/formats/image/decode.hpp"
-#include "tiff.hpp"
+#include "tiff/decode.hpp"
 
 namespace nordend::formats::image {
 namespace {
@@ -118,12 +119,21 @@ struct SensorCrop {
 
 std::optional<SensorCrop> panasonic_crop(const detail::FdFile& file) {
     const std::vector<std::uint8_t> head = file.read(0, kIfdHead);
-    const std::optional<detail::TiffReader> tiff = detail::TiffReader::open(head);
-    if (!tiff) {
+    // RW2: TIFF's structure with its own magic number.
+    const tiff::Source source{head};
+    const std::optional<tiff::Container> container = tiff::Container::open(source, true);
+    const std::optional<tiff::Ifd> ifd =
+        container ? container->ifd(container->first_ifd()) : std::nullopt;
+    if (!ifd) {
         return std::nullopt;
     }
-    const std::size_t ifd = tiff->first_ifd();
-    const auto tag = [&](std::uint16_t number) { return tiff->number(ifd, number); };
+    const auto tag = [&](std::uint16_t number) -> std::optional<std::uint32_t> {
+        const std::optional<std::uint64_t> value = ifd->number(number);
+        if (!value || *value > UINT32_MAX) {
+            return std::nullopt;
+        }
+        return static_cast<std::uint32_t>(*value);
+    };
     const auto top = tag(0x2F);
     const auto left = tag(0x30);
     const auto bottom = tag(0x31);
@@ -268,7 +278,7 @@ EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
             }
             if (chosen.tiff) {
                 // A TIFF preview compressed as JPEG (DNG): the JPEG itself, read like any other.
-                if (const auto inner = detail::jpeg_in_tiff(data)) {
+                if (const auto inner = tiff::jpeg_in_tiff(data)) {
                     const std::optional<detail::JpegSize> size = detail::jpeg_size(*inner);
                     if (!size) {
                         continue;
@@ -281,8 +291,8 @@ EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
                     }
                 }
             }
-            const bool usable =
-                chosen.tiff ? detail::TiffReader::open(data).has_value() : detail::whole_jpeg(data);
+            const bool usable = chosen.tiff ? tiff::Container::open(tiff::Source{data}).has_value()
+                                            : detail::whole_jpeg(data);
             if (usable) {
                 picked = chosen;
                 break;
@@ -308,7 +318,9 @@ EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
         if (orientation && *orientation >= 1 && *orientation <= 8) {
             result.orientation = static_cast<std::uint8_t>(*orientation);
         }
-    } catch (const Exiv2::Error& error) {
+    } catch (const std::exception& error) {
+        // exiv2's own errors, and the standard ones its checks throw (std::overflow_error from
+        // its safe arithmetic, found by fuzzing): a file it cannot read, never a crash.
         result = {};
         result.error = error.what();
     }
@@ -318,7 +330,7 @@ EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
 Decoded decode_preview(const EmbeddedPreview& preview) {
     Decoded result;
     if (preview.tiff) {
-        detail::decode_tiff_rgb8(preview.data, {}, result);
+        result = tiff::decode(tiff::Source{preview.data}, {.apply_orientation = false});
     } else {
         result = decode(preview.data, {.apply_orientation = false});
     }

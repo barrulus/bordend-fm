@@ -20,6 +20,7 @@ add_executable(nordend-tests
     icon_test.cpp
     helpers_test.cpp
     sandbox_test.cpp
+    tiff_test.cpp
     image_test.cpp
     load_test.cpp
     memory_test.cpp

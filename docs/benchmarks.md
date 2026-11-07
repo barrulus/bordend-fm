@@ -93,6 +93,28 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## TIFF, our own reader (ROADMAP 2c)
+
+### 2026-11-07
+
+`nordend-thumb --size normal --make`, Release build, 5 runs, median (best), peak RSS of the
+tool; three 6000x4000 (24 MP) files made with ImageMagick from one plasma picture, in
+`/var/tmp/nordend-tiff-bench` (a game was running, about 1.5 cores busy):
+
+| File | Size | Thumbnail | Peak RSS |
+|---|---|---|---|
+| 8-bit RGB, LZW + predictor | 16 MB | 467 (465) ms | 169 MB |
+| 16-bit RGB, Deflate + predictor | 100 MB | 888 (878) ms | 169 MB |
+| 8-bit RGB, uncompressed | 69 MB | 302 (297) ms | 168 MB |
+
+The author's 12 TIFFs (`fotografia/tiff_test_pictures`), decode only (`decode_file`, one run):
+2 ms (512x512) to 480 ms (5600x4200, LZW, alpha); in Quick Look on screen (the author's
+run, helpers on): 21 ms (707x397) to 553 ms (5600x4200).
+
+Fuzzing (`build-fuzz`, clang 21, libFuzzer + ASan + UBSan): `nordend-fuzz-tiff` 33.5 million
+inputs in an hour on 4 processes (about 9 300 a second), `nordend-fuzz-picture` 1.24 million in
+30 minutes on 2 (exiv2 and the decoders make it slower).
+
 ## Parsers out of Nordend (ROADMAP 2b-3)
 
 ### 2026-11-07: v0.3.1 against now, Release builds

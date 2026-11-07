@@ -84,7 +84,9 @@ README's [What's next](../README.md#whats-next).
   stored broken is passed over for the next one. Formats with no preview Nordend can read (Sigma
   X3F, old Panasonic RAW) say so in Quick Look.
 - **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
-  (8 and 16 bits), with EXIF orientation. The format is told by the file's bytes, not its name
+  (8 and 16 bits), and **TIFF** with Nordend's own reader (BigTIFF too; uncompressed, LZW,
+  Deflate, PackBits, JPEG; 1 to 16-bit and floating-point samples; grey, RGB, YCbCr, palette,
+  CMYK, alpha; strips and tiles), with EXIF orientation. The format is told by the file's bytes, not its name
   (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
 - **Pictures made apart:** the libraries that read photos (exiv2, libwebp, libjxl, wuffs on your
   files) run in small `nordend-preview` processes, not in Nordend: a file that crashes or hangs

@@ -1,5 +1,6 @@
 #include "nordend/formats/image/photo.hpp"
 
+#include <exception>
 #include <exiv2/exiv2.hpp>
 #include <fcntl.h>
 #include <memory>
@@ -73,7 +74,7 @@ std::optional<int> sidecar_rating(int sidecar_fd) {
         if (rating >= -1 && rating <= 5 && rating != 0) {
             return rating;
         }
-    } catch (const Exiv2::Error&) {
+    } catch (const std::exception&) {
         return std::nullopt;  // an unreadable sidecar has no rating
     }
     return std::nullopt;
@@ -135,7 +136,7 @@ PhotoInfo read_photo_info(int fd, int sidecar_fd) {
         info.flash = printed(exif, "Exif.Photo.Flash");
         info.white_balance = printed(exif, "Exif.Photo.WhiteBalance");
         info.software = printed(exif, "Exif.Image.Software");
-    } catch (const Exiv2::Error&) {
+    } catch (const std::exception&) {
         info = {};
     }
     info.rating = sidecar_fd >= 0 ? sidecar_rating(sidecar_fd) : std::nullopt;

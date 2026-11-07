@@ -4,6 +4,117 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — A home page, the documentation under /docs, a new message
+
+**Decisions** (with the author)
+- Nordend's message: "A native file manager for Wayland: fast, light and safe. No GTK, no Qt,
+  no GLib: C++20 straight on Wayland and OpenGL ES." ("without dependencies", the author's first
+  wording, would not be true: 17 libraries; "no toolkit" is.) "Made for photographers" is gone
+  from the README and the site; photos stay as one feature among others.
+- The README says once, plainly, that TIFF, PGM and PPM are read by Nordend's own code (checked
+  against libtiff, fuzzed) and that files are read in a caged helper.
+
+**Done**
+- `site/index.html` (+ `home.css`, `home.js`): a home page: the message, Install / Read the
+  docs / GitHub, the screenshot, three cards Fast / Light / Safe with their figures, "Its own
+  readers" with the formats as tags, six features, "At home on any desktop, right at home on
+  Noctalia", a footer. The alpine hero (contours, the ridge at dusk) as in the documentation.
+- `site/docs/` (moved with git mv): the documentation as it was, with `../images/` and
+  `../nordend.svg`, "Docs" beside the brand (which leads home), its opening text with the new
+  message. `site/tokens.css`: the colours and type shared by both.
+- Old one-page links (`…/nordend-fm/#install/source`, in the README and maybe elsewhere) are
+  sent on to `docs/` by a few lines in the home page (checked with bun on seven addresses); the
+  README links straight to `docs/`. The Pages workflow copies the folder (`cp -r`); the shortcut
+  test reads `site/docs/index.html`.
+- Looked at with headless Firefox: home dark and light at 1440 px, home at 390 px, the guide in
+  `docs/` with its pictures.
+
+---
+
+## 2026-11-07 — Our own TIFF reader (ROADMAP 2c)
+
+**Tested by the author** (2026-11-07): the 12 TIFFs of `fotografia/tiff_test_pictures` in the
+grid and Quick Look (21 ms for 707x397 to 553 ms for 5600x4200; the JPEG one too), the caged
+helpers on; ORFs as before (75-98 ms asked directly). Two neighbours made in advance arrived
+after 4.5-4.7 s while the fuzzers held 6 cores: *to be checked again on an idle machine*.
+
+**Decisions** (with the author)
+- Our own reader rather than libtiff (a table of pros and cons, discussed): libtiff would add
+  about 1.7 MB of libraries to every helper (libtiff 594 KB, zstd 817 KB, libjpeg 666 KB, lzma
+  199 KB, jbig 54 KB) and a dozen codecs we do not need, with a long CVE history; and the DNG
+  reader (2d) and exiv2's replacement (2e) need a TIFF container of ours anyway, so with libtiff
+  we would have had two TIFF codebases. The risk of new code is met with exact comparisons
+  against libtiff, fuzzing from day one, and the cage.
+- Scope: classic TIFF and BigTIFF, both byte orders; strips and tiles; chunky and planar; no
+  compression, LZW, Deflate (zlib), PackBits; predictors 2 and 3; 1/2/4/8/16-bit integers and
+  16/32/64-bit floats; grey (either way), RGB, palette, CMYK (naive), associated and unassociated
+  alpha; the first full-resolution image; Orientation. Then, the same day, JPEG inside TIFF
+  (one of the author's 12 sample TIFFs used it): each strip or tile is spliced with the shared
+  JPEGTables and decoded by wuffs (RGB, YCbCr 4:2:0/4:4:4, grey; strips and tiles), no new
+  library. Not yet: the old "style 6" JPEG, CCITT G3/G4, ICC profiles (sRGB assumed).
+
+**Done**
+- `src/formats/image/src/tiff/`: `container` (Source over a file with pread or bytes in
+  memory; IFDs with every offset and count checked; next-IFD pointer optional, as small EXIF
+  blocks end right after their entries; loops and long chains stopped), `codecs` (PackBits and
+  TIFF LZW ours, early change, the pre-1991 LZW refused; Deflate through zlib; every decompressor
+  writes at most the expected size, short data padded as libtiff does), `decode` (layout checks
+  before any allocation: sides up to 2^20, 8 samples a pixel, strips/tiles up to 2^22, 1 GiB a
+  chunk, the picture limit; then chunk by chunk, read with pread, never the whole file).
+- The old `TiffReader` and `decode_tiff_rgb8` are gone: EXIF orientation, the Panasonic crop
+  (RW2's own magic: `any_magic`), the DNG JPEG-in-TIFF previews and the raws' small TIFF
+  previews all go through the new container and decoder.
+- Routing: a file with TIFF's magic is a camera raw when an IFD or SubIFD holds a CFA or
+  LinearRaw image, a 10/12/14-bit one (Samsung SRW leaves out the CFA tag: found when every raw
+  sample was compared, before the author saw it), a DNGVersion tag, or is a CR2; raws keep their
+  embedded previews. Anything else is a plain TIFF, decoded by us without exiv2; one that does
+  not decode still tries the stored previews (a raw we failed to recognise keeps its preview),
+  and keeps the TIFF's reason when there is none.
+- Fixtures: `tests/data/image/tiff/make.sh` (ImageMagick 7 with libtiff, and libtiff's tiffcp
+  for LZW and Deflate without a predictor, which ImageMagick adds on its own) writes 30 TIFFs of
+  37x29 (odd, so strips and tiles end short) with ImageMagick's own decoding of each as PNG; 280
+  KB in all.
+- Fuzzing: `NORDEND_FUZZ=ON` (clang only, `build-fuzz`): `nordend-fuzz-tiff` (the reader from
+  memory, 4 MP cap) and `nordend-fuzz-picture` (the whole family through the registry, from a
+  memfd, as the helper runs it).
+
+**Measured**
+- The author's 12 TIFFs (`fotografia/tiff_test_pictures`, found online: 512x512 to 5600x4200,
+  uncompressed, Deflate, LZW, JPEG YCbCr, associated and unassociated alpha, ICC profiles, a
+  "CMYK" sample that is RGB inside): **12 of 12 identical to libtiff** (ImageMagick 7 with
+  libtiff 4.7.1), difference 0 on every channel; 2 ms (512x512) to 480 ms (5600x4200).
+- 36 of the 36 valid fixtures (29 + 7 JPEG ones, generated with ImageMagick and tiffcp) decode
+  identical to libtiff's decoding, pixel for pixel
+  (difference 0 on every channel), BigTIFF, floats, CMYK, palette, planar and tiled included;
+  the palette needed libtiff's rounding (v*255/65535) instead of a shift.
+- Every byte of an LZW TIFF set to 0xFF in turn (a few thousand files): a picture or a plain
+  reason each time, no crash (test).
+- Fuzzing, first run (`nordend-fuzz-tiff`, 4 processes, 41 minutes, 11.7 million inputs, a
+  corpus of 583): **no crash, 8 timeouts**. All the same story: a TileWidth tag slipped into a
+  TIFF of strips (6 KB, 37x29) made the reader expect tiles of up to 1 GB each, allocated and
+  zero-filled: 1.2 to 4.6 s per file in the release build. Fixed with two general limits: tiles
+  never larger than the image rounded up to 16 a side, and all chunks together decompressing
+  to at most four times the picture's own size (64 MB at least). The 16 slow and timed-out
+  inputs are now refused in 0 ms; one is kept as `tests/data/image/tiff/broken-tile-tag.tif`
+  (test: damaged in under 200 ms). The author's 12 TIFFs stay identical to libtiff.
+- Fuzzing the whole image family (`nordend-fuzz-picture`, 2 processes): **a crash after 7
+  minutes**, not in our reader: a file with TIFF's magic that our reader refuses goes on to
+  exiv2 for stored previews, and exiv2's safe arithmetic throws `std::overflow_error`
+  ("Overflow in addition"), which our `catch (const Exiv2::Error&)` did not catch: terminate.
+  In Nordend it would have cost one helper ("Preview unavailable"); still ours to fix. Every
+  call into exiv2 now catches `std::exception`. The file is kept as
+  `tests/data/image/tiff/broken-exiv2-overflow.tif` (test: a plain reason, no exception).
+- After both fixes: `nordend-fuzz-tiff` one hour, 4 processes, timeout 2 s: **33.5 million
+  inputs, 0 crash, 0 timeout, 0 out of memory** (corpus 732, coverage 1295 edges);
+  `nordend-fuzz-picture` 30 minutes, 2 processes: **1.24 million inputs, 0/0/0** (corpus 839).
+  In all, about 1 h 40 min and 45 million inputs on the TIFF reader, 37 minutes on the whole
+  family.
+- All raw samples, both thumbnail sizes: same source, size and pixels (md5) as before the
+  reader; the 60 TIFF pictures through the caged helper in report mode: identical, no system
+  call reported.
+
+---
+
 ## 2026-11-07 — Parsers out of Nordend, a modular layout for previews (ROADMAP 2b-3)
 
 **Tested by the author** (2026-11-07): the info pane shows camera, lens, exposure and the

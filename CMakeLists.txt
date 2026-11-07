@@ -37,6 +37,20 @@ if(NORDEND_SANITIZER)
     target_link_options(nordend_warnings INTERFACE -fsanitize=${NORDEND_SANITIZER})
 endif()
 
+# Fuzzing (ROADMAP 2c), development only, clang only, in its own directory:
+#   CC=clang CXX=clang++ cmake -B build-fuzz -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+#       -DNORDEND_FUZZ=ON -DNORDEND_WERROR=OFF -DNORDEND_BUILD_TESTS=OFF
+# Our code is instrumented for libFuzzer, AddressSanitizer and UBSan; tests/fuzz holds the targets.
+option(NORDEND_FUZZ "Build the libFuzzer targets in tests/fuzz (clang only)" OFF)
+if(NORDEND_FUZZ)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR "NORDEND_FUZZ needs clang (CC=clang CXX=clang++)")
+    endif()
+    target_compile_options(nordend_warnings INTERFACE
+        -fsanitize=fuzzer-no-link,address,undefined -fno-omit-frame-pointer)
+    target_link_options(nordend_warnings INTERFACE -fsanitize=address,undefined)
+endif()
+
 option(NORDEND_CLANG_TIDY "Run clang-tidy while building the nordend targets" OFF)
 if(NORDEND_CLANG_TIDY)
     find_program(NORDEND_CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
@@ -174,6 +188,10 @@ if(NORDEND_BUILD_TESTS)
     else()
         message(STATUS "doctest not found: unit tests disabled (xbps-install doctest-devel)")
     endif()
+endif()
+
+if(NORDEND_FUZZ)
+    add_subdirectory(tests/fuzz)
 endif()
 
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.

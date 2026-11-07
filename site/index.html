@@ -110,14 +110,14 @@
 
 <section class="readers">
   <div class="readers-text">
-    <h2>Careful readers</h2>
-    <p>PNG, JPEG and GIF go through <a href="https://github.com/google/wuffs">wuffs</a>,
-    memory-safe by construction; PGM and PPM through code written for Nordend; everything in the
-    caged helper. Raw files show the JPEG their camera stored: the camera's own rendering,
-    exposure and colour.</p>
+    <h2>Its own readers</h2>
+    <p>TIFF (LZW, Deflate, PackBits, JPEG, tiles, BigTIFF), PGM and PPM are read by code written
+    for Nordend, checked pixel for pixel against libtiff and fuzzed. PNG, JPEG and GIF go through
+    <a href="https://github.com/google/wuffs">wuffs</a>, memory-safe by construction. Raw files
+    show the JPEG their camera stored: the camera's own rendering, exposure and colour.</p>
   </div>
   <ul class="formats" aria-label="What Quick Look and the thumbnails show">
-    <li>PNG</li><li>JPEG</li><li>GIF</li><li>WebP</li>
+    <li>TIFF</li><li>BigTIFF</li><li>PNG</li><li>JPEG</li><li>GIF</li><li>WebP</li>
     <li>JPEG XL</li><li>PGM / PPM</li><li>DNG</li><li>ORF</li><li>NEF</li><li>CR2</li>
     <li>ARW</li><li>RAF</li><li>RW2</li><li>SRW</li><li>3FR</li><li>Text</li>
   </ul>

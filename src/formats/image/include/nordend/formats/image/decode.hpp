@@ -17,7 +17,7 @@ namespace nordend::formats::image {
 using picture::apply_orientation;
 using picture::Image;
 
-enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl, pnm };
+enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl, pnm, tiff };
 
 [[nodiscard]] std::string_view format_name(Format format) noexcept;
 
@@ -42,7 +42,8 @@ struct Decoded {
     Problem problem{Problem::none};
 };
 
-// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame), JPEG XL, PGM or PPM image. Never
+// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame), JPEG XL, PGM, PPM or TIFF image
+// (its first full-resolution one). Never
 // throws for bad input: problems land in error. Thread-safe: call it from workers.
 [[nodiscard]] Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options = {});
 

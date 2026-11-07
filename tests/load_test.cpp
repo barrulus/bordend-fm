@@ -55,8 +55,9 @@ TEST_CASE("load: every format through the one path, the same for thumbnails") {
         CHECK(thumbnail.image.rgba == loaded.image.rgba);
         CHECK((thumbnail.source == thumbs::Source::preview) == loaded.from_preview);
     }
-    // A TIFF with only a preview: it is that preview, whatever the size asked.
-    CHECK(load(kData / "tiff-preview.tif", 1024).from_preview);
+    // A plain TIFF (here one reduced-resolution image only) is decoded by Nordend's own TIFF
+    // reader, not taken as a camera's preview.
+    CHECK_FALSE(load(kData / "tiff-preview.tif", 1024).from_preview);
     // Turned upright, and the full size says so.
     const picture::Loaded turned = load(kData / "blocks-orient6.jpg", 1024);
     CHECK(turned.full_width == 32);
@@ -115,8 +116,8 @@ TEST_CASE("load: exiv2 only for files that can carry a stored preview") {
     }
     CHECK(image::embedded_preview_reads() == before);               // a JPEG without EXIF included
     CHECK(load(kData / "shot.jpg", 128).failure == Failure::none);  // a camera's JPEG
-    CHECK(load(kData / "tiff-preview.tif", 128).failure == Failure::none);
-    CHECK(image::embedded_preview_reads() == before + 2);
+    CHECK(load(kData / "tiff-preview.tif", 128).failure == Failure::none);  // a plain TIFF: ours
+    CHECK(image::embedded_preview_reads() == before + 1);
 }
 
 TEST_CASE("load: may_show picks image and raw types") {
