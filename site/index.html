@@ -15,7 +15,7 @@
 <header class="top">
   <button class="icon-button menu-toggle" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
   <a class="brand" href="#overview"><img class="mark" src="nordend.svg" width="26" height="26" alt="">Nordend</a>
-  <a class="badge" href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0">v0.3.0</a>
+  <a class="badge" href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1">v0.3.1</a>
   <span class="spacer"></span>
   <a class="github" href="https://github.com/pankaspe/nordend-fm"><span>Source on </span>GitHub</a>
   <button class="icon-button theme-toggle" type="button">Light</button>
@@ -73,9 +73,10 @@
   renderer for text, icons, scrolling and animation.</p>
 
   <div class="notice">
-    <p><strong>Young software, used every day by its author.</strong> 0.3.0 brings the command
-    palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>), finding files (<kbd>Ctrl</kbd>+<kbd>F</kbd>) and an
-    icon in your desktop's accent, after tabs and Sort By in 0.2.0. On Void Linux,
+    <p><strong>Young software, used every day by its author.</strong> 0.3.1 reads more raw
+    previews (DNG at full size where the camera stored one, Samsung SRW, PGM and PPM), after the
+    command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>), finding files (<kbd>Ctrl</kbd>+<kbd>F</kbd>)
+    and an icon in your desktop's accent in 0.3.0. On Void Linux,
     <a href="#install/void-package">install it as a package</a>; anywhere else,
     <a href="#install/source">build it from source</a> in about a minute.</p>
   </div>
@@ -200,7 +201,7 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 ./xbps-src pkg nordend
 sudo xbps-install -R hostdir/binpkgs nordend</code></pre>
   <div class="notice">
-    <p>The package is the latest release, <strong>0.3.0</strong>. What <code>main</code> gains
+    <p>The package is the latest release, <strong>0.3.1</strong>. What <code>main</code> gains
     after it comes with the next release; to have it at once,
     <a href="#install/source">build from source</a>.</p>
   </div>
@@ -785,23 +786,33 @@ follow_accent = true</code></pre>
   done, measured and decided at each step is in the
   <a href="https://github.com/pankaspe/nordend-fm/blob/main/docs/devlog.md">devlog</a>.</p>
 
+  <p>Nordend stays what it is: a native C++ file manager, made for Noctalia Shell, with no GTK or
+  Qt; very light, safe and fast. Everything else is a feature on top, added only when it keeps
+  those three.</p>
+
   <h3 id="roadmap/now">Now</h3>
   <ol>
-    <li><strong>A dual pane</strong>, a queue of operations with its undo history, batch
-    renaming</li>
+    <li><strong>Image previews</strong>: one path for every format; file parsers in an isolated
+    helper (seccomp, landlock, no network); our own TIFF and DNG decoders. Raw files keep showing
+    the JPEG their camera stored; one without a readable preview says so.</li>
+    <li><strong>Text previews</strong>: syntax highlighting in your theme's colours, selecting and
+    copying</li>
+    <li><strong>Other formats</strong>, one at a time</li>
   </ol>
   <p>0.1.0, the first release, came out after a week of daily use by the author, with a memory
   log: no bugs found, memory steady. 0.2.0 added Sort By in the context menu, tabs and zoom in the
-  lists; 0.3.0 the command palette and finding files.</p>
+  lists; 0.3.0 the command palette and finding files; 0.3.1 more raw previews.</p>
 
   <h3 id="roadmap/later">Later</h3>
   <ul>
-    <li>Photo culling: star ratings and colour labels in darktable's XMP sidecars, side-by-side
-    comparison, EXIF and histogram</li>
+    <li>Colour labels and star ratings of Nordend's own, on files and folders, not tied to any
+    raw editor (XMP sidecars of any editor read as a bridge)</li>
+    <li>A Quick Look for photographers: 100 % zoom, EXIF, histogram, rating from Quick Look,
+    side-by-side comparison</li>
+    <li>A dual pane, a queue of operations with its undo history, batch renaming</li>
     <li>Scripting in Luau</li>
     <li>A file chooser for other applications (the desktop portal's FileChooser)</li>
     <li>Opening text files in an external editor (Helix) from Nordend</li>
-    <li>A richer Quick Look for text: syntax highlighting, selecting and copying</li>
     <li>Translations, Italian first</li>
   </ul>
 
@@ -824,6 +835,7 @@ follow_accent = true</code></pre>
     <tr><td>Release 0.1.0</td><td>A week of daily use; Nordend's own icon; a Void Linux package</td></tr>
     <tr><td>Release 0.2.0</td><td>Sort By, tabs, zoom in the lists (below)</td></tr>
     <tr><td>Release 0.3.0</td><td>The command palette, finding files, the icon in the accent (below)</td></tr>
+    <tr><td>Release 0.3.1</td><td>More raw previews: DNG (full size where stored), Samsung SRW, PGM and PPM; a plain message for raw files without a readable preview</td></tr>
     <tr><td>Sort By</td><td>Name, size, date or type from the context menu, the same in every view</td></tr>
     <tr><td>Tabs</td><td>A folder, a view and a history each; middle click and Open in New Tab; remembered at the next start</td></tr>
     <tr><td>Icon in the accent</td><td>Nordend's icon follows the desktop's accent colour, live in Noctalia's dock</td></tr>

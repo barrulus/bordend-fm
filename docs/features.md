@@ -372,7 +372,9 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-0.3.0 is out (the command palette, finding files, the icon in the accent), after 0.2.0 (Sort By,
-tabs, zoom in the lists) and the first release, 0.1.0. Coming, roughly in this order: a dual
-pane, a queue of operations and batch renaming, photo culling. See the README's
+0.3.1 is out (more raw previews: DNG, Samsung SRW, PGM and PPM), after 0.3.0 (the command
+palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, zoom in the lists) and the
+first release, 0.1.0. Coming, roughly in this order: previews one family at a time (images with
+our own TIFF and DNG decoders in an isolated helper, then text, then other formats), colour labels
+and ratings, a Quick Look for photographers, a dual pane. See the README's
 [What's next](../README.md#whats-next).

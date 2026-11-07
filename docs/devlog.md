@@ -4,6 +4,27 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — Nordend 0.3.1
+
+**Done**
+- Release 0.3.1 (fixes only): the raw previews of the step below. CMake version, README (badge,
+  note, install note, Versions, What's next), site (badge, notice, install note, roadmap),
+  features.md Next.
+
+**Decisions** (with the author, the same evening)
+- Nordend's philosophy, stated by the author: a native C++ file manager made for Noctalia Shell,
+  no GTK or Qt; very light, safe and fast. Everything else is a feature on top. README and site
+  "What's next" say so.
+- The roadmap reordered: previews first, one family at a time. Images (a universal path for
+  every format, the isolated helper, our own TIFF decoder, then DNG on top of it; raw files keep
+  the embedded JPEG, one without a readable preview is not read), then text (syntax highlighting,
+  selecting, copying), then other formats one at a time (heavy ones like video and PDF discussed
+  when we get there). Then labels and ratings, Quick Look for photographers, the dual pane.
+- Measured for that choice: a plain `.tif` file is not decoded today ("not an image format
+  Nordend decodes"): only the small TIFF previews inside raw files are read.
+
+---
+
 ## 2026-11-07 — Raw previews of the new sample folder (ROADMAP 1, 0.3.1)
 
 **Tested by the author** (2026-11-07): thumbnails and Quick Look on the new sample folder and on

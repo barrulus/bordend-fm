@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-2a6a9e" alt="release v0.3.0"></a>
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-2a6a9e" alt="release v0.3.1"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-318%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="318 tests, ASan, TSan">
@@ -17,9 +17,10 @@
 </p>
 
 > [!NOTE]
-> **Young software, used every day by its author.** 0.3.0 brings the **command palette**
+> **Young software, used every day by its author.** 0.3.1 reads more raw previews (DNG at full
+> size where the camera stored one, Samsung SRW, PGM and PPM), after the **command palette**
 > (<kbd>Ctrl</kbd>+<kbd>K</kbd>), **finding files** (<kbd>Ctrl</kbd>+<kbd>F</kbd>) and an icon in
-> your desktop's accent, after tabs and Sort By in 0.2.0.
+> your desktop's accent in 0.3.0.
 > On Void Linux, [install it as a package](#on-void-linux); anywhere else,
 > [build it from source](#from-source) in about a minute.
 
@@ -130,7 +131,7 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 sudo xbps-install -R hostdir/binpkgs nordend
 ```
 
-The package is the latest release, **0.3.0**. What `main` gains after it comes with the next
+The package is the latest release, **0.3.1**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
 ### From source
@@ -176,20 +177,28 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
+| on `main`, next | — |
+| [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |
 
 ## What's next
 
+Nordend stays what it is: a native C++ file manager, made for Noctalia Shell, with no GTK or Qt;
+very light, safe and fast. Everything else is a feature on top, added only when it keeps those
+three.
+
 0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
 lists; 0.3.0 the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files
-(<kbd>Ctrl</kbd>+<kbd>F</kbd>). Coming, roughly in this order: a dual
-pane, a queue of operations and batch renaming; photo culling (ratings and colour labels in
-darktable's sidecars, side-by-side comparison, histogram); scripting in Luau; a file chooser for
-other applications; text files in an external editor; translations, Italian first. The full list
-is on the [roadmap](https://pankaspe.github.io/nordend-fm/#roadmap).
+(<kbd>Ctrl</kbd>+<kbd>F</kbd>); 0.3.1 more raw previews. Coming, roughly in this order:
+**previews, one family at a time**: images first (one path for every format, file parsers in an
+isolated helper, our own TIFF and DNG decoders; raw files keep showing the JPEG their camera
+stored), then text (syntax highlighting, selecting and copying), then other formats one by one.
+After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
+for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations
+and batch renaming; translations, a file chooser for other applications, scripting in Luau. The
+full list is on the [roadmap](https://pankaspe.github.io/nordend-fm/#roadmap).
 
 ## Documentation
 
