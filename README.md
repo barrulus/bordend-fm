@@ -3,9 +3,9 @@
 <h1 align="center">Nordend</h1>
 
 <p align="center">
-  <b>A fast, native file manager for Wayland, made for photographers.<br>
-  At home on any Wayland desktop, and right at home on <a href="https://github.com/noctalia-dev">Noctalia</a>.</b><br>
-  No GTK, no Qt: C++20 straight on Wayland and OpenGL ES.
+  <b>A native file manager for Wayland: fast, light and safe.</b><br>
+  No GTK, no Qt, no GLib: C++20 straight on Wayland and OpenGL ES.<br>
+  At home on any Wayland desktop, and right at home on <a href="https://github.com/noctalia-dev">Noctalia</a>.
 </p>
 
 <p align="center">
@@ -25,7 +25,7 @@
 > [build it from source](#from-source) in about a minute.
 
 <p align="center">
-  <a href="https://pankaspe.github.io/nordend-fm/"><img src="https://img.shields.io/badge/Read_the_guide-pankaspe.github.io%2Fnordend--fm-6DBDF0?style=for-the-badge&labelColor=0E1519" alt="Read the guide on pankaspe.github.io/nordend-fm"></a>
+  <a href="https://pankaspe.github.io/nordend-fm/docs/"><img src="https://img.shields.io/badge/Read_the_docs-pankaspe.github.io%2Fnordend--fm-6DBDF0?style=for-the-badge&labelColor=0E1519" alt="Read the docs on pankaspe.github.io/nordend-fm"></a>
 </p>
 
 <p align="center">
@@ -40,31 +40,41 @@ Nordend talks to the compositor directly, with **no toolkit at all**: text, icon
 animations come from its own renderer. It takes your desktop's light or dark style and accent
 colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Noctalia theme, live.
 
-- **Photos first.** Thumbnails, the preview pane and Quick Look read the previews cameras store
-  in their raw files, with the shot's EXIF and your darktable rating; darktable sidecars travel
-  with their photo through every rename, copy, move and trip to the trash.
+- **Fast.** The first frame in about 65 ms, a 10 000-file folder in 0.7 ms, a raw photo in
+  Quick Look in under 100 ms. Every figure is measured, with the tool to measure it again.
+- **Light.** A 3 MB binary, 17 libraries, about 25 MB of memory, and no CPU at all while
+  nothing moves.
+- **Safe with what it reads.** Files that come from outside are read by `nordend-preview`, a
+  small helper process in a cage of Nordend's own (seccomp and landlock: no files, no network,
+  no programs). A broken or hostile file costs at most its preview; Nordend carries on.
+- **Careful readers.** PNG, JPEG and GIF are read by [wuffs](https://github.com/google/wuffs),
+  memory-safe by construction; PGM and PPM by code written for Nordend. Raw files show the JPEG
+  their camera stored, so the camera's own rendering.
+- **Photos and their editors.** Thumbnails, the info pane and Quick Look with the shot's EXIF
+  and rating; darktable sidecars travel with their photo through every rename, copy, move and
+  trip to the trash.
 - **Three views of the same folder.** Columns, a thumbnail grid and a details table
   (<kbd>Ctrl</kbd>+<kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>); switching keeps your place and your
   selection. Sort by name, size, date or type from the context menu, in every view.
 - **Tabs.** <kbd>Ctrl</kbd>+<kbd>T</kbd>, or a middle click on a folder to open it behind the
   one you are in; each tab keeps its folder, view and history, and they all come back at the next
   start.
-- **Small and fast, and measured.** A 3 MB binary, a 10 000-file folder in 0.7 ms, a raw photo
-  in Quick Look in under 100 ms, and no CPU at all while nothing moves.
 - **Careful with your files.** Nothing overwritten without asking, nothing half-copied under a
   real name, a real freedesktop trash, and <kbd>Ctrl</kbd>+<kbd>Z</kbd>.
 - **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them) and a click.
 
-Everything it does, and every shortcut, is in the [guide](https://pankaspe.github.io/nordend-fm/#guide).
+Everything it does, and every shortcut, is in the [guide](https://pankaspe.github.io/nordend-fm/docs/#guide).
 
 ## Features
 
 - **Views:** columns, thumbnail grid, details table; tabs; zoom; sort by name, size, date or type
 - **Quick Look** (<kbd>Space</kbd>): photos fill the window, raw files included; text files on a
   scrollable page; the arrows walk the folder
-- **Raw decoding:** the previews cameras embed in ORF, CR2, NEF, ARW, RAF, RW2, 3FR (exiv2),
-  upright and cropped to the shot; EXIF in the info pane
-- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL; thumbnails in the shared freedesktop cache
+- **Raw files:** the previews cameras embed in ORF, CR2, NEF, ARW, RAF, RW2, SRW, DNG, 3FR
+  (exiv2), upright and cropped to the shot; EXIF in the info pane
+- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and PGM and PPM with Nordend's own
+  reader; thumbnails in the shared freedesktop cache
+- **Isolated reading:** every picture is made in a caged helper process, never in Nordend
 - **darktable:** sidecars follow their photo everywhere; ratings shown
 - **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
   (fzy), the recently used first
@@ -90,7 +100,7 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 | Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 0.72 MB (0.64 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 9); no GTK, no Qt, no GLib |
 | Code | about 41 500 lines of C++20, 12 900 of tests (337 test cases, under ASan and TSan too) |
-| Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
+| Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
 ## Benchmarks
@@ -104,7 +114,7 @@ The design's four targets, measured on 2026-11-01 (Ryzen 7 5700G, RX 6650 XT, SA
 | Quick Look of an ORF raw photo: < 100 ms | **82-96 ms** |
 | Scrolling with no dropped frame | worst frame **3.7 ms** of 13.3 (75 Hz) |
 
-More on the [site](https://pankaspe.github.io/nordend-fm/#performance), every method in
+More on the [site](https://pankaspe.github.io/nordend-fm/docs/#performance), every method in
 [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Install
@@ -166,7 +176,7 @@ xdg-mime default nordend.desktop inode/directory
 ```
 
 Configuration, the command line and the development tools are on the
-[site](https://pankaspe.github.io/nordend-fm/#install).
+[site](https://pankaspe.github.io/nordend-fm/docs/#install).
 
 ## Versions
 
@@ -198,11 +208,11 @@ stored), then text (syntax highlighting, selecting and copying), then other form
 After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
 for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations
 and batch renaming; translations, a file chooser for other applications, scripting in Luau. The
-full list is on the [roadmap](https://pankaspe.github.io/nordend-fm/#roadmap).
+full list is on the [roadmap](https://pankaspe.github.io/nordend-fm/docs/#roadmap).
 
 ## Documentation
 
-[The site](https://pankaspe.github.io/nordend-fm/) ·
+[The site](https://pankaspe.github.io/nordend-fm/) · [The docs](https://pankaspe.github.io/nordend-fm/docs/) ·
 [Features](docs/features.md) ·
 [Devlog](docs/devlog.md) ·
 [Benchmarks](docs/benchmarks.md) ·

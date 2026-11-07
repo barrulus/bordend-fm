@@ -1,4 +1,4 @@
-// The site (site/index.html) lists the keyboard shortcuts from data in the page; this keeps that
+// The site's documentation (site/docs/index.html) lists the keyboard shortcuts from data in the page; this keeps that
 // data the same as views::shortcuts(), the table Nordend itself works from.
 #include <cstddef>
 #include <fstream>
@@ -62,6 +62,6 @@ TEST_CASE("the site lists the same shortcuts as Nordend") {
     const std::size_t end = page.rfind(']', close);
     REQUIRE(end != std::string::npos);
     const std::string expected = expected_data();
-    INFO("the data site/index.html should carry:\n", expected);
+    INFO("the data site/docs/index.html should carry:\n", expected);
     CHECK(page.substr(begin, end + 1 - begin) == expected);
 }

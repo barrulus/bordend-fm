@@ -1,5 +1,6 @@
-# Publishes the site (site/, with the screenshots from docs/images and the icon from data/) to GitHub Pages:
-# https://pankaspe.github.io/nordend-fm/
+# Publishes the site (site/: the home page, and the documentation in site/docs/; with the
+# screenshots from docs/images and the icon from data/) to GitHub Pages:
+# https://pankaspe.github.io/nordend-fm/ and https://pankaspe.github.io/nordend-fm/docs/
 name: Site
 
 on:
@@ -26,7 +27,7 @@ jobs:
       - name: Assemble the site
         run: |
           mkdir -p _site/images
-          cp site/* _site/
+          cp -r site/* _site/
           cp docs/images/*.webp _site/images/
           cp data/nordend.svg _site/
       - uses: actions/upload-pages-artifact@v5
