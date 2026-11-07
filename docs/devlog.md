@@ -4,6 +4,77 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — Pictures made in a helper process (ROADMAP 2b-1)
+
+**Done**
+- `nordend-preview` (`src/isolate/src/helper_main.cpp`), installed in `libexec/nordend/`, built
+  next to `nordend` in the build tree: it reads files only through descriptors Nordend sends,
+  runs `image::load(fd, w, h)`, and answers with the pixels in a sealed memfd (shrink, grow, write
+  and seal sealed). No sandbox yet (2b-2).
+- Protocol (`src/isolate/src/protocol.{hpp,cpp}`): SOCK_SEQPACKET socketpair, the helper's end
+  on descriptor 3; request = 12-byte header + the file's descriptor (SCM_RIGHTS); response =
+  header (failure, from_preview, sizes, detail length) + detail (≤ 1 KiB) + the memfd; a goodbye
+  packet when a helper leaves after its idle time.
+- `isolate::Helpers` (`nordend/isolate/helpers.hpp`), the client: helpers spawned with
+  posix_spawn when a picture is first asked for, at most `max_helpers`, reused, waited for with a
+  condition variable; each request has a timeout (3 s) after which the helper is killed; a helper
+  that crashes or talks nonsense is killed and waited for; a goodbye or a dead socket before the
+  request was taken gets one retry in a new helper. Nordend opens the file itself (O_NONBLOCK, a
+  FIFO named like a photo cannot hang a worker; only regular files go); the helper never gets a
+  path. `default_program()` finds the helper next to the running program or in
+  `../libexec/nordend/`.
+- `image::load(int fd, …)`, `embedded_preview(int fd, …)`: everything reads through a
+  descriptor (`detail::FdFile`, pread); exiv2 gets `detail::FdIo`, an `Exiv2::BasicIo` over it
+  (with a custom input, exiv2 answers an unknown type with a null image instead of an exception:
+  the 7z sample crashed the first version, found by the raw test).
+- `image::set_loader` / `image::load_picture`: thumbnails and Quick Look ask for pictures through
+  the loader; Nordend and `nordend-snapshot` set it to the helpers at start (a warning when
+  `nordend-preview` is missing: then no pictures, never parsed in Nordend). Tests and
+  `nordend-thumb` keep the in-process `image::load`. New failure `unavailable`, "Preview
+  unavailable".
+- The helper gives its memory back (`malloc_trim`) after one second without work. Not
+  `PR_SET_PDEATHSIG`: it follows the *thread* that spawned the helper; with `std::async` threads in
+  the test, helpers died under the client. It leaves when Nordend closes the socket.
+- Idle helpers are closed by Nordend: a reaper thread in `Helpers` (asleep on a condition
+  variable until the oldest idle helper's deadline, so no CPU while idle) closes the socket,
+  kills and **waits for** a helper idle for 30 s. The first version let the helper leave by itself
+  after 30 s (goodbye first): the author's test showed the four helpers left as `<defunct>`
+  zombies until the next request swept them. The helper's own idle exit stays as a fallback, at
+  twice Nordend's time plus 1 s.
+- 8 helpers at most (one per worker), decided by the author after the measurements below
+  ("la sicurezza viene prima delle iper performance").
+- Tests `tests/helpers_test.cpp`: the helper's pictures equal the in-process ones byte for byte
+  (10 fixtures); 12 concurrent requests on 2 helpers all answered, never more than 2; a helper
+  leaving after 50 ms idle is replaced unseen; a fake helper (`tests/fake_preview_helper.cpp`) that
+  crashes, hangs, answers garbage or lies about the size gives "unavailable" within 2 s and is
+  reaped; a missing program gives "unavailable" and nothing parsed in-process; a FIFO, a folder and
+  a missing file are refused before any helper starts; `load_picture` follows the loader.
+
+**Measured** (benchmarks.md "Pictures in a helper")
+- Starting the helper: 3.7 ms (a binary with the image libraries, 22 shared objects, against
+  5.7 ms and 40 for `nordend`).
+- A 1920x1440 ORF picture: 54 ms in process, 64-65 ms through a running helper; the 10 ms are
+  the pixels: 5.3 ms writing the memfd in the helper, 2.5 ms reading it into Nordend (page faults
+  of 11 MB each side). A populated shared mapping in the helper made it worse (70 ms).
+- 16 ORF thumbnails (256 px) on 8 threads: 185-215 ms in process; 4 helpers 219-235 ms (+15-20 %),
+  8 helpers 184-191 ms.
+- An idle helper after 16 Quick Look sized ORFs: 54 MB anonymous kept by malloc; trimming after
+  each picture brings it to 1.4 MB but costs 20 ms a picture (64 -> 85 ms); trimming after one
+  quiet second keeps both (1.4 MB idle, 65 ms).
+- Quick Look of an ORF in `nordend-snapshot` (offscreen, a fresh process, so a cold helper):
+  105 ms in process, 120-136 ms with 4 helpers, 121 ms with 8 (the variance was the main picture
+  waiting for a helper busy with its neighbours).
+
+**Tested by the author** (2026-11-07): thumbnails, Quick Look, the raw sample folder; four
+helpers while browsing, none after 30 s (zombies in the first version, fixed and checked: 8
+helpers after work, 0 processes left after the idle time).
+
+**Open**
+- The 10 ms of the pixels' trip: a memfd kept per helper (no new pages per picture) and an upload
+  to the GPU straight from the mapping would remove most of it; not done.
+
+---
+
 ## 2026-11-07 — One path for every picture (ROADMAP 2a)
 
 **Tested by the author** (2026-11-07): thumbnails and Quick Look on the raw sample folder and the

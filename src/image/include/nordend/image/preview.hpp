@@ -42,6 +42,9 @@ struct EmbeddedPreview {
 [[nodiscard]] EmbeddedPreview embedded_preview(const std::filesystem::path& path,
                                                std::uint32_t min_long_side);
 
+// The same from a file open for reading as fd (kept open, the caller's).
+[[nodiscard]] EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side);
+
 // The preview's pixels, cropped, as stored: the orientation is not applied (it is in
 // preview.orientation, and turning is cheaper after scaling).
 [[nodiscard]] Decoded decode_preview(const EmbeddedPreview& preview);

@@ -86,6 +86,11 @@ README's [What's next](../README.md#whats-next).
 - **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
   (8 and 16 bits), with EXIF orientation. The format is told by the file's bytes, not its name
   (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
+- **Pictures made apart:** the libraries that read photos (exiv2, libwebp, libjxl, wuffs on your
+  files) run in small `nordend-preview` processes, not in Nordend: a file that crashes or hangs
+  one costs only its preview ("Preview unavailable"), and Nordend carries on. They start when a
+  picture is first needed (at most one per worker), give their memory back after a quiet second,
+  and Nordend closes them after 30 s without work.
 - **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look
   and everywhere else: not a kind Nordend shows, no readable preview in a raw file, too large,
   damaged, or unreadable.

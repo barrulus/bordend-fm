@@ -1,0 +1,149 @@
+// nordend-preview: Nordend's preview helper (ROADMAP 2b). Started by Nordend with a socket on
+// descriptor 3, never by hand. It reads files only through the descriptors Nordend sends, turns
+// them into pictures with image::load, and answers with the pixels in a sealed memfd. It leaves
+// after --idle-ms without work (a goodbye first), or when Nordend closes the socket.
+
+#include <algorithm>
+#include <cerrno>
+#include <charconv>
+#include <csignal>
+#include <cstdint>
+#include <cstring>
+#include <fcntl.h>
+#include <malloc.h>
+#include <poll.h>
+#include <string_view>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#include "nordend/image/load.hpp"
+#include "protocol.hpp"
+
+namespace protocol = nordend::isolate::protocol;
+namespace image = nordend::image;
+
+namespace {
+
+constexpr int kTrimAfterMs = 1000;
+
+// A memfd holding the picture's pixels, sealed so that neither side can change its size; -1 on
+// an error.
+int pixels_memfd(const image::Image& picture) {
+    const int fd = ::memfd_create("nordend-picture", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+    if (fd < 0) {
+        return -1;
+    }
+    const std::uint8_t* from = picture.rgba.data();
+    std::size_t left = picture.rgba.size();
+    while (left > 0) {
+        const ssize_t wrote = ::write(fd, from, left);
+        if (wrote < 0 && errno == EINTR) {
+            continue;
+        }
+        if (wrote <= 0) {
+            ::close(fd);
+            return -1;
+        }
+        from += wrote;
+        left -= static_cast<std::size_t>(wrote);
+    }
+    if (::fcntl(fd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE | F_SEAL_SEAL) != 0) {
+        ::close(fd);
+        return -1;
+    }
+    return fd;
+}
+
+void answer(int socket, int file, const protocol::Request& request) {
+    const image::Loaded loaded = image::load(file, request.max_width, request.max_height);
+    protocol::Response response;
+    response.failure = static_cast<std::uint8_t>(loaded.failure);
+    response.from_preview = loaded.from_preview ? 1 : 0;
+    response.full_width = loaded.full_width;
+    response.full_height = loaded.full_height;
+    int pixels = -1;
+    if (loaded.failure == image::Failure::none) {
+        pixels = pixels_memfd(loaded.image);
+        if (pixels < 0) {
+            response.failure = static_cast<std::uint8_t>(image::Failure::unavailable);
+        } else {
+            response.width = loaded.image.width;
+            response.height = loaded.image.height;
+        }
+    }
+    const std::string_view detail = std::string_view{loaded.detail}.substr(0, protocol::kMaxDetail);
+    response.detail_length = static_cast<std::uint16_t>(detail.size());
+    std::array<std::byte, sizeof(protocol::Response) + protocol::kMaxDetail> bytes{};
+    std::memcpy(bytes.data(), &response, sizeof(response));
+    std::memcpy(bytes.data() + sizeof(response), detail.data(), detail.size());
+    static_cast<void>(protocol::send_packet(
+        socket, std::span{bytes}.first(sizeof(response) + detail.size()), pixels));
+    if (pixels >= 0) {
+        ::close(pixels);
+    }
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    int idle_ms = 30'000;
+    for (int i = 1; i + 1 < argc; ++i) {
+        const std::string_view arg{
+            argv[i]};  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        if (arg == "--idle-ms") {
+            const std::string_view value{
+                argv[i + 1]};  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+            std::from_chars(value.data(), value.data() + value.size(), idle_ms);
+        }
+    }
+    // When Nordend goes away its end of the socket closes, and the helper leaves at its next
+    // read. (Not PR_SET_PDEATHSIG: that follows the thread that started the helper, and
+    // Nordend's threads come and go.)
+    std::signal(SIGPIPE, SIG_IGN);  // NOLINT(cert-err33-c): nothing to check
+    const int socket = protocol::kSocketFd;
+    // After a picture, memory is given back once a second passes without another (a burst of
+    // thumbnails keeps its buffers: trimming after each one cost a 1920x1440 ORF 64 -> 85 ms);
+    // then the helper waits out the rest of its idle time and leaves.
+    bool holding = false;
+    int idle_left = idle_ms;  // until it leaves, counted from the last picture
+    while (true) {
+        const int wait_ms = holding ? std::min(kTrimAfterMs, idle_left) : idle_left;
+        pollfd watched{.fd = socket, .events = POLLIN, .revents = 0};
+        const int ready = ::poll(&watched, 1, wait_ms);
+        if (ready < 0 && errno == EINTR) {
+            continue;
+        }
+        if (ready == 0 && holding) {
+            ::malloc_trim(0);
+            holding = false;
+            idle_left = std::max(idle_left - wait_ms, 0);
+            continue;
+        }
+        if (ready == 0) {
+            const protocol::Request goodbye{.magic = protocol::kGoodbyeMagic};
+            static_cast<void>(
+                protocol::send_packet(socket, std::as_bytes(std::span{&goodbye, 1}), -1));
+            return 0;
+        }
+        const std::optional<protocol::Packet> packet = protocol::receive_packet(socket);
+        if (!packet) {
+            return 0;  // Nordend closed the socket
+        }
+        protocol::Request request;
+        if (packet->length != sizeof(request) || packet->fd < 0) {
+            if (packet->fd >= 0) {
+                ::close(packet->fd);
+            }
+            return 1;  // not Nordend talking
+        }
+        std::memcpy(&request, packet->bytes.data(), sizeof(request));
+        if (request.magic != protocol::kRequestMagic) {
+            ::close(packet->fd);
+            return 1;
+        }
+        answer(socket, packet->fd, request);
+        ::close(packet->fd);
+        holding = true;  // 54 MB kept after 16 ORF pictures, until trimmed
+        idle_left = idle_ms;
+    }
+}

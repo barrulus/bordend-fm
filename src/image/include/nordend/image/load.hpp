@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <string_view>
 
@@ -21,6 +22,7 @@ enum class Failure : std::uint8_t {
     too_large,            // more pixels than DecodeOptions::max_pixels
     damaged,              // the format is known but the data is broken or cut short
     unreadable,           // the file could not be read (permissions, I/O)
+    unavailable,          // the isolated helper stopped, took too long, or could not start
 };
 
 // The sentence shown for a failure; empty for none.
@@ -51,6 +53,19 @@ struct Loaded {
 // gives the largest it has. Scaled down to fit, then turned upright. Blocking: call it on a
 // worker. Never throws.
 [[nodiscard]] Loaded load(const LoadRequest& request);
+
+// The same from a file open for reading as fd (kept open, the caller's): what the isolated
+// helper runs, on the descriptor Nordend sends it.
+[[nodiscard]] Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height);
+
+// Where Nordend's pictures are made. Nordend sets this once at startup to its isolated helpers
+// (ROADMAP 2b); unset (tests, development tools), load() runs in this process.
+using Loader = std::function<Loaded(const LoadRequest&)>;
+void set_loader(Loader loader);
+
+// A picture for thumbnails, Quick Look and the info pane: through the loader set, else load().
+// Thread-safe once the loader is set.
+[[nodiscard]] Loaded load_picture(const LoadRequest& request);
 
 // Whether a file of this MIME type may give a picture: the image formats Nordend decodes and
 // camera raw files. Used to choose between a thumbnail and an icon before reading anything; the

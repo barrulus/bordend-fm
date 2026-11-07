@@ -93,6 +93,29 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Pictures in a helper (ROADMAP 2b-1)
+
+### 2026-11-07: throwaway programs linked against the build's libraries
+
+All Release build, warm page cache, the OM-1 ORFs of the demo home.
+
+| What | Result |
+|---|---|
+| Starting a process: `nordend-decode --help` (22 shared objects) / `nordend --version` (40) | 3.71 / 5.68 ms, median of 30 |
+| `_7230017.ORF` at 1920x1440, in process, 5 runs | 90, 69, 55, 54, 54 ms |
+| the same through one helper, 6 runs (first starts it) | 103, 79, 64, 64, 64, 65 ms |
+| of which, in a running helper: decode / memfd write / read into Nordend | 54 / 5.3 / 2.5 ms |
+| a 48x32 PNG through a helper: starting / running | 3.6-4.1 / 0.12-0.19 ms |
+| 16 ORF thumbnails (256 px), 8 threads, in process | 185-215 ms |
+| the same, 4 helpers (starting / running) | 260-265 / 219-235 ms |
+| the same, 8 helpers (starting / running) | 199-207 / 184-191 ms |
+| one helper's memory after 16 ORFs at 2560x1440 (smaps_rollup) | Anonymous 54 508 kB; 1 372 kB once trimmed |
+| trimming after every picture: 1920x1440 ORF | 85 ms (instead of 64-65) |
+
+Quick Look of `_7230017.ORF` in `nordend-snapshot` (offscreen 2560x1440, scale 1, a fresh
+process each run, so the helper starts cold): 119.5-136.4 ms with 4 helpers, 120.6-122.0 ms with
+8 (in process: 103-107 ms).
+
 ## One path for every picture (ROADMAP 2a)
 
 ### 2026-11-07: before and after `image::load`

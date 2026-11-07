@@ -18,6 +18,7 @@ add_executable(nordend-tests
     file_watcher_test.cpp
     format_test.cpp
     icon_test.cpp
+    helpers_test.cpp
     image_test.cpp
     load_test.cpp
     memory_test.cpp
@@ -48,13 +49,23 @@ add_executable(nordend-tests
     undo_test.cpp
     worker_pool_test.cpp
     xcursor_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image nordend::thumbs nordend::preview nordend::platform doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image nordend::thumbs nordend::preview nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+
+# A preview helper that misbehaves on purpose (crash, hang, nonsense), and the real one, for
+# tests/helpers_test.cpp.
+add_executable(nordend-fake-preview fake_preview_helper.cpp
+                                    ${PROJECT_SOURCE_DIR}/src/isolate/src/protocol.cpp)
+target_include_directories(nordend-fake-preview PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
+target_link_libraries(nordend-fake-preview PRIVATE nordend::warnings)
+add_dependencies(nordend-tests nordend-preview nordend-fake-preview)
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
             NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
             NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/index.html"
-            NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg")
+            NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg"
+            NORDEND_PREVIEW_HELPER="$<TARGET_FILE:nordend-preview>"
+            NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>")
 if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()

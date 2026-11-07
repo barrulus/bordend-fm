@@ -1,15 +1,19 @@
 #include "nordend/image/preview.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstring>
 #include <exiv2/exiv2.hpp>
-#include <fstream>
+#include <fcntl.h>
 #include <mutex>
 #include <optional>
+#include <system_error>
 #include <tuple>
+#include <unistd.h>
 #include <utility>
 
 #include "exiv2_init.hpp"
+#include "fd_file.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/image/decode.hpp"
 #include "tiff.hpp"
@@ -45,22 +49,9 @@ std::optional<std::int64_t> number(const Exiv2::ExifData& exif, const char* key)
     return it->toInt64();
 }
 
-std::vector<std::uint8_t> read_range(const std::filesystem::path& path, std::size_t offset,
-                                     std::size_t length) {
-    std::vector<std::uint8_t> data(length);
-    std::ifstream file{path, std::ios::binary};
-    if (!file.seekg(static_cast<std::streamoff>(offset)) ||
-        !file.read(reinterpret_cast<char*>(data.data()),  // NOLINT: bytes to char for read
-                   static_cast<std::streamsize>(length))) {
-        return {};
-    }
-    return data;
-}
-
 // The Olympus / OM System maker-note preview: its offset counts from the maker note, which
 // counts from the TIFF data (at the start of a raw file, after "Exif\0\0" in a JPEG).
-std::optional<Candidate> olympus_preview(const std::filesystem::path& path,
-                                         const Exiv2::Image& image) {
+std::optional<Candidate> olympus_preview(const detail::FdFile& file, const Exiv2::Image& image) {
     const Exiv2::ExifData& exif = image.exifData();
     const auto valid = number(exif, "Exif.OlympusCs.PreviewImageValid");
     const auto start = number(exif, "Exif.OlympusCs.PreviewImageStart");
@@ -72,8 +63,7 @@ std::optional<Candidate> olympus_preview(const std::filesystem::path& path,
     }
     std::size_t tiff = 0;
     if (image.imageType() == Exiv2::ImageType::jpeg) {
-        const std::vector<std::uint8_t> head =
-            read_range(path, 0, std::min<std::size_t>(kExifHead, std::filesystem::file_size(path)));
+        const std::vector<std::uint8_t> head = file.read(0, kExifHead);
         const std::optional<detail::JpegExif> segment = detail::jpeg_exif(head);
         if (!segment) {
             return std::nullopt;
@@ -86,7 +76,7 @@ std::optional<Candidate> olympus_preview(const std::filesystem::path& path,
     candidate.length = static_cast<std::size_t>(*length);
     // Its size is in its own header: read the start of it.
     const std::vector<std::uint8_t> head =
-        read_range(path, candidate.offset, std::min(candidate.length, kPreviewHead));
+        file.read_exactly(candidate.offset, std::min(candidate.length, kPreviewHead));
     const std::optional<detail::JpegSize> size = detail::jpeg_size(head);
     if (!size) {
         return std::nullopt;  // not a JPEG where the tags say
@@ -126,9 +116,8 @@ struct SensorCrop {
     }
 };
 
-std::optional<SensorCrop> panasonic_crop(const std::filesystem::path& path) {
-    const std::vector<std::uint8_t> head =
-        read_range(path, 0, std::min<std::size_t>(kIfdHead, std::filesystem::file_size(path)));
+std::optional<SensorCrop> panasonic_crop(const detail::FdFile& file) {
+    const std::vector<std::uint8_t> head = file.read(0, kIfdHead);
     const std::optional<detail::TiffReader> tiff = detail::TiffReader::open(head);
     if (!tiff) {
         return std::nullopt;
@@ -191,10 +180,34 @@ void detail::init_exiv2() {
 }
 
 EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_t min_long_side) {
+    const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        EmbeddedPreview result;
+        result.error = std::error_code{errno, std::generic_category()}.message();
+        return result;
+    }
+    EmbeddedPreview result = embedded_preview(fd, min_long_side);
+    ::close(fd);
+    return result;
+}
+
+EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
     detail::init_exiv2();
     EmbeddedPreview result;
+    const std::optional<detail::FdFile> file = detail::FdFile::of(fd);
+    if (!file) {
+        result.error = "cannot read the file";
+        return result;
+    }
     try {
-        const Exiv2::Image::UniquePtr image = Exiv2::ImageFactory::open(path.string());
+        // With an input of its own, exiv2 answers a type it does not know with nothing, not an
+        // exception.
+        const Exiv2::Image::UniquePtr image =
+            Exiv2::ImageFactory::open(std::make_unique<detail::FdIo>(*file));
+        if (!image) {
+            result.error = "a file type exiv2 does not read";
+            return result;
+        }
         image->readMetadata();
         std::vector<Candidate> candidates;
         Exiv2::PreviewManager previews{*image};
@@ -214,11 +227,11 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
                                       .crop = std::nullopt});
             }
         }
-        if (std::optional<Candidate> olympus = olympus_preview(path, *image)) {
+        if (std::optional<Candidate> olympus = olympus_preview(*file, *image)) {
             candidates.push_back(*olympus);
         }
         const std::optional<SensorCrop> sensor_crop =
-            image->imageType() == Exiv2::ImageType::rw2 ? panasonic_crop(path) : std::nullopt;
+            image->imageType() == Exiv2::ImageType::rw2 ? panasonic_crop(*file) : std::nullopt;
         if (sensor_crop) {
             for (Candidate& candidate : candidates) {
                 candidate.crop = sensor_crop->in(candidate.width, candidate.height);
@@ -251,7 +264,7 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
                     previews.getPreviewImage(properties.at(*chosen.property));
                 data.assign(preview.pData(), preview.pData() + preview.size());
             } else {
-                data = read_range(path, chosen.offset, chosen.length);
+                data = file->read_exactly(chosen.offset, chosen.length);
             }
             if (chosen.tiff) {
                 // A TIFF preview compressed as JPEG (DNG): the JPEG itself, read like any other.

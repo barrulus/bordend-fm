@@ -69,6 +69,8 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
+#include "nordend/image/load.hpp"
+#include "nordend/isolate/helpers.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/desktop.hpp"
@@ -89,6 +91,8 @@ namespace {
 
 namespace log = nordend::log;
 namespace core = nordend::core;
+namespace image = nordend::image;
+namespace isolate = nordend::isolate;
 namespace preview = nordend::preview;
 namespace ui = nordend::ui;
 namespace views = nordend::views;
@@ -365,6 +369,18 @@ int main(int argc, char** argv) {
             ui::IconSet icons{fonts};
             core::EventLoop loop;
             core::WorkerPool pool{loop};
+            // Pictures are made by the isolated preview helpers (ROADMAP 2b), never here.
+            {
+                isolate::HelperOptions options;
+                options.program = isolate::default_program();
+                if (options.program.empty()) {
+                    log::warn("nordend-preview not found: no previews of pictures");
+                }
+                auto helpers = std::make_shared<isolate::Helpers>(std::move(options));
+                image::set_loader([helpers](const image::LoadRequest& request) {
+                    return helpers->load(request);
+                });
+            }
             nordend::fs::DirectoryWatcher watcher{loop};
             std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches
             std::unique_ptr<views::Browser> columns;

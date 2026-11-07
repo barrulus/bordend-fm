@@ -219,7 +219,8 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
         return failure("a thumbnail itself");  // the spec: never thumbnail the cache
     }
     const std::uint32_t side = pixels(size);
-    image::Loaded loaded = image::load({.path = file, .max_width = side, .max_height = side});
+    image::Loaded loaded =
+        image::load_picture({.path = file, .max_width = side, .max_height = side});
     if (loaded.failure != image::Failure::none) {
         // Remembered, so that it is not tried again until the file changes.
         const image::Image blank{.width = 1, .height = 1, .rgba = {0, 0, 0, 0}};

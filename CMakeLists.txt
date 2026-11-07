@@ -74,6 +74,7 @@ add_subdirectory(src/fs)        # directory loading and sorting
 add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl), previews, PNG
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/preview)   # Quick Look providers: images, text, information
+add_subdirectory(src/isolate)   # preview helpers: the parsers in separate processes (2b)
 add_subdirectory(src/platform)  # default applications (freedesktop), launching processes
 add_subdirectory(src/views)     # column view and grid
 
@@ -102,7 +103,7 @@ target_compile_definitions(nordend PRIVATE NORDEND_VERSION="${PROJECT_VERSION}"
                                            NORDEND_COMMIT="${NORDEND_COMMIT}")
 target_link_libraries(nordend
     PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
-            nordend_test_scene
+            nordend::isolate nordend_test_scene
             nordend::warnings)
 
 # Development tool: offscreen render of the test scene or a folder list to a PPM file, and the
@@ -110,7 +111,7 @@ target_link_libraries(nordend
 add_executable(nordend-snapshot src/tools/snapshot.cpp)
 target_link_libraries(nordend-snapshot
     PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
-            nordend_test_scene nordend::warnings)
+            nordend::isolate nordend_test_scene nordend::warnings)
 
 # Development tool: directory loading benchmark (ROADMAP 3.1). Not installed.
 add_executable(nordend-bench-dir src/tools/bench_dir.cpp)
@@ -176,13 +177,15 @@ endif()
 
 # Known third-party leak suppressions, compiled into every executable of a sanitizer build.
 if(NORDEND_SANITIZER)
-    foreach(executable nordend nordend-snapshot nordend-bench-dir nordend-mime nordend-watch
-            nordend-decode nordend-thumb nordend-open nordend-transfer)
+    foreach(executable nordend nordend-preview nordend-snapshot nordend-bench-dir nordend-mime
+            nordend-watch nordend-decode nordend-thumb nordend-open nordend-transfer)
         target_sources(${executable} PRIVATE src/core/src/lsan_suppressions.cpp)
     endforeach()
 endif()
 
 install(TARGETS nordend RUNTIME DESTINATION bin)
+# The preview helper (ROADMAP 2b), found by nordend in ../libexec/nordend/.
+install(TARGETS nordend-preview RUNTIME DESTINATION libexec/nordend)
 # The desktop entry (app id "nordend"): menus, and the default for folders (inode/directory).
 install(FILES data/nordend.desktop DESTINATION share/applications)
 # Its icon, named after the app id (the desktop entry's Icon=nordend).

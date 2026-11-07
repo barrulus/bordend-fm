@@ -3,11 +3,17 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
-#include <fstream>
+#include <cerrno>
+#include <fcntl.h>
+#include <mutex>
+#include <optional>
 #include <span>
+#include <system_error>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
+#include "fd_file.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/image/preview.hpp"
 #include "nordend/image/scale.hpp"
@@ -107,6 +113,8 @@ std::string_view failure_message(Failure failure) noexcept {
             return "This image looks damaged";
         case Failure::unreadable:
             return "This file can't be read";
+        case Failure::unavailable:
+            return "Preview unavailable";
     }
     return {};
 }
@@ -116,21 +124,25 @@ std::uint64_t embedded_preview_reads() noexcept {
 }
 
 Loaded load(const LoadRequest& request) {
-    std::vector<std::uint8_t> head(kHead);
-    {
-        std::ifstream file{request.path, std::ios::binary};
-        if (!file) {
-            return failed(Failure::unreadable, "cannot open the file");
-        }
-        file.read(reinterpret_cast<char*>(head.data()),  // NOLINT: bytes to char for read
-                  static_cast<std::streamsize>(head.size()));
-        if (file.bad()) {
-            return failed(Failure::unreadable, "cannot read the file");
-        }
-        head.resize(static_cast<std::size_t>(file.gcount()));
+    const int fd = ::open(request.path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        return failed(Failure::unreadable,
+                      std::error_code{errno, std::generic_category()}.message());
     }
+    Loaded result = load(fd, request.max_width, request.max_height);
+    ::close(fd);
+    return result;
+}
+
+Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height) {
+    const std::optional<detail::FdFile> file = detail::FdFile::of(fd);
+    if (!file) {
+        return failed(Failure::unreadable, "cannot read the file");
+    }
+    const std::vector<std::uint8_t> head = file->read(0, kHead);
     if (head.empty()) {
-        return failed(Failure::damaged, "empty file");
+        return failed(file->size() == 0 ? Failure::damaged : Failure::unreadable,
+                      file->size() == 0 ? "empty file" : "cannot read the file");
     }
     const Kind kind = kind_of(head);
     if (kind == Kind::no_reader) {
@@ -138,7 +150,7 @@ Loaded load(const LoadRequest& request) {
     }
 
     Loaded result;
-    const std::uint32_t side = std::max(request.max_width, request.max_height);
+    const std::uint32_t side = std::max(max_width, max_height);
     Image picture;
     std::uint8_t orientation = 1;
 
@@ -147,7 +159,7 @@ Loaded load(const LoadRequest& request) {
     const bool camera_jpeg = kind == Kind::jpeg && detail::jpeg_exif(head).has_value();
     if (kind == Kind::container || kind == Kind::unknown || camera_jpeg) {
         preview_reads.fetch_add(1, std::memory_order_relaxed);
-        preview = embedded_preview(request.path, side);
+        preview = embedded_preview(fd, side);
     }
     const auto from_preview = [&] {
         Decoded decoded = decode_preview(preview);
@@ -164,7 +176,14 @@ Loaded load(const LoadRequest& request) {
         from_preview();
     }
     if (picture.empty() && (kind == Kind::image || kind == Kind::jpeg)) {
-        Decoded decoded = decode_file(request.path, {.apply_orientation = false});
+        const std::vector<std::uint8_t> whole = file->read_exactly(0, file->size());
+        Decoded decoded;
+        if (whole.empty()) {
+            decoded.error = "cannot read the file";
+            decoded.problem = Problem::unreadable;
+        } else {
+            decoded = decode(whole, {.apply_orientation = false});
+        }
         if (decoded.error.empty()) {
             picture = std::move(decoded.image);
             orientation = decoded.orientation;
@@ -195,9 +214,27 @@ Loaded load(const LoadRequest& request) {
     }
     result.detail.clear();
     // Scaled first, turned after: the turn then works on screen-sized pixels.
-    result.image = apply_orientation(scale_to_fit(picture, request.max_width, request.max_height),
-                                     orientation);
+    result.image = apply_orientation(scale_to_fit(picture, max_width, max_height), orientation);
     return result;
+}
+
+namespace {
+std::mutex loader_mutex;
+Loader current_loader;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables): set once
+}  // namespace
+
+void set_loader(Loader loader) {
+    const std::scoped_lock lock{loader_mutex};
+    current_loader = std::move(loader);
+}
+
+Loaded load_picture(const LoadRequest& request) {
+    Loader loader;
+    {
+        const std::scoped_lock lock{loader_mutex};
+        loader = current_loader;
+    }
+    return loader ? loader(request) : load(request);
 }
 
 bool may_show(std::string_view mime) noexcept {

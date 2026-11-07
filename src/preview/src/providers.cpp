@@ -18,7 +18,7 @@ public:
 
     [[nodiscard]] Content load(const Request& request,
                                const core::CancelToken& /*cancel*/) const override {
-        image::Loaded loaded = image::load(
+        image::Loaded loaded = image::load_picture(
             {.path = request.path, .max_width = request.width, .max_height = request.height});
         if (loaded.failure != image::Failure::none) {
             log::debug("preview: {}: {} ({})", request.path.string(), loaded.error(),
