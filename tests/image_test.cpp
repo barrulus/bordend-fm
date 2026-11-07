@@ -10,16 +10,18 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/image/decode.hpp"
-#include "nordend/image/load.hpp"
-#include "nordend/image/photo.hpp"
-#include "nordend/image/png.hpp"
-#include "nordend/image/preview.hpp"
-#include "nordend/image/scale.hpp"
+#include "nordend/formats/image/decode.hpp"
+#include "nordend/formats/image/load.hpp"
+#include "nordend/formats/image/photo.hpp"
+#include "nordend/formats/image/preview.hpp"
+#include "nordend/picture/load.hpp"
+#include "nordend/picture/png.hpp"
+#include "nordend/picture/scale.hpp"
 
-namespace image = nordend::image;
+namespace image = nordend::formats::image;
+namespace picture = nordend::picture;
 using image::Format;
-using image::Image;
+using picture::Image;
 
 namespace {
 
@@ -139,7 +141,7 @@ TEST_CASE("image: the EXIF orientation of a JPEG turns the pixels, unless asked 
 TEST_CASE("image: the eight orientations") {
     const Image picture = numbered(3, 2);  // 0 1 2 / 3 4 5
     const auto turned = [&](std::uint8_t orientation) {
-        return image::apply_orientation(picture, orientation);
+        return picture::apply_orientation(picture, orientation);
     };
     CHECK(reds(turned(1)) == std::vector<int>{0, 1, 2, 3, 4, 5});
     CHECK(reds(turned(2)) == std::vector<int>{2, 1, 0, 5, 4, 3});
@@ -204,18 +206,18 @@ TEST_CASE("image: scale_to_fit keeps proportions, averages, and never enlarges")
         gray.rgba[i] = gray.rgba[i + 1] = gray.rgba[i + 2] = white ? 255 : 0;
         gray.rgba[i + 3] = 255;
     }
-    const Image small = image::scale_to_fit(gray, 128, 128);
+    const Image small = picture::scale_to_fit(gray, 128, 128);
     CHECK(small.width == 128);
     CHECK(small.height == 85);
     // Stripes average to mid gray, through the halving and the area filter alike.
     CHECK(std::abs(pixel(small, 64, 40).r - 128) <= 2);
     CHECK(pixel(small, 64, 40).a == 255);
-    const Image tiny = image::scale_to_fit(gray, 7, 1000);  // ratio 1:42.9, through halvings
+    const Image tiny = picture::scale_to_fit(gray, 7, 1000);  // ratio 1:42.9, through halvings
     CHECK(tiny.width == 7);
     CHECK(tiny.height == 5);
     CHECK(std::abs(pixel(tiny, 3, 2).r - 128) <= 2);
 
-    const Image same = image::scale_to_fit(gray, 1000, 1000);
+    const Image same = picture::scale_to_fit(gray, 1000, 1000);
     CHECK(same.width == 300);
     CHECK(same.height == 200);
 }
@@ -223,7 +225,7 @@ TEST_CASE("image: scale_to_fit keeps proportions, averages, and never enlarges")
 TEST_CASE("image: transparent pixels do not darken what they are averaged with") {
     // Red, and transparent black: the average is half-transparent red, not dark red.
     Image half{.width = 2, .height = 1, .rgba = {255, 0, 0, 255, 0, 0, 0, 0}};
-    const Image one = image::scale_to_fit(half, 1, 1);
+    const Image one = picture::scale_to_fit(half, 1, 1);
     REQUIRE(one.width == 1);
     CHECK(pixel(one, 0, 0).r == 255);
     CHECK(std::abs(pixel(one, 0, 0).a - 128) <= 1);
@@ -232,14 +234,15 @@ TEST_CASE("image: transparent pixels do not darken what they are averaged with")
 TEST_CASE("image: PNG written with text chunks reads back the same") {
     const image::Decoded blocks = image::decode_file(kData / "blocks.png");
     REQUIRE(blocks.error.empty());
-    const image::PngText text{{"Thumb::URI", "file:///a%20b.jpg"}, {"Thumb::MTime", "1700000000"}};
-    const std::vector<std::uint8_t> png = image::encode_png(blocks.image, text);
+    const picture::PngText text{{"Thumb::URI", "file:///a%20b.jpg"},
+                                {"Thumb::MTime", "1700000000"}};
+    const std::vector<std::uint8_t> png = picture::encode_png(blocks.image, text);
     REQUIRE_FALSE(png.empty());
-    CHECK(image::png_text(png) == text);
+    CHECK(picture::png_text(png) == text);
     const image::Decoded back = image::decode(png);
     REQUIRE(back.error.empty());
     CHECK(back.image.rgba == blocks.image.rgba);  // lossless, alpha included
-    CHECK(image::png_text(std::vector<std::uint8_t>{1, 2, 3}).empty());
+    CHECK(picture::png_text(std::vector<std::uint8_t>{1, 2, 3}).empty());
 }
 
 TEST_CASE("image: an embedded EXIF thumbnail is found, with the main image's orientation") {
@@ -307,7 +310,7 @@ TEST_CASE("image: an uncompressed TIFF preview is read, strip by strip") {
 }
 
 TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rating") {
-    const image::PhotoInfo shot = image::read_photo_info(kData / "shot.jpg");
+    const picture::PhotoInfo shot = image::read_photo_info(kData / "shot.jpg");
     CHECK(shot.width == 32);  // 48x32 stored, orientation 6
     CHECK(shot.height == 48);
     CHECK(shot.camera == "OM-1");  // the maker's long name left out
@@ -319,11 +322,11 @@ TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rati
     CHECK(shot.taken == "2026-08-31 16:34");
     CHECK(shot.rating == std::optional<int>{3});  // from shot.jpg.xmp
 
-    const image::PhotoInfo plain = image::read_photo_info(kData / "blocks.png");
+    const picture::PhotoInfo plain = image::read_photo_info(kData / "blocks.png");
     CHECK(plain.width == 48);
     CHECK(plain.camera.empty());
     CHECK_FALSE(plain.rating);
-    const image::PhotoInfo missing = image::read_photo_info(kData / "nothing.jpg");
+    const picture::PhotoInfo missing = image::read_photo_info(kData / "nothing.jpg");
     CHECK(missing.width == 0);
 }
 
@@ -448,7 +451,7 @@ TEST_CASE("image: raw samples of other cameras" *
         CHECK(preview(kWithPreview.at(i), 256).data.empty());
         CHECK(image::load(
                   {.path = kRawSamples / kWithPreview.at(i), .max_width = 800, .max_height = 600})
-                  .failure == image::Failure::no_readable_preview);
+                  .failure == picture::Failure::no_readable_preview);
     }
     // Hasselblad's CFV sample is a plain 8-bit PPM.
     const image::Decoded cfv = image::decode_file(kRawSamples / "RAW_HASSELBLAD_CFV.PPM");

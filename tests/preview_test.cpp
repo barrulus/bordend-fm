@@ -136,7 +136,7 @@ TEST_CASE("preview: the provider for a type") {
     CHECK(std::holds_alternative<preview::Info>(content_of("text/plain", fake)));
     CHECK(std::holds_alternative<preview::Info>(content_of("application/zip", json)));
     CHECK(std::holds_alternative<preview::Info>(content_of("inode/directory", dir.path)));
-    CHECK(std::holds_alternative<nordend::image::Loaded>(
+    CHECK(std::holds_alternative<nordend::picture::Loaded>(
         content_of("image/png", fs::path{NORDEND_TEST_DATA} / "image" / "blocks.png")));
     // A type not known yet gets the card until it is.
     CHECK(std::holds_alternative<preview::Info>(
@@ -149,7 +149,7 @@ TEST_CASE("preview: the info pane's summary of a photo, a text file and a folder
     const preview::Summary photo = preview::summarize(
         fs::path{NORDEND_TEST_DATA} / "image" / "shot.jpg", preview::Kind::image, token);
     REQUIRE(photo.photo.has_value());
-    CHECK(photo.photo.value_or(nordend::image::PhotoInfo{}).camera == "OM-1");
+    CHECK(photo.photo.value_or(nordend::picture::PhotoInfo{}).camera == "OM-1");
     CHECK_FALSE(photo.text);
     CHECK_FALSE(photo.info.permissions.empty());
 

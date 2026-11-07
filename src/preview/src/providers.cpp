@@ -1,7 +1,7 @@
 #include <utility>
 
 #include "nordend/core/log.hpp"
-#include "nordend/image/load.hpp"
+#include "nordend/picture/load.hpp"
 #include "nordend/preview/preview.hpp"
 
 namespace nordend::preview {
@@ -13,14 +13,14 @@ public:
     [[nodiscard]] Kind kind() const override { return Kind::image; }
 
     [[nodiscard]] bool can_handle(const fs::MimeDatabase& mime, fs::MimeId type) const override {
-        return image::may_show(mime.name(type));
+        return picture::may_show(mime.name(type));
     }
 
     [[nodiscard]] Content load(const Request& request,
                                const core::CancelToken& /*cancel*/) const override {
-        image::Loaded loaded = image::load_picture(
+        picture::Loaded loaded = picture::load_picture(
             {.path = request.path, .max_width = request.width, .max_height = request.height});
-        if (loaded.failure != image::Failure::none) {
+        if (loaded.failure != picture::Failure::none) {
             log::debug("preview: {}: {} ({})", request.path.string(), loaded.error(),
                        loaded.detail);
         }

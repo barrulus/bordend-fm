@@ -18,15 +18,17 @@
 #include <string_view>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <vector>
 
-#include "nordend/image/load.hpp"
+#include "nordend/formats/formats.hpp"
+#include "nordend/picture/load.hpp"
 #include "protocol.hpp"
 #include "sandbox.hpp"
 #include "warm_up.hpp"
 
 namespace isolate = nordend::isolate;
 namespace protocol = nordend::isolate::protocol;
-namespace image = nordend::image;
+namespace picture = nordend::picture;
 
 namespace {
 
@@ -34,7 +36,7 @@ constexpr int kTrimAfterMs = 1000;
 
 // A memfd holding the picture's pixels, sealed so that neither side can change its size; -1 on
 // an error.
-int pixels_memfd(const image::Image& picture) {
+int pixels_memfd(const picture::Image& picture) {
     const int fd = ::memfd_create("nordend-picture", MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) {
         return -1;
@@ -60,18 +62,19 @@ int pixels_memfd(const image::Image& picture) {
     return fd;
 }
 
-void answer(int socket, int file, const protocol::Request& request) {
-    const image::Loaded loaded = image::load(file, request.max_width, request.max_height);
+void answer_picture(int socket, int file, const protocol::Request& request) {
+    const picture::Loaded loaded =
+        nordend::formats::make_picture(file, request.max_width, request.max_height);
     protocol::Response response;
     response.failure = static_cast<std::uint8_t>(loaded.failure);
     response.from_preview = loaded.from_preview ? 1 : 0;
     response.full_width = loaded.full_width;
     response.full_height = loaded.full_height;
     int pixels = -1;
-    if (loaded.failure == image::Failure::none) {
+    if (loaded.failure == picture::Failure::none) {
         pixels = pixels_memfd(loaded.image);
         if (pixels < 0) {
-            response.failure = static_cast<std::uint8_t>(image::Failure::unavailable);
+            response.failure = static_cast<std::uint8_t>(picture::Failure::unavailable);
         } else {
             response.width = loaded.image.width;
             response.height = loaded.image.height;
@@ -82,26 +85,64 @@ void answer(int socket, int file, const protocol::Request& request) {
     std::array<std::byte, sizeof(protocol::Response) + protocol::kMaxDetail> bytes{};
     std::memcpy(bytes.data(), &response, sizeof(response));
     std::memcpy(bytes.data() + sizeof(response), detail.data(), detail.size());
-    static_cast<void>(protocol::send_packet(
-        socket, std::span{bytes}.first(sizeof(response) + detail.size()), pixels));
+    const std::array<int, 1> fds{pixels};
+    static_cast<void>(
+        protocol::send_packet(socket, std::span{bytes}.first(sizeof(response) + detail.size()),
+                              pixels >= 0 ? std::span<const int>{fds} : std::span<const int>{}));
     if (pixels >= 0) {
         ::close(pixels);
     }
 }
 
+void answer_photo_info(int socket, int file, int sidecar) {
+    const std::vector<std::byte> bytes =
+        protocol::encode_info(nordend::formats::photo_info(file, sidecar));
+    static_cast<void>(protocol::send_packet(socket, bytes));
+}
+
+// A memfd holding bytes, for the warm-up; -1 on an error.
+int memfd_of(const isolate::WarmUpPicture& file) {
+    const int fd = ::memfd_create(file.name, MFD_CLOEXEC);
+    if (fd >= 0 && ::write(fd, file.data, file.size) != static_cast<ssize_t>(file.size)) {
+        ::close(fd);
+        return -1;
+    }
+    return fd;
+}
+
 // Each kind of picture once, from a memfd, before the cage closes: whatever the libraries load
-// on first use (exiv2's XMP parser, libjxl's tables...) is loaded now.
+// on first use (exiv2's XMP parser, libjxl's tables...) is loaded now. And one photo's
+// information with its sidecar, for exiv2's EXIF and XMP readers.
 void warm_up() {
+    const isolate::WarmUpPicture* photo = nullptr;
+    const isolate::WarmUpPicture* sidecar = nullptr;
     for (std::size_t i = 0; i < isolate::kWarmUpCount; ++i) {
-        const isolate::WarmUpPicture& picture = isolate::kWarmUp[i];  // NOLINT: generated array
-        const int fd = ::memfd_create(picture.name, MFD_CLOEXEC);
-        if (fd < 0) {
+        const isolate::WarmUpPicture& file = isolate::kWarmUp[i];  // NOLINT: generated array
+        const std::string_view name{file.name};
+        if (name == "shot.jpg") {
+            photo = &file;
+        }
+        if (name.ends_with(".xmp")) {
+            sidecar = &file;
             continue;
         }
-        if (::write(fd, picture.data, picture.size) == static_cast<ssize_t>(picture.size)) {
-            static_cast<void>(image::load(fd, 64, 64));
+        const int fd = memfd_of(file);
+        if (fd >= 0) {
+            static_cast<void>(nordend::formats::make_picture(fd, 64, 64));
+            ::close(fd);
         }
-        ::close(fd);
+    }
+    if (photo != nullptr && sidecar != nullptr) {
+        const int fd = memfd_of(*photo);
+        const int xmp = memfd_of(*sidecar);
+        if (fd >= 0 && xmp >= 0) {
+            static_cast<void>(nordend::formats::photo_info(fd, xmp));
+        }
+        for (const int open : {fd, xmp}) {
+            if (open >= 0) {
+                ::close(open);
+            }
+        }
     }
     ::malloc_trim(0);
 }
@@ -170,28 +211,33 @@ int main(int argc, char** argv) {
         }
         if (ready == 0) {
             const protocol::Request goodbye{.magic = protocol::kGoodbyeMagic};
-            static_cast<void>(
-                protocol::send_packet(socket, std::as_bytes(std::span{&goodbye, 1}), -1));
+            static_cast<void>(protocol::send_packet(socket, std::as_bytes(std::span{&goodbye, 1})));
             return 0;
         }
-        const std::optional<protocol::Packet> packet = protocol::receive_packet(socket);
+        std::optional<protocol::Packet> packet = protocol::receive_packet(socket);
         if (!packet) {
             return 0;  // Nordend closed the socket
         }
         protocol::Request request;
-        if (packet->length != sizeof(request) || packet->fd < 0) {
-            if (packet->fd >= 0) {
-                ::close(packet->fd);
-            }
+        const int file = packet->fds[0];
+        if (packet->length != sizeof(request) || file < 0) {
+            packet->close_fds();
             return 1;  // not Nordend talking
         }
         std::memcpy(&request, packet->bytes.data(), sizeof(request));
         if (request.magic != protocol::kRequestMagic) {
-            ::close(packet->fd);
+            packet->close_fds();
             return 1;
         }
-        answer(socket, packet->fd, request);
-        ::close(packet->fd);
+        if (request.kind == protocol::Kind::photo_info) {
+            answer_photo_info(socket, file, packet->fds[1]);
+        } else if (request.kind == protocol::Kind::picture) {
+            answer_picture(socket, file, request);
+        } else {
+            packet->close_fds();
+            return 1;
+        }
+        packet->close_fds();
         holding = true;  // 54 MB kept after 16 ORF pictures, until trimmed
         idle_left = idle_ms;
     }

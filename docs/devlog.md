@@ -4,6 +4,60 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — Parsers out of Nordend, a modular layout for previews (ROADMAP 2b-3)
+
+**Tested by the author** (2026-11-07): the info pane shows camera, lens, exposure and the
+darktable stars as before; `/proc/PID/maps` of the running Nordend: 0 lines of exiv2, libjxl,
+libwebp. `nordend-bench-start -n 10` in `fotografia`: main 3.4 ms (4.8 in 7.6), first frame
+shown 68.7 ms median (64.5 in 7.6, but another folder and possibly another Mesa: a same-day
+comparison with v0.3.1 is still to do). The helper check raced again with the 30 s idle close
+(no Space pressed before it): my test plan's fault.
+
+**Decisions** (the author: "creiamo una struttura modulare, intelligente": images now, then
+text, video and the rest)
+- `src/picture/` (`nordend::picture`): what Nordend does with a picture whatever its source: the
+  `Image` type, `apply_orientation`, `scale_to_fit`, the thumbnail cache's PNG (`encode_png`,
+  `png_text`, and `decode_png`, PNG only, through wuffs), wuffs itself (`decode_wuffs` returns
+  the raw EXIF block; the orientation is read by whoever knows EXIF), and how a picture is asked
+  for: `LoadRequest`, `Loaded`, `Failure`, `set_loader`/`load_picture`,
+  `set_info_loader`/`load_photo_info`, `may_show`, the `PhotoInfo` struct. Linked by Nordend.
+- `src/formats/<family>/`: the parsers, one module per family, linked into the helper (and
+  tests and development tools), **never into Nordend: the linker enforces it**. Today
+  `formats/image` (`nordend::formats::image`: decoders, raw previews, EXIF/XMP through exiv2,
+  `recognises(head)`); text, video and the others will be siblings.
+- `src/formats/` registry (`nordend::formats`): `make_picture(fd, w, h)` and
+  `photo_info(fd, sidecar_fd)` ask each family in order whether the first 64 bytes are its own
+  (never the name); unclaimed files go to the image family (camera raws by MIME). A new family:
+  its module, one line in the registry.
+- `src/isolate/`: transport and cage only, knows no format. Protocol: `Request::kind`
+  (`picture`, `photo_info`), up to two descriptors (the file, its `.xmp` sidecar), the
+  information packet (`kInfoMagic`, numbers, 13 text fields of at most 255 bytes;
+  `encode_info`/`decode_info`), packets up to 8 KiB. The client's exchange is one generic
+  `exchange` + `run` with an `accept` callback; `Helpers::photo_info(path)` opens the file and
+  `path.xmp` itself (regular files only) and sends both.
+
+**Done**
+- Moved with `git mv` (history kept): `src/image` -> `src/formats/image`; `scale`, `png` and
+  the wuffs files -> `src/picture`. Every user updated; the info pane reads EXIF through
+  `picture::load_photo_info`, i.e. the helpers (main and the snapshot set both loaders; tests
+  and `nordend-thumb` set the image family in-process).
+- `formats::image::read_photo_info(fd, sidecar_fd)`: EXIF and the sidecar's rating through
+  `FdIo`. The warm-up now also reads one photo's information with its sidecar (shot.jpg +
+  shot.jpg.xmp added to the generated warm-up files).
+- One slip of mine: extracting `struct Image` and `struct PhotoInfo` with a search for `};`
+  cut them at `width{0};`; rebuilt from git before compiling.
+
+**Measured**
+- `nordend` against v0.3.1 (built in a worktree): NEEDED 21 -> 17 (libexiv2, libjxl, libwebp,
+  libwebpdemux gone), shared objects loaded (`ldd`) 40 -> 29 (also libhwy, liblcms2,
+  libjxl_cms, libinih, libbrotlienc gone; expat and brotlidec stay: fontconfig and freetype use
+  them); stripped binary 3 374 008 -> 3 357 336 bytes. `nordend --version` (loading every
+  library, then exit), 50 runs: median 5.8 -> 3.4 ms.
+- The 55 sample and fixture files' information through the caged helper (report mode on):
+  identical to the in-process reading, no unexpected call; 165 pictures unchanged (2b-2).
+
+---
+
 ## 2026-11-07 — The helper's cage (ROADMAP 2b-2)
 
 **Tested by the author** (2026-11-07): the raw sample folder in Quick Look; every helper logged

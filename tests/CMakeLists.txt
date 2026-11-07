@@ -50,14 +50,17 @@ add_executable(nordend-tests
     undo_test.cpp
     worker_pool_test.cpp
     xcursor_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::image nordend::thumbs nordend::preview nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::thumbs nordend::preview nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+
+# The helper protocol's private header, for its tests.
+target_include_directories(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
 
 # A preview helper that misbehaves on purpose (crash, hang, nonsense), and the real one, for
 # tests/helpers_test.cpp.
 add_executable(nordend-fake-preview fake_preview_helper.cpp
                                     ${PROJECT_SOURCE_DIR}/src/isolate/src/protocol.cpp)
 target_include_directories(nordend-fake-preview PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
-target_link_libraries(nordend-fake-preview PRIVATE nordend::warnings)
+target_link_libraries(nordend-fake-preview PRIVATE nordend::picture nordend::warnings)
 
 # The sandbox probe: the preview helper's cage, then one forbidden (or allowed) thing.
 add_executable(nordend-sandbox-probe sandbox_probe.cpp

@@ -6,7 +6,7 @@
 #include <string_view>
 
 #include "nordend/core/file.hpp"
-#include "nordend/image/decode.hpp"
+#include "nordend/picture/image.hpp"
 
 namespace nordend::thumbs {
 
@@ -38,7 +38,7 @@ enum class Source : std::uint8_t {
 [[nodiscard]] std::string_view source_name(Source source) noexcept;
 
 struct Thumbnail {
-    image::Image image;  // upright, fits in pixels(size); empty when failed
+    picture::Image image;  // upright, fits in pixels(size); empty when failed
     Source source{Source::failed};
     std::string error;  // why it failed
 };

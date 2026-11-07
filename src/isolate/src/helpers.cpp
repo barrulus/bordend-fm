@@ -6,7 +6,9 @@
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
+#include <functional>
 #include <poll.h>
+#include <span>
 #include <spawn.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -23,8 +25,8 @@ extern char** environ;  // NOLINT(readability-redundant-declaration): POSIX, not
 namespace nordend::isolate {
 namespace {
 
-image::Loaded failed(image::Failure failure, std::string detail) {
-    image::Loaded result;
+picture::Loaded failed(picture::Failure failure, std::string detail) {
+    picture::Loaded result;
     result.failure = failure;
     result.detail = std::move(detail);
     return result;
@@ -32,8 +34,25 @@ image::Loaded failed(image::Failure failure, std::string detail) {
 
 std::string errno_text() { return std::error_code{errno, std::generic_category()}.message(); }
 
+// A regular file opened for reading, to be sent to a helper: the helper gets the descriptor,
+// never the path. O_NONBLOCK, so that a FIFO named like a photo cannot hang the worker; -1
+// (errno set) for anything that is not a regular file.
+int open_regular(const std::filesystem::path& path) {
+    const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOCTTY | O_NONBLOCK);
+    if (fd < 0) {
+        return -1;
+    }
+    struct stat info{};
+    if (::fstat(fd, &info) != 0 || !S_ISREG(info.st_mode)) {
+        ::close(fd);
+        errno = EINVAL;
+        return -1;
+    }
+    return fd;
+}
+
 // The picture in a helper's memfd, checked against the size it said.
-std::optional<image::Image> read_pixels(int fd, std::uint32_t width, std::uint32_t height) {
+std::optional<picture::Image> read_pixels(int fd, std::uint32_t width, std::uint32_t height) {
     const std::uint64_t bytes = std::uint64_t{width} * height * 4;
     struct stat info{};
     if (width == 0 || height == 0 || ::fstat(fd, &info) != 0 ||
@@ -49,7 +68,7 @@ std::optional<image::Image> read_pixels(int fd, std::uint32_t width, std::uint32
     if (mapped == MAP_FAILED) {
         return std::nullopt;
     }
-    image::Image picture{.width = width, .height = height, .rgba = {}};
+    picture::Image picture{.width = width, .height = height, .rgba = {}};
     const auto* from = static_cast<const std::uint8_t*>(mapped);
     picture.rgba.assign(from, from + bytes);
     ::munmap(mapped, bytes);
@@ -223,12 +242,10 @@ int Helpers::discard(Helper helper) {
     return status;
 }
 
-Helpers::Outcome Helpers::ask(Helper helper, int file, const image::LoadRequest& request,
-                              image::Loaded& out) const {
-    const protocol::Request message{.magic = protocol::kRequestMagic,
-                                    .max_width = request.max_width,
-                                    .max_height = request.max_height};
-    if (!protocol::send_packet(helper.socket, std::as_bytes(std::span{&message, 1}), file)) {
+Helpers::Outcome Helpers::exchange(Helper helper, const protocol::Request& request,
+                                   std::span<const int> fds, protocol::Packet& reply,
+                                   std::string& why) const {
+    if (!protocol::send_packet(helper.socket, std::as_bytes(std::span{&request, 1}), fds)) {
         return Outcome::again;  // it had already left
     }
     pollfd watched{.fd = helper.socket, .events = POLLIN, .revents = 0};
@@ -244,14 +261,13 @@ Helpers::Outcome Helpers::ask(Helper helper, int file, const image::LoadRequest&
         break;
     }
     if (ready == 0) {
-        out = failed(image::Failure::unavailable, "the preview helper took longer than " +
-                                                      std::to_string(options_.timeout.count()) +
-                                                      " ms");
+        why = "the preview helper took longer than " + std::to_string(options_.timeout.count()) +
+              " ms";
         return Outcome::failed;
     }
-    const std::optional<protocol::Packet> packet = protocol::receive_packet(helper.socket);
+    std::optional<protocol::Packet> packet = protocol::receive_packet(helper.socket);
     if (!packet) {
-        out = failed(image::Failure::unavailable, "the preview helper stopped");
+        why = "the preview helper stopped";
         return Outcome::failed;
     }
     std::uint32_t magic = 0;
@@ -259,93 +275,131 @@ Helpers::Outcome Helpers::ask(Helper helper, int file, const image::LoadRequest&
         std::memcpy(&magic, packet->bytes.data(), sizeof(magic));
     }
     if (magic == protocol::kGoodbyeMagic) {
-        if (packet->fd >= 0) {
-            ::close(packet->fd);
-        }
+        packet->close_fds();
         return Outcome::again;  // it was leaving when the request came
     }
-    protocol::Response response;
-    const bool well_formed =
-        magic == protocol::kResponseMagic && packet->length >= sizeof(response) && [&] {
-            std::memcpy(&response, packet->bytes.data(), sizeof(response));
-            return packet->length == sizeof(response) + response.detail_length &&
-                   response.failure <= static_cast<std::uint8_t>(image::Failure::unavailable);
-        }();
-    if (!well_formed) {
-        if (packet->fd >= 0) {
-            ::close(packet->fd);
-        }
-        out = failed(image::Failure::unavailable, "the preview helper said something else");
-        return Outcome::failed;
-    }
-    out = {};
-    out.failure = static_cast<image::Failure>(response.failure);
-    out.from_preview = response.from_preview != 0;
-    out.full_width = response.full_width;
-    out.full_height = response.full_height;
-    out.detail.assign(reinterpret_cast<const char*>(  // NOLINT: bytes to chars
-                          packet->bytes.data() + sizeof(response)),
-                      response.detail_length);
-    if (out.failure == image::Failure::none) {
-        std::optional<image::Image> picture =
-            packet->fd >= 0 ? read_pixels(packet->fd, response.width, response.height)
-                            : std::nullopt;
-        if (!picture) {
-            if (packet->fd >= 0) {
-                ::close(packet->fd);
-            }
-            out = failed(image::Failure::unavailable, "the preview helper's pixels are wrong");
-            return Outcome::failed;
-        }
-        out.image = std::move(*picture);
-    }
-    if (packet->fd >= 0) {
-        ::close(packet->fd);
-    }
+    reply = *packet;
     return Outcome::done;
 }
 
-image::Loaded Helpers::load(const image::LoadRequest& request) {
-    // Opened here, read there: the helper gets the descriptor, never the path. O_NONBLOCK so
-    // that a FIFO named like a photo cannot hang the worker.
-    const int file = ::open(request.path.c_str(), O_RDONLY | O_CLOEXEC | O_NOCTTY | O_NONBLOCK);
-    if (file < 0) {
-        return failed(image::Failure::unreadable, errno_text());
-    }
-    struct stat info{};
-    if (::fstat(file, &info) != 0 || !S_ISREG(info.st_mode)) {
-        ::close(file);
-        return failed(image::Failure::unreadable, "not a regular file");
-    }
-    image::Loaded result =
-        failed(image::Failure::unavailable, "the preview helper could not start");
+bool Helpers::run(const protocol::Request& request, std::span<const int> fds,
+                  const std::function<bool(protocol::Packet&, std::string&)>& accept,
+                  std::string& why) {
+    why = "the preview helper could not start";
     // Twice at most: a helper that had just left gets the request again in a new one.
     for (int attempt = 0; attempt < 2; ++attempt) {
         const std::optional<Helper> helper = take();
         if (!helper) {
-            result = failed(image::Failure::unavailable,
-                            options_.program.empty() ? "nordend-preview not found"
-                                                     : "the preview helper could not start: " +
-                                                           options_.program.string());
-            break;
+            why = options_.program.empty()
+                      ? "nordend-preview not found"
+                      : "the preview helper could not start: " + options_.program.string();
+            return false;
         }
-        const Outcome outcome = ask(*helper, file, request, result);
+        protocol::Packet reply;
+        Outcome outcome = exchange(*helper, request, fds, reply, why);
         if (outcome == Outcome::done) {
-            give_back(*helper);
-            break;
+            const bool accepted = accept(reply, why);
+            reply.close_fds();
+            if (accepted) {
+                give_back(*helper);
+                return true;
+            }
+            outcome = Outcome::failed;  // it said something else: not to be trusted again
         }
         const int status = discard(*helper);
         if (WIFEXITED(status) && WEXITSTATUS(status) == protocol::kSandboxFailedExit) {
-            result = failed(image::Failure::unavailable,
-                            "the preview helper could not set up its sandbox");
-            break;
+            why = "the preview helper could not set up its sandbox";
+            return false;
         }
         if (outcome == Outcome::failed) {
-            break;
+            return false;
         }
     }
+    return false;
+}
+
+picture::Loaded Helpers::load(const picture::LoadRequest& request) {
+    const int file = open_regular(request.path);
+    if (file < 0) {
+        return failed(picture::Failure::unreadable, errno_text());
+    }
+    const protocol::Request message{.magic = protocol::kRequestMagic,
+                                    .kind = protocol::Kind::picture,
+                                    .max_width = request.max_width,
+                                    .max_height = request.max_height};
+    picture::Loaded result;
+    const auto accept = [&](protocol::Packet& reply, std::string& why) {
+        protocol::Response response;
+        std::uint32_t magic = 0;
+        std::memcpy(&magic, reply.bytes.data(), sizeof(magic));
+        if (magic != protocol::kResponseMagic || reply.length < sizeof(response)) {
+            why = "the preview helper said something else";
+            return false;
+        }
+        std::memcpy(&response, reply.bytes.data(), sizeof(response));
+        if (reply.length != sizeof(response) + response.detail_length ||
+            response.failure > static_cast<std::uint8_t>(picture::Failure::unavailable)) {
+            why = "the preview helper said something else";
+            return false;
+        }
+        result.failure = static_cast<picture::Failure>(response.failure);
+        result.from_preview = response.from_preview != 0;
+        result.full_width = response.full_width;
+        result.full_height = response.full_height;
+        result.detail.assign(reinterpret_cast<const char*>(  // NOLINT: bytes to chars
+                                 reply.bytes.data() + sizeof(response)),
+                             response.detail_length);
+        if (result.failure == picture::Failure::none) {
+            std::optional<picture::Image> pixels =
+                reply.fds[0] >= 0 ? read_pixels(reply.fds[0], response.width, response.height)
+                                  : std::nullopt;
+            if (!pixels) {
+                why = "the preview helper's pixels are wrong";
+                return false;
+            }
+            result.image = std::move(*pixels);
+        }
+        return true;
+    };
+    std::string why;
+    const std::array<int, 1> fds{file};
+    const bool done = run(message, fds, accept, why);
     ::close(file);
-    return result;
+    return done ? result : failed(picture::Failure::unavailable, std::move(why));
+}
+
+picture::PhotoInfo Helpers::photo_info(const std::filesystem::path& path) {
+    const int file = open_regular(path);
+    if (file < 0) {
+        return {};
+    }
+    std::filesystem::path sidecar_path = path;
+    sidecar_path += ".xmp";
+    const int sidecar = open_regular(sidecar_path);  // -1 when there is none
+    const protocol::Request message{.magic = protocol::kRequestMagic,
+                                    .kind = protocol::Kind::photo_info,
+                                    .max_width = 0,
+                                    .max_height = 0};
+    picture::PhotoInfo info;
+    const auto accept = [&](protocol::Packet& reply, std::string& why) {
+        std::optional<picture::PhotoInfo> decoded =
+            protocol::decode_info(std::span{reply.bytes}.first(reply.length));
+        if (!decoded) {
+            why = "the preview helper said something else";
+            return false;
+        }
+        info = std::move(*decoded);
+        return true;
+    };
+    std::string why;
+    const std::array<int, 2> both{file, sidecar};
+    const bool done =
+        run(message, std::span<const int>{both}.first(sidecar >= 0 ? 2 : 1), accept, why);
+    ::close(file);
+    if (sidecar >= 0) {
+        ::close(sidecar);
+    }
+    return done ? info : picture::PhotoInfo{};
 }
 
 std::filesystem::path default_program() {

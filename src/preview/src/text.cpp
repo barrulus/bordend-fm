@@ -3,6 +3,7 @@
 #include <string_view>
 #include <utility>
 
+#include "nordend/picture/load.hpp"
 #include "nordend/preview/preview.hpp"
 
 namespace nordend::preview {
@@ -106,7 +107,7 @@ Summary summarize(const std::filesystem::path& path, Kind kind, const core::Canc
     Summary summary;
     summary.info = read_info(path, cancel);
     if (kind == Kind::image) {
-        summary.photo = image::read_photo_info(path);
+        summary.photo = picture::load_photo_info(path);
     } else if (kind == Kind::text) {
         std::string error;
         // A few kilobytes are enough for the lines the pane has room for.

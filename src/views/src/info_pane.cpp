@@ -35,7 +35,7 @@ std::string count_of(std::size_t count, std::string_view noun) {
 }
 
 // "1/2000 s · F5.6 · ISO 200", leaving out what is missing.
-std::string exposure_of(const image::PhotoInfo& photo) {
+std::string exposure_of(const picture::PhotoInfo& photo) {
     std::string out;
     const auto add = [&](const std::string& part) {
         if (!part.empty()) {
@@ -259,7 +259,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     request(path, single == nullptr ? 0 : single->modified_ns, kind);
     const preview::Summary* const summary = summary_.get();
     const preview::Info* const info = summary == nullptr ? nullptr : &summary->info;
-    const image::PhotoInfo* const photo =
+    const picture::PhotoInfo* const photo =
         summary == nullptr || !summary->photo ? nullptr : &*summary->photo;
 
     // The preview takes the pane's whole width (a wider pane, a larger photo); the rows keep to

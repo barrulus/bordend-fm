@@ -10,8 +10,8 @@
 
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/mime.hpp"
-#include "nordend/image/load.hpp"
-#include "nordend/image/photo.hpp"
+#include "nordend/picture/load.hpp"
+#include "nordend/picture/photo_info.hpp"
 
 // What Quick Look shows for a file, made on a worker. One provider per kind of file (DESIGN,
 // "Preview provider"): adding a kind does not touch the others, and the view draws what the
@@ -36,7 +36,7 @@ struct Info {
     std::string error;                       // the file could not be examined
 };
 
-using Content = std::variant<image::Loaded, Text, Info>;
+using Content = std::variant<picture::Loaded, Text, Info>;
 
 // What a provider makes: the alternative of Content it returns (Text may become Info: a "text"
 // file with NUL bytes in it).
@@ -91,8 +91,8 @@ struct TextLimits {
 // What the info pane shows about an entry, beyond the directory entry itself.
 struct Summary {
     Info info;
-    std::optional<image::PhotoInfo> photo;  // images and camera raw files
-    std::optional<Text> text;               // the first lines of a text file
+    std::optional<picture::PhotoInfo> photo;  // images and camera raw files
+    std::optional<Text> text;                 // the first lines of a text file
 };
 
 inline constexpr std::size_t kSummaryLines = 40;

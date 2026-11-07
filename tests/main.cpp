@@ -9,7 +9,10 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/formats/image/load.hpp"
+#include "nordend/formats/image/photo.hpp"
 #include "nordend/fs/trash.hpp"
+#include "nordend/picture/load.hpp"
 
 int main(int argc, char** argv) {
     // No test reads or makes the user's trash: the trash folder lists one of its own, and no
@@ -29,6 +32,14 @@ int main(int argc, char** argv) {
         // NOLINTNEXTLINE(concurrency-mt-unsafe): no other thread yet
         setenv(name, (std::filesystem::path{root} / folder).c_str(), 1);
     }
+    // Pictures made in this process, by the image family itself (Nordend sends them to its
+    // isolated helpers instead; tests/helpers_test.cpp covers that path).
+    nordend::picture::set_loader([](const nordend::picture::LoadRequest& request) {
+        return nordend::formats::image::load(request);
+    });
+    nordend::picture::set_info_loader([](const std::filesystem::path& path) {
+        return nordend::formats::image::read_photo_info(path);
+    });
     doctest::Context context;
     context.applyCommandLine(argc, argv);
     const int result = context.run();

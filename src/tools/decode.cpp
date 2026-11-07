@@ -7,7 +7,7 @@
 // is not counted when N > 1). --stored leaves the pixels as stored (no EXIF turn). --ppm writes the
 // last image decoded, over a mid gray where it is transparent, to look at it (magick OUT.ppm
 // OUT.png).
-#include "nordend/image/decode.hpp"
+#include "nordend/formats/image/decode.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -23,14 +23,15 @@
 
 namespace {
 
-namespace image = nordend::image;
+namespace image = nordend::formats::image;
+namespace picture = nordend::picture;
 using Clock = std::chrono::steady_clock;
 
 double ms_since(Clock::time_point start) {
     return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
 }
 
-bool write_ppm(const std::filesystem::path& path, const image::Image& picture) {
+bool write_ppm(const std::filesystem::path& path, const picture::Image& picture) {
     std::ofstream out{path, std::ios::binary};
     out << "P6\n" << picture.width << ' ' << picture.height << "\n255\n";
     std::vector<char> row(std::size_t{picture.width} * 3);
@@ -82,7 +83,7 @@ int main(int argc, char** argv) {
         return 2;
     }
     int failures = 0;
-    image::Image last;
+    picture::Image last;
     for (const char* arg : args) {
         const std::filesystem::path path{arg};
         const auto read_start = Clock::now();

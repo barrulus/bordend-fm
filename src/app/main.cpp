@@ -33,8 +33,8 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
-#include "nordend/image/load.hpp"
 #include "nordend/isolate/helpers.hpp"
+#include "nordend/picture/load.hpp"
 #include "nordend/platform/about.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/opener.hpp"
@@ -60,7 +60,7 @@
 namespace {
 
 namespace core = nordend::core;
-namespace image = nordend::image;
+namespace picture = nordend::picture;
 namespace isolate = nordend::isolate;
 namespace fs = nordend::fs;
 namespace log = nordend::log;
@@ -411,8 +411,10 @@ int main(int argc, char** argv) {
                 log::warn("nordend-preview not found: no previews of pictures");
             }
             auto helpers = std::make_shared<isolate::Helpers>(std::move(options));
-            image::set_loader(
-                [helpers](const image::LoadRequest& request) { return helpers->load(request); });
+            picture::set_loader(
+                [helpers](const picture::LoadRequest& request) { return helpers->load(request); });
+            picture::set_info_loader(
+                [helpers](const std::filesystem::path& path) { return helpers->photo_info(path); });
         }
         // Nordend's icon in the desktop's accent (ROADMAP 9.2), written on a worker.
         bool follow_accent = config.icon.follow_accent;

@@ -71,7 +71,8 @@ add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
-add_subdirectory(src/image)     # image decoding (wuffs, libwebp, libjxl), previews, PNG
+add_subdirectory(src/picture)   # pictures: Image, turning, scaling, the cache's PNG, the loader
+add_subdirectory(src/formats)   # the families of files read in the helper (image today)
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/preview)   # Quick Look providers: images, text, information
 add_subdirectory(src/isolate)   # preview helpers: the parsers in separate processes (2b)
@@ -137,11 +138,11 @@ target_link_libraries(nordend-watch PRIVATE nordend::core nordend::fs nordend::w
 
 # Development tool: decodes images, prints sizes and timings (ROADMAP 5.1). Not installed.
 add_executable(nordend-decode src/tools/decode.cpp)
-target_link_libraries(nordend-decode PRIVATE nordend::core nordend::image nordend::warnings)
+target_link_libraries(nordend-decode PRIVATE nordend::core nordend::formats::image nordend::warnings)
 
 # Development tool: thumbnails through the freedesktop cache (ROADMAP 5.2). Not installed.
 add_executable(nordend-thumb src/tools/thumb.cpp)
-target_link_libraries(nordend-thumb PRIVATE nordend::thumbs nordend::warnings)
+target_link_libraries(nordend-thumb PRIVATE nordend::thumbs nordend::formats::image nordend::warnings)
 
 # Development tool: which application opens a file or a type, and how (ROADMAP 6.1). Not
 # installed.
@@ -158,7 +159,7 @@ target_link_libraries(nordend-transfer PRIVATE nordend::core nordend::fs nordend
 if(TURBOJPEG_FOUND)
     add_executable(nordend-bench-jpeg src/tools/bench_jpeg.cpp)
     target_link_libraries(nordend-bench-jpeg
-        PRIVATE nordend::image PkgConfig::TURBOJPEG nordend::warnings)
+        PRIVATE nordend::formats::image PkgConfig::TURBOJPEG nordend::warnings)
 endif()
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,21 @@
+# The image family (ROADMAP 2): photos and images. Decoders (wuffs through picture, libwebp,
+# libjxl, our PGM/PPM and TIFF previews), camera raw previews and EXIF/XMP through exiv2. Linked
+# into the isolated helper (and tests and development tools), never into Nordend.
+add_library(nordend_formats_image
+    src/decode.cpp
+    src/fd_file.cpp
+    src/jpeg_segments.cpp
+    src/jxl_decoder.cpp
+    src/load.cpp
+    src/photo.cpp
+    src/pnm.cpp
+    src/preview.cpp
+    src/tiff.cpp
+    src/webp_decoder.cpp
+    src/wuffs_decoder.cpp)
+add_library(nordend::formats::image ALIAS nordend_formats_image)
+
+target_include_directories(nordend_formats_image PUBLIC include)
+target_link_libraries(nordend_formats_image
+    PUBLIC nordend::picture
+    PRIVATE PkgConfig::WEBP PkgConfig::JXL PkgConfig::EXIV2 nordend::warnings)

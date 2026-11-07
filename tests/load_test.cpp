@@ -1,4 +1,4 @@
-#include "nordend/image/load.hpp"
+#include "nordend/formats/image/load.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -9,14 +9,16 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/picture/load.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "temp_dir.hpp"
 
 namespace fs = std::filesystem;
-namespace image = nordend::image;
+namespace image = nordend::formats::image;
+namespace picture = nordend::picture;
 namespace thumbs = nordend::thumbs;
-using image::Failure;
 using nordend::test::TempDir;
+using picture::Failure;
 
 namespace {
 
@@ -27,7 +29,7 @@ void write_bytes(const fs::path& path, std::string_view bytes) {
     out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
 }
 
-image::Loaded load(const fs::path& path, std::uint32_t side) {
+picture::Loaded load(const fs::path& path, std::uint32_t side) {
     return image::load({.path = path, .max_width = side, .max_height = side});
 }
 
@@ -42,7 +44,7 @@ TEST_CASE("load: every format through the one path, the same for thumbnails") {
           kData / "blocks.jxl", kData / "blocks-orient6.jpg", kData / "shot.jpg",
           kData / "with-thumbnail.jpg", kData / "tiff-preview.tif", dir.path / "blocks.ppm"}) {
         INFO(file.filename().string());
-        const image::Loaded loaded = load(file, 128);
+        const picture::Loaded loaded = load(file, 128);
         REQUIRE(loaded.failure == Failure::none);
         CHECK(loaded.error().empty());
         CHECK_FALSE(loaded.image.empty());
@@ -56,7 +58,7 @@ TEST_CASE("load: every format through the one path, the same for thumbnails") {
     // A TIFF with only a preview: it is that preview, whatever the size asked.
     CHECK(load(kData / "tiff-preview.tif", 1024).from_preview);
     // Turned upright, and the full size says so.
-    const image::Loaded turned = load(kData / "blocks-orient6.jpg", 1024);
+    const picture::Loaded turned = load(kData / "blocks-orient6.jpg", 1024);
     CHECK(turned.full_width == 32);
     CHECK(turned.full_height == 48);
     CHECK(turned.image.width == 32);
@@ -69,7 +71,7 @@ TEST_CASE("load: the bytes decide, not the name") {
     fs::copy_file(kData / "blocks.webp", dir.path / "really a webp.orf");
     for (const char* name : {"really a png.jpg", "really a jpeg.png", "really a webp.orf"}) {
         INFO(name);
-        const image::Loaded loaded = load(dir.path / name, 64);
+        const picture::Loaded loaded = load(dir.path / name, 64);
         CHECK(loaded.failure == Failure::none);
         CHECK(loaded.image.width == 48);
     }
@@ -87,7 +89,7 @@ TEST_CASE("load: each failure has its own plain reason") {
     CHECK(load(dir.path / "huge.ppm", 128).failure == Failure::too_large);
     CHECK(load(dir.path / "truncated.jpg", 128).failure == Failure::damaged);
     CHECK(load(dir.path / "missing.jpg", 128).failure == Failure::unreadable);
-    const image::Loaded x3f = load(dir.path / "fake.x3f", 128);
+    const picture::Loaded x3f = load(dir.path / "fake.x3f", 128);
     CHECK(x3f.failure == Failure::no_readable_preview);
     CHECK(x3f.error() == "No preview Nordend can show in this file");
     CHECK_FALSE(x3f.detail.empty());  // the technical reason, for the log
@@ -95,11 +97,11 @@ TEST_CASE("load: each failure has its own plain reason") {
     std::set<std::string_view> sentences;
     for (const Failure failure : {Failure::unknown_format, Failure::no_readable_preview,
                                   Failure::too_large, Failure::damaged, Failure::unreadable}) {
-        CHECK_FALSE(image::failure_message(failure).empty());
-        sentences.insert(image::failure_message(failure));
+        CHECK_FALSE(picture::failure_message(failure).empty());
+        sentences.insert(picture::failure_message(failure));
     }
     CHECK(sentences.size() == 5);
-    CHECK(image::failure_message(Failure::none).empty());
+    CHECK(picture::failure_message(Failure::none).empty());
 }
 
 TEST_CASE("load: exiv2 only for files that can carry a stored preview") {
@@ -118,10 +120,10 @@ TEST_CASE("load: exiv2 only for files that can carry a stored preview") {
 }
 
 TEST_CASE("load: may_show picks image and raw types") {
-    CHECK(image::may_show("image/jpeg"));
-    CHECK(image::may_show("image/x-olympus-orf"));
-    CHECK(image::may_show("image/tiff"));  // Nikon TIFF, Hasselblad 3FR
-    CHECK(image::may_show("image/x-portable-pixmap"));
-    CHECK_FALSE(image::may_show("image/svg+xml"));
-    CHECK_FALSE(image::may_show("text/plain"));
+    CHECK(picture::may_show("image/jpeg"));
+    CHECK(picture::may_show("image/x-olympus-orf"));
+    CHECK(picture::may_show("image/tiff"));  // Nikon TIFF, Hasselblad 3FR
+    CHECK(picture::may_show("image/x-portable-pixmap"));
+    CHECK_FALSE(picture::may_show("image/svg+xml"));
+    CHECK_FALSE(picture::may_show("text/plain"));
 }

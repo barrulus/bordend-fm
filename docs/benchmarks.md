@@ -93,6 +93,21 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Parsers out of Nordend (ROADMAP 2b-3)
+
+### 2026-11-07: v0.3.1 against now, Release builds
+
+| | v0.3.1 | now |
+|---|---|---|
+| `readelf -d nordend`, NEEDED | 21 | 17 |
+| `ldd nordend`, shared objects | 40 | 29 |
+| `nordend` stripped | 3 374 008 B | 3 357 336 B |
+| `nordend --version`, 50 runs, median (min) | 5.78-5.88 (5.41) ms | 3.37-3.40 (3.11) ms |
+
+`--version` loads every library and leaves: the difference is the dynamic loading of exiv2 and
+the image libraries with their dependencies. Cold start to the first frame on screen: *to be
+measured by the author* (`nordend-bench-start`, ROADMAP 7.6 method).
+
 ## The helper's cage (ROADMAP 2b-2)
 
 ### 2026-11-07

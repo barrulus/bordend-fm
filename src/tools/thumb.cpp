@@ -17,6 +17,8 @@
 #include <string_view>
 #include <vector>
 
+#include "nordend/formats/image/load.hpp"
+#include "nordend/picture/load.hpp"
 #include "nordend/thumbs/cache.hpp"
 
 namespace {
@@ -24,7 +26,7 @@ namespace {
 namespace thumbs = nordend::thumbs;
 using Clock = std::chrono::steady_clock;
 
-bool write_ppm(const std::filesystem::path& path, const nordend::image::Image& picture) {
+bool write_ppm(const std::filesystem::path& path, const nordend::picture::Image& picture) {
     std::ofstream out{path, std::ios::binary};
     out << "P6\n" << picture.width << ' ' << picture.height << "\n255\n";
     for (std::size_t i = 0; i < picture.rgba.size(); i += 4) {
@@ -85,9 +87,13 @@ int main(int argc, char** argv) {
                      "[--make] [--ppm OUT] FILE...\n");
         return 2;
     }
+    // A development tool: pictures made in this process (Nordend uses its isolated helpers).
+    nordend::picture::set_loader([](const nordend::picture::LoadRequest& request) {
+        return nordend::formats::image::load(request);
+    });
     const thumbs::Cache cache{root, "nordend-dev"};
     int failures = 0;
-    nordend::image::Image last;
+    nordend::picture::Image last;
     for (const char* arg : args) {
         const std::filesystem::path file = std::filesystem::absolute(arg).lexically_normal();
         const auto start = Clock::now();

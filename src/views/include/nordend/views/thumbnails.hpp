@@ -10,7 +10,7 @@
 #include <unordered_map>
 
 #include "nordend/core/worker_pool.hpp"
-#include "nordend/image/decode.hpp"
+#include "nordend/picture/image.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/texture.hpp"
 
@@ -60,8 +60,8 @@ public:
 
 private:
     struct Slot {
-        std::optional<core::CancelToken> job;  // being made
-        std::shared_ptr<image::Image> pixels;  // made, not uploaded yet
+        std::optional<core::CancelToken> job;    // being made
+        std::shared_ptr<picture::Image> pixels;  // made, not uploaded yet
         std::unique_ptr<ui::Texture> texture;
         bool failed{false};
         std::uint64_t used{0};  // the frame that last asked for it

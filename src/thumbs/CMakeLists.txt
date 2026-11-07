@@ -4,4 +4,4 @@ add_library(nordend_thumbs
 add_library(nordend::thumbs ALIAS nordend_thumbs)
 
 target_include_directories(nordend_thumbs PUBLIC include)
-target_link_libraries(nordend_thumbs PUBLIC nordend::image nordend::core PRIVATE nordend::warnings)
+target_link_libraries(nordend_thumbs PUBLIC nordend::picture nordend::core PRIVATE nordend::warnings)

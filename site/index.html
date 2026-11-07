@@ -156,18 +156,19 @@
   <div class="stats">
     <div class="stat"><span class="value">128 ms</span><span class="what">cold start to the first frame on screen</span></div>
     <div class="stat"><span class="value">0.7 ms</span><span class="what">first entries of a 10 000-file folder</span></div>
-    <div class="stat"><span class="value">3.2 MB</span><span class="what">stripped binary, decoders built in</span></div>
+    <div class="stat"><span class="value">3.2 MB</span><span class="what">stripped binary; decoders in a caged helper</span></div>
     <div class="stat"><span class="value">0 CPU</span><span class="what">while nothing moves on screen</span></div>
   </div>
   <div class="table"><table>
-    <tr><th>Libraries</th><td>21 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz,
-    toml++, libwebp, libjxl, exiv2, zlib, sdbus-c++ (for udisks2 and the desktop portal), the C/C++
-    runtime. No GTK, no Qt, no GLib.</td></tr>
+    <tr><th>Libraries</th><td>17 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz,
+    toml++, zlib, sdbus-c++ (for udisks2 and the desktop portal), the C/C++ runtime. No GTK, no Qt,
+    no GLib. The photo libraries (libwebp, libjxl, exiv2) are loaded only by
+    <code>nordend-preview</code>, the caged helper that makes pictures (9 libraries).</td></tr>
     <tr><th>Memory</th><td>25 MB of its own at start; 54 MB after browsing 163 raw photos in all
     three views and Quick Look: decoded photos go back to the system.</td></tr>
-    <tr><th>Threads</th><td>The window on one thread, I/O and decoding on a worker pool with
-    priorities and cancellation.</td></tr>
-    <tr><th>Tests</th><td>335 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Threads</th><td>The window on one thread, I/O on a worker pool with priorities and
+    cancellation; pictures made by up to one caged helper process per worker.</td></tr>
+    <tr><th>Tests</th><td>337 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -769,7 +770,7 @@ follow_accent = true</code></pre>
 
   <h3 id="architecture/quality">Quality</h3>
   <ul>
-    <li>335 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    <li>337 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
     before every commit; clang-tidy and clang-format on every change.</li>
     <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
     surfaceless EGL context, without a window.</li>

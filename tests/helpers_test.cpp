@@ -11,14 +11,18 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/image/load.hpp"
+#include "nordend/formats/image/load.hpp"
+#include "nordend/formats/image/photo.hpp"
+#include "nordend/picture/load.hpp"
+#include "protocol.hpp"
 #include "temp_dir.hpp"
 
 namespace fs = std::filesystem;
-namespace image = nordend::image;
+namespace image = nordend::formats::image;
+namespace picture = nordend::picture;
 namespace isolate = nordend::isolate;
-using image::Failure;
 using nordend::test::TempDir;
+using picture::Failure;
 
 namespace {
 
@@ -40,7 +44,7 @@ isolate::HelperOptions fake(const char* mode) {
     return options;
 }
 
-image::LoadRequest request(const fs::path& path, std::uint32_t side = 128) {
+picture::LoadRequest request(const fs::path& path, std::uint32_t side = 128) {
     return {.path = path, .max_width = side, .max_height = side};
 }
 
@@ -52,8 +56,8 @@ TEST_CASE("helpers: the helper makes the same pictures as this process") {
                              "blocks-orient6.jpg", "shot.jpg", "with-thumbnail.jpg",
                              "tiff-preview.tif", "truncated.jpg"}) {
         INFO(name);
-        const image::Loaded there = helpers.load(request(kData / name));
-        const image::Loaded here = image::load(request(kData / name));
+        const picture::Loaded there = helpers.load(request(kData / name));
+        const picture::Loaded here = image::load(request(kData / name));
         CHECK(there.failure == here.failure);
         CHECK(there.detail == here.detail);
         CHECK(there.from_preview == here.from_preview);
@@ -65,17 +69,62 @@ TEST_CASE("helpers: the helper makes the same pictures as this process") {
     CHECK(helpers.running() == 1);  // one after the other: one helper did it all
 }
 
+TEST_CASE("helpers: a photo's information from the helper, its sidecar's rating included") {
+    isolate::Helpers helpers{real(1)};
+    for (const char* name : {"shot.jpg", "with-thumbnail.jpg", "blocks.png", "truncated.jpg"}) {
+        INFO(name);
+        const picture::PhotoInfo there = helpers.photo_info(kData / name);
+        const picture::PhotoInfo here = image::read_photo_info(kData / name);
+        CHECK(there.width == here.width);
+        CHECK(there.height == here.height);
+        CHECK(there.camera == here.camera);
+        CHECK(there.lens == here.lens);
+        CHECK(there.exposure_time == here.exposure_time);
+        CHECK(there.aperture == here.aperture);
+        CHECK(there.iso == here.iso);
+        CHECK(there.taken == here.taken);
+        CHECK(there.software == here.software);
+        CHECK(there.rating == here.rating);
+    }
+    const picture::PhotoInfo shot = helpers.photo_info(kData / "shot.jpg");
+    CHECK(shot.camera == "OM-1");
+    CHECK(shot.rating.has_value());  // from shot.jpg.xmp, sent as a second descriptor
+    CHECK(helpers.photo_info(kData / "missing.jpg").camera.empty());
+}
+
+TEST_CASE("helpers: a photo's information travels whole, and nonsense is refused") {
+    picture::PhotoInfo info;
+    info.width = 5220;
+    info.height = 3912;
+    info.camera = "OM-1";
+    info.lens = std::string(400, 'L');  // cut at 255 bytes
+    info.rating = -1;
+    const std::vector<std::byte> bytes = isolate::protocol::encode_info(info);
+    const std::optional<picture::PhotoInfo> decoded = isolate::protocol::decode_info(bytes);
+    REQUIRE(decoded.has_value());
+    const picture::PhotoInfo back = decoded.value_or(picture::PhotoInfo{});
+    CHECK(back.width == 5220);
+    CHECK(back.camera == "OM-1");
+    CHECK(back.lens == std::string(255, 'L'));
+    CHECK(back.rating == -1);
+    CHECK_FALSE(isolate::protocol::decode_info(std::span{bytes}.first(bytes.size() - 1)));
+    std::vector<std::byte> longer = bytes;
+    longer.push_back(std::byte{0});
+    CHECK_FALSE(isolate::protocol::decode_info(longer));
+    CHECK_FALSE(isolate::protocol::decode_info({}));
+}
+
 TEST_CASE("helpers: never more helpers than allowed, every request answered") {
     isolate::Helpers helpers{real(2)};
-    std::vector<std::future<image::Loaded>> results;
+    std::vector<std::future<picture::Loaded>> results;
     results.reserve(12);
     for (int i = 0; i < 12; ++i) {
         results.push_back(std::async(std::launch::async, [&helpers] {
             return helpers.load(request(kData / "shot.jpg", 256));
         }));
     }
-    for (std::future<image::Loaded>& result : results) {
-        const image::Loaded got = result.get();
+    for (std::future<picture::Loaded>& result : results) {
+        const picture::Loaded got = result.get();
         INFO(got.detail);
         CHECK(got.failure == Failure::none);
     }
@@ -93,7 +142,7 @@ TEST_CASE("helpers: an idle helper is closed and waited for, then replaced unsee
     CHECK(helpers.load(request(kData / "blocks.png")).failure == Failure::none);
     // A goodbye racing with a request: sent again to a new one (which says goodbye too here).
     isolate::Helpers leaving{fake("goodbye")};
-    const image::Loaded left = leaving.load(request(kData / "blocks.png"));
+    const picture::Loaded left = leaving.load(request(kData / "blocks.png"));
     CHECK(left.failure == Failure::unavailable);
     CHECK(leaving.running() == 0);
 }
@@ -103,7 +152,7 @@ TEST_CASE("helpers: a helper that crashes, hangs or talks nonsense is let go of"
         INFO(mode);
         isolate::Helpers helpers{fake(mode)};
         const auto start = std::chrono::steady_clock::now();
-        const image::Loaded loaded = helpers.load(request(kData / "blocks.png"));
+        const picture::Loaded loaded = helpers.load(request(kData / "blocks.png"));
         CHECK(loaded.failure == Failure::unavailable);
         CHECK(loaded.error() == "Preview unavailable");
         CHECK_FALSE(loaded.detail.empty());
@@ -115,7 +164,7 @@ TEST_CASE("helpers: a helper that crashes, hangs or talks nonsense is let go of"
 
 TEST_CASE("helpers: a helper without its cage never works, and Nordend says why") {
     isolate::Helpers helpers{fake("no-sandbox")};
-    const image::Loaded loaded = helpers.load(request(kData / "blocks.png"));
+    const picture::Loaded loaded = helpers.load(request(kData / "blocks.png"));
     CHECK(loaded.failure == Failure::unavailable);
     CHECK(loaded.detail == "the preview helper could not set up its sandbox");
     CHECK(helpers.running() == 0);
@@ -125,7 +174,7 @@ TEST_CASE("helpers: no helper, no picture, and nothing parsed here instead") {
     isolate::HelperOptions missing;
     missing.program = "/nonexistent/nordend-preview";
     isolate::Helpers helpers{missing};
-    const image::Loaded loaded = helpers.load(request(kData / "blocks.png"));
+    const picture::Loaded loaded = helpers.load(request(kData / "blocks.png"));
     CHECK(loaded.failure == Failure::unavailable);
     CHECK(loaded.image.empty());
     CHECK(helpers.running() == 0);
@@ -144,8 +193,12 @@ TEST_CASE("helpers: only regular files are sent") {
 
 TEST_CASE("helpers: load_picture goes where the loader says") {
     auto helpers = std::make_shared<isolate::Helpers>(fake("crash"));
-    image::set_loader([helpers](const image::LoadRequest& r) { return helpers->load(r); });
-    CHECK(image::load_picture(request(kData / "blocks.png")).failure == Failure::unavailable);
-    image::set_loader({});
-    CHECK(image::load_picture(request(kData / "blocks.png")).failure == Failure::none);
+    picture::set_loader([helpers](const picture::LoadRequest& r) { return helpers->load(r); });
+    CHECK(picture::load_picture(request(kData / "blocks.png")).failure == Failure::unavailable);
+    // No loader: no picture, never made here instead.
+    picture::set_loader({});
+    CHECK(picture::load_picture(request(kData / "blocks.png")).failure == Failure::unavailable);
+    // Back to what the other tests use: the image family in this process.
+    picture::set_loader([](const picture::LoadRequest& r) { return image::load(r); });
+    CHECK(picture::load_picture(request(kData / "blocks.png")).failure == Failure::none);
 }

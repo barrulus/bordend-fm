@@ -154,9 +154,10 @@ QuickLook::Slot& QuickLook::ensure(const fs::Entry& entry, bool current) {
         slot.thumbnail_job = pool_.submit(
             core::Priority::visible,
             [cache = thumbnails_, path = slot.path](const core::CancelToken& /*token*/) {
-                return std::make_shared<image::Image>(cache->get(path, thumbs::Size::large).image);
+                return std::make_shared<picture::Image>(
+                    cache->get(path, thumbs::Size::large).image);
             },
-            [this, alive = alive_, key](std::shared_ptr<image::Image> pixels) {
+            [this, alive = alive_, key](std::shared_ptr<picture::Image> pixels) {
                 if (!*alive) {
                     return;
                 }
@@ -256,7 +257,7 @@ const preview::Content* QuickLook::content() const {
 
 std::optional<std::pair<std::uint32_t, std::uint32_t>> QuickLook::image_size() const {
     const preview::Content* const shown = content();
-    const auto* const loaded = shown == nullptr ? nullptr : std::get_if<image::Loaded>(shown);
+    const auto* const loaded = shown == nullptr ? nullptr : std::get_if<picture::Loaded>(shown);
     if (loaded == nullptr || loaded->image.empty()) {
         return std::nullopt;
     }
@@ -301,7 +302,7 @@ void QuickLook::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
 void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
                            const theme::Palette& palette, ui::IconSet& icons,
                            const fs::Entry& entry, Slot& slot, float fade) {
-    auto* const loaded = slot.content ? std::get_if<image::Loaded>(slot.content.get()) : nullptr;
+    auto* const loaded = slot.content ? std::get_if<picture::Loaded>(slot.content.get()) : nullptr;
     // Upload what arrived: the sharp image replaces the thumbnail. The pixels are on the GPU now:
     // they go (the size stays, for the caption).
     if (loaded != nullptr && !loaded->image.empty() && !slot.image_texture) {
@@ -517,7 +518,7 @@ QuickLook::Usage QuickLook::usage() const {
         }
         usage.pixel_bytes += slot.thumbnail_pixels ? slot.thumbnail_pixels->rgba.size() : 0;
         if (slot.content) {
-            if (const auto* loaded = std::get_if<image::Loaded>(slot.content.get())) {
+            if (const auto* loaded = std::get_if<picture::Loaded>(slot.content.get())) {
                 usage.pixel_bytes += loaded->image.rgba.size();
             }
         }

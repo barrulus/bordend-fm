@@ -14,8 +14,9 @@
 #include <utility>
 #include <vector>
 
-#include "nordend/image/load.hpp"
-#include "nordend/image/png.hpp"
+#include "nordend/picture/load.hpp"
+#include "nordend/picture/png.hpp"
+#include "nordend/picture/wuffs.hpp"
 #include "nordend/thumbs/md5.hpp"
 
 namespace nordend::thumbs {
@@ -43,7 +44,7 @@ std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
 bool matches(std::span<const std::uint8_t> png, const std::string& uri, std::int64_t mtime) {
     bool uri_ok = false;
     bool mtime_ok = false;
-    for (const auto& [key, value] : image::png_text(png)) {
+    for (const auto& [key, value] : picture::png_text(png)) {
         if (key == kUriKey) {
             uri_ok = value == uri;
         } else if (key == kMtimeKey) {
@@ -73,12 +74,12 @@ bool make_private_directories(const std::filesystem::path& path) {
 
 // Writes the PNG of image with the spec's text to target: to a private temporary file next to
 // it, then renamed, so that readers never see half a thumbnail and two writers do not mix.
-bool store(const std::filesystem::path& target, const image::Image& image, const std::string& uri,
+bool store(const std::filesystem::path& target, const picture::Image& image, const std::string& uri,
            std::int64_t mtime) {
     const std::vector<std::uint8_t> png =
-        image::encode_png(image, {{std::string{kUriKey}, uri},
-                                  {std::string{kMtimeKey}, std::to_string(mtime)},
-                                  {"Software", "Nordend"}});
+        picture::encode_png(image, {{std::string{kUriKey}, uri},
+                                    {std::string{kMtimeKey}, std::to_string(mtime)},
+                                    {"Software", "Nordend"}});
     if (png.empty() || !make_private_directories(target.parent_path())) {
         return false;
     }
@@ -192,9 +193,10 @@ Thumbnail Cache::get(const std::filesystem::path& file, Size size) const {
     const std::string uri = file_uri(file);
     const std::vector<std::uint8_t> cached = read_file(path_for(file, size));
     if (!cached.empty() && matches(cached, uri, info.st_mtime)) {
-        image::Decoded decoded = image::decode(cached);
-        if (decoded.error.empty()) {
-            return {.image = std::move(decoded.image), .source = Source::cache, .error = {}};
+        // Our own PNGs (or another app's, the same spec): read here, with wuffs, PNG only.
+        std::string error;
+        if (std::optional<picture::Image> stored = picture::decode_png(cached, error)) {
+            return {.image = std::move(*stored), .source = Source::cache, .error = {}};
         }
     }
     const std::vector<std::uint8_t> failed = read_file(fail_path(file));
@@ -219,11 +221,11 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
         return failure("a thumbnail itself");  // the spec: never thumbnail the cache
     }
     const std::uint32_t side = pixels(size);
-    image::Loaded loaded =
-        image::load_picture({.path = file, .max_width = side, .max_height = side});
-    if (loaded.failure != image::Failure::none) {
+    picture::Loaded loaded =
+        picture::load_picture({.path = file, .max_width = side, .max_height = side});
+    if (loaded.failure != picture::Failure::none) {
         // Remembered, so that it is not tried again until the file changes.
-        const image::Image blank{.width = 1, .height = 1, .rgba = {0, 0, 0, 0}};
+        const picture::Image blank{.width = 1, .height = 1, .rgba = {0, 0, 0, 0}};
         static_cast<void>(store(fail_path(file), blank, uri, mtime));
         return failure(std::string{loaded.error()} + " (" + loaded.detail + ")");
     }

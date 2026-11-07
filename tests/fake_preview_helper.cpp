@@ -24,14 +24,11 @@ int main(int argc, char** argv) {
     }
     std::signal(SIGPIPE, SIG_IGN);  // NOLINT(cert-err33-c)
     while (true) {
-        const std::optional<protocol::Packet> packet =
-            protocol::receive_packet(protocol::kSocketFd);
+        std::optional<protocol::Packet> packet = protocol::receive_packet(protocol::kSocketFd);
         if (!packet) {
             return 0;
         }
-        if (packet->fd >= 0) {
-            ::close(packet->fd);
-        }
+        packet->close_fds();
         if (mode == "crash") {
             std::abort();
         }
@@ -42,13 +39,13 @@ int main(int argc, char** argv) {
         }
         if (mode == "garbage") {
             const std::array<std::byte, 7> junk{};
-            static_cast<void>(protocol::send_packet(protocol::kSocketFd, junk, -1));
+            static_cast<void>(protocol::send_packet(protocol::kSocketFd, junk));
             continue;
         }
         if (mode == "goodbye") {
             const protocol::Request goodbye{.magic = protocol::kGoodbyeMagic};
-            static_cast<void>(protocol::send_packet(protocol::kSocketFd,
-                                                    std::as_bytes(std::span{&goodbye, 1}), -1));
+            static_cast<void>(
+                protocol::send_packet(protocol::kSocketFd, std::as_bytes(std::span{&goodbye, 1})));
             return 0;
         }
         // big-lie: 4 bytes of pixels for a 1000x1000 picture.
@@ -58,8 +55,9 @@ int main(int argc, char** argv) {
         protocol::Response response;
         response.width = 1000;
         response.height = 1000;
+        const std::array<int, 1> fds{memfd};
         static_cast<void>(protocol::send_packet(protocol::kSocketFd,
-                                                std::as_bytes(std::span{&response, 1}), memfd));
+                                                std::as_bytes(std::span{&response, 1}), fds));
         ::close(memfd);
     }
 }

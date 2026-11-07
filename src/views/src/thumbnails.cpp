@@ -35,9 +35,9 @@ const ui::Texture* Thumbnails::get(const std::filesystem::path& file, std::int64
             core::Priority::visible,
             [cache = cache_, file, size](const core::CancelToken& /*token*/) {
                 thumbs::Thumbnail thumbnail = cache->get(file, size);
-                return std::make_shared<image::Image>(std::move(thumbnail.image));
+                return std::make_shared<picture::Image>(std::move(thumbnail.image));
             },
-            [this, alive = alive_, key](std::shared_ptr<image::Image> pixels) {
+            [this, alive = alive_, key](std::shared_ptr<picture::Image> pixels) {
                 if (!*alive) {
                     return;
                 }

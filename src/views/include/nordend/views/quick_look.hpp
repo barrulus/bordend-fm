@@ -12,7 +12,7 @@
 
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/mime.hpp"
-#include "nordend/image/decode.hpp"
+#include "nordend/picture/image.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
@@ -99,7 +99,7 @@ private:
         preview::Kind kind{preview::Kind::info};
         std::optional<core::CancelToken> thumbnail_job;
         std::optional<core::CancelToken> content_job;
-        std::shared_ptr<image::Image> thumbnail_pixels;
+        std::shared_ptr<picture::Image> thumbnail_pixels;
         std::shared_ptr<preview::Content> content;  // once made (for images, the sharp stage)
         std::unique_ptr<ui::Texture> thumbnail_texture;
         std::unique_ptr<ui::Texture> image_texture;

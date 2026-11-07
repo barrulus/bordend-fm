@@ -69,8 +69,8 @@
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
-#include "nordend/image/load.hpp"
 #include "nordend/isolate/helpers.hpp"
+#include "nordend/picture/load.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/desktop.hpp"
@@ -91,7 +91,7 @@ namespace {
 
 namespace log = nordend::log;
 namespace core = nordend::core;
-namespace image = nordend::image;
+namespace picture = nordend::picture;
 namespace isolate = nordend::isolate;
 namespace preview = nordend::preview;
 namespace ui = nordend::ui;
@@ -377,8 +377,11 @@ int main(int argc, char** argv) {
                     log::warn("nordend-preview not found: no previews of pictures");
                 }
                 auto helpers = std::make_shared<isolate::Helpers>(std::move(options));
-                image::set_loader([helpers](const image::LoadRequest& request) {
+                picture::set_loader([helpers](const picture::LoadRequest& request) {
                     return helpers->load(request);
+                });
+                picture::set_info_loader([helpers](const std::filesystem::path& path) {
+                    return helpers->photo_info(path);
                 });
             }
             nordend::fs::DirectoryWatcher watcher{loop};

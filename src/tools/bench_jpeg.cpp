@@ -20,7 +20,7 @@
 #include <turbojpeg.h>
 #include <vector>
 
-#include "nordend/image/decode.hpp"
+#include "nordend/formats/image/decode.hpp"
 
 namespace {
 
@@ -79,7 +79,8 @@ int main(int argc, char** argv) {
                   static_cast<std::streamsize>(data.size()));
 
         const double wuffs = time_runs(runs, [&] {
-            return nordend::image::decode(data, {.apply_orientation = false}).error.empty();
+            return nordend::formats::image::decode(data, {.apply_orientation = false})
+                .error.empty();
         });
         std::printf("%s\n  wuffs 1/1: %.1f ms\n", arg, wuffs);
         wuffs_all.push_back(wuffs);
