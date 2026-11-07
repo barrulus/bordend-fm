@@ -4,6 +4,79 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-07 — Raw previews of the new sample folder (ROADMAP 1, 0.3.1)
+
+**Tested by the author** (2026-11-07): thumbnails and Quick Look on the new sample folder and on
+the author's ORFs, all as expected.
+
+**Done**
+- DNG previews stored as a JPEG inside a TIFF (compression 7, or 6 when the one strip is a whole
+  JPEG) are taken out and read as JPEGs (`detail::jpeg_in_tiff`): Leica M240 (160x120, its only
+  preview) and Samsung GX20 (4672x3104, full size) failed before, both show now.
+- A chosen JPEG preview must be whole (`detail::whole_jpeg` follows the segments and the scan's
+  markers to the EOI; bytes after it are fine, Panasonic pads its previews), else the next
+  candidate is chosen: Samsung EX2F's 640x360 preview stops before its end, so small thumbnails
+  of that SRW failed; they now come from the 4000x2248 one.
+- Binary PGM and PPM (P5, P6, 8 and 16 bits) decoded by our own `decode_pnm` (`Format::pnm`;
+  `image/x-portable-graymap`, `image/x-portable-pixmap` get thumbnails and Quick Look): the
+  Hasselblad CFV sample is a PPM.
+- Raw formats exiv2 does not read (Sigma X3F, Panasonic `.RAW` of the DMC-FZ8, LX1, Leica D-LUX 3)
+  say "No preview Nordend can show in this file" in Quick Look instead of the decoder's "not an
+  image format Nordend decodes".
+- The raw-sample test rewritten for `fotografia/raw_test_photo_new`: every sample with a preview at
+  four sizes, plus the special cases above; the GX8 crop checks moved to their own test, skipped
+  until the folder has rawsamples.ch's GX8 files. New test "image: PGM and PPM".
+
+**Measured** (see benchmarks.md "Raw previews")
+- Previews at 1024 px: 68-117 ms for NEF, RAF, RW2, ARW, SRW; GX20 DNG 177 ms (it decodes the
+  full-size JPEG even for small thumbnails: the 160x120 TIFF thumbnail is 4:3, the photo 3:2).
+- What newer bodies carry: Nikon (8280 px wide) and the 7168 px Sony a full-size JPEG; Fuji X-T2,
+  X-A2, X-Pro1 1920x1280 only; older Sony 1616x1080; the OM-1 3200x2400.
+- `whole_jpeg` costs 0.39 ms on a 969 kB ORF preview.
+
+**Open**
+- Thumbnails of the GX20's DNG decode its 4672x3104 JPEG (177 ms); a scaled JPEG decode would
+  help, *not planned*.
+- GX8 samples for the crop test (rawsamples.ch `RAW_PANASONIC_GX8_{11,169,43}.RW2`).
+
+---
+
+## 2026-11-07 — A new roadmap after 0.3.0
+
+**Decisions** (with the author)
+- Nordend depends on no raw editor: darktable, Lightroom, Capture One, ART and the new editors are
+  equal guests. Stars and colour labels are Nordend's own, in the file's extended attributes
+  (`user.baloo.rating` 0-10 as Dolphin/KDE writes it, `user.nordend.label`), on files and
+  folders alike; XMP sidecars of any editor are a bridge (read when the file has no attributes,
+  written only when asked in `config.toml`). Colour labels as on macOS: right click, the row takes
+  the colour.
+- The roadmap starts again: 0.3.1 raw fixes, 0.4.0 labels and ratings, 0.5.0 Quick Look for
+  photographers (100 % zoom, EXIF overlay, histogram, rating from Quick Look, compare), then
+  isolated previews (a pre-started helper under seccomp + landlock, no network; LibRaw only in
+  there), then dual pane, operations queue and batch rename. DESIGN's post-MVP list follows.
+- Later the same day: **no raw decoding beyond the embedded JPEG** (no LibRaw, no camera
+  database); a raw's 100 % zoom is the preview's 100 %, said in Quick Look. **DNG is decoded by
+  our own C++ decoder** (bounded reader, checked arithmetic, fuzzing), born inside the isolated
+  helper. Nordend is a file manager for creators: Quick Look gains syntax highlighting and text
+  selection, a video/audio player (libmpv render API the candidate, loaded with `dlopen` on the
+  first video), then HEIC/AVIF, SVG, PDF, fonts, PSD one at a time. New order: 0.3.1 raw fixes,
+  labels and ratings, Quick Look for photographers, isolated previews, DNG decoder, Quick Look for
+  creators, dual pane, then translations, portal, Luau, helix.
+- Measured for that choice: the OM-1 ORF embeds a 3200×2400 JPEG of a 5220 px wide photo.
+- Prompted by Strata (Rust + GTK4, Miller columns, Ctrl+K, previews parsed out of process in
+  Bubblewrap, no colour labels or ratings).
+
+**Measured**
+- New raw folder `fotografia/raw_test_photo_new` with `nordend-thumb --size xx-large`: NEF ×2,
+  RAF ×3, LX7 RW2, SRW, ARW ×3 give 1024 px previews in 68-117 ms; Epson ERF (160×120),
+  Hasselblad 3FR ×2 (320, 290) and Leica M8 DNG (320×240) only carry tiny previews; **Leica M240
+  and Samsung GX20 DNG fail** (exiv2 lists a 160×120 big-endian TIFF and a "4672×3104 TIFF"),
+  Panasonic `.RAW` ×3 and Sigma X3F are unknown to exiv2, the Hasselblad CFV is a plain PPM (not
+  decoded). The old raw test expects the rawsamples.ch names of the previous folder: to rewrite.
+- `user.*` extended attributes work on the DATA disk (ext4); our transfers do not copy them yet.
+
+---
+
 ## 2026-11-06 — The site, as documentation
 
 **Done** (asked by the author: "più carino", full-width with a sidebar, Nordend's colours, easier

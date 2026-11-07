@@ -93,6 +93,21 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Raw previews (ROADMAP 1, 0.3.1)
+
+### 2026-11-07: `nordend-thumb`, the new sample folder
+
+`nordend-thumb --size xx-large --make FILE` (1024 px, warm cache, Release build), one run each, on
+`fotografia/raw_test_photo_new`: NEF 79-85 ms, RAF 83-100 ms, LX7 RW2 82 ms, ARW 68-86 ms, SRW
+117 ms; the small TIFF previews 3-10 ms (Epson ERF 160 px, Hasselblad 3FR 290-320 px, Leica M8
+DNG 320 px). Samsung GX20 DNG, whose only usable preview is the full-size JPEG inside a TIFF
+(4672x3104): 177 ms. Hasselblad CFV (a 4096x4096 8-bit PPM, 50 MB): read in 43 ms, decoded in
+121 ms (`nordend-decode`), 221 ms to a 256 px thumbnail.
+
+Checking that a chosen JPEG preview is whole (`whole_jpeg`, which follows its segments and scan
+markers to the EOI): 0.39 ms on the OM-1 ORF's 3200x2400 preview (969 kB), mean of 100 runs, a
+throwaway program built `-O2` against `jpeg_segments.cpp`.
+
 ## Command palette (ROADMAP 8a)
 
 ### 2026-11-06: filtering

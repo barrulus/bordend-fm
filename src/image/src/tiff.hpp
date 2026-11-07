@@ -51,6 +51,12 @@ private:
     bool little_;
 };
 
+// The JPEG inside the first IFD of a TIFF compressed as JPEG in one strip (compression 7, or
+// the old 6 when the strip is a whole JPEG): DNG previews are stored so (Leica M240's thumbnail,
+// Samsung GX20's full-size preview). nullopt for anything else.
+[[nodiscard]] std::optional<std::span<const std::uint8_t>> jpeg_in_tiff(
+    std::span<const std::uint8_t> data);
+
 // Decodes the first IFD of a TIFF when it is the simple kind raw files carry as previews:
 // uncompressed, chunky, 8-bit RGB, in strips. Anything else fails with a reason.
 void decode_tiff_rgb8(std::span<const std::uint8_t> data, const DecodeOptions& options,

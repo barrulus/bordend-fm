@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-v0.3.0-2a6a9e" alt="release v0.3.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-316%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="316 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-318%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="318 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -88,7 +88,7 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 |---|---|
 | Binary | **3.86 MB** (3.21 MB stripped), x86-64, decoders built in |
 | Libraries | 21 direct; no GTK, no Qt, no GLib |
-| Code | about 39 000 lines of C++20, 12 200 of tests (316 test cases, under ASan and TSan too) |
+| Code | about 39 000 lines of C++20, 12 200 of tests (318 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start, **54 MB** after browsing 163 raw photos in every view |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -176,7 +176,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | — |
+| on `main`, next | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
 | [0.1.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.1.0), 2026-11-06 | The first release: three views, raw previews and Quick Look, file operations with undo, trash, drag and drop, disks, the desktop's look |

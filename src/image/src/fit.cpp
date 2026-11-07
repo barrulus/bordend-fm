@@ -36,7 +36,11 @@ Fitted load_to_fit(const std::filesystem::path& file, std::uint32_t max_width,
             result.full_width = picture.width;
             result.full_height = picture.height;
         } else if (preview.data.empty() || !from_preview()) {
-            result.error = decoded.error;
+            // A camera raw of a format Nordend does not read (Sigma X3F, old Panasonic RAW)
+            // or one without a preview: said plainly rather than as a decoder's error.
+            result.error = decoded.format == Format::unknown && preview.data.empty()
+                               ? "No preview Nordend can show in this file"
+                               : decoded.error;
             return result;
         }
     }

@@ -56,6 +56,8 @@ std::string_view format_name(Format format) noexcept {
             return "WebP";
         case Format::jxl:
             return "JPEG XL";
+        case Format::pnm:
+            return "PNM";
         case Format::unknown:
             break;
     }
@@ -77,6 +79,11 @@ Format sniff(std::span<const std::uint8_t> head) noexcept {
     }
     if (starts_with(head, kJxlCodestream) || starts_with(head, kJxlContainer)) {
         return Format::jxl;
+    }
+    // "P5" or "P6" and whitespace: binary PGM or PPM.
+    if (head.size() >= 3 && head[0] == 'P' && (head[1] == '5' || head[1] == '6') &&
+        (head[2] == ' ' || head[2] == '\t' || head[2] == '\n' || head[2] == '\r')) {
+        return Format::pnm;
     }
     return Format::unknown;
 }
@@ -182,6 +189,9 @@ Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options)
             break;
         case Format::jxl:
             detail::decode_jxl(data, options, result);
+            break;
+        case Format::pnm:
+            detail::decode_pnm(data, options, result);
             break;
         case Format::unknown:
             result.error = data.empty() ? "empty file" : "not an image format Nordend decodes";

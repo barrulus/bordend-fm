@@ -74,4 +74,50 @@ std::optional<JpegSize> jpeg_size(std::span<const std::uint8_t> data) {
     return size;
 }
 
+bool whole_jpeg(std::span<const std::uint8_t> data) {
+    if (data.size() < 4 || data[0] != 0xFF || data[1] != 0xD8) {
+        return false;
+    }
+    // Segments with a length, until a scan; in the scan, 0xFF is followed by 0x00 (a stuffed
+    // byte), a restart marker or a fill byte, else by the next marker. Bytes after the EOI
+    // (Panasonic pads its previews) do not matter.
+    std::size_t at = 2;
+    bool in_scan = false;
+    while (at + 1 < data.size()) {
+        if (in_scan && data[at] != 0xFF) {
+            ++at;
+            continue;
+        }
+        if (data[at] != 0xFF) {
+            return false;  // a segment must start with a marker
+        }
+        const std::uint8_t marker = data[at + 1];
+        if (marker == 0xFF) {
+            ++at;  // fill byte
+            continue;
+        }
+        if (in_scan && (marker == 0x00 || (marker >= 0xD0 && marker <= 0xD7))) {
+            at += 2;
+            continue;
+        }
+        if (marker == 0xD9) {
+            return true;
+        }
+        if (marker >= 0xD0 && marker <= 0xD7) {
+            at += 2;  // a stray restart marker: no length
+            continue;
+        }
+        if (at + 3 >= data.size()) {
+            return false;
+        }
+        const std::size_t length = (std::size_t{data[at + 2]} << 8) | data[at + 3];
+        if (length < 2) {
+            return false;
+        }
+        at += 2 + length;
+        in_scan = marker == 0xDA;  // SOS: its entropy-coded data follows the header
+    }
+    return false;
+}
+
 }  // namespace nordend::image::detail

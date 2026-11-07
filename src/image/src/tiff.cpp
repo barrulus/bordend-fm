@@ -21,6 +21,9 @@ constexpr std::uint16_t kRowsPerStrip = 278;
 constexpr std::uint16_t kStripByteCounts = 279;
 constexpr std::uint16_t kPlanarConfiguration = 284;
 
+constexpr std::uint32_t kOldJpeg = 6;
+constexpr std::uint32_t kJpeg = 7;
+
 }  // namespace
 
 std::optional<TiffReader> TiffReader::open(std::span<const std::uint8_t> data) {
@@ -78,6 +81,29 @@ std::optional<std::uint32_t> TiffReader::number(std::size_t ifd, std::uint16_t t
         return std::nullopt;
     }
     return values.front();
+}
+
+std::optional<std::span<const std::uint8_t>> jpeg_in_tiff(std::span<const std::uint8_t> data) {
+    const std::optional<TiffReader> tiff = TiffReader::open(data);
+    if (!tiff) {
+        return std::nullopt;
+    }
+    const std::size_t ifd = tiff->first_ifd();
+    const std::optional<std::uint32_t> compression = tiff->number(ifd, kCompression);
+    if (compression != kJpeg && compression != kOldJpeg) {
+        return std::nullopt;
+    }
+    const std::vector<std::uint32_t> offsets = tiff->numbers(ifd, kStripOffsets);
+    const std::vector<std::uint32_t> counts = tiff->numbers(ifd, kStripByteCounts);
+    if (offsets.size() != 1 || counts.size() != 1 || counts[0] < 4 ||
+        !tiff->has(offsets[0], counts[0])) {
+        return std::nullopt;  // several strips are JPEGs that share tables: not one image
+    }
+    const std::span<const std::uint8_t> strip = data.subspan(offsets[0], counts[0]);
+    if (strip[0] != 0xFF || strip[1] != 0xD8) {
+        return std::nullopt;
+    }
+    return strip;
 }
 
 void decode_tiff_rgb8(std::span<const std::uint8_t> data, const DecodeOptions& options,

@@ -150,7 +150,7 @@ Size size_for(std::uint32_t side) noexcept {
 }
 
 bool can_make(std::string_view mime) noexcept {
-    static constexpr std::array<std::string_view, 28> kTypes{"image/png",
+    static constexpr std::array<std::string_view, 30> kTypes{"image/png",
                                                              "image/jpeg",
                                                              "image/gif",
                                                              "image/webp",
@@ -174,6 +174,8 @@ bool can_make(std::string_view mime) noexcept {
                                                              "image/x-panasonic-rw",
                                                              "image/x-panasonic-rw2",
                                                              "image/x-pentax-pef",
+                                                             "image/x-portable-graymap",
+                                                             "image/x-portable-pixmap",
                                                              "image/x-sigma-x3f",
                                                              "image/x-sony-arw",
                                                              "image/x-sony-sr2",

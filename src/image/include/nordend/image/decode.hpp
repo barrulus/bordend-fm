@@ -20,7 +20,7 @@ struct Image {
     [[nodiscard]] bool empty() const noexcept { return width == 0 || height == 0; }
 };
 
-enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl };
+enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl, pnm };
 
 [[nodiscard]] std::string_view format_name(Format format) noexcept;
 

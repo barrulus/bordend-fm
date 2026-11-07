@@ -252,32 +252,58 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
             });
         }
         // A JPEG, unless none is big enough and a TIFF is bigger: TIFF previews are raw RGB,
-        // large on disk, and only some can be read.
-        std::optional<std::size_t> best =
-            choose(candidates, min_long_side, [](const Candidate& c) { return !c.tiff; });
-        if (!best || candidates[*best].long_side() < min_long_side) {
-            const std::optional<std::size_t> tiff =
-                choose(candidates, min_long_side, [](const Candidate& c) { return c.tiff; });
-            if (tiff && (!best || candidates[*tiff].long_side() > candidates[*best].long_side())) {
-                best = tiff;
+        // large on disk, and only some can be read. One that turns out broken (Samsung EX2F's
+        // 640x360 JPEG stops before its end) is dropped and the choice made again.
+        std::vector<std::uint8_t> data;
+        std::optional<Candidate> picked;
+        while (!candidates.empty() && !picked) {
+            std::optional<std::size_t> best =
+                choose(candidates, min_long_side, [](const Candidate& c) { return !c.tiff; });
+            if (!best || candidates[*best].long_side() < min_long_side) {
+                const std::optional<std::size_t> tiff =
+                    choose(candidates, min_long_side, [](const Candidate& c) { return c.tiff; });
+                if (tiff &&
+                    (!best || candidates[*tiff].long_side() > candidates[*best].long_side())) {
+                    best = tiff;
+                }
+            }
+            if (!best) {
+                break;
+            }
+            Candidate chosen = candidates[*best];
+            candidates.erase(candidates.begin() + static_cast<std::ptrdiff_t>(*best));
+            if (chosen.property) {
+                const Exiv2::PreviewImage preview =
+                    previews.getPreviewImage(properties.at(*chosen.property));
+                data.assign(preview.pData(), preview.pData() + preview.size());
+            } else {
+                data = read_range(path, chosen.offset, chosen.length);
+            }
+            if (chosen.tiff) {
+                // A TIFF preview compressed as JPEG (DNG): the JPEG itself, read like any other.
+                if (const auto inner = detail::jpeg_in_tiff(data)) {
+                    const std::optional<detail::JpegSize> size = detail::jpeg_size(*inner);
+                    if (!size) {
+                        continue;
+                    }
+                    data = std::vector<std::uint8_t>(inner->begin(), inner->end());
+                    chosen.tiff = false;
+                    if (!chosen.crop) {
+                        chosen.width = size->width;
+                        chosen.height = size->height;
+                    }
+                }
+            }
+            const bool usable =
+                chosen.tiff ? detail::TiffReader::open(data).has_value() : detail::whole_jpeg(data);
+            if (usable) {
+                picked = chosen;
             }
         }
-        if (!best) {
+        if (!picked) {
             return result;
         }
-        const Candidate& chosen = candidates[*best];
-        std::vector<std::uint8_t> data;
-        if (chosen.property) {
-            const Exiv2::PreviewImage preview =
-                previews.getPreviewImage(properties.at(*chosen.property));
-            data.assign(preview.pData(), preview.pData() + preview.size());
-        } else {
-            data = read_range(path, chosen.offset, chosen.length);
-        }
-        const bool jpeg = data.size() >= 4 && data[0] == 0xFF && data[1] == 0xD8;
-        if (!jpeg && !(chosen.tiff && detail::TiffReader::open(data))) {
-            return result;  // not what it says after all
-        }
+        const Candidate& chosen = *picked;
         result.data = std::move(data);
         result.tiff = chosen.tiff;
         result.width = chosen.width;

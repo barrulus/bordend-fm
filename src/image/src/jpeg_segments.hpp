@@ -27,4 +27,9 @@ struct JpegSize {
 
 [[nodiscard]] std::optional<JpegSize> jpeg_size(std::span<const std::uint8_t> data);
 
+// Whether data holds a JPEG from its SOI to its EOI, following the segments and the scans'
+// markers (bytes after the EOI are allowed): a preview cut short by a wrong length in the file
+// fails this. Reads every byte once.
+[[nodiscard]] bool whole_jpeg(std::span<const std::uint8_t> data);
+
 }  // namespace nordend::image::detail

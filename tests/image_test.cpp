@@ -2,13 +2,16 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <initializer_list>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <doctest/doctest.h>
 
 #include "nordend/image/decode.hpp"
+#include "nordend/image/fit.hpp"
 #include "nordend/image/photo.hpp"
 #include "nordend/image/png.hpp"
 #include "nordend/image/preview.hpp"
@@ -324,22 +327,82 @@ TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rati
     CHECK(missing.width == 0);
 }
 
-// Raw files of other cameras, from rawsamples.ch (not in the repository): the folder named by
-// NORDEND_RAW_SAMPLES, when it is set. The test needs the files these checks name.
+// Binary PGM and PPM, built here: 8 and 16 bits, comments in the header, broken ones refused.
+TEST_CASE("image: PGM and PPM") {
+    const auto bytes = [](std::string_view header, std::initializer_list<std::uint8_t> pixels) {
+        std::vector<std::uint8_t> data(header.begin(), header.end());
+        data.insert(data.end(), pixels);
+        return data;
+    };
+    const std::vector<std::uint8_t> ppm =
+        bytes("P6\n# made by hand\n2 1\n255\n", {255, 0, 0, 0, 128, 255});
+    CHECK(image::sniff(ppm) == Format::pnm);
+    const image::Decoded rgb = image::decode(ppm);
+    REQUIRE(rgb.error.empty());
+    CHECK(rgb.format == Format::pnm);
+    CHECK(rgb.image.width == 2);
+    CHECK(rgb.image.height == 1);
+    CHECK(rgb.image.rgba == std::vector<std::uint8_t>{255, 0, 0, 255, 0, 128, 255, 255});
+    // 16-bit samples are big-endian; maxval 1000 scales to 0-255.
+    const image::Decoded gray = image::decode(bytes("P5 1 1 1000 ", {0x01, 0xF4}));
+    REQUIRE(gray.error.empty());
+    CHECK(gray.image.rgba == std::vector<std::uint8_t>{128, 128, 128, 255});
+    CHECK_FALSE(image::decode(bytes("P6\n2 1\n255\n", {255, 0, 0})).error.empty());  // cut short
+    CHECK_FALSE(image::decode(bytes("P6\n2 x\n255\n", {})).error.empty());           // no height
+    CHECK_FALSE(image::decode(bytes("P6\n1 1\n70000\n", {0, 0, 0, 0, 0, 0})).error.empty());
+    CHECK_FALSE(image::decode(bytes("P6\n1 1\n255", {})).error.empty());  // no pixels at all
+    CHECK(image::decode(bytes("P6\n99999 99999\n255\n", {}), {.max_pixels = 1000}).error ==
+          "image too large");
+    CHECK(image::sniff(bytes("P3\n1 1\n255\n", {})) == Format::unknown);  // ASCII: not ours
+}
+
+// Raw files of many cameras (rawsamples.ch and others; not in the repository): the folder named
+// by NORDEND_RAW_SAMPLES, when it is set. The checks name the files they need.
 namespace {
 const std::filesystem::path kRawSamples = [] {
     const char* folder = std::getenv("NORDEND_RAW_SAMPLES");
     return std::filesystem::path{folder != nullptr ? folder : ""};
 }();
+
+// The samples that carry a preview Nordend reads.
+constexpr std::array<const char*, 23> kWithPreview{
+    "_AUS2917.NEF",
+    "_DSC5410.nef",
+    "_DSF2161.RAF",
+    "_SNY1264.ARW",
+    "RAW_EPSON_RD1.ERF",
+    "RAW_FUJI_X-A2.RAF",
+    "RAW_FUJI_XPRO1.RAF",
+    "RAW_HASSELBLAD_H3D39II.3FR",
+    "RAW_HASSELBLAD_IXPRESS_CF132.3FR",
+    "RAW_LEICA_M240.DNG",
+    "RAW_LEICA_M8.DNG",
+    "RAW_PANASONIC_DMC-GX-7_11.RW2",
+    "RAW_PANASONIC_DMC-GX-7_169.RW2",
+    "RAW_PANASONIC_DMC-GX-7_32.RW2",
+    "RAW_PANASONIC_DMC-GX-7_43.RW2",
+    "RAW_PANASONIC_LUMIX_DMC-LX7.RW2",
+    "RAW_SAMSUNG_EX2F.SRW",
+    "RAW_SAMSUNG_GX20.DNG",
+    "RAW_SONY_A900.ARW",
+    "RAW_SONY_ILCA-77M2.ARW",
+    // Unread by exiv2: no preview (checked below).
+    "RAW_SIGMA_DP2-QUATTRO.X3F",
+    "RAW_LEICA_DLUX3.RAW",
+    "RAW_PANASONIC_FZ8.RAW",
+};
+constexpr std::size_t kUnread = 3;  // the last ones above
 }  // namespace
 
 TEST_CASE("image: raw samples of other cameras" *
           doctest::skip(kRawSamples.empty() || !std::filesystem::is_directory(kRawSamples))) {
-    for (const auto& entry : std::filesystem::directory_iterator{kRawSamples}) {
-        INFO(entry.path().filename().string());
+    for (std::size_t i = 0; i < kWithPreview.size() - kUnread; ++i) {
+        INFO(std::string{kWithPreview.at(i)});
+        REQUIRE(std::filesystem::exists(kRawSamples / kWithPreview.at(i)));
         for (const std::uint32_t side : {128U, 256U, 1024U, 2880U}) {
             INFO("side " << side);
-            const image::EmbeddedPreview preview = image::embedded_preview(entry.path(), side);
+            const image::EmbeddedPreview preview =
+                image::embedded_preview(kRawSamples / kWithPreview.at(i), side);
             CHECK(preview.error.empty());
             REQUIRE_FALSE(preview.data.empty());
             const image::Decoded decoded = image::decode_preview(preview);
@@ -351,19 +414,56 @@ TEST_CASE("image: raw samples of other cameras" *
     const auto preview = [&](const char* name, std::uint32_t side) {
         return image::embedded_preview(kRawSamples / name, side);
     };
-    // Only a TIFF preview in a 3FR.
+    // Only a TIFF preview in a 3FR and in the M8's DNG.
     const image::EmbeddedPreview hasselblad = preview("RAW_HASSELBLAD_H3D39II.3FR", 256);
     CHECK(hasselblad.tiff);
     CHECK(hasselblad.width == 320);
-    // Canon's TIFF previews are never taken, even where one would be big enough.
-    CHECK_FALSE(preview("RAW_CANON_EOS_5DS.CR2", 256).tiff);
-    CHECK(preview("RAW_CANON_EOS_5DS.CR2", 256).width == 8688);
+    CHECK(preview("RAW_LEICA_M8.DNG", 256).tiff);
+    // DNG previews compressed as JPEG inside a TIFF: the JPEG is taken out (the GX20's is
+    // full size).
+    const image::EmbeddedPreview m240 = preview("RAW_LEICA_M240.DNG", 128);
+    CHECK_FALSE(m240.tiff);
+    CHECK(m240.width == 160);
+    const image::EmbeddedPreview gx20 = preview("RAW_SAMSUNG_GX20.DNG", 1024);
+    CHECK_FALSE(gx20.tiff);
+    CHECK(gx20.width == 4672);
+    CHECK(gx20.height == 3104);
+    // Samsung EX2F's 640x360 JPEG stops before its end: the next one is taken.
+    CHECK(preview("RAW_SAMSUNG_EX2F.SRW", 128).width == 4000);
     // A 4:3 EXIF thumbnail of a 3:2 photo has black bars: the next preview is taken instead.
-    CHECK(preview("RAW_SONY_RX10M2.ARW", 128).width == 1616);
-    CHECK(preview("RAW_NIKON_D800_L.TIFF", 128).width == 570);
+    CHECK(preview("_AUS2917.NEF", 128).width == 640);
+    CHECK(preview("RAW_SONY_A900.ARW", 128).width == 1616);
     CHECK(preview("RAW_PANASONIC_DMC-GX-7_11.RW2", 128).width == 1920);
     CHECK(preview("RAW_PANASONIC_DMC-GX-7_43.RW2", 128).width == 160);
-    // The GX8 crops its 4:3 preview to the aspect ratio shot; the GX7 stores it cropped.
+    // Full-size previews of newer bodies are found when asked for a large one.
+    CHECK(preview("_SNY1264.ARW", 2880).width == 7008);
+    CHECK(preview("_AUS2917.NEF", 2880).width == 8256);
+    // The GX7 stores its previews cropped to the aspect ratio shot: nothing to crop.
+    CHECK_FALSE(preview("RAW_PANASONIC_DMC-GX-7_169.RW2", 1024).crop);
+    CHECK(preview("RAW_PANASONIC_DMC-GX-7_169.RW2", 1024).height == 1080);
+    // Formats exiv2 does not read: no preview, and Quick Look says so plainly.
+    for (std::size_t i = kWithPreview.size() - kUnread; i < kWithPreview.size(); ++i) {
+        INFO(std::string{kWithPreview.at(i)});
+        REQUIRE(std::filesystem::exists(kRawSamples / kWithPreview.at(i)));
+        CHECK(preview(kWithPreview.at(i), 256).data.empty());
+        CHECK(image::load_to_fit(kRawSamples / kWithPreview.at(i), 800, 600).error ==
+              "No preview Nordend can show in this file");
+    }
+    // Hasselblad's CFV sample is a plain 8-bit PPM.
+    const image::Decoded cfv = image::decode_file(kRawSamples / "RAW_HASSELBLAD_CFV.PPM");
+    REQUIRE(cfv.error.empty());
+    CHECK(cfv.format == Format::pnm);
+    CHECK(cfv.image.width == 4096);
+}
+
+// The GX8 crops its 4:3 preview to the aspect ratio shot (rawsamples.ch's GX8 files, when the
+// folder has them).
+TEST_CASE("image: Panasonic GX8 crop" *
+          doctest::skip(kRawSamples.empty() ||
+                        !std::filesystem::exists(kRawSamples / "RAW_PANASONIC_GX8_169.RW2"))) {
+    const auto preview = [&](const char* name, std::uint32_t side) {
+        return image::embedded_preview(kRawSamples / name, side);
+    };
     const image::EmbeddedPreview wide = preview("RAW_PANASONIC_GX8_169.RW2", 1024);
     REQUIRE(wide.crop);
     CHECK(wide.width == 1920);
@@ -374,5 +474,4 @@ TEST_CASE("image: raw samples of other cameras" *
     CHECK(square.width == 1440);
     CHECK(square.height == 1440);
     CHECK_FALSE(preview("RAW_PANASONIC_GX8_43.RW2", 1024).crop);
-    CHECK_FALSE(preview("RAW_PANASONIC_DMC-GX-7_169.RW2", 1024).crop);
 }

@@ -78,9 +78,13 @@ README's [What's next](../README.md#whats-next).
   OM-1 JPEG and 36 ms from an ORF.
 - **Raw files from many cameras:** OM System and Olympus ORF (including the maker-note preview),
   Canon CR2, Nikon NEF and TIFF, Sony ARW, Fujifilm RAF, Panasonic RW2 (cropped to the shot's
-  aspect ratio), Hasselblad 3FR. Each is shown upright, in the shape it was shot, without the
-  black bars some cameras put on their thumbnails.
-- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), with EXIF orientation.
+  aspect ratio), Samsung SRW, Epson ERF, Hasselblad 3FR and DNG (including previews stored as a
+  JPEG inside a TIFF: full size in a Samsung GX20's DNG). Each is shown upright, in the shape it
+  was shot, without the black bars some cameras put on their thumbnails; a preview the camera
+  stored broken is passed over for the next one. Formats with no preview Nordend can read (Sigma
+  X3F, old Panasonic RAW) say so in Quick Look.
+- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
+  (8 and 16 bits), with EXIF orientation.
 - **Shared freedesktop thumbnail cache:** thumbnails go where GNOME, KDE and other apps look for
   them, byte-compatible, so they are made once for all of them. Files that fail are remembered.
 - **Quick Look** (Space): the photo fills the window, raw files included. An ORF fitted to a
