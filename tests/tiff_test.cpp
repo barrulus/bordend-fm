@@ -201,6 +201,15 @@ TEST_CASE("tiff: broken TIFFs are damaged, never a crash") {
     CHECK(image::load({.path = kTiff / "broken-tile-tag.tif", .max_width = 64, .max_height = 64})
               .failure == image::Failure::damaged);
     CHECK(std::chrono::steady_clock::now() - start < std::chrono::milliseconds{200});
+    // Found by the fuzzer of the whole family (2e-3): 3 kB of one uncompressed strip claiming
+    // 172 MP and 151 MP, decoded as zeros in 2.9 s and 0.9 s; now refused before allocating.
+    for (const char* name : {"broken-huge-none.tif", "broken-huge-none-2.tif"}) {
+        INFO(name);
+        const auto at = std::chrono::steady_clock::now();
+        CHECK(image::load({.path = kTiff / name, .max_width = 64, .max_height = 64}).failure !=
+              image::Failure::none);
+        CHECK(std::chrono::steady_clock::now() - at < std::chrono::milliseconds{200});
+    }
     // Found by the fuzzer of the whole family: not a TIFF this reader shows, so its stored
     // previews are asked of exiv2, whose safe arithmetic throws std::overflow_error. A plain
     // reason, never an exception out of load().

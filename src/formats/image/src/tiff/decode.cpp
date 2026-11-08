@@ -426,6 +426,37 @@ Decoded decode(const Source& source, const DecodeOptions& options) {
         if (total > std::max<std::uint64_t>(std::uint64_t{64} << 20, picture_bytes * 4)) {
             return failure(Problem::damaged, "a TIFF whose strips or tiles outgrow its size");
         }
+        // And the file holds enough data for them, before anything is allocated (found by the
+        // fuzzer: 3 kB of one uncompressed strip, no byte count, claiming 172 MP, decoded as
+        // zeros in 2.9 s). Uncompressed: at least half the bytes (a file cut short still shows
+        // its top); compressed: what the scheme could at most expand to.
+        std::uint64_t present = 0;
+        for (std::size_t i = 0; i < l.offsets.size() && i < l.counts.size(); ++i) {
+            const std::uint64_t offset = std::min(l.offsets[i], source.size());
+            present += std::min(l.counts[i], source.size() - offset);
+        }
+        std::uint64_t ratio = 0;  // the scheme's largest expansion
+        switch (l.compression) {
+            case kNone:
+                ratio = 2;
+                break;
+            case kPackBits:
+                ratio = 64;
+                break;
+            case kDeflate:
+            case kDeflateOld:
+                ratio = 1100;
+                break;
+            case kLzw:
+                ratio = 2800;  // 4096 bytes from a 12-bit code
+                break;
+            default:
+                ratio = 8192;  // JPEG: a few bits for a flat 8x8 block
+                break;
+        }
+        if (present * ratio < total) {
+            return failure(Problem::damaged, "a TIFF whose data is too short for its size");
+        }
     }
     std::vector<std::uint8_t> samples(static_cast<std::size_t>(pixels * l.samples));
     const std::uint64_t planes = l.planar ? l.samples : 1;
