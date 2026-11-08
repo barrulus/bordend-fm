@@ -82,57 +82,32 @@ std::optional<picture::Image> read_pixels(int fd, std::uint32_t width, std::uint
     return picture;
 }
 
-// A helper's text: `lines` lines joined by '\n' in a sealed memfd of `bytes` bytes (none when
-// they are empty), each within what was asked; nullopt when it is not that.
-std::optional<std::vector<std::string>> read_lines(int fd, std::uint32_t lines, std::uint32_t bytes,
-                                                   const text::Limits& limits) {
-    // A line is at least its '\n' in the file; each is at most max_line_bytes.
-    const std::uint64_t most_lines = std::min<std::uint64_t>(
-        limits.max_lines == 0 ? limits.max_bytes : limits.max_lines, limits.max_bytes);
-    if (lines > most_lines || (lines == 0 && bytes != 0) ||
-        std::uint64_t{bytes} > std::uint64_t{lines} * (limits.max_line_bytes + 1)) {
+// A helper's sealed memfd of exactly size bytes, read whole; nullopt when it is not that.
+std::optional<std::vector<std::byte>> read_sealed(int fd, std::size_t size) {
+    std::vector<std::byte> bytes(size);
+    if (size == 0) {
+        return bytes;
+    }
+    struct stat info{};
+    if (fd < 0 || ::fstat(fd, &info) != 0 || std::cmp_not_equal(info.st_size, size)) {
         return std::nullopt;
     }
-    std::string all;
-    if (bytes > 0) {
-        struct stat info{};
-        if (fd < 0 || ::fstat(fd, &info) != 0 || std::cmp_not_equal(info.st_size, bytes)) {
-            return std::nullopt;
-        }
-        const int seals = ::fcntl(fd, F_GET_SEALS);
-        if (seals < 0 || (seals & F_SEAL_WRITE) == 0) {
-            return std::nullopt;
-        }
-        all.resize(bytes);
-        std::size_t got = 0;
-        while (got < all.size()) {
-            const ssize_t read =
-                ::pread(fd, all.data() + got, all.size() - got, static_cast<off_t>(got));
-            if (read < 0 && errno == EINTR) {
-                continue;
-            }
-            if (read <= 0) {
-                return std::nullopt;
-            }
-            got += static_cast<std::size_t>(read);
-        }
+    const int seals = ::fcntl(fd, F_GET_SEALS);
+    if (seals < 0 || (seals & F_SEAL_WRITE) == 0 || (seals & F_SEAL_SHRINK) == 0) {
+        return std::nullopt;
     }
-    std::vector<std::string> split;
-    split.reserve(lines);
-    std::string_view rest{all};
-    for (std::uint32_t i = 0; i < lines; ++i) {
-        const std::size_t end = rest.find('\n');
-        if ((end == std::string_view::npos) != (i + 1 == lines)) {
+    std::size_t got = 0;
+    while (got < size) {
+        const ssize_t read = ::pread(fd, bytes.data() + got, size - got, static_cast<off_t>(got));
+        if (read < 0 && errno == EINTR) {
+            continue;
+        }
+        if (read <= 0) {
             return std::nullopt;
         }
-        const std::string_view line = rest.substr(0, end);
-        if (line.size() > limits.max_line_bytes) {
-            return std::nullopt;
-        }
-        split.emplace_back(line);
-        rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1);
+        got += static_cast<std::size_t>(read);
     }
-    return split;
+    return bytes;
 }
 
 }  // namespace
@@ -471,28 +446,38 @@ text::Loaded Helpers::load_text(const text::LoadRequest& request) {
         }
         std::memcpy(&response, reply.bytes.data(), sizeof(response));
         if (response.magic != protocol::kTextMagic ||
-            reply.length != sizeof(response) + response.detail_length ||
+            reply.length != sizeof(response) + response.detail_length + response.language_length ||
             response.failure > static_cast<std::uint8_t>(text::Failure::unreadable) ||
             response.encoding > static_cast<std::uint8_t>(text::Encoding::cp1252) ||
-            response.truncated > 1 || response.crlf > 1) {
+            response.truncated > 1 || response.crlf > 1 ||
+            (response.lines > 0 && response.failure != 0)) {
             why = "the preview helper said something else";
             return false;
         }
+        const auto* chars =
+            reinterpret_cast<const char*>(reply.bytes.data() + sizeof(response));  // NOLINT
         result.failure = static_cast<text::Failure>(response.failure);
-        result.detail.assign(reinterpret_cast<const char*>(  // NOLINT: bytes to chars
-                                 reply.bytes.data() + sizeof(response)),
-                             response.detail_length);
+        result.detail.assign(chars, response.detail_length);
+        result.text.language.assign(chars + response.detail_length, response.language_length);
         result.text.encoding = static_cast<text::Encoding>(response.encoding);
         result.text.truncated = response.truncated != 0;
         result.text.crlf = response.crlf != 0;
         if (result.failure == text::Failure::none) {
-            std::optional<std::vector<std::string>> lines =
-                read_lines(reply.fds[0], response.lines, response.bytes, request.limits);
-            if (!lines) {
+            // A line is at least its '\n' in the file.
+            const std::uint64_t most_lines = std::min<std::uint64_t>(
+                request.limits.max_lines == 0 ? request.limits.max_bytes : request.limits.max_lines,
+                request.limits.max_bytes);
+            const std::optional<std::vector<std::byte>> payload =
+                response.lines > most_lines
+                    ? std::nullopt
+                    : read_sealed(reply.fds[0],
+                                  protocol::text_payload_size(response.bytes, response.spans));
+            if (!payload || !protocol::decode_text_payload(
+                                *payload, response.lines, response.bytes, response.spans,
+                                !result.text.language.empty(), request.limits, result.text)) {
                 why = "the preview helper's text is wrong";
                 return false;
             }
-            result.text.lines = std::move(*lines);
         }
         return true;
     };
@@ -500,9 +485,10 @@ text::Loaded Helpers::load_text(const text::LoadRequest& request) {
     const std::array<int, 1> fds{file};
     const bool done = run(message, fds, accept, why);
     ::close(file);
-    return done ? result
-                : text::Loaded{
-                      .failure = text::Failure::unavailable, .detail = std::move(why), .text = {}};
+    if (!done) {
+        return {.failure = text::Failure::unavailable, .detail = std::move(why), .text = {}};
+    }
+    return result;  // moved: a conditional expression here would copy every line
 }
 
 void use_engines(const engines::Registry& registry, HelperOptions options) {

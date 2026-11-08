@@ -1,6 +1,7 @@
 #include "draw_helpers.hpp"
 
 #include <algorithm>
+#include <cstddef>
 
 namespace nordend::views {
 
@@ -20,6 +21,19 @@ void draw_right_aligned(ui::Renderer& renderer, std::string_view text, float rig
                         float font_size, ui::Color color) {
     renderer.draw_text(text, right_x - text_width(renderer, text, font_size), top_y, font_size,
                        color);
+}
+
+std::vector<ui::ColorRun> colour_runs(std::span<const text::Span> spans,
+                                      const theme::SyntaxColors& colours, float alpha) {
+    std::vector<ui::ColorRun> runs;
+    runs.reserve(spans.size());
+    for (const text::Span& span : spans) {
+        runs.push_back(
+            {.start = span.start,
+             .end = span.start + span.length,
+             .color = colours.at(static_cast<std::size_t>(span.style)).with_alpha(alpha)});
+    }
+    return runs;
 }
 
 }  // namespace nordend::views

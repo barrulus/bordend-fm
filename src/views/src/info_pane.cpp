@@ -299,17 +299,22 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     } else if (summary != nullptr && summary->text && !summary->text->lines.empty()) {
         // The first lines on a small page.
         const std::vector<std::string>& lines = summary->text->lines;
+        const std::vector<std::vector<text::Span>>& spans = summary->text->spans;
+        const theme::SyntaxColors colours = theme::syntax_colors(palette);
         const std::size_t count = std::min(lines.size(), kPageLines);
         const float height = (static_cast<float>(count) * kLineHeight) + (2.0F * kPagePadding);
         const ui::Rect page{preview_left, out.y(), preview_width, height};
         renderer.draw_box(page,
                           {.fill = palette.surface_container, .radius = ui::Corners::all(kRadius)});
         for (std::size_t i = 0; i < count; ++i) {
-            renderer.draw_text(lines[i], page.x + kPagePadding,
-                               page.y + kPagePadding + (static_cast<float>(i) * kLineHeight),
-                               kLineSize, palette.on_surface_variant,
-                               page.width - (2.0F * kPagePadding), ui::Ellipsis::end,
-                               ui::Typeface::monospace);
+            const std::vector<ui::ColorRun> runs = i < spans.size()
+                                                       ? colour_runs(spans[i], colours, 1.0F)
+                                                       : std::vector<ui::ColorRun>{};
+            renderer.draw_text_runs(lines[i], page.x + kPagePadding,
+                                    page.y + kPagePadding + (static_cast<float>(i) * kLineHeight),
+                                    kLineSize, palette.on_surface_variant, runs,
+                                    page.width - (2.0F * kPagePadding), ui::Ellipsis::end,
+                                    ui::Typeface::monospace);
         }
         out.skip(height + 18.0F);
     } else {

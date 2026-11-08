@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/release-v0.4.0-2a6a9e" alt="release v0.4.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-370%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="370 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-384%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="384 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -99,7 +99,7 @@ every shortcut.
 |---|---|
 | Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 0.97 MB (0.87 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 8); no GTK, no Qt, no GLib |
-| Code | about 46 600 lines of C++20, 15 700 of tests (370 test cases, under ASan and TSan too) |
+| Code | about 46 600 lines of C++20, 15 700 of tests (384 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 

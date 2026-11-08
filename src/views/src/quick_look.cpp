@@ -404,6 +404,7 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
     // The line box is about 1.2 times the font size: centered in the line height.
     const float baseline_shift = (kLineHeight - (kTextSize * 1.2F)) / 2.0F;
     renderer.push_clip(inner);
+    const theme::SyntaxColors colours = theme::syntax_colors(palette);
     const auto first = static_cast<std::size_t>(std::max(0.0F, offset / kLineHeight));
     const auto last = std::min(
         count, static_cast<std::size_t>(std::ceil((offset + inner.height) / kLineHeight)) + 1);
@@ -414,9 +415,12 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
                            y, kTextSize, palette.on_surface_variant.with_alpha(0.7F * fade), 0.0F,
                            ui::Ellipsis::end, mono);
         if (!text.lines[i].empty()) {
-            renderer.draw_text(text.lines[i], text_x, y, kTextSize,
-                               palette.on_surface.with_alpha(fade), text_room, ui::Ellipsis::end,
-                               mono);
+            const std::vector<ui::ColorRun> runs = i < text.spans.size()
+                                                       ? colour_runs(text.spans[i], colours, fade)
+                                                       : std::vector<ui::ColorRun>{};
+            renderer.draw_text_runs(text.lines[i], text_x, y, kTextSize,
+                                    palette.on_surface.with_alpha(fade), runs, text_room,
+                                    ui::Ellipsis::end, mono);
         }
     }
     renderer.pop_clip();

@@ -119,8 +119,9 @@ README's [What's next](../README.md#whats-next).
   2880x1620 screen takes 51-55 ms. The arrows walk the folder without closing it, and the next
   photo is already loading. Text files open on a page you can scroll, in your monospace font
   (darktable sidecars included), read in UTF-8, UTF-16 (with its byte order mark) or Latin-1
-  (Windows-1252, for files from old editors: "caffè 3€" shows as written); any other file
-  shows what it is.
+  (Windows-1252, for files from old editors: "caffè 3€" shows as written), with **syntax
+  colours** for C and C++ (more languages coming), made from your theme's colours and readable
+  on its page; the info pane's first lines are coloured too; any other file shows what it is.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,
   exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`

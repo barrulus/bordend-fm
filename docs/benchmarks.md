@@ -93,6 +93,28 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Syntax colours (ROADMAP 3b-2a)
+
+### 2026-11-08
+
+As for 3b-1 below (throwaway program, 300 runs, median, warm cache), `browser.cpp` as C++ and
+`README.md` as plain text, at 3b-2a's end:
+
+| File | Limits | Process | Helper |
+|---|---|---|---|
+| `src/views/src/browser.cpp` (3449 lines, 5470 spans) | Quick Look (256 KiB) | 1145 µs | 1622 µs |
+| same | info pane (40 lines) | 13 µs | 51 µs |
+| `README.md` (no language) | Quick Look | 39 µs | 93 µs |
+| same | info pane | 10 µs | 44 µs |
+
+Colouring alone (`colour` on the lines already read, the same file): 1781 µs with three binary
+searches per word and every character tried against every rule; 762 µs with a 256-entry table
+of the characters that may open a comment, a string, a number or a word, and one hash table of
+the language's words. Inside the helper (timed there for a moment): reading 186 µs, colouring
+398 µs, the payload and its memfd 91 µs. On Nordend's side, decoding a payload with 5470 spans
+287 µs (122 µs without); `Helpers::load_text` copied its result through a conditional
+expression until 3b-2a: plain text 704 → 587 µs, coloured 2228 → 1691 µs once moved.
+
 ## Text through the base engine (ROADMAP 3b-1)
 
 ### 2026-11-08

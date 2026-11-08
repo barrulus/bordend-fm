@@ -1,10 +1,13 @@
 #include "protocol.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <string>
+#include <string_view>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -159,6 +162,99 @@ std::optional<picture::PhotoInfo> decode_info(std::span<const std::byte> bytes) 
         return std::nullopt;
     }
     return info;
+}
+
+std::size_t text_payload_size(std::uint32_t bytes, std::uint32_t spans) {
+    return ((std::size_t{bytes} + 3) / 4 * 4) + (std::size_t{spans} * 3 * sizeof(std::uint32_t));
+}
+
+std::vector<std::byte> encode_text_payload(const text::Text& text, std::uint32_t& bytes,
+                                           std::uint32_t& spans) {
+    std::size_t text_bytes = 0;
+    std::size_t span_count = 0;
+    for (const std::string& line : text.lines) {
+        text_bytes += line.size() + 1;
+    }
+    text_bytes -= text.lines.empty() ? std::size_t{0} : std::size_t{1};
+    for (const std::vector<text::Span>& line : text.spans) {
+        span_count += line.size();
+    }
+    bytes = static_cast<std::uint32_t>(text_bytes);
+    spans = static_cast<std::uint32_t>(span_count);
+    std::vector<std::byte> payload(text_payload_size(bytes, spans));
+    std::size_t at = 0;
+    for (std::size_t i = 0; i < text.lines.size(); ++i) {
+        if (i > 0) {
+            payload[at++] = std::byte{'\n'};
+        }
+        std::memcpy(payload.data() + at, text.lines[i].data(), text.lines[i].size());
+        at += text.lines[i].size();
+    }
+    at = (at + 3) / 4 * 4;
+    for (std::size_t line = 0; line < text.spans.size(); ++line) {
+        for (const text::Span& span : text.spans[line]) {
+            const std::array<std::uint32_t, 3> numbers{
+                static_cast<std::uint32_t>(line), span.start,
+                (span.length << 8U) | static_cast<std::uint32_t>(span.style)};
+            std::memcpy(payload.data() + at, numbers.data(), sizeof(numbers));
+            at += sizeof(numbers);
+        }
+    }
+    return payload;
+}
+
+bool decode_text_payload(std::span<const std::byte> payload, std::uint32_t lines,
+                         std::uint32_t bytes, std::uint32_t spans, bool coloured,
+                         const text::Limits& limits, text::Text& text) {
+    if (payload.size() != text_payload_size(bytes, spans) || (lines == 0 && bytes != 0) ||
+        std::uint64_t{bytes} > std::uint64_t{lines} * (limits.max_line_bytes + 1) ||
+        std::uint64_t{spans} > std::uint64_t{bytes}) {
+        return false;
+    }
+    const std::string_view all{reinterpret_cast<const char*>(payload.data()),  // NOLINT: bytes
+                               bytes};
+    text.lines.clear();
+    text.lines.reserve(lines);
+    std::string_view rest = all;
+    for (std::uint32_t i = 0; i < lines; ++i) {
+        const std::size_t end = rest.find('\n');
+        if ((end == std::string_view::npos) != (i + 1 == lines)) {
+            return false;
+        }
+        const std::string_view line = rest.substr(0, end);
+        if (line.size() > limits.max_line_bytes) {
+            return false;
+        }
+        text.lines.emplace_back(line);
+        rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1);
+    }
+    text.spans.clear();
+    if (spans == 0 && !coloured) {
+        return true;
+    }
+    text.spans.assign(lines, {});
+    std::size_t at = text_payload_size(bytes, 0);
+    std::uint64_t previous_line = 0;
+    std::uint64_t previous_end = 0;
+    for (std::uint32_t i = 0; i < spans; ++i) {
+        std::array<std::uint32_t, 3> numbers{};
+        std::memcpy(numbers.data(), payload.data() + at, sizeof(numbers));
+        at += sizeof(numbers);
+        const std::uint32_t line = numbers[0];
+        const std::uint32_t start = numbers[1];
+        const std::uint32_t length = numbers[2] >> 8U;
+        const std::uint32_t style = numbers[2] & 0xFFU;
+        if (line >= lines || length == 0 || style >= text::kStyleCount ||
+            (line == previous_line && start < previous_end && i > 0) || line < previous_line ||
+            std::uint64_t{start} + length > text.lines[line].size()) {
+            return false;
+        }
+        text.spans[line].push_back(
+            {.start = start, .length = length, .style = static_cast<text::Style>(style)});
+        previous_line = line;
+        previous_end = std::uint64_t{start} + length;
+    }
+    return true;
 }
 
 std::vector<std::byte> encode_text_request(const text::Limits& limits, std::string_view name,

@@ -24,12 +24,38 @@ enum class Encoding : std::uint8_t {
 // Its name for people: "UTF-8", "UTF-16 LE", "UTF-16 BE", "Latin-1".
 [[nodiscard]] std::string_view encoding_name(Encoding encoding) noexcept;
 
+// What a piece of a line is, for its colour (ROADMAP 3b-2). Plain text has none.
+enum class Style : std::uint8_t {
+    keyword,   // if, return, fn, def
+    type,      // int, std::string, Vec, a CamelCase name
+    string,    // "text", 'c', R"(raw)", <header.h> after #include
+    number,    // 42, 0x1F, 1.5e3, and constants: true, nullptr, None
+    comment,   // // and /* */
+    function,  // a name called, a macro, #include, @decorator, #[attribute]
+    added,     // a diff's + lines
+    removed,   // a diff's - lines
+};
+inline constexpr std::size_t kStyleCount = 8;
+
+// A coloured piece of a line: its bytes [start, start + length).
+struct Span {
+    std::uint32_t start{0};
+    std::uint32_t length{0};
+    Style style{Style::keyword};
+
+    bool operator==(const Span&) const = default;
+};
+
 // The beginning of a text file, ready to draw line by line.
 struct Text {
     std::vector<std::string> lines;  // UTF-8, tabs expanded, no line ends, never a '\n'
     bool truncated{false};           // the file goes on past what was read
     Encoding encoding{Encoding::utf8};
     bool crlf{false};  // some line ended with "\r\n"
+    // The language the lines were coloured as ("C++"); empty, and no spans, when none.
+    std::string language;
+    // Each line's coloured pieces, in order, apart; empty (not one per line) without a language.
+    std::vector<std::vector<Span>> spans;
 };
 
 struct Limits {

@@ -1,10 +1,12 @@
 #include "nordend/ui/renderer.hpp"
 
 #include <GLES3/gl3.h>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <format>
+#include <iterator>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -575,12 +577,29 @@ float Renderer::draw_text(std::string_view utf8, float x, float y, float size, C
     return layout.width / scale_;
 }
 
-void Renderer::draw_layout(const TextLayout& layout, float x, float y, Color color) {
+float Renderer::draw_text_runs(std::string_view utf8, float x, float y, float size, Color color,
+                               std::span<const ColorRun> runs, float max_width, Ellipsis ellipsis,
+                               Typeface typeface) {
+    const TextLayout& layout = fonts_.layout(utf8, size, scale_, max_width, ellipsis, typeface);
+    draw_layout(layout, x, y, color, runs);
+    return layout.width / scale_;
+}
+
+void Renderer::draw_layout(const TextLayout& layout, float x, float y, Color color,
+                           std::span<const ColorRun> runs) {
     // Glyph origins snap to whole pixels: bitmaps then map 1:1 onto the screen.
     const float origin_x = snap(x, scale_);
     const float baseline = snap(y, scale_) + std::round(layout.ascent);
     const Color premultiplied = color.premultiplied();
     const auto size_64 = static_cast<std::uint32_t>(std::lround(layout.pixel_size * 64.0F));
+    // The colour of the glyph from byte cluster: the run holding it, else color.
+    const auto colour_of = [&](std::uint32_t cluster) {
+        const auto after = std::ranges::upper_bound(runs, cluster, {}, &ColorRun::start);
+        if (after == runs.begin() || cluster >= std::prev(after)->end) {
+            return premultiplied;
+        }
+        return std::prev(after)->color.premultiplied();
+    };
 
     for (const ShapedGlyph& glyph : layout.glyphs) {
         const GlyphKey key{glyph.font, glyph.glyph, size_64};
@@ -594,10 +613,11 @@ void Renderer::draw_layout(const TextLayout& layout, float x, float y, Color col
         }
         const float gx = std::round(origin_x + glyph.x) + static_cast<float>(entry.left);
         const float gy = std::round(baseline + glyph.y) - static_cast<float>(entry.top);
+        const Color shade = runs.empty() ? premultiplied : colour_of(glyph.cluster);
         push_glyph({
             .rect = {gx, gy, static_cast<float>(entry.width), static_cast<float>(entry.height)},
             .uv = entry.uv,
-            .color = {premultiplied.r, premultiplied.g, premultiplied.b, premultiplied.a},
+            .color = {shade.r, shade.g, shade.b, shade.a},
             .kind = entry.color ? 1.0F : 0.0F,
         });
     }

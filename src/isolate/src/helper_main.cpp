@@ -27,6 +27,7 @@
 
 #include "nordend/formats/formats.hpp"
 #include "nordend/formats/text/read.hpp"
+#include "nordend/formats/text/syntax.hpp"
 #include "nordend/picture/load.hpp"
 #include "protocol.hpp"
 #include "sandbox.hpp"
@@ -100,38 +101,48 @@ void answer_picture(int socket, int file, const protocol::Request& request) {
 }
 
 void answer_text(int socket, int file, const protocol::TextAsk& ask) {
-    const nordend::text::Loaded loaded = nordend::formats::text::read(file, ask.limits);
+    nordend::text::Loaded loaded = nordend::formats::text::read(file, ask.limits);
+    if (loaded.failure == nordend::text::Failure::none) {
+        nordend::formats::text::colour(loaded.text, ask.name, ask.mime);
+    }
     protocol::TextResponse response;
     response.failure = static_cast<std::uint8_t>(loaded.failure);
     response.encoding = static_cast<std::uint8_t>(loaded.text.encoding);
     response.truncated = loaded.text.truncated ? 1 : 0;
     response.crlf = loaded.text.crlf ? 1 : 0;
-    int joined = -1;
-    if (loaded.failure == nordend::text::Failure::none && !loaded.text.lines.empty()) {
-        std::string all;
-        for (const std::string& line : loaded.text.lines) {
-            all.append(line).push_back('\n');
-        }
-        all.pop_back();
-        joined = all.empty() ? -1 : sealed_memfd("nordend-text", std::as_bytes(std::span{all}));
-        if (!all.empty() && joined < 0) {
+    std::string_view language;
+    int payload = -1;
+    if (loaded.failure == nordend::text::Failure::none) {
+        language = std::string_view{loaded.text.language}.substr(0, protocol::kMaxField);
+        std::uint32_t text_bytes = 0;
+        std::uint32_t spans = 0;
+        const std::vector<std::byte> all =
+            protocol::encode_text_payload(loaded.text, text_bytes, spans);
+        payload = all.empty() ? -1 : sealed_memfd("nordend-text", all);
+        if (!all.empty() && payload < 0) {
             response.failure = static_cast<std::uint8_t>(nordend::text::Failure::unreadable);
+            language = {};
         } else {
             response.lines = static_cast<std::uint32_t>(loaded.text.lines.size());
-            response.bytes = static_cast<std::uint32_t>(all.size());
+            response.bytes = text_bytes;
+            response.spans = spans;
         }
     }
     const std::string_view detail = std::string_view{loaded.detail}.substr(0, protocol::kMaxDetail);
     response.detail_length = static_cast<std::uint16_t>(detail.size());
-    std::array<std::byte, sizeof(protocol::TextResponse) + protocol::kMaxDetail> bytes{};
+    response.language_length = static_cast<std::uint8_t>(language.size());
+    std::array<std::byte,
+               sizeof(protocol::TextResponse) + protocol::kMaxDetail + protocol::kMaxField>
+        bytes{};
     std::memcpy(bytes.data(), &response, sizeof(response));
     std::memcpy(bytes.data() + sizeof(response), detail.data(), detail.size());
-    const std::array<int, 1> fds{joined};
-    static_cast<void>(
-        protocol::send_packet(socket, std::span{bytes}.first(sizeof(response) + detail.size()),
-                              joined >= 0 ? std::span<const int>{fds} : std::span<const int>{}));
-    if (joined >= 0) {
-        ::close(joined);
+    std::memcpy(bytes.data() + sizeof(response) + detail.size(), language.data(), language.size());
+    const std::array<int, 1> fds{payload};
+    static_cast<void>(protocol::send_packet(
+        socket, std::span{bytes}.first(sizeof(response) + detail.size() + language.size()),
+        payload >= 0 ? std::span<const int>{fds} : std::span<const int>{}));
+    if (payload >= 0) {
+        ::close(payload);
     }
 }
 

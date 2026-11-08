@@ -83,8 +83,9 @@ struct TextRequest {
     std::uint8_t mime_length{0};
 };
 
-// A text answer: this, then detail_length bytes of detail; with failure none and lines > 0, a
-// sealed memfd of `bytes` bytes holding the lines joined by '\n'.
+// A text answer: this, then detail_length bytes of detail and language_length bytes of the
+// language's name; with failure none and something to send, a sealed memfd holding the payload
+// (encode_text_payload).
 struct TextResponse {
     std::uint32_t magic{kTextMagic};
     std::uint8_t failure{0};   // text::Failure: none, binary or unreadable
@@ -92,10 +93,29 @@ struct TextResponse {
     std::uint8_t truncated{0};
     std::uint8_t crlf{0};
     std::uint32_t lines{0};
-    std::uint32_t bytes{0};
+    std::uint32_t bytes{0};          // of the lines joined by '\n'
+    std::uint32_t spans{0};          // coloured pieces, all lines together
     std::uint16_t detail_length{0};  // at most kMaxDetail
-    std::uint16_t reserved{0};
+    std::uint8_t language_length{0};
+    std::uint8_t reserved{0};
 };
+
+// A text's payload: its lines joined by '\n' (bytes), zeros to a multiple of 4, then each span
+// as three 32-bit numbers: its line, its start, its length << 8 | its style. Spans come in
+// order of lines, then of starts.
+[[nodiscard]] std::vector<std::byte> encode_text_payload(const text::Text& text,
+                                                         std::uint32_t& bytes,
+                                                         std::uint32_t& spans);
+
+// The payload's size for bytes and spans.
+[[nodiscard]] std::size_t text_payload_size(std::uint32_t bytes, std::uint32_t spans);
+
+// Lines and spans back from a payload (text's lines and spans set; its spans one per line when
+// spans > 0 or coloured is true); false unless every line is within limits.max_line_bytes and
+// every span is inside its line, after the one before, of a known style.
+[[nodiscard]] bool decode_text_payload(std::span<const std::byte> payload, std::uint32_t lines,
+                                       std::uint32_t bytes, std::uint32_t spans, bool coloured,
+                                       const text::Limits& limits, text::Text& text);
 
 // What a text request asks for.
 struct TextAsk {

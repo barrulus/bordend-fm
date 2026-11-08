@@ -2,9 +2,13 @@
 
 // Small text and chrome helpers shared by the views.
 
+#include <span>
 #include <string_view>
+#include <vector>
 
+#include "nordend/text/text.hpp"
 #include "nordend/theme/palette.hpp"
+#include "nordend/theme/syntax.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
 
@@ -22,5 +26,9 @@ void draw_centered(ui::Renderer& renderer, std::string_view text, const ui::Rect
 
 void draw_right_aligned(ui::Renderer& renderer, std::string_view text, float right_x, float top_y,
                         float font_size, ui::Color color);
+
+// A line's syntax colours as runs for Renderer::draw_text_runs, at opacity alpha.
+std::vector<ui::ColorRun> colour_runs(std::span<const text::Span> spans,
+                                      const theme::SyntaxColors& colours, float alpha);
 
 }  // namespace nordend::views

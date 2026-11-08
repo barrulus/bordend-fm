@@ -18,6 +18,8 @@
 #include <utility>
 #include <vector>
 
+#include "nordend/formats/text/syntax.hpp"
+
 namespace nordend::formats::text {
 namespace {
 
@@ -321,6 +323,9 @@ Loaded load(const nordend::text::LoadRequest& request) {
     }
     Loaded loaded = read(fd, request.limits);
     ::close(fd);
+    if (loaded.failure == Failure::none) {
+        colour(loaded.text, request.path.filename().string(), request.mime);
+    }
     return loaded;
 }
 

@@ -1,6 +1,8 @@
 #include "nordend/isolate/helpers.hpp"
 
 #include <chrono>
+#include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -237,7 +239,9 @@ TEST_CASE("helpers: the helper reads the same text as this process") {
           text::Limits{.max_bytes = 100, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8}}) {
         for (const fs::path& file : files) {
             INFO(file.filename().string(), " ", limits.max_bytes);
-            const text::LoadRequest request{.path = file, .mime = "text/plain", .limits = limits};
+            const bool code = file.extension() == ".cpp";
+            const text::LoadRequest request{
+                .path = file, .mime = code ? "text/x-c++src" : "text/plain", .limits = limits};
             const text::Loaded there = helpers.load_text(request);
             const text::Loaded here = nordend::formats::text::load(request);
             CHECK(there.failure == here.failure);
@@ -246,6 +250,10 @@ TEST_CASE("helpers: the helper reads the same text as this process") {
             CHECK(there.text.truncated == here.text.truncated);
             CHECK(there.text.encoding == here.text.encoding);
             CHECK(there.text.crlf == here.text.crlf);
+            CHECK(there.text.language == here.text.language);
+            CHECK(there.text.spans == here.text.spans);
+            CHECK(there.text.language == (code ? "C++" : ""));
+            CHECK(there.text.spans.empty() != code);
         }
     }
     CHECK(helpers.load_text({.path = files[2], .mime = {}, .limits = {}}).text.encoding ==
@@ -314,4 +322,49 @@ TEST_CASE("helpers: a helper that lies about a text is let go of") {
         CHECK(loaded.text.lines.empty());
         CHECK(helpers.running() == 0);
     }
+}
+
+TEST_CASE("helpers: a text's payload travels whole, and spans out of place are refused") {
+    namespace protocol = isolate::protocol;
+    text::Text sent;
+    sent.lines = {"int x;", "", "// é"};
+    sent.spans = {{{.start = 0, .length = 3, .style = text::Style::type}},
+                  {},
+                  {{.start = 0, .length = 5, .style = text::Style::comment}}};
+    std::uint32_t bytes = 0;
+    std::uint32_t spans = 0;
+    const std::vector<std::byte> payload = protocol::encode_text_payload(sent, bytes, spans);
+    CHECK(bytes == 13);
+    CHECK(spans == 2);
+    CHECK(payload.size() == 16 + (2 * 12));
+    text::Text back;
+    REQUIRE(protocol::decode_text_payload(payload, 3, bytes, spans, true, {}, back));
+    CHECK(back.lines == sent.lines);
+    CHECK(back.spans == sent.spans);
+    // Without colours: no spans at all, not one empty list per line.
+    text::Text plain;
+    plain.lines = sent.lines;
+    const std::vector<std::byte> plain_payload = protocol::encode_text_payload(plain, bytes, spans);
+    REQUIRE(protocol::decode_text_payload(plain_payload, 3, bytes, 0, false, {}, back));
+    CHECK(back.spans.empty());
+
+    // A span changed in the payload: past its line, overlapping, out of order, an unknown style.
+    const auto refused = [&](std::size_t number, std::uint32_t value) {
+        std::vector<std::byte> changed = payload;
+        std::memcpy(changed.data() + 16 + (number * 4), &value, sizeof(value));
+        text::Text out;
+        return !protocol::decode_text_payload(changed, 3, 13, 2, true, {}, out);
+    };
+    CHECK(refused(0, 3));                // the first span on a line that is not there
+    CHECK(refused(1, 4));                // starts at 4, 3 long: past "int x;"
+    CHECK(refused(2, (7U << 8U) | 1U));  // 7 long
+    CHECK(refused(2, (3U << 8U) | 8U));  // style 8
+    CHECK(refused(2, 1U));               // 0 long
+    CHECK(refused(3, 0));                // the second span over the first
+    CHECK_FALSE(refused(1, 0));          // unchanged
+    text::Text out;
+    CHECK_FALSE(protocol::decode_text_payload(std::span{payload}.first(payload.size() - 1), 3, 13,
+                                              2, true, {}, out));
+    CHECK_FALSE(protocol::decode_text_payload(payload, 2, 13, 2, true, {}, out));  // lines
+    CHECK_FALSE(protocol::decode_text_payload(payload, 3, 13, 2, true, {.max_line_bytes = 5}, out));
 }

@@ -3,6 +3,7 @@ add_library(nordend_theme
     src/desktop.cpp
     src/oklch.cpp
     src/palette.cpp
+    src/syntax.cpp
     src/theme.cpp)
 add_library(nordend::theme ALIAS nordend_theme)
 

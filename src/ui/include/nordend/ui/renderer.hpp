@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -11,6 +12,13 @@
 #include "nordend/ui/texture.hpp"
 
 namespace nordend::ui {
+
+// A colour for the bytes [start, end) of a line of text (syntax colours).
+struct ColorRun {
+    std::uint32_t start{0};
+    std::uint32_t end{0};
+    Color color{};
+};
 
 struct BoxStyle {
     Color fill{};
@@ -68,8 +76,17 @@ public:
                     float max_width = 0.0F, Ellipsis ellipsis = Ellipsis::end,
                     Typeface typeface = Typeface::proportional);
 
-    // Draws text shaped by FontSystem::layout at the current scale; (x, y) as in draw_text.
-    void draw_layout(const TextLayout& layout, float x, float y, Color color);
+    // Like draw_text, one shaping for the whole line, each glyph in the colour of the run holding
+    // the byte it comes from (runs in order, apart), the others in color.
+    float draw_text_runs(std::string_view utf8, float x, float y, float size, Color color,
+                         std::span<const ColorRun> runs, float max_width = 0.0F,
+                         Ellipsis ellipsis = Ellipsis::end,
+                         Typeface typeface = Typeface::proportional);
+
+    // Draws text shaped by FontSystem::layout at the current scale; (x, y) as in draw_text; with
+    // runs, coloured as in draw_text_runs.
+    void draw_layout(const TextLayout& layout, float x, float y, Color color,
+                     std::span<const ColorRun> runs = {});
 
     // Restricts drawing to rect, intersected with the current clip, until pop_clip.
     void push_clip(const Rect& rect);

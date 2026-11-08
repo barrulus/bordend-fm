@@ -4,6 +4,63 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Syntax colours, C and C++ first (ROADMAP 3b-2a)
+
+**Tested by the author** (2026-11-08, installed in `~/.local`): C and C++ files coloured in
+Quick Look and the info pane with Noctalia's colours, plain text as before: "va tutto bene".
+
+**Decided with the author** (2026-11-08): eight styles (keyword, type, string, number/constant,
+comment, function/macro, and a diff's added and removed lines), their colours made from the
+palette, readable on the page (WCAG AA); colours in the info pane's lines too; no colours in
+`config.toml` yet. 3b-2 split in two: 3b-2a the whole path with C and C++ only, 3b-2b the other
+languages.
+
+**Done**: `text::Style`, `text::Span` (start, length, style), `Text::language` and
+`Text::spans` (one list per line, none without a language). In the text family, `syntax.{hpp,cpp}`:
+`language_for(name, mime, first_line)` (MIME, then file names, then the interpreter of a `#!`
+line, `env` and its options skipped, a version after the name allowed), `highlight`, `colour`;
+one lexer driven by a table per language (line and block comments, quotes and escapes, C++ raw
+strings `R"delim(…)delim"` with their prefixes, `u8""`/`L''`, digit separators, hexadecimal
+floats, the preprocessor's directives with `<header>` as a string, keywords/types/constants,
+`_t` names and CamelCase as types, capitals as macros, a name before `(` as a function), with
+a state carried between lines for block comments and raw strings. C (`text/x-csrc`,
+`text/x-chdr`) and C++ (`text/x-c++src`, `text/x-c++hdr`) share it. Protocol 3: the text answer
+carries the language's name and the spans after the lines in the memfd (three 32-bit numbers
+each); Nordend checks every span (inside its line, after the previous one, a known style)
+before taking them. `ui::Renderer::draw_text_runs`: one shaping per line, each glyph coloured
+by the run holding its byte (HarfBuzz's cluster). `theme::syntax_colors(palette)`: keyword
+primary, type tertiary, string secondary, comment on_surface_variant, removed error, number
+between primary and error, function between secondary and tertiary, added a green at the
+primary's lightness (OKLCH), each moved in lightness until it reads on `surface_container`.
+Quick Look and the info pane draw with them. The fuzz target's first byte picks the language
+too.
+
+**Tests**: `tests/syntax_test.cpp` (8 cases: languages, C++ words, numbers, strings, raw strings
+over lines, comments over lines, the preprocessor, odd lines); `syntax_colors_test.cpp` (4: one
+colour per style, Noctalia's colours kept as they are and apart, readable on every desktop
+palette dark and light, a palette whose colours do not read mended);
+`renderer_runs_test.cpp` (pixels: "MMMM" white, "éééé" red, by bytes); `helpers_test.cpp`: the
+helper colours a C++ file as this process does, a payload travels whole and spans out of place
+are refused (past the line, overlapping, out of order, unknown style, empty). 384 tests.
+
+**Checked**: offscreen snapshots of a C++ demo file in Quick Look (desktop palette dark and
+light) and the info pane's lines: every style as meant; the lexer's own source in Quick Look.
+Tests green in `build`, `build-asan`, `build-tsan`.
+
+**Fuzzing** (short run after the new lexer): `nordend-fuzz-text`, 10 minutes, 3 processes at the
+lowest priority, the 3b-1 corpus plus three C/C++ seeds (the lexer's source, its tests, raw
+strings and directives): 2.4 million inputs, coverage 278 → 963 edges, no crash, timeout or
+out-of-memory.
+
+**Measured** (`docs/benchmarks.md`): `browser.cpp` (131 KiB, 3449 lines) in Quick Look through
+the helper 1.62 ms (0.81 ms without colours; colouring alone 0.76 ms in the process). Two fixes
+on the way: a 256-entry table of the characters that may open something and one hash table of
+words per language took colouring from 1.78 to 0.76 ms; `Helpers::load_text` returned its
+result through a conditional expression, which copied every line: now moved (−120 µs without
+colours, −540 µs with).
+
+---
+
 ## 2026-11-08 — Text read by the base engine (ROADMAP 3b-1)
 
 **Tested by the author** (2026-11-08, installed in `~/.local`, the old `image.toml` removed):
