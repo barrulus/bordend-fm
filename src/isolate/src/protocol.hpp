@@ -38,7 +38,7 @@ inline constexpr int kSandboxFailedExit = 3;
 // Four bytes, for a request laid out without padding.
 enum class Kind : std::uint32_t {  // NOLINT(performance-enum-size)
     picture = 0,                   // the file's picture, max_width x max_height at most
-    photo_info = 1,  // what the file says about itself (EXIF)
+    photo_info = 1,                // what the file says about itself (EXIF)
 };
 
 struct Request {
