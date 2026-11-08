@@ -19,6 +19,10 @@ switched off, the repository's homepage cleared; the README points to the reposi
 documents (features, benchmarks, the example config, F1 for the shortcuts); the Void template's
 homepage is the GitHub repository.
 
+Released: tag `v0.4.0` on `450edb1` and the GitHub release by the author. Void template on it
+(here and in void-noctalia, which also dropped `exiv2-devel` and the site as homepage):
+`nordend-0.4.0_1` builds clean, its run dependencies without libexiv2.
+
 ---
 
 ## 2026-11-08 — exiv2 out of Nordend (ROADMAP 2e-5)
