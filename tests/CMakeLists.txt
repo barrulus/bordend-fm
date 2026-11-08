@@ -67,6 +67,14 @@ if(LIBRAW_FOUND)
     target_link_libraries(nordend-tests PRIVATE PkgConfig::LIBRAW)
 endif()
 
+# exiv2, when installed, as the reference for the metadata readers that replace it (ROADMAP 2e;
+# tests only: never linked into Nordend or its helper).
+pkg_check_modules(EXIV2_REFERENCE QUIET IMPORTED_TARGET exiv2)
+if(EXIV2_REFERENCE_FOUND)
+    target_sources(nordend-tests PRIVATE exiv2_reference.cpp exiv2_reference_test.cpp)
+    target_link_libraries(nordend-tests PRIVATE PkgConfig::EXIV2_REFERENCE)
+endif()
+
 # A preview helper that misbehaves on purpose (crash, hang, nonsense), and the real one, for
 # tests/helpers_test.cpp.
 add_executable(nordend-fake-preview fake_preview_helper.cpp

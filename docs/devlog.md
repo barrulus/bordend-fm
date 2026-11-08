@@ -4,6 +4,28 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — exiv2 as a reference only (ROADMAP 2e-1)
+
+**Decisions** (with the author): the lens only from what the file writes as text (no lens
+database: `Exif.Photo.LensModel`, as today); CRW and MRW get the plain message; one commit a
+sub-step (2e-1 reference, 2e-2 raw previews, 2e-3 EXIF, 2e-4 XMP rating, 2e-5 exiv2 out). The
+author fetches CR2, CR3, PEF and a recent NEF from raw.pixls.us.
+
+**Done**
+- `tests/exiv2_reference.{hpp,cpp}`: Nordend's exiv2 code as it was at `b27367a`
+  (`preview.cpp`, `photo.cpp`, exiv2's input over a descriptor), moved into the tests under
+  `nordend::formats::image::reference`, unchanged.
+- `tests/exiv2_reference_test.cpp`, built only when pkg-config finds exiv2: for every fixture,
+  every file of `NORDEND_RAW_SAMPLES` and of the folders in `NORDEND_EXTRA_SAMPLES`
+  (colon-separated: the author's photos, never in the repository), the embedded preview at 160,
+  1600 and 4000 px (bytes, size, crop, orientation, full size) and the photo information equal
+  to the reference's.
+
+**Measured**: green on the 15 fixtures, the 28 samples and 30 of the author's ORFs (with their
+darktable sidecars): 2 949 checks in 1.4 s.
+
+---
+
 ## 2026-11-08 — DNG opcodes: gain maps and lens warp (ROADMAP 2d-4)
 
 **Tested by the author** (2026-11-08, installed build, fresh cache): test plan passed (DJI's
