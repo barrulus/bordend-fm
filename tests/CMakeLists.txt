@@ -38,7 +38,6 @@ add_executable(nordend-tests
     rename_test.cpp
     scroller_test.cpp
     shortcuts_test.cpp
-    site_test.cpp
     sort_test.cpp
     state_test.cpp
     thumbs_test.cpp
@@ -97,7 +96,6 @@ add_dependencies(nordend-tests nordend-preview nordend-fake-preview nordend-sand
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
             NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
-            NORDEND_SITE="${PROJECT_SOURCE_DIR}/site/docs/index.html"
             NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg"
             NORDEND_PREVIEW_HELPER="$<TARGET_FILE:nordend-preview>"
             NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>"

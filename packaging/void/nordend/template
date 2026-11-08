@@ -17,7 +17,7 @@ depends="shared-mime-info hicolor-icon-theme"
 short_desc="Fast, native file manager for Wayland, made for photographers"
 maintainer="pankaspe <7622507+pankaspe@users.noreply.github.com>"
 license="MIT"
-homepage="https://pankaspe.github.io/nordend-fm/"
+homepage="https://github.com/pankaspe/nordend-fm"
 distfiles="https://github.com/pankaspe/nordend-fm/archive/v${version}.tar.gz"
 checksum=6f5a7e457c34b10d57a2ca8533c05f27c0edc1f4578e70cc4bc2f2e7ac094ac1
 
