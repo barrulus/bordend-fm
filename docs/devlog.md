@@ -4,6 +4,21 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — A scanner's TIFF shows its scan, not its thumbnail (2c follow-up)
+
+**Found** on a sample the author added (Nikon Coolscan IV ED): IFD0 is a 320x218 reduced image
+(NewSubfileType 1) and the 869x593 scan sits in IFD0's SubIFD; the decoder looked for a
+full-resolution image in the main chain only, so it showed the thumbnail. The 2c comparison
+with libtiff could not see it (it compared first images too).
+
+**Done**: the first full-resolution image of the chain, else of the SubIFDs, else the first
+image; only IFDs with a width, and never sensor data (CFA, LinearRaw). A test builds such a
+TIFF (fails without the change); `nordend-fuzz-tiff` 10 minutes on 4 processes, 6.1 million
+inputs, clean. **Tested by the author** (2026-11-08): the scan shown, in its thumbnail and in
+Quick Look.
+
+---
+
 ## 2026-11-08 — exiv2 as a reference only (ROADMAP 2e-1)
 
 **Decisions** (with the author): the lens only from what the file writes as text (no lens
@@ -23,6 +38,11 @@ author fetches CR2, CR3, PEF and a recent NEF from raw.pixls.us.
 
 **Measured**: green on the 15 fixtures, the 28 samples and 30 of the author's ORFs (with their
 darktable sidecars): 2 949 checks in 1.4 s.
+
+**Tested by the author** (2026-11-08): 3 213 checks green with the samples he added the same
+day (Nikon Z 6II, Z 7II, Z 8; Canon EOS 5DS, 1D X, 600D, 70D, M3, 40D, 5D Mark III; two
+"CR2" that are CHDK sensor dumps without metadata or preview, and a PowerShot CRW: not read, as
+decided). Committed as `38647f8`.
 
 ---
 

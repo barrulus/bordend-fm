@@ -22,6 +22,7 @@ constexpr std::uint64_t kSeparated = 5;
 constexpr std::uint64_t kYCbCr = 6;
 constexpr std::uint64_t kJpegCompression = 7;
 constexpr std::uint64_t kUnsignedInt = 1;
+constexpr std::size_t kMaxSubIfds = 16;
 constexpr std::uint64_t kFloat = 3;
 
 // Limits on what a TIFF may claim before anything is allocated.
@@ -378,11 +379,28 @@ Decoded decode(const Source& source, const DecodeOptions& options) {
     if (chain.empty()) {
         return failure(Problem::damaged, "a TIFF without an image");
     }
-    // The first full-resolution image; a file of reduced ones only shows its first.
-    const auto full = std::ranges::find_if(chain, [](const Ifd& ifd) {
-        return (ifd.number(tag::kNewSubfileType).value_or(0) & 1U) == 0;
-    });
-    const Ifd& ifd = full != chain.end() ? *full : chain.front();
+    // The first full-resolution image of the chain, else of the SubIFDs (a scanner's TIFF may
+    // keep a reduced one first and the scan in a SubIFD); a file of reduced ones only shows
+    // its first.
+    const auto full = [](const Ifd& candidate) {
+        const std::uint64_t photometric = candidate.number(tag::kPhotometric).value_or(0);
+        return (candidate.number(tag::kNewSubfileType).value_or(0) & 1U) == 0 &&
+               candidate.has(tag::kImageWidth) && photometric != kCfa &&
+               photometric != kLinearRaw;  // sensor data is not a picture to show
+    };
+    std::optional<Ifd> chosen;
+    if (const auto it = std::ranges::find_if(chain, full); it != chain.end()) {
+        chosen = *it;
+    }
+    for (std::size_t i = 0; !chosen && i < chain.size(); ++i) {
+        for (const std::uint64_t sub : chain[i].numbers(tag::kSubIfds, kMaxSubIfds)) {
+            if (std::optional<Ifd> child = container->ifd(sub); child && full(*child)) {
+                chosen = std::move(child);
+                break;
+            }
+        }
+    }
+    const Ifd& ifd = chosen ? *chosen : chain.front();
     std::string error;
     Problem problem = Problem::damaged;
     const std::optional<Layout> found = layout_of(ifd, error, problem);

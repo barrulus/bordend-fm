@@ -99,6 +99,92 @@ TEST_CASE("tiff: plain TIFFs are shown without exiv2, camera raws keep their pre
     CHECK(image::embedded_preview_reads() == before);
 }
 
+namespace {
+
+// A little-endian TIFF of uncompressed RGB images: IFD0 a reduced one (2x2 grey) whose SubIFD is
+// the full-resolution one (4x3 red), as a film scanner writes it.
+std::vector<std::uint8_t> reduced_first_with_sub_ifd() {
+    std::vector<std::uint8_t> out{'I', 'I', 42, 0, 0, 0, 0, 0};
+    const auto put16 = [&](std::uint32_t v) {
+        out.push_back(static_cast<std::uint8_t>(v));
+        out.push_back(static_cast<std::uint8_t>(v >> 8));
+    };
+    const auto put32 = [&](std::uint32_t v) {
+        put16(v & 0xFFFFU);
+        put16(v >> 16);
+    };
+    const auto set32 = [&](std::size_t at, std::uint32_t v) {
+        for (std::size_t i = 0; i < 4; ++i) {
+            out.at(at + i) = static_cast<std::uint8_t>(v >> (8 * i));
+        }
+    };
+    const auto pixels = [&](std::uint32_t count, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+        const auto at = static_cast<std::uint32_t>(out.size());
+        for (std::uint32_t i = 0; i < count; ++i) {
+            out.insert(out.end(), {r, g, b});
+        }
+        if (out.size() % 2 != 0) {
+            out.push_back(0);
+        }
+        return at;
+    };
+    // An IFD of an RGB image width x height at strip; sub (0 none) its SubIFD's offset, written
+    // later through the returned place.
+    const auto ifd = [&](std::uint32_t subfile, std::uint32_t width, std::uint32_t height,
+                         std::uint32_t strip, bool with_sub) {
+        const auto at = static_cast<std::uint32_t>(out.size());
+        const std::uint16_t count = with_sub ? 10 : 9;
+        put16(count);
+        const auto entry = [&](std::uint16_t tag, std::uint16_t type, std::uint32_t value) {
+            put16(tag);
+            put16(type);
+            put32(1);
+            put32(value);  // a SHORT sits in the low half (little-endian)
+        };
+        entry(254, 4, subfile);
+        entry(256, 4, width);
+        entry(257, 4, height);
+        entry(258, 3, 8);  // one value for all samples
+        entry(259, 3, 1);
+        entry(262, 3, 2);
+        entry(273, 4, strip);
+        entry(277, 3, 3);
+        entry(279, 4, width * height * 3);
+        std::size_t sub_place = 0;
+        if (with_sub) {
+            put16(330);
+            put16(4);
+            put32(1);
+            sub_place = out.size();
+            put32(0);
+        }
+        put32(0);  // the end of the chain
+        return std::pair{at, sub_place};
+    };
+    const std::uint32_t grey = pixels(4, 128, 128, 128);
+    const std::uint32_t red = pixels(12, 255, 0, 0);
+    const auto [first, sub_place] = ifd(1, 2, 2, grey, true);
+    const auto [full, unused] = ifd(0, 4, 3, red, false);
+    set32(4, first);
+    set32(sub_place, full);
+    return out;
+}
+
+}  // namespace
+
+TEST_CASE("tiff: a reduced image first, the full one in a SubIFD: the full one is shown") {
+    const TempDir dir;
+    const fs::path path = dir.path / "scan.tif";
+    write_bytes(path, reduced_first_with_sub_ifd());
+    const image::Loaded loaded = image::load({.path = path, .max_width = 64, .max_height = 64});
+    REQUIRE(loaded.failure == image::Failure::none);
+    CHECK_FALSE(loaded.from_preview);
+    CHECK(loaded.image.width == 4);
+    CHECK(loaded.image.height == 3);
+    CHECK(loaded.image.rgba[0] == 255);
+    CHECK(loaded.image.rgba[1] == 0);
+}
+
 TEST_CASE("tiff: broken TIFFs are damaged, never a crash") {
     const TempDir dir;
     const std::vector<std::uint8_t> good = read_bytes(kTiff / "rgb8-none.tif");
