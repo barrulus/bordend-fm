@@ -33,6 +33,7 @@ add_executable(nordend-tests
     places_test.cpp
     pointer_shapes_test.cpp
     tabs_test.cpp
+    text_test.cpp
     platform_test.cpp
     preview_test.cpp
     quick_look_test.cpp
@@ -52,7 +53,7 @@ add_executable(nordend-tests
     undo_test.cpp
     worker_pool_test.cpp
     xcursor_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::thumbs nordend::preview nordend::engines nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::formats::text nordend::text nordend::thumbs nordend::preview nordend::engines nordend::isolate nordend::platform doctest::doctest nordend::warnings)
 
 # The helper protocol's private header, for its tests; the image family's private readers (TIFF,
 # DNG, lossless JPEG), for theirs.
@@ -85,7 +86,7 @@ endif()
 add_executable(nordend-fake-preview fake_preview_helper.cpp
                                     ${PROJECT_SOURCE_DIR}/src/isolate/src/protocol.cpp)
 target_include_directories(nordend-fake-preview PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
-target_link_libraries(nordend-fake-preview PRIVATE nordend::picture nordend::warnings)
+target_link_libraries(nordend-fake-preview PRIVATE nordend::picture nordend::text nordend::warnings)
 
 # The sandbox probe: the preview helper's cage, then one forbidden (or allowed) thing.
 add_executable(nordend-sandbox-probe sandbox_probe.cpp

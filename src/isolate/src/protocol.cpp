@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -157,6 +159,52 @@ std::optional<picture::PhotoInfo> decode_info(std::span<const std::byte> bytes) 
         return std::nullopt;
     }
     return info;
+}
+
+std::vector<std::byte> encode_text_request(const text::Limits& limits, std::string_view name,
+                                           std::string_view mime) {
+    name = name.substr(0, kMaxField);
+    mime = mime.substr(0, kMaxField);
+    const TextRequest request{
+        .magic = kRequestMagic,
+        .kind = Kind::text,
+        .max_bytes = static_cast<std::uint32_t>(std::min(limits.max_bytes, kMaxTextBytes)),
+        .max_line_bytes =
+            static_cast<std::uint32_t>(std::min(limits.max_line_bytes, kMaxTextLineBytes)),
+        .max_lines = static_cast<std::uint32_t>(
+            std::min<std::size_t>(limits.max_lines, std::numeric_limits<std::uint32_t>::max())),
+        .tab_width = static_cast<std::uint16_t>(std::min(limits.tab_width, kMaxTabWidth)),
+        .name_length = static_cast<std::uint8_t>(name.size()),
+        .mime_length = static_cast<std::uint8_t>(mime.size())};
+    std::vector<std::byte> bytes(sizeof(request) + name.size() + mime.size());
+    std::memcpy(bytes.data(), &request, sizeof(request));
+    std::memcpy(bytes.data() + sizeof(request), name.data(), name.size());
+    std::memcpy(bytes.data() + sizeof(request) + name.size(), mime.data(), mime.size());
+    return bytes;
+}
+
+std::optional<TextAsk> decode_text_request(std::span<const std::byte> bytes) {
+    TextRequest request;
+    if (bytes.size() < sizeof(request)) {
+        return std::nullopt;
+    }
+    std::memcpy(&request, bytes.data(), sizeof(request));
+    if (request.magic != kRequestMagic || request.kind != Kind::text ||
+        bytes.size() != sizeof(request) + request.name_length + request.mime_length ||
+        request.max_bytes == 0 || request.max_bytes > kMaxTextBytes ||
+        request.max_line_bytes == 0 || request.max_line_bytes > kMaxTextLineBytes ||
+        request.tab_width == 0 || request.tab_width > kMaxTabWidth) {
+        return std::nullopt;
+    }
+    const auto* chars = reinterpret_cast<const char*>(bytes.data());  // NOLINT: bytes
+    TextAsk ask;
+    ask.limits = {.max_bytes = request.max_bytes,
+                  .max_line_bytes = request.max_line_bytes,
+                  .max_lines = request.max_lines,
+                  .tab_width = request.tab_width};
+    ask.name.assign(chars + sizeof(request), request.name_length);
+    ask.mime.assign(chars + sizeof(request) + request.name_length, request.mime_length);
+    return ask;
 }
 
 }  // namespace nordend::isolate::protocol

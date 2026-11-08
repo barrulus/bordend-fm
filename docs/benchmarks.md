@@ -93,6 +93,27 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Text through the base engine (ROADMAP 3b-1)
+
+### 2026-11-08
+
+A throwaway program linked against the build's libraries, `steady_clock` around each call, 300
+runs, median, warm cache. "Before" is `preview::read_text` in Nordend at `eb1c288`; "process" is
+the text family in the same process; "helper" is `isolate::Helpers::load_text` through a real
+`nordend-preview` (socket, the request, the read and decoding in the cage, a sealed memfd back,
+checked and split).
+
+| File | Limits | Before | Process | Helper |
+|---|---|---|---|---|
+| `src/views/src/browser.cpp` (131 KiB, 3449 lines) | Quick Look (256 KiB) | 517 µs | 545 µs | 810 µs |
+| same | info pane (8 KiB, 40 lines) | 26 µs | 9 µs | 45 µs |
+| `README.md` (14 KiB, 233 lines) | Quick Look | 39 µs | 41 µs | 102 µs |
+| same | info pane | 23 µs | 10 µs | 46 µs |
+
+Before the ASCII fast path in the UTF-8 check (8 bytes at a time) and `memchr` for NUL bytes, the
+process column read 678 µs for `browser.cpp`. The info pane got quicker in the process since
+`max_lines` stops at 40 lines instead of splitting 8 KiB.
+
 ## Engines' manifests (ROADMAP 3a)
 
 ### 2026-11-08

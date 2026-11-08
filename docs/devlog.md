@@ -4,6 +4,60 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Text read by the base engine (ROADMAP 3b-1)
+
+**Tested by the author** (2026-11-08, installed in `~/.local`, the old `image.toml` removed):
+only `base.toml`, `--about` without warnings; Windows-1252 and UTF-16 files read as written, a
+binary file gets the card, `browser.cpp` as before; photos, thumbnails and EXIF as before.
+
+**Decided with the author** (2026-11-08): the image engine becomes the **base** engine
+(`data/engines/base.toml`, the same `nordend-preview`), with a second family, `text`
+(`shows = "text"`, `text/plain` and its subtypes). Bytes that are not UTF-8 are read as
+Windows-1252, the superset of Latin-1 that browsers read "Latin-1" as (the author asked whether
+the name clashed with Nordend's philosophy: no, it is a 32-entry table of our own, and Nordend
+calls it "Latin-1").
+
+**Done**: Nordend no longer reads text files. A new module `text/` (the `Text` type, `Limits`,
+`Loaded` with `none`/`binary`/`unreadable`/`unavailable`, the loader, `encoding_name`), like
+`picture/` for images; the text family in `formats/text/` (helper only): `decode` finds the
+encoding from the bytes (UTF-8 BOM dropped; UTF-16 LE/BE after their BOM, surrogate pairs joined,
+a lone one U+FFFD; valid UTF-8 kept, strict: no overlong forms, surrogates or code points past
+U+10FFFF, a character cut at the end U+FFFD or, when the file goes on, left for later; anything
+else Windows-1252 as the WHATWG Encoding Standard reads it), NUL means binary, then lines as
+before (tabs, long lines cut on a character boundary, the last incomplete line left out) plus
+`max_lines` and whether a line ended in CRLF. Protocol 2 (`engines::kProtocol`): a text request
+(limits, the file's name and MIME type for 3b-2's languages, never its path) answered with the
+lines joined by `\n` in a sealed memfd; Nordend checks the count, every line's length and the
+seals before taking them; the helper refuses limits of zero or past 16 MiB / 64 KiB / tab 16.
+`preview::read_text` is gone: Quick Look and the info pane (`summarize`, now with the MIME type)
+ask `text::load_text`; `isolate::use_engines` sets the text loader to the first engine with a
+text family (one set of helpers per engine). Without a text engine, text files get the
+information card. A fuzz target, `nordend-fuzz-text`.
+
+**Tests**: `tests/text_test.cpp` (8 cases: lines and tabs, CRLF, UTF-8 with its cuts,
+Windows-1252 byte for byte from 0x80 to 0xFF against the WHATWG table, what UTF-8 never holds,
+UTF-16 both ways with surrogates and cuts, binary, limits, files, no loader);
+`helpers_test.cpp`: the helper reads the same texts as this process (eight files, three sets of
+limits), a text request travels whole and too much is refused, a helper lying about a text (a
+line short) is let go of; the engines' test now checks the base manifest's two families (text:
+`text/x-csrc`, Python, JSON, TOML, Markdown, SVG, shell scripts). 370 tests.
+
+**Checked**: offscreen snapshots: a Windows-1252 file with CRLF ("Il caffè costa 3€", “quotes”)
+in Quick Look, a UTF-16 file's lines in the info pane (before: the card), a source file as
+before. Tests green in `build`, `build-asan`, `build-tsan`.
+
+**Fuzzing** (short run after a new parser): `nordend-fuzz-text`, 10 minutes, 3 processes at the
+lowest priority, 8 seeds (UTF-8, Windows-1252, UTF-16 both ways, a BOM, cuts, binary, a source
+file): 11 million inputs, coverage flat at 278 edges after the first minutes, no crash, timeout
+or out-of-memory.
+
+**Measured** (`docs/benchmarks.md`): reading `browser.cpp` (131 KiB, 3449 lines) in this
+process 545 µs (517 before, in Nordend), through the helper 810 µs; the info pane's 40 lines 45
+µs through the helper. An ASCII fast path (8 bytes at a time) in the UTF-8 check and `memchr`
+for NUL took the in-process time from 678 to 545 µs.
+
+---
+
 ## 2026-11-08 — Engines and their manifests (ROADMAP 3a)
 
 **Tested by the author** (2026-11-08, installed in `~/.local`): the manifest installed and found
@@ -3446,7 +3500,8 @@ being called from the main thread only, as the renderer already requires.
   highlighting and text selection in the preview (ROADMAP 15, DESIGN "Dopo l'MVP").
 
 **Open**
-- Text in other encodings (Latin-1) shows replacement characters; UTF-16 gets the card.
+- Text in other encodings (Latin-1) shows replacement characters; UTF-16 gets the card. (Fixed
+  in 3b-1, 2026-11-08.)
 - No syntax highlighting, no horizontal scrolling, no selection or copy in the text page
   (highlighting and selection: ROADMAP 15).
 

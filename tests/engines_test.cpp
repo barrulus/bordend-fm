@@ -25,7 +25,7 @@ std::filesystem::path anywhere(std::string_view program) { return std::filesyste
 constexpr std::string_view kEngine = R"([engine]
 name = "test"
 program = "nordend-test-engine"
-protocol = 1
+protocol = 2
 )";
 
 std::string manifest(std::string_view families) {
@@ -82,14 +82,15 @@ engines::Engine engine(std::string name, std::vector<engines::Family> families) 
 
 }  // namespace
 
-TEST_CASE("engines: the image engine's manifest shows what may_show listed before") {
+TEST_CASE("engines: the base engine shows what may_show listed before, and text") {
     const std::shared_ptr<const engines::Registry> registry = engines::installed();
     REQUIRE(registry->engines().size() == 1);
-    const engines::Engine& image = registry->engines().front();
-    CHECK(image.manifest.name == "image");
-    CHECK(image.manifest.program == "nordend-preview");
-    REQUIRE(image.manifest.families.size() == 1);
-    const engines::Family& family = image.manifest.families.front();
+    const engines::Engine& base = registry->engines().front();
+    CHECK(base.manifest.name == "base");
+    CHECK(base.manifest.program == "nordend-preview");
+    REQUIRE(base.manifest.families.size() == 2);
+    const engines::Family& family = base.manifest.families.front();
+    CHECK(family.name == "image");
     CHECK(family.shows == engines::Shows::picture);
     CHECK(family.info);
     CHECK(family.thumbnails);
@@ -103,11 +104,29 @@ TEST_CASE("engines: the image engine's manifest shows what may_show listed befor
         REQUIRE(id != nordend::fs::kUnknownMime);
         CHECK(registry->find(*mime, id) == &family);
     }
-    CHECK(registry->engine_of(family) == &image);
-    for (const std::string_view type : {"image/svg+xml", "text/plain", "application/pdf"}) {
+    CHECK(registry->engine_of(family) == &base);
+    for (const std::string_view type : {"application/pdf", "image/heic", "application/zip"}) {
         CAPTURE(type);
         CHECK(registry->find(*mime, mime->find(type)) == nullptr);
     }
+
+    // Text: text/plain and every type under it, as the text provider took them before.
+    const engines::Family& text = base.manifest.families.back();
+    CHECK(text.name == "text");
+    CHECK(text.shows == engines::Shows::text);
+    CHECK(text.subclasses);
+    CHECK_FALSE(text.info);
+    CHECK_FALSE(text.thumbnails);
+    for (const std::string_view type :
+         {"text/plain", "text/x-csrc", "text/x-python", "application/json", "application/toml",
+          "text/markdown", "image/svg+xml", "application/x-shellscript"}) {
+        CAPTURE(type);
+        const nordend::fs::MimeId id = mime->find(type);
+        REQUIRE(id != nordend::fs::kUnknownMime);
+        CHECK(mime->is_a(id, MimeDatabase::kTextPlain));
+        CHECK(registry->find(*mime, id) == &text);
+    }
+    CHECK(registry->engine_of(text) == &base);
 }
 
 TEST_CASE("engines: a manifest is read whole") {
@@ -121,7 +140,7 @@ mime = ["image/png", "image/x-test"]
 
 [[family]]
 name = "more"
-shows = "picture"
+shows = "text"
 info = true
 subclasses = true
 mime = ["text/plain"]
@@ -137,6 +156,8 @@ mime = ["text/plain"]
     CHECK_FALSE(read.families[0].info);
     CHECK_FALSE(read.families[0].subclasses);
     CHECK(read.families[0].mime == std::vector<std::string>{"image/png", "image/x-test"});
+    CHECK(read.families[0].shows == engines::Shows::picture);
+    CHECK(read.families[1].shows == engines::Shows::text);
     CHECK(read.families[1].info);
     CHECK(read.families[1].subclasses);
 }
@@ -151,19 +172,19 @@ TEST_CASE("engines: a manifest Nordend cannot trust is refused, saying where") {
     CHECK(refused(manifest(family + "thumbnail = true\n")).find("unknown key 'thumbnail'") !=
           std::string::npos);
     // Another protocol, a path for a program, a name that is not one.
-    CHECK(refused("[engine]\nname = \"x\"\nprogram = \"p\"\nprotocol = 2\n" + family)
-              .find("protocol 2, Nordend speaks 1") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 1\nprogram = \"../../bin/sh\"\n" + family)
+    CHECK(refused("[engine]\nname = \"x\"\nprogram = \"p\"\nprotocol = 1\n" + family)
+              .find("protocol 1, Nordend speaks 2") != std::string::npos);
+    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 2\nprogram = \"../../bin/sh\"\n" + family)
               .find("must be a file name") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 1\nprogram = \"..\"\n" + family)
+    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 2\nprogram = \"..\"\n" + family)
               .find("must be a file name") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"Big One\"\nprotocol = 1\nprogram = \"p\"\n" + family)
+    CHECK(refused("[engine]\nname = \"Big One\"\nprotocol = 2\nprogram = \"p\"\n" + family)
               .find("is not [a-z0-9-]") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"x\"\nprotocol = \"1\"\nprogram = \"p\"\n" + family)
+    CHECK(refused("[engine]\nname = \"x\"\nprotocol = \"2\"\nprogram = \"p\"\n" + family)
               .find("whole number") != std::string::npos);
     // Families: what they show, their types, booleans.
     CHECK(refused(manifest("[[family]]\nname = \"f\"\nshows = \"video\"\nmime = [\"a/b\"]\n"))
-              .find("'shows' must be") != std::string::npos);
+              .find("'shows' must be \"picture\" or \"text\"") != std::string::npos);
     CHECK(refused(manifest("[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = []\n"))
               .find("not empty") != std::string::npos);
     CHECK(refused(manifest("[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = [\"png\"]\n"))
@@ -221,17 +242,17 @@ TEST_CASE("engines: a directory of manifests, the broken ones skipped") {
     const nordend::test::TempDir dir;
     const std::string png =
         "\n[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = [\"image/png\"]\n";
-    dir.write("b-second.toml", "[engine]\nname = \"second\"\nprogram = \"two\"\nprotocol = 1\n" +
+    dir.write("b-second.toml", "[engine]\nname = \"second\"\nprogram = \"two\"\nprotocol = 2\n" +
                                    std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\n"
                                                "mime = [\"image/png\", \"image/gif\"]\n"});
     dir.write("a-first.toml",
-              "[engine]\nname = \"first\"\nprogram = \"one\"\nprotocol = 1\n" + png);
+              "[engine]\nname = \"first\"\nprogram = \"one\"\nprotocol = 2\n" + png);
     dir.write("c-broken.toml", "[engine]\nname = \"broken\"\n");
     dir.write("d-missing.toml",
-              "[engine]\nname = \"missing\"\nprogram = \"absent\"\nprotocol = 1\n" +
+              "[engine]\nname = \"missing\"\nprogram = \"absent\"\nprotocol = 2\n" +
                   std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = "
                               "[\"image/jxl\"]\n"});
-    dir.write("e-third.toml", "[engine]\nname = \"third\"\nprogram = \"three\"\nprotocol = 1\n" +
+    dir.write("e-third.toml", "[engine]\nname = \"third\"\nprogram = \"three\"\nprotocol = 2\n" +
                                   std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\n"
                                               "mime = [\"image/webp\"]\n"});
     dir.write("notes.txt", "not a manifest");

@@ -1,19 +1,24 @@
 // nordend-preview: Nordend's preview helper (ROADMAP 2b). Started by Nordend with a socket on
-// descriptor 3, never by hand. It reads files only through the descriptors Nordend sends, turns
-// them into pictures with image::load, and answers with the pixels in a sealed memfd. It leaves
-// after --idle-ms without work (a goodbye first), or when Nordend closes the socket.
+// descriptor 3, never by hand: the base engine (data/engines/base.toml). It reads files only
+// through the descriptors Nordend sends, turns them into pictures (the image family) or texts
+// (the text family), and answers with the pixels or the lines in a sealed memfd. It leaves after
+// --idle-ms without work (a goodbye first), or when Nordend closes the socket.
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <charconv>
 #include <csignal>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
 #include <malloc.h>
+#include <optional>
 #include <poll.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <sys/mman.h>
@@ -21,6 +26,7 @@
 #include <vector>
 
 #include "nordend/formats/formats.hpp"
+#include "nordend/formats/text/read.hpp"
 #include "nordend/picture/load.hpp"
 #include "protocol.hpp"
 #include "sandbox.hpp"
@@ -34,15 +40,14 @@ namespace {
 
 constexpr int kTrimAfterMs = 1000;
 
-// A memfd holding the picture's pixels, sealed so that neither side can change its size; -1 on
-// an error.
-int pixels_memfd(const picture::Image& picture) {
-    const int fd = ::memfd_create("nordend-picture", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+// A memfd holding bytes, sealed so that neither side can change its size; -1 on an error.
+int sealed_memfd(const char* name, std::span<const std::byte> bytes) {
+    const int fd = ::memfd_create(name, MFD_CLOEXEC | MFD_ALLOW_SEALING);
     if (fd < 0) {
         return -1;
     }
-    const std::uint8_t* from = picture.rgba.data();
-    std::size_t left = picture.rgba.size();
+    const std::byte* from = bytes.data();
+    std::size_t left = bytes.size();
     while (left > 0) {
         const ssize_t wrote = ::write(fd, from, left);
         if (wrote < 0 && errno == EINTR) {
@@ -72,7 +77,7 @@ void answer_picture(int socket, int file, const protocol::Request& request) {
     response.full_height = loaded.full_height;
     int pixels = -1;
     if (loaded.failure == picture::Failure::none) {
-        pixels = pixels_memfd(loaded.image);
+        pixels = sealed_memfd("nordend-picture", std::as_bytes(std::span{loaded.image.rgba}));
         if (pixels < 0) {
             response.failure = static_cast<std::uint8_t>(picture::Failure::unavailable);
         } else {
@@ -91,6 +96,42 @@ void answer_picture(int socket, int file, const protocol::Request& request) {
                               pixels >= 0 ? std::span<const int>{fds} : std::span<const int>{}));
     if (pixels >= 0) {
         ::close(pixels);
+    }
+}
+
+void answer_text(int socket, int file, const protocol::TextAsk& ask) {
+    const nordend::text::Loaded loaded = nordend::formats::text::read(file, ask.limits);
+    protocol::TextResponse response;
+    response.failure = static_cast<std::uint8_t>(loaded.failure);
+    response.encoding = static_cast<std::uint8_t>(loaded.text.encoding);
+    response.truncated = loaded.text.truncated ? 1 : 0;
+    response.crlf = loaded.text.crlf ? 1 : 0;
+    int joined = -1;
+    if (loaded.failure == nordend::text::Failure::none && !loaded.text.lines.empty()) {
+        std::string all;
+        for (const std::string& line : loaded.text.lines) {
+            all.append(line).push_back('\n');
+        }
+        all.pop_back();
+        joined = all.empty() ? -1 : sealed_memfd("nordend-text", std::as_bytes(std::span{all}));
+        if (!all.empty() && joined < 0) {
+            response.failure = static_cast<std::uint8_t>(nordend::text::Failure::unreadable);
+        } else {
+            response.lines = static_cast<std::uint32_t>(loaded.text.lines.size());
+            response.bytes = static_cast<std::uint32_t>(all.size());
+        }
+    }
+    const std::string_view detail = std::string_view{loaded.detail}.substr(0, protocol::kMaxDetail);
+    response.detail_length = static_cast<std::uint16_t>(detail.size());
+    std::array<std::byte, sizeof(protocol::TextResponse) + protocol::kMaxDetail> bytes{};
+    std::memcpy(bytes.data(), &response, sizeof(response));
+    std::memcpy(bytes.data() + sizeof(response), detail.data(), detail.size());
+    const std::array<int, 1> fds{joined};
+    static_cast<void>(
+        protocol::send_packet(socket, std::span{bytes}.first(sizeof(response) + detail.size()),
+                              joined >= 0 ? std::span<const int>{fds} : std::span<const int>{}));
+    if (joined >= 0) {
+        ::close(joined);
     }
 }
 
@@ -205,22 +246,38 @@ int main(int argc, char** argv) {
         if (!packet) {
             return 0;  // Nordend closed the socket
         }
-        protocol::Request request;
+        // Its magic and kind first, then the whole request for that kind.
+        std::uint32_t magic = 0;
+        protocol::Kind kind{};
         const int file = packet->fds[0];
-        if (packet->length != sizeof(request) || file < 0) {
+        if (packet->length < sizeof(magic) + sizeof(kind) || file < 0) {
             packet->close_fds();
             return 1;  // not Nordend talking
         }
-        std::memcpy(&request, packet->bytes.data(), sizeof(request));
-        if (request.magic != protocol::kRequestMagic) {
-            packet->close_fds();
-            return 1;
-        }
-        if (request.kind == protocol::Kind::photo_info) {
-            answer_photo_info(socket, file);
-        } else if (request.kind == protocol::Kind::picture) {
-            answer_picture(socket, file, request);
+        std::memcpy(&magic, packet->bytes.data(), sizeof(magic));
+        std::memcpy(&kind, packet->bytes.data() + sizeof(magic), sizeof(kind));
+        const std::span<const std::byte> bytes = std::span{packet->bytes}.first(packet->length);
+        protocol::Request request;
+        bool understood = magic == protocol::kRequestMagic;
+        if (understood && kind == protocol::Kind::text) {
+            const std::optional<protocol::TextAsk> ask = protocol::decode_text_request(bytes);
+            understood = ask.has_value();
+            if (ask) {
+                answer_text(socket, file, *ask);
+            }
+        } else if (understood && packet->length == sizeof(request)) {
+            std::memcpy(&request, packet->bytes.data(), sizeof(request));
+            if (request.kind == protocol::Kind::photo_info) {
+                answer_photo_info(socket, file);
+            } else if (request.kind == protocol::Kind::picture) {
+                answer_picture(socket, file, request);
+            } else {
+                understood = false;
+            }
         } else {
+            understood = false;
+        }
+        if (!understood) {
             packet->close_fds();
             return 1;
         }

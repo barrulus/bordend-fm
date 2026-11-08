@@ -23,3 +23,8 @@ foreach(target dng ljpeg)
     target_link_libraries(nordend-fuzz-${target} PRIVATE nordend::formats::image nordend::warnings)
     target_link_options(nordend-fuzz-${target} PRIVATE -fsanitize=fuzzer)
 endforeach()
+
+# Text (ROADMAP 3b): seeds are a few text files in different encodings.
+add_executable(nordend-fuzz-text fuzz_text.cpp)
+target_link_libraries(nordend-fuzz-text PRIVATE nordend::formats::text nordend::warnings)
+target_link_options(nordend-fuzz-text PRIVATE -fsanitize=fuzzer)

@@ -5,7 +5,7 @@ add_library(nordend_isolate
     src/protocol.cpp)
 add_library(nordend::isolate ALIAS nordend_isolate)
 target_include_directories(nordend_isolate PUBLIC include PRIVATE src)
-target_link_libraries(nordend_isolate PUBLIC nordend::picture nordend::engines
+target_link_libraries(nordend_isolate PUBLIC nordend::picture nordend::text nordend::engines
                                       PRIVATE nordend::core nordend::warnings)
 
 # Tiny pictures of every kind the helper reads, decoded once before it closes its cage, so that
@@ -36,6 +36,7 @@ add_executable(nordend-preview src/helper_main.cpp src/protocol.cpp src/sandbox.
 target_include_directories(nordend-preview PRIVATE src)
 # Generated, not ours to lint.
 set_source_files_properties("${warm_up_source}" PROPERTIES SKIP_LINTING ON)
-target_link_libraries(nordend-preview PRIVATE nordend::formats nordend::picture nordend::warnings)
+target_link_libraries(nordend-preview
+    PRIVATE nordend::formats nordend::formats::text nordend::picture nordend::text nordend::warnings)
 # Next to nordend in the build tree, where default_program() looks first.
 set_target_properties(nordend-preview PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}")

@@ -1,0 +1,45 @@
+#include "nordend/text/text.hpp"
+
+#include <mutex>
+#include <utility>
+
+namespace nordend::text {
+namespace {
+
+std::mutex loader_mutex;
+Loader current_loader;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+}  // namespace
+
+std::string_view encoding_name(Encoding encoding) noexcept {
+    switch (encoding) {
+        case Encoding::utf8:
+            return "UTF-8";
+        case Encoding::utf16le:
+            return "UTF-16 LE";
+        case Encoding::utf16be:
+            return "UTF-16 BE";
+        case Encoding::cp1252:
+            return "Latin-1";
+    }
+    return "UTF-8";
+}
+
+void set_loader(Loader loader) {
+    const std::scoped_lock lock{loader_mutex};
+    current_loader = std::move(loader);
+}
+
+Loaded load_text(const LoadRequest& request) {
+    Loader loader;
+    {
+        const std::scoped_lock lock{loader_mutex};
+        loader = current_loader;
+    }
+    if (!loader) {
+        return {.failure = Failure::unavailable, .detail = "no engine reads text", .text = {}};
+    }
+    return loader(request);
+}
+
+}  // namespace nordend::text

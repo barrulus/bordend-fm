@@ -1,11 +1,11 @@
-# The image engine (ROADMAP 2, 3a): photos, pictures and camera raw files, read by
+# The base engine (ROADMAP 2, 3): photos, pictures, camera raw files and text files, read by
 # nordend-preview in its cage. Installed in share/nordend/engines/; Nordend reads every manifest
 # there at start-up (src/engines/include/nordend/engines/engines.hpp says what each key means).
 
 [engine]
-name = "image"
+name = "base"
 program = "nordend-preview"
-protocol = 1
+protocol = 2
 
 [[family]]
 name = "image"
@@ -44,3 +44,9 @@ mime = [
     "image/x-sony-sr2",
     "image/x-sony-srf",
 ]
+
+[[family]]
+name = "text"
+shows = "text"
+subclasses = true
+mime = ["text/plain"]

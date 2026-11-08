@@ -11,7 +11,7 @@ target_link_libraries(nordend_engines
     PRIVATE nordend::core PkgConfig::TOMLPLUSPLUS nordend::warnings)
 
 # The manifests next to nordend in the build tree, where default_directory() looks first.
-set(NORDEND_ENGINE_MANIFESTS image.toml)
+set(NORDEND_ENGINE_MANIFESTS base.toml)
 foreach(name IN LISTS NORDEND_ENGINE_MANIFESTS)
     configure_file("${PROJECT_SOURCE_DIR}/data/engines/${name}"
                    "${PROJECT_BINARY_DIR}/engines/${name}" COPYONLY)

@@ -16,6 +16,7 @@
 #include "nordend/engines/engines.hpp"
 #include "nordend/picture/load.hpp"
 #include "nordend/picture/photo_info.hpp"
+#include "nordend/text/text.hpp"
 
 // Nordend's preview helpers (ROADMAP 2b): the parsers of files that come from outside run in
 // separate nordend-preview processes, started when a picture is first asked for, at most one
@@ -54,6 +55,9 @@ public:
     // empty when it cannot be read. Thread-safe.
     [[nodiscard]] picture::PhotoInfo photo_info(const std::filesystem::path& path);
 
+    // The text of request.path, read by a helper. Thread-safe.
+    [[nodiscard]] text::Loaded load_text(const text::LoadRequest& request);
+
     // Helpers started and not yet known to be gone (tests).
     [[nodiscard]] std::size_t running() const;
 
@@ -71,11 +75,11 @@ private:
     void close_idle();           // the reaper thread: closes and waits for helpers idle too long
     [[nodiscard]] std::optional<Helper> spawn() const;
     // One request and its reply; again: the helper had left (retry in a new one).
-    Outcome exchange(Helper helper, const protocol::Request& request, std::span<const int> fds,
+    Outcome exchange(Helper helper, std::span<const std::byte> request, std::span<const int> fds,
                      protocol::Packet& reply, std::string& why) const;
     // The request to a helper (a new one if it had left), its reply handed to accept; false with
     // why when no helper answered in a way accept took.
-    bool run(const protocol::Request& request, std::span<const int> fds,
+    bool run(std::span<const std::byte> request, std::span<const int> fds,
              const std::function<bool(protocol::Packet&, std::string&)>& accept, std::string& why);
 
     HelperOptions options_;
@@ -88,10 +92,12 @@ private:
     std::thread reaper_;  // declared last: started once the rest is ready
 };
 
-// Sends pictures and photo information to the engine of registry that makes pictures, through
-// its own helpers (options.program is set from the engine). The first such engine when there
-// are several (load_picture names no type to choose by); a warning in the log when there is none.
-// The helpers live as long as the loaders set.
+// Sends pictures, photo information and texts to the engines of registry that make them, each
+// engine through its own helpers (options.program is set from the engine): pictures to the first
+// engine with a family showing pictures (load_picture names no type to choose by), the
+// information to it when a family of it has info, texts to the first engine with a family
+// showing text. A warning in the log for each that no engine makes. The helpers live as long as
+// the loaders set.
 void use_engines(const engines::Registry& registry, HelperOptions options = {});
 
 }  // namespace nordend::isolate

@@ -16,20 +16,20 @@
 #include "nordend/fs/mime.hpp"
 
 // Nordend's engines (ROADMAP 3a): the programs that read files from outside, each in its cage
-// (nordend-preview, the image engine, is the first). An engine is described by a manifest, a
-// small TOML file installed with it in share/nordend/engines/: which types it shows, what it
-// gives back, the protocol it speaks. Nordend reads the manifests at start-up and asks the
+// (nordend-preview, the base engine for images and text, is the first). An engine is described by a
+// manifest, a small TOML file installed with it in share/nordend/engines/: which types it shows,
+// what it gives back, the protocol it speaks. Nordend reads the manifests at start-up and asks the
 // registry who shows a type; it never parses a file itself. A new engine is a new manifest:
 // nothing in views or picture changes.
 //
 //   [engine]
-//   name = "image"
+//   name = "base"
 //   program = "nordend-preview"    # a file name, in libexec/nordend
-//   protocol = 1
+//   protocol = 2
 //
 //   [[family]]
 //   name = "image"
-//   shows = "picture"
+//   shows = "picture"              # or "text"
 //   info = true                    # what the file says about itself (EXIF)
 //   thumbnails = true
 //   mime = ["image/png", "image/jpeg"]
@@ -38,11 +38,12 @@ namespace nordend::engines {
 
 // The protocol Nordend speaks with its engines (isolate/src/protocol.hpp): an engine whose
 // manifest names another is skipped. Raised with every change to the messages.
-inline constexpr std::int64_t kProtocol = 1;
+inline constexpr std::int64_t kProtocol = 2;
 
 // What a family gives back for Nordend to draw.
 enum class Shows : std::uint8_t {
     picture,  // RGBA pixels (picture::Loaded)
+    text,     // lines of text (text::Loaded)
 };
 
 struct Family {

@@ -92,7 +92,8 @@ public:
 
 private:
     // Reads path's summary unless it is the one shown or on its way.
-    void request(const std::filesystem::path& path, std::int64_t modified_ns, preview::Kind kind);
+    void request(const std::filesystem::path& path, std::int64_t modified_ns, std::string mime,
+                 preview::Kind kind);
 
     core::WorkerPool& pool_;
     Thumbnails* thumbnails_;

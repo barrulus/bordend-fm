@@ -177,7 +177,7 @@ bool InfoPane::click(float x, float y) {
 }
 
 void InfoPane::request(const std::filesystem::path& path, std::int64_t modified_ns,
-                       preview::Kind kind) {
+                       std::string mime, preview::Kind kind) {
     std::string key = std::format("{}\n{}\n{}", path.string(), modified_ns, static_cast<int>(kind));
     if (key == key_) {
         return;
@@ -190,8 +190,9 @@ void InfoPane::request(const std::filesystem::path& path, std::int64_t modified_
     }
     job_ = pool_.submit(
         core::Priority::visible,
-        [path, kind](const core::CancelToken& token) {
-            return std::make_shared<const preview::Summary>(preview::summarize(path, kind, token));
+        [path, mime = std::move(mime), kind](const core::CancelToken& token) {
+            return std::make_shared<const preview::Summary>(
+                preview::summarize(path, mime, kind, token));
         },
         [this, alive = alive_, key = key_](std::shared_ptr<const preview::Summary> summary) {
             if (!*alive || key != key_) {
@@ -256,7 +257,8 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         typed.mime = folder.mime_of(*single);
         kind = preview::provider_for(mime, typed.mime).kind();
     }
-    request(path, single == nullptr ? 0 : single->modified_ns, kind);
+    request(path, single == nullptr ? 0 : single->modified_ns,
+            single == nullptr ? std::string{} : std::string{mime.name(typed.mime)}, kind);
     const preview::Summary* const summary = summary_.get();
     const preview::Info* const info = summary == nullptr ? nullptr : &summary->info;
     const picture::PhotoInfo* const photo =

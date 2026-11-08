@@ -31,28 +31,33 @@ public:
     }
 };
 
-// Text files: the text/plain family (source code, configuration, XML, JSON...). A file that
-// turns out to be binary gets the information card.
+// What an engine shows as text (the text/plain family: source code, configuration, XML,
+// JSON...). A file that turns out to be binary, or that cannot be read, gets the information
+// card.
 class TextProvider final : public Provider {
 public:
     [[nodiscard]] Kind kind() const override { return Kind::text; }
 
     [[nodiscard]] bool can_handle(const fs::MimeDatabase& mime, fs::MimeId type) const override {
-        return mime.is_a(type, fs::MimeDatabase::kTextPlain);
+        const engines::Family* family = engines::installed()->find(mime, type);
+        return family != nullptr && family->shows == engines::Shows::text;
     }
 
     [[nodiscard]] Content load(const Request& request,
                                const core::CancelToken& cancel) const override {
-        std::string error;
-        std::optional<Text> text = read_text(request.path, {}, error);
-        if (!text || !error.empty()) {
-            Info info = read_info(request.path, cancel);
-            if (info.error.empty()) {
-                info.error = error;
-            }
-            return info;
+        text::Loaded loaded =
+            text::load_text({.path = request.path, .mime = request.mime, .limits = {}});
+        if (loaded.failure == text::Failure::none) {
+            return std::move(loaded.text);
         }
-        return std::move(*text);
+        if (!loaded.detail.empty()) {
+            log::debug("preview: {}: {}", request.path.string(), loaded.detail);
+        }
+        Info info = read_info(request.path, cancel);
+        if (info.error.empty() && loaded.failure != text::Failure::binary) {
+            info.error = loaded.detail;
+        }
+        return info;
     }
 };
 

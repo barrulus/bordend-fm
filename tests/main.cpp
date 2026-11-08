@@ -14,8 +14,10 @@
 #include "nordend/engines/engines.hpp"
 #include "nordend/formats/image/load.hpp"
 #include "nordend/formats/image/photo.hpp"
+#include "nordend/formats/text/read.hpp"
 #include "nordend/fs/trash.hpp"
 #include "nordend/picture/load.hpp"
+#include "nordend/text/text.hpp"
 
 int main(int argc, char** argv) {
     // No test reads or makes the user's trash: the trash folder lists one of its own, and no
@@ -48,6 +50,9 @@ int main(int argc, char** argv) {
     });
     nordend::picture::set_info_loader([](const std::filesystem::path& path) {
         return nordend::formats::image::read_photo_info(path);
+    });
+    nordend::text::set_loader([](const nordend::text::LoadRequest& request) {
+        return nordend::formats::text::load(request);
     });
     doctest::Context context;
     context.applyCommandLine(argc, argv);

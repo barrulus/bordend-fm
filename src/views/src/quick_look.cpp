@@ -130,6 +130,7 @@ QuickLook::Slot& QuickLook::ensure(const fs::Entry& entry, bool current) {
             current ? core::Priority::visible : core::Priority::nearby,
             [&provider,
              request = preview::Request{.path = slot.path,
+                                        .mime = std::string{mime_->name(folder_->mime_of(entry))},
                                         .width = target_width_,
                                         .height = target_height_}](const core::CancelToken& token) {
                 return std::make_shared<preview::Content>(provider.load(request, token));

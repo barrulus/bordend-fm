@@ -76,10 +76,14 @@ Family read_family(std::string_view source, const toml::table& table) {
         fail(source, table, std::format("family name '{}' is not [a-z0-9-]", family.name));
     }
     const toml::node& shows = required(source, table, "[[family]]", "shows");
-    if (text(source, shows, "shows") != "picture") {
-        fail(source, shows, "'shows' must be \"picture\"");
+    const std::string what = text(source, shows, "shows");
+    if (what == "picture") {
+        family.shows = Shows::picture;
+    } else if (what == "text") {
+        family.shows = Shows::text;
+    } else {
+        fail(source, shows, R"('shows' must be "picture" or "text")");
     }
-    family.shows = Shows::picture;
     family.info = flag(source, table, "info");
     family.thumbnails = flag(source, table, "thumbnails");
     family.subclasses = flag(source, table, "subclasses");

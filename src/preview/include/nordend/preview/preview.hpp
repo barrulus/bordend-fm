@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -12,17 +13,15 @@
 #include "nordend/fs/mime.hpp"
 #include "nordend/picture/load.hpp"
 #include "nordend/picture/photo_info.hpp"
+#include "nordend/text/text.hpp"
 
 // What Quick Look shows for a file, made on a worker. One provider per kind of file (DESIGN,
 // "Preview provider"): adding a kind does not touch the others, and the view draws what the
 // provider made.
 namespace nordend::preview {
 
-// The beginning of a text file, ready to draw line by line.
-struct Text {
-    std::vector<std::string> lines;  // tabs expanded, no line ends; bytes as in the file
-    bool truncated{false};           // the file goes on past what was read
-};
+// The beginning of a text file, ready to draw line by line (read by the base engine).
+using Text = text::Text;
 
 // What the information card shows beyond the directory entry itself.
 struct Info {
@@ -44,6 +43,7 @@ enum class Kind : std::uint8_t { image, text, info };
 
 struct Request {
     std::filesystem::path path;
+    std::string mime;  // the type Nordend found (text: for the engine to choose a language by)
     // The area an image is shown in, in physical pixels.
     std::uint32_t width{0};
     std::uint32_t height{0};
@@ -73,17 +73,6 @@ public:
 
 // The building blocks of the providers.
 
-struct TextLimits {
-    std::size_t max_bytes{std::size_t{256} * 1024};  // read at most this much of the file
-    std::size_t max_line_bytes{1024};                // longer lines are cut (minified files)
-    std::size_t tab_width{4};
-};
-
-// The file's text; nullopt when it holds a NUL byte (binary, or UTF-16/32). A UTF-8 byte order
-// mark is dropped; "\r\n" ends a line like "\n". Problems reading land in error.
-[[nodiscard]] std::optional<Text> read_text(const std::filesystem::path& path,
-                                            const TextLimits& limits, std::string& error);
-
 // Permissions, owner, link target, birth time, and a directory's number of entries (stops
 // counting when cancelled).
 [[nodiscard]] Info read_info(const std::filesystem::path& path, const core::CancelToken& cancel);
@@ -97,8 +86,8 @@ struct Summary {
 
 inline constexpr std::size_t kSummaryLines = 40;
 
-// Reads it for an entry whose provider makes kind. Blocking: call it on a worker.
-[[nodiscard]] Summary summarize(const std::filesystem::path& path, Kind kind,
+// Reads it for an entry of type mime whose provider makes kind. Blocking: call it on a worker.
+[[nodiscard]] Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind kind,
                                 const core::CancelToken& cancel);
 
 }  // namespace nordend::preview

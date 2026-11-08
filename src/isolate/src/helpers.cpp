@@ -4,13 +4,17 @@
 #include <array>
 #include <cerrno>
 #include <csignal>
+#include <cstdint>
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <poll.h>
 #include <span>
 #include <spawn.h>
+#include <string>
+#include <string_view>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -18,6 +22,7 @@
 #include <system_error>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 #include "nordend/core/log.hpp"
 #include "protocol.hpp"
@@ -75,6 +80,59 @@ std::optional<picture::Image> read_pixels(int fd, std::uint32_t width, std::uint
     picture.rgba.assign(from, from + bytes);
     ::munmap(mapped, bytes);
     return picture;
+}
+
+// A helper's text: `lines` lines joined by '\n' in a sealed memfd of `bytes` bytes (none when
+// they are empty), each within what was asked; nullopt when it is not that.
+std::optional<std::vector<std::string>> read_lines(int fd, std::uint32_t lines, std::uint32_t bytes,
+                                                   const text::Limits& limits) {
+    // A line is at least its '\n' in the file; each is at most max_line_bytes.
+    const std::uint64_t most_lines = std::min<std::uint64_t>(
+        limits.max_lines == 0 ? limits.max_bytes : limits.max_lines, limits.max_bytes);
+    if (lines > most_lines || (lines == 0 && bytes != 0) ||
+        std::uint64_t{bytes} > std::uint64_t{lines} * (limits.max_line_bytes + 1)) {
+        return std::nullopt;
+    }
+    std::string all;
+    if (bytes > 0) {
+        struct stat info{};
+        if (fd < 0 || ::fstat(fd, &info) != 0 || std::cmp_not_equal(info.st_size, bytes)) {
+            return std::nullopt;
+        }
+        const int seals = ::fcntl(fd, F_GET_SEALS);
+        if (seals < 0 || (seals & F_SEAL_WRITE) == 0) {
+            return std::nullopt;
+        }
+        all.resize(bytes);
+        std::size_t got = 0;
+        while (got < all.size()) {
+            const ssize_t read =
+                ::pread(fd, all.data() + got, all.size() - got, static_cast<off_t>(got));
+            if (read < 0 && errno == EINTR) {
+                continue;
+            }
+            if (read <= 0) {
+                return std::nullopt;
+            }
+            got += static_cast<std::size_t>(read);
+        }
+    }
+    std::vector<std::string> split;
+    split.reserve(lines);
+    std::string_view rest{all};
+    for (std::uint32_t i = 0; i < lines; ++i) {
+        const std::size_t end = rest.find('\n');
+        if ((end == std::string_view::npos) != (i + 1 == lines)) {
+            return std::nullopt;
+        }
+        const std::string_view line = rest.substr(0, end);
+        if (line.size() > limits.max_line_bytes) {
+            return std::nullopt;
+        }
+        split.emplace_back(line);
+        rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end + 1);
+    }
+    return split;
 }
 
 }  // namespace
@@ -244,10 +302,10 @@ int Helpers::discard(Helper helper) {
     return status;
 }
 
-Helpers::Outcome Helpers::exchange(Helper helper, const protocol::Request& request,
+Helpers::Outcome Helpers::exchange(Helper helper, std::span<const std::byte> request,
                                    std::span<const int> fds, protocol::Packet& reply,
                                    std::string& why) const {
-    if (!protocol::send_packet(helper.socket, std::as_bytes(std::span{&request, 1}), fds)) {
+    if (!protocol::send_packet(helper.socket, request, fds)) {
         return Outcome::again;  // it had already left
     }
     pollfd watched{.fd = helper.socket, .events = POLLIN, .revents = 0};
@@ -284,7 +342,7 @@ Helpers::Outcome Helpers::exchange(Helper helper, const protocol::Request& reque
     return Outcome::done;
 }
 
-bool Helpers::run(const protocol::Request& request, std::span<const int> fds,
+bool Helpers::run(std::span<const std::byte> request, std::span<const int> fds,
                   const std::function<bool(protocol::Packet&, std::string&)>& accept,
                   std::string& why) {
     why = "the preview helper could not start";
@@ -365,7 +423,7 @@ picture::Loaded Helpers::load(const picture::LoadRequest& request) {
     };
     std::string why;
     const std::array<int, 1> fds{file};
-    const bool done = run(message, fds, accept, why);
+    const bool done = run(std::as_bytes(std::span{&message, 1}), fds, accept, why);
     ::close(file);
     return done ? result : failed(picture::Failure::unavailable, std::move(why));
 }
@@ -392,30 +450,104 @@ picture::PhotoInfo Helpers::photo_info(const std::filesystem::path& path) {
     };
     std::string why;
     const std::array<int, 1> fds{file};
-    const bool done = run(message, fds, accept, why);
+    const bool done = run(std::as_bytes(std::span{&message, 1}), fds, accept, why);
     ::close(file);
     return done ? info : picture::PhotoInfo{};
 }
 
-void use_engines(const engines::Registry& registry, HelperOptions options) {
-    for (const engines::Engine& engine : registry.engines()) {
-        const auto& families = engine.manifest.families;
-        if (std::ranges::none_of(families, [](const engines::Family& family) {
-                return family.shows == engines::Shows::picture;
-            })) {
-            continue;
+text::Loaded Helpers::load_text(const text::LoadRequest& request) {
+    const int file = open_regular(request.path);
+    if (file < 0) {
+        return {.failure = text::Failure::unreadable, .detail = errno_text(), .text = {}};
+    }
+    const std::vector<std::byte> message = protocol::encode_text_request(
+        request.limits, request.path.filename().string(), request.mime);
+    text::Loaded result;
+    const auto accept = [&](protocol::Packet& reply, std::string& why) {
+        protocol::TextResponse response;
+        if (reply.length < sizeof(response)) {
+            why = "the preview helper said something else";
+            return false;
         }
-        options.program = engine.program;
-        auto helpers = std::make_shared<Helpers>(std::move(options));
+        std::memcpy(&response, reply.bytes.data(), sizeof(response));
+        if (response.magic != protocol::kTextMagic ||
+            reply.length != sizeof(response) + response.detail_length ||
+            response.failure > static_cast<std::uint8_t>(text::Failure::unreadable) ||
+            response.encoding > static_cast<std::uint8_t>(text::Encoding::cp1252) ||
+            response.truncated > 1 || response.crlf > 1) {
+            why = "the preview helper said something else";
+            return false;
+        }
+        result.failure = static_cast<text::Failure>(response.failure);
+        result.detail.assign(reinterpret_cast<const char*>(  // NOLINT: bytes to chars
+                                 reply.bytes.data() + sizeof(response)),
+                             response.detail_length);
+        result.text.encoding = static_cast<text::Encoding>(response.encoding);
+        result.text.truncated = response.truncated != 0;
+        result.text.crlf = response.crlf != 0;
+        if (result.failure == text::Failure::none) {
+            std::optional<std::vector<std::string>> lines =
+                read_lines(reply.fds[0], response.lines, response.bytes, request.limits);
+            if (!lines) {
+                why = "the preview helper's text is wrong";
+                return false;
+            }
+            result.text.lines = std::move(*lines);
+        }
+        return true;
+    };
+    std::string why;
+    const std::array<int, 1> fds{file};
+    const bool done = run(message, fds, accept, why);
+    ::close(file);
+    return done ? result
+                : text::Loaded{
+                      .failure = text::Failure::unavailable, .detail = std::move(why), .text = {}};
+}
+
+void use_engines(const engines::Registry& registry, HelperOptions options) {
+    // One set of helpers per engine, shared by what it makes.
+    std::vector<std::pair<const engines::Engine*, std::shared_ptr<Helpers>>> started;
+    const auto helpers_of = [&](const engines::Engine& engine) {
+        for (const auto& [which, helpers] : started) {
+            if (which == &engine) {
+                return helpers;
+            }
+        }
+        HelperOptions own = options;
+        own.program = engine.program;
+        started.emplace_back(&engine, std::make_shared<Helpers>(std::move(own)));
+        return started.back().second;
+    };
+    const auto first_showing = [&](engines::Shows shows) -> const engines::Engine* {
+        for (const engines::Engine& engine : registry.engines()) {
+            if (std::ranges::any_of(engine.manifest.families, [&](const engines::Family& family) {
+                    return family.shows == shows;
+                })) {
+                return &engine;
+            }
+        }
+        return nullptr;
+    };
+
+    if (const engines::Engine* engine = first_showing(engines::Shows::picture)) {
+        std::shared_ptr<Helpers> helpers = helpers_of(*engine);
         picture::set_loader(
             [helpers](const picture::LoadRequest& request) { return helpers->load(request); });
-        if (std::ranges::any_of(families, &engines::Family::info)) {
+        if (std::ranges::any_of(engine->manifest.families, &engines::Family::info)) {
             picture::set_info_loader(
                 [helpers](const std::filesystem::path& path) { return helpers->photo_info(path); });
         }
-        return;
+    } else {
+        log::warn("no engine makes pictures: no previews of pictures");
     }
-    log::warn("no engine makes pictures: no previews of pictures");
+    if (const engines::Engine* engine = first_showing(engines::Shows::text)) {
+        std::shared_ptr<Helpers> helpers = helpers_of(*engine);
+        text::set_loader(
+            [helpers](const text::LoadRequest& request) { return helpers->load_text(request); });
+    } else {
+        log::warn("no engine reads text: no previews of text");
+    }
 }
 
 }  // namespace nordend::isolate

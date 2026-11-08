@@ -5,6 +5,7 @@
 // could not build its cage).
 #include <array>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -47,6 +48,21 @@ int main(int argc, char** argv) {
             static_cast<void>(
                 protocol::send_packet(protocol::kSocketFd, std::as_bytes(std::span{&goodbye, 1})));
             return 0;
+        }
+        if (mode == "text-lie") {
+            // Three lines said, two sent.
+            const std::string_view two = "a\nb";
+            const int memfd = ::memfd_create("lie", MFD_CLOEXEC | MFD_ALLOW_SEALING);
+            static_cast<void>(::write(memfd, two.data(), two.size()));
+            ::fcntl(memfd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE);
+            protocol::TextResponse response;
+            response.lines = 3;
+            response.bytes = static_cast<std::uint32_t>(two.size());
+            const std::array<int, 1> fds{memfd};
+            static_cast<void>(protocol::send_packet(protocol::kSocketFd,
+                                                    std::as_bytes(std::span{&response, 1}), fds));
+            ::close(memfd);
+            continue;
         }
         // big-lie: 4 bytes of pixels for a 1000x1000 picture.
         const int memfd = ::memfd_create("lie", MFD_CLOEXEC | MFD_ALLOW_SEALING);

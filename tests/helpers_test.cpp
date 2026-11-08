@@ -4,7 +4,11 @@
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <ios>
+#include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <sys/stat.h>
 #include <thread>
 #include <vector>
@@ -13,7 +17,9 @@
 
 #include "nordend/formats/image/load.hpp"
 #include "nordend/formats/image/photo.hpp"
+#include "nordend/formats/text/read.hpp"
 #include "nordend/picture/load.hpp"
+#include "nordend/text/text.hpp"
 #include "protocol.hpp"
 #include "temp_dir.hpp"
 
@@ -21,6 +27,7 @@ namespace fs = std::filesystem;
 namespace image = nordend::formats::image;
 namespace picture = nordend::picture;
 namespace isolate = nordend::isolate;
+namespace text = nordend::text;
 using nordend::test::TempDir;
 using picture::Failure;
 
@@ -201,4 +208,110 @@ TEST_CASE("helpers: load_picture goes where the loader says") {
     // Back to what the other tests use: the image family in this process.
     picture::set_loader([](const picture::LoadRequest& r) { return image::load(r); });
     CHECK(picture::load_picture(request(kData / "blocks.png")).failure == Failure::none);
+}
+
+TEST_CASE("helpers: the helper reads the same text as this process") {
+    const TempDir dir;
+    const auto write = [&](const char* name, std::string_view bytes) {
+        const fs::path path = dir.path / name;
+        std::ofstream{path, std::ios::binary} << bytes;
+        return path;
+    };
+    std::string many;
+    for (int i = 0; i < 3000; ++i) {
+        many += "line\t" + std::to_string(i) + (i % 2 == 0 ? "\r\n" : "\n");
+    }
+    const std::vector<fs::path> files{
+        write("utf8.txt", "caffè ☕\n\tok\n"),
+        write("latin1.txt", "caff\xE8 3\x80\n"),
+        write("utf16.txt", std::string_view{"\xFF\xFEh\0i\0\n\0\xE8\0", 10}),
+        write("binary.txt", std::string_view{"a\0b", 3}),
+        write("empty.txt", ""),
+        write("newline.txt", "\n"),
+        write("many.txt", many),
+        fs::path{NORDEND_TEST_DATA} / ".." / "text_test.cpp",
+    };
+    isolate::Helpers helpers{real(1)};
+    for (const text::Limits limits :
+         {text::Limits{}, text::Limits{.max_bytes = 8192, .max_line_bytes = 256, .max_lines = 40},
+          text::Limits{.max_bytes = 100, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8}}) {
+        for (const fs::path& file : files) {
+            INFO(file.filename().string(), " ", limits.max_bytes);
+            const text::LoadRequest request{.path = file, .mime = "text/plain", .limits = limits};
+            const text::Loaded there = helpers.load_text(request);
+            const text::Loaded here = nordend::formats::text::load(request);
+            CHECK(there.failure == here.failure);
+            CHECK(there.detail == here.detail);
+            CHECK(there.text.lines == here.text.lines);
+            CHECK(there.text.truncated == here.text.truncated);
+            CHECK(there.text.encoding == here.text.encoding);
+            CHECK(there.text.crlf == here.text.crlf);
+        }
+    }
+    CHECK(helpers.load_text({.path = files[2], .mime = {}, .limits = {}}).text.encoding ==
+          text::Encoding::utf16le);
+    CHECK(helpers.load_text({.path = files[3], .mime = {}, .limits = {}}).failure ==
+          text::Failure::binary);
+    CHECK(helpers.running() == 1);
+    // Only regular files are sent.
+    const fs::path fifo = dir.path / "pipe.txt";
+    REQUIRE(::mkfifo(fifo.c_str(), 0600) == 0);
+    CHECK(helpers.load_text({.path = fifo, .mime = {}, .limits = {}}).failure ==
+          text::Failure::unreadable);
+    CHECK(helpers.load_text({.path = dir.path / "missing.txt", .mime = {}, .limits = {}}).failure ==
+          text::Failure::unreadable);
+}
+
+TEST_CASE("helpers: a text request travels whole, and too much is refused") {
+    namespace protocol = isolate::protocol;
+    const std::vector<std::byte> bytes = protocol::encode_text_request(
+        {.max_bytes = 8192, .max_line_bytes = 256, .max_lines = 40, .tab_width = 8}, "notes.md",
+        "text/markdown");
+    const std::optional<protocol::TextAsk> ask = protocol::decode_text_request(bytes);
+    REQUIRE(ask.has_value());
+    const protocol::TextAsk back = ask.value_or(protocol::TextAsk{});
+    CHECK(back.limits.max_bytes == 8192);
+    CHECK(back.limits.max_line_bytes == 256);
+    CHECK(back.limits.max_lines == 40);
+    CHECK(back.limits.tab_width == 8);
+    CHECK(back.name == "notes.md");
+    CHECK(back.mime == "text/markdown");
+    // Names are cut at 255 bytes; limits past the helper's are lowered to them.
+    const std::optional<protocol::TextAsk> long_name = protocol::decode_text_request(
+        protocol::encode_text_request({.max_bytes = std::size_t{1} << 30U,
+                                       .max_line_bytes = 1U << 20U,
+                                       .max_lines = 0,
+                                       .tab_width = 100},
+                                      std::string(400, 'n'), "text/plain"));
+    REQUIRE(long_name.has_value());
+    CHECK(long_name.value_or(protocol::TextAsk{}).name.size() == 255);
+    CHECK(long_name.value_or(protocol::TextAsk{}).limits.max_bytes == protocol::kMaxTextBytes);
+    CHECK(long_name.value_or(protocol::TextAsk{}).limits.tab_width == protocol::kMaxTabWidth);
+    // Nonsense: cut short, longer, zero limits.
+    CHECK_FALSE(protocol::decode_text_request(std::span{bytes}.first(bytes.size() - 1)));
+    std::vector<std::byte> longer = bytes;
+    longer.push_back(std::byte{0});
+    CHECK_FALSE(protocol::decode_text_request(longer));
+    CHECK_FALSE(
+        protocol::decode_text_request(protocol::encode_text_request({.max_bytes = 0}, "a", "b")));
+    CHECK_FALSE(protocol::decode_text_request(
+        protocol::encode_text_request({.max_line_bytes = 0}, "a", "b")));
+    CHECK_FALSE(
+        protocol::decode_text_request(protocol::encode_text_request({.tab_width = 0}, "a", "b")));
+    CHECK_FALSE(protocol::decode_text_request({}));
+}
+
+TEST_CASE("helpers: a helper that lies about a text is let go of") {
+    const TempDir dir;
+    const fs::path file = dir.path / "a.txt";
+    std::ofstream{file} << "a\nb\nc\n";
+    for (const char* mode : {"crash", "garbage", "text-lie"}) {
+        INFO(mode);
+        isolate::Helpers helpers{fake(mode)};
+        const text::Loaded loaded = helpers.load_text({.path = file, .mime = {}, .limits = {}});
+        CHECK(loaded.failure == text::Failure::unavailable);
+        CHECK_FALSE(loaded.detail.empty());
+        CHECK(loaded.text.lines.empty());
+        CHECK(helpers.running() == 0);
+    }
 }

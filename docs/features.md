@@ -105,8 +105,9 @@ README's [What's next](../README.md#whats-next).
   picture is first needed (at most one per worker), give their memory back after a quiet second,
   and Nordend closes them after 30 s without work.
 - **Engines described by manifests:** each reader program (an *engine*; `nordend-preview` is the
-  image engine) comes with a small TOML manifest in `share/nordend/engines/` saying which types
-  it shows and what it gives back. Nordend reads them at start-up (about 0.05 ms) and asks them
+  base engine, for images and text) comes with a small TOML manifest in `share/nordend/engines/`
+  saying which types it shows and what it gives back. Text files too are read in its cage, never
+  by Nordend. Nordend reads them at start-up (about 0.05 ms) and asks them
   who shows a file; a broken manifest or a missing program is skipped with a warning, and the
   files it would show get the information card. `nordend --about` lists the engines found.
 - **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look
@@ -117,7 +118,9 @@ README's [What's next](../README.md#whats-next).
 - **Quick Look** (Space): the photo fills the window, raw files included. An ORF fitted to a
   2880x1620 screen takes 51-55 ms. The arrows walk the folder without closing it, and the next
   photo is already loading. Text files open on a page you can scroll, in your monospace font
-  (darktable sidecars included); any other file shows what it is.
+  (darktable sidecars included), read in UTF-8, UTF-16 (with its byte order mark) or Latin-1
+  (Windows-1252, for files from old editors: "caffè 3€" shows as written); any other file
+  shows what it is.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,
   exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`
