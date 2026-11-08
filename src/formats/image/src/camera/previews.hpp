@@ -45,7 +45,8 @@ struct CameraFile {
     std::uint8_t orientation{1};
 };
 
-// file's previews; nullopt for a file of none of these types.
-[[nodiscard]] std::optional<CameraFile> read(const detail::FdFile& file);
+// file's previews; nullopt for a file of none of these types. Without previews, only its type,
+// size and orientation (fewer reads: the photo's information needs no more).
+[[nodiscard]] std::optional<CameraFile> read(const detail::FdFile& file, bool previews = true);
 
 }  // namespace nordend::formats::image::camera

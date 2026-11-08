@@ -2,9 +2,10 @@
 // replaces (ROADMAP 2e), and counts nothing else: run under `strace -c -f` with one run to see
 // the system calls of either.
 //
-//   nordend-bench-previews ours|exiv2 RUNS LONG_SIDE FILE...
+//   nordend-bench-previews ours|exiv2|info-ours|info-exiv2 RUNS LONG_SIDE FILE...
 //
-// Prints, per file, the best of RUNS (open, find, read the preview's bytes, close).
+// Prints, per file, the best of RUNS (open, find, read the preview's bytes, close); with info-,
+// reading the photo's information instead (no sidecar; LONG_SIDE unused).
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -21,10 +22,14 @@ namespace image = nordend::formats::image;
 int main(int argc, char** argv) {
     const std::span args{argv, static_cast<std::size_t>(argc)};
     if (args.size() < 5) {
-        std::fprintf(stderr, "usage: nordend-bench-previews ours|exiv2 RUNS LONG_SIDE FILE...\n");
+        std::fprintf(stderr,
+                     "usage: nordend-bench-previews ours|exiv2|info-ours|info-exiv2 RUNS "
+                     "LONG_SIDE FILE...\n");
         return 2;
     }
-    const bool exiv2 = std::string_view{args[1]} == "exiv2";
+    const std::string_view mode{args[1]};
+    const bool exiv2 = mode.ends_with("exiv2");
+    const bool info = mode.starts_with("info-");
     const int runs = std::max(1, std::atoi(args[2]));
     const auto side = static_cast<std::uint32_t>(std::max(1, std::atoi(args[3])));
     for (const char* path : args.subspan(4)) {
@@ -36,16 +41,22 @@ int main(int argc, char** argv) {
             if (fd < 0) {
                 break;
             }
-            const image::EmbeddedPreview preview =
-                exiv2 ? image::reference::embedded_preview(fd, side)
-                      : image::embedded_preview(fd, side);
+            if (info) {
+                const image::PhotoInfo photo = exiv2 ? image::reference::read_photo_info(fd, -1)
+                                                     : image::read_photo_info(fd, -1);
+                bytes = photo.camera.size();
+            } else {
+                const image::EmbeddedPreview preview =
+                    exiv2 ? image::reference::embedded_preview(fd, side)
+                          : image::embedded_preview(fd, side);
+                bytes = preview.data.size();
+            }
             ::close(fd);
             best = std::min(best, std::chrono::duration<double, std::milli>(
                                       std::chrono::steady_clock::now() - start)
                                       .count());
-            bytes = preview.data.size();
         }
-        std::printf("%-5s %8.2f ms %9zu bytes  %s\n", args[1], best, bytes, path);
+        std::printf("%-10s %8.2f ms %9zu bytes  %s\n", args[1], best, bytes, path);
     }
     return 0;
 }

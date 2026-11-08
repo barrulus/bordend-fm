@@ -6,8 +6,8 @@
 
 namespace nordend::picture {
 
-// What a photo says about itself (EXIF), as exiv2 prints it ("1/2000 s", "F5.6"), and the rating
-// of its darktable sidecar. Empty strings where the file does not say.
+// What a photo says about itself (EXIF), written as exiv2 printed it ("1/2000 s", "F5.6"), and the
+// rating of its darktable sidecar. Empty strings where the file does not say.
 struct PhotoInfo {
     // The image's size upright (the EXIF orientation applied); 0 when unknown.
     std::uint32_t width{0};

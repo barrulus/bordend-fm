@@ -1,8 +1,9 @@
 # The image family (ROADMAP 2): photos and images. Decoders (wuffs through picture, libwebp,
-# libjxl, our PGM/PPM and TIFF previews), camera raw previews (our own reader), EXIF and XMP
-# through exiv2 until ROADMAP 2e-3/2e-4. Linked into the isolated helper (and tests and
-# development tools), never into Nordend.
+# libjxl, our PGM/PPM and TIFF previews), camera raw previews and EXIF (our own readers), the
+# sidecar's XMP rating through exiv2 until ROADMAP 2e-4. Linked into the isolated helper (and
+# tests and development tools), never into Nordend.
 add_library(nordend_formats_image
+    src/camera/info.cpp
     src/camera/previews.cpp
     src/decode.cpp
     src/dng/colour.cpp

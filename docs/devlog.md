@@ -4,6 +4,49 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — TIFFs whose data cannot fill them refused at once (2c follow-up)
+
+**Found** by the 10-minute fuzz after 2e-3 (`nordend-fuzz-picture`, 2 timeouts, both real in the
+release build): 3 kB TIFFs of one uncompressed strip with no byte count, claiming 172 MP and
+151 MP; the decoder filled the missing data with zeros: 2.9 s and 0.9 s of work, 170 MB
+allocated. The same kind of work amplification closed in the DNG reader at 2d-3.
+
+**Done**: before allocating, the strips' or tiles' bytes present in the file must be able to
+fill the picture: uncompressed at least half (a file cut short still shows its top, as before),
+compressed at most the scheme's largest expansion (PackBits 64, Deflate 1100, LZW 2800, JPEG
+8192). Both files kept as `tests/data/image/tiff/broken-huge-none{,-2}.tif` (refused, under 200
+ms). The 13 real TIFFs of the author's folder decode as before.
+
+---
+
+## 2026-11-08 — The info pane's EXIF read by Nordend (ROADMAP 2e-3)
+
+**Done**
+- `src/formats/image/src/camera/info.{hpp,cpp}`: the info pane's fields without exiv2, each
+  written as exiv2 0.28 printed it (its printing rules read in its source, the code ours):
+  ExposureTime ("1/250 s" when it reduces to a fraction of 1, else the seconds as C++ prints a
+  float: "2.5 s"; "(a/b)" for zero or a signed type), FNumber ("F" and two significant digits),
+  ISO (first value), FocalLength (one decimal, "mm"), ExposureBias (reduced, signed, "0 EV"),
+  the program, metering, flash and white balance tables ("(n)" for a value not in them), date,
+  make and model (`camera_of` as before), software and lens as text (no lens database).
+  Where they are looked for, as exiv2 merged them: the raw's IFD0 and EXIF IFD, then its
+  JPEG's (RW2's IFD0 holds Panasonic's own tags: the camera's name only in the JPEG of tag 0x2E;
+  RAF all in its JPEG). The size: per format as for the previews; PNG, GIF and WebP (VP8, VP8L,
+  VP8X) from their headers; JPEG XL stays unknown, as with exiv2.
+- `camera::read(file, false)`: type, size and orientation only, no previews walked.
+- `photo.cpp`: the fields from the new reader; only the sidecar's rating still through exiv2
+  (2e-4).
+- The exiv2 comparison gained TIFFs made in the test with every way a value is written (long
+  exposures, odd and zero fractions, signed types, values not in the tables, trailing spaces).
+
+**Tested by the author** (2026-11-08): "funziona tutto" (info pane on his ORFs and the samples).
+
+**Measured** (`docs/benchmarks.md`): the same information as exiv2 on every fixture, sample and
+the author's 30 ORFs, and on 7 made-up TIFFs; reading it 7 to 100 times quicker (ORF 3.05 ->
+0.03 ms), 30 -> 28 system calls per ORF.
+
+---
+
 ## 2026-11-08 — Raw previews found by Nordend's own reader (ROADMAP 2e-2)
 
 **Tested by the author** (2026-11-08, installed build, fresh cache): "funziona tutto" (the sample

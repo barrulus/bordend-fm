@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-2a6a9e" alt="release v0.3.1"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-355%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="355 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-356%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="356 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
@@ -102,7 +102,7 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 |---|---|
 | Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 0.72 MB (0.64 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 9); no GTK, no Qt, no GLib |
-| Code | about 45 700 lines of C++20, 14 600 of tests (355 test cases, under ASan and TSan too) |
+| Code | about 45 700 lines of C++20, 14 600 of tests (356 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -190,7 +190,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | raw files' previews found by Nordend's own reader instead of exiv2 (the same previews on every sample, 3 to 100 times quicker to find); DNG developed by Nordend's own reader when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files): lossless JPEG and uncompressed sensor data read identically to LibRaw and 2-4 times faster, the file's colour matrices and tone curve, its vignetting and lens corrections (DNG gain maps and warp), half size or smaller; TIFF with Nordend's own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, grey, RGB, YCbCr, palette, CMYK, alpha, tiles), identical to libtiff on 36 test files and 12 real ones; pictures made apart: the libraries that read photos run in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock: no files, no network, no programs), so a file that crashes or hangs one costs only its preview, and Nordend itself no longer loads exiv2, libjxl or libwebp (21 libraries down to 17, 2.5 ms less to load them); one path for every picture: the format is told by the file's bytes, not its name; exiv2 is no longer run on PNG, GIF, WebP, JPEG XL, PGM/PPM or JPEGs without EXIF; a file that cannot be shown says why in a plain sentence |
+| on `main`, next | raw files' previews and the info pane's EXIF read by Nordend's own code instead of exiv2 (the same previews and values on every sample, 3 to 100 times quicker); DNG developed by Nordend's own reader when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files): lossless JPEG and uncompressed sensor data read identically to LibRaw and 2-4 times faster, the file's colour matrices and tone curve, its vignetting and lens corrections (DNG gain maps and warp), half size or smaller; TIFF with Nordend's own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, grey, RGB, YCbCr, palette, CMYK, alpha, tiles), identical to libtiff on 36 test files and 12 real ones; pictures made apart: the libraries that read photos run in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock: no files, no network, no programs), so a file that crashes or hangs one costs only its preview, and Nordend itself no longer loads exiv2, libjxl or libwebp (21 libraries down to 17, 2.5 ms less to load them); one path for every picture: the format is told by the file's bytes, not its name; exiv2 is no longer run on PNG, GIF, WebP, JPEG XL, PGM/PPM or JPEGs without EXIF; a file that cannot be shown says why in a plain sentence |
 | [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |

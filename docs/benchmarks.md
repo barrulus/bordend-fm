@@ -93,6 +93,27 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Photo information: Nordend's reader against exiv2 (ROADMAP 2e-3)
+
+### 2026-11-08
+
+`nordend-bench-previews info-exiv2|info-ours 30 0 FILE` (best of 30: open, read the info pane's
+fields and the size, close; no sidecar; page cache warm, machine idle):
+
+| File | exiv2 -> ours |
+|---|---|
+| OM-1 ORF (author's) | 3.05 -> 0.03 ms |
+| Nikon Z 7II NEF | 1.25 -> 0.05 ms |
+| Canon 5DS CR2 | 0.55 -> 0.03 ms |
+| Fujifilm RAF | 2.90 -> 0.05 ms |
+| Panasonic GX7 RW2 | 1.09 -> 0.05 ms |
+| DJI DNG | 0.33 -> 0.04 ms |
+| shot.jpg (fixture) | 0.06 -> 0.01 ms |
+| blocks.png (fixture) | 0.03 -> 0.00 ms |
+
+System calls for an ORF (`strace -c -f`, two files minus one): 30 -> 28 (36 before the reader
+learned to skip the previews it does not need).
+
 ## Raw previews: Nordend's reader against exiv2 (ROADMAP 2e-2)
 
 ### 2026-11-08

@@ -301,12 +301,14 @@ tiff::Ifd primary(const tiff::Container& container, const tiff::Ifd& first) {
     return chosen;
 }
 
-std::optional<CameraFile> read_jpeg(const detail::FdFile& file) {
+std::optional<CameraFile> read_jpeg(const detail::FdFile& file, bool previews) {
     CameraFile out;
     out.type = Type::jpeg;
     const std::vector<std::uint8_t> head = file.read(0, kExifHead);
     Reader reader{file, out};
-    reader.jpeg_exif(0, head, true);
+    if (previews) {
+        reader.jpeg_exif(0, head, true);
+    }
     if (const std::optional<detail::JpegSize> size = detail::jpeg_size(head)) {
         out.full_width = size->width;
         out.full_height = size->height;
@@ -316,7 +318,7 @@ std::optional<CameraFile> read_jpeg(const detail::FdFile& file) {
 
 // RAF: a header (big-endian) with the camera's JPEG and the raw data's own header, whose record
 // 0x100 is the full raw size (height, width).
-std::optional<CameraFile> read_raf(const detail::FdFile& file) {
+std::optional<CameraFile> read_raf(const detail::FdFile& file, bool previews) {
     const std::vector<std::uint8_t> header = file.read_exactly(0, 100);
     if (header.empty()) {
         return std::nullopt;
@@ -326,9 +328,12 @@ std::optional<CameraFile> read_raf(const detail::FdFile& file) {
     Reader reader{file, out};
     const std::uint32_t jpeg_offset = be32(header, 84);
     const std::uint32_t jpeg_length = be32(header, 88);
-    reader.jpeg(jpeg_offset, jpeg_length);
-    reader.jpeg_exif(jpeg_offset,
-                     file.read(jpeg_offset, std::min<std::size_t>(jpeg_length, kExifHead)), true);
+    if (previews) {
+        reader.jpeg(jpeg_offset, jpeg_length);
+        reader.jpeg_exif(jpeg_offset,
+                         file.read(jpeg_offset, std::min<std::size_t>(jpeg_length, kExifHead)),
+                         true);
+    }
     const std::uint32_t records_at = be32(header, 92);
     const std::uint32_t records_length = be32(header, 96);
     const std::vector<std::uint8_t> records =
@@ -350,14 +355,14 @@ std::optional<CameraFile> read_raf(const detail::FdFile& file) {
     return out;
 }
 
-std::optional<CameraFile> read_tiff(const detail::FdFile& file,
-                                    std::span<const std::uint8_t> head) {
+std::optional<CameraFile> read_tiff(const detail::FdFile& file, std::span<const std::uint8_t> head,
+                                    bool previews) {
     const tiff::Source source{file};
     const std::optional<tiff::Container> container = tiff::Container::open(source, true);
     if (!container) {
         return std::nullopt;
     }
-    const std::vector<tiff::Ifd> chain = container->chain(16);
+    const std::vector<tiff::Ifd> chain = container->chain(previews ? 16 : 1);
     if (chain.empty()) {
         return std::nullopt;
     }
@@ -376,9 +381,11 @@ std::optional<CameraFile> read_tiff(const detail::FdFile& file,
     // curve: green and dark (checked on the 1D Mark II, 1D X and 5DS samples).
     const bool tiffs = out.type != Type::cr2;
     for (const tiff::Ifd& ifd : chain) {
-        reader.tree(*container, ifd, 0, tiffs);
+        if (previews) {
+            reader.tree(*container, ifd, 0, tiffs);
+        }
     }
-    if (out.type == Type::rw2) {
+    if (out.type == Type::rw2 && previews) {
         // Panasonic's JPEG, whole, in IFD0's tag 0x2E; its own EXIF has the thumbnail.
         if (const tiff::Entry* entry = first.find(kPanasonicJpeg);
             entry != nullptr && !entry->is_inline) {
@@ -390,7 +397,7 @@ std::optional<CameraFile> read_tiff(const detail::FdFile& file,
     }
     const std::optional<std::uint64_t> exif_at = first.number(kExifIfd);
     const std::optional<tiff::Ifd> exif = exif_at ? container->ifd(*exif_at) : std::nullopt;
-    if (exif) {
+    if (exif && previews) {
         reader.maker_note(*container, *exif, 0, Reader::make_of(first));
     }
     reader.set_orientation(first);
@@ -421,18 +428,18 @@ std::optional<CameraFile> read_tiff(const detail::FdFile& file,
 
 }  // namespace
 
-std::optional<CameraFile> read(const detail::FdFile& file) {
+std::optional<CameraFile> read(const detail::FdFile& file, bool previews) {
     const std::vector<std::uint8_t> head = file.read(0, 16);
     if (head.size() < 16) {
         return std::nullopt;
     }
     if (head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF) {
-        return read_jpeg(file);
+        return read_jpeg(file, previews);
     }
     if (starts_with(head, "FUJIFILMCCD-RAW ")) {
-        return read_raf(file);
+        return read_raf(file, previews);
     }
-    return read_tiff(file, head);
+    return read_tiff(file, head, previews);
 }
 
 }  // namespace nordend::formats::image::camera
