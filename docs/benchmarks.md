@@ -93,6 +93,24 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## The preview helper without exiv2 (ROADMAP 2e-5)
+
+### 2026-11-08
+
+`nordend-preview` started with a socket on fd 3 (a small Python script: spawn, wait 1 s, read
+`/proc/PID/smaps_rollup`; and spawn to `Seccomp: 2` in `/proc/PID/status`, 40 times), before and
+after exiv2 left the build:
+
+| | with exiv2 | without |
+|---|---|---|
+| Direct libraries (`readelf -d`, NEEDED) | 9 | 8 |
+| Libraries loaded (`ldd`) | 21 | 17 |
+| RSS after the warm-up | 10.3 MB | 7.8 MB |
+| PSS | 5.8 MB | 3.4 MB |
+| Anonymous | 1.2 MB | 0.65 MB |
+| Spawn to cage closed (median) | 4.4 ms | 3.3 ms |
+| Binary (stripped) | 0.91 MB | 0.91 MB |
+
 ## Photo information: Nordend's reader against exiv2 (ROADMAP 2e-3)
 
 ### 2026-11-08

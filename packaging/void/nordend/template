@@ -10,7 +10,7 @@ configure_args="-DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF"
 hostmakedepends="pkgconf wayland-devel"
 makedepends="wayland-devel wayland-protocols libglvnd-devel libxkbcommon-devel
  harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
- libwebp-devel libjxl-devel exiv2-devel zlib-devel sdbus-c++-devel"
+ libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel"
 # MIME types from shared-mime-info's database; udisks2 (disks in the sidebar)
 # and xdg-desktop-portal (desktop colours) are used when present
 depends="shared-mime-info hicolor-icon-theme"

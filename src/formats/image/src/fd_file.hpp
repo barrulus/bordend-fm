@@ -5,10 +5,8 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <exiv2/basicio.hpp>
 #include <optional>
 #include <span>
-#include <string>
 #include <vector>
 
 namespace nordend::formats::image::detail {
@@ -39,48 +37,6 @@ private:
 
     int fd_;
     std::uint64_t size_;
-};
-
-// exiv2's input over a descriptor: reads with pread at its own position, maps the file when
-// exiv2 asks for a mapping (inside the helper a file cut short while mapped kills only the
-// helper). Read-only: every write fails.
-class FdIo final : public Exiv2::BasicIo {
-public:
-    explicit FdIo(const FdFile& file) : file_{file} {}
-
-    ~FdIo() override;
-    FdIo(const FdIo&) = delete;
-    FdIo& operator=(const FdIo&) = delete;
-    FdIo(FdIo&&) = delete;
-    FdIo& operator=(FdIo&&) = delete;
-
-    int open() override;
-    int close() override;
-    size_t write(const Exiv2::byte* data, size_t count) override;
-    size_t write(Exiv2::BasicIo& source) override;
-    int putb(Exiv2::byte data) override;
-    Exiv2::DataBuf read(size_t count) override;
-    size_t read(Exiv2::byte* buffer, size_t count) override;
-    int getb() override;
-    void transfer(Exiv2::BasicIo& source) override;
-    int seek(int64_t offset, Position from) override;
-    Exiv2::byte* mmap(bool writable) override;
-    int munmap() override;
-    [[nodiscard]] size_t tell() const override;
-    [[nodiscard]] size_t size() const override;
-    [[nodiscard]] bool isopen() const override;
-    [[nodiscard]] int error() const override;
-    [[nodiscard]] bool eof() const override;
-    [[nodiscard]] const std::string& path() const noexcept override;
-
-    void populateFakeData() override {}
-
-private:
-    FdFile file_;
-    std::uint64_t position_{0};
-    bool eof_{false};
-    int error_{0};
-    void* mapping_{nullptr};
 };
 
 }  // namespace nordend::formats::image::detail

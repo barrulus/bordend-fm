@@ -4,6 +4,27 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — exiv2 out of Nordend (ROADMAP 2e-5)
+
+**Tested by the author** (2026-11-08, installed build, fresh cache): "funziona tutto".
+
+**Done**: exiv2 no longer a dependency: out of the top CMakeLists (the tests find it quietly,
+for the reference comparison and `nordend-bench-previews` only), out of `formats/image`'s link,
+`FdIo` (exiv2's input adapter) removed from `fd_file`; the Void template and the build
+instructions (README, site) no longer ask for `exiv2-devel`.
+
+**Measured** (`docs/benchmarks.md`): the preview helper `nordend-preview` 9 -> 8 direct
+libraries, 21 -> 17 loaded (`libexiv2` 4.1 MB, `libexpat`, `libinih`, `libINIReader` gone;
+brotli stays, libjxl's); after its warm-up RSS 10.3 -> 7.8 MB, PSS 5.8 -> 3.4 MB, anonymous 1.2
+-> 0.65 MB (each helper; up to 8 run); from spawn to its cage closed 4.4 -> 3.3 ms (median of
+40). Binary size unchanged (exiv2 was a shared library). Tests green in `build`, `build-asan`,
+`build-tsan` (356).
+
+**Open**: the long fuzz run of every target at the end of 2e (when the author does not need the
+PC); the cage could now refuse mapping files (only exiv2 asked for it): to be proposed.
+
+---
+
 ## 2026-11-08 — No more sidecar ratings (ROADMAP 2e-4)
 
 **Tested by the author** (2026-11-08): EXIF as before, no stars row; an ORF renamed and the

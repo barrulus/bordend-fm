@@ -165,8 +165,9 @@
   <div class="table"><table>
     <tr><th>Libraries</th><td>17 direct: Wayland, EGL/GLES, xkbcommon, fontconfig, FreeType, HarfBuzz,
     toml++, zlib, sdbus-c++ (for udisks2 and the desktop portal), the C/C++ runtime. No GTK, no Qt,
-    no GLib. The photo libraries (libwebp, libjxl, exiv2) are loaded only by
-    <code>nordend-preview</code>, the caged helper that makes pictures (9 libraries).</td></tr>
+    no GLib. The photo libraries (libwebp, libjxl) are loaded only by
+    <code>nordend-preview</code>, the caged helper that makes pictures (8 libraries); camera
+    files' previews and EXIF are read by Nordend's own code.</td></tr>
     <tr><th>Memory</th><td>25 MB of its own at start; 54 MB after browsing 163 raw photos in all
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O on a worker pool with priorities and
@@ -216,7 +217,7 @@ sudo xbps-install -R hostdir/binpkgs nordend</code></pre>
   <pre><code>sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
-    libwebp-devel libjxl-devel exiv2-devel zlib-devel sdbus-c++-devel
+    libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel
 git clone https://github.com/pankaspe/nordend-fm
 cd nordend-fm
 cmake -B build -G Ninja
