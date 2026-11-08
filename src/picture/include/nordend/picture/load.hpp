@@ -62,7 +62,7 @@ void set_loader(Loader loader);
 using InfoLoader = std::function<PhotoInfo(const std::filesystem::path&)>;
 void set_info_loader(InfoLoader loader);
 
-// What path says about itself (EXIF) and its sidecar's rating, through the information loader;
+// What path says about itself (EXIF), through the information loader;
 // empty when none is set or the file says nothing. Thread-safe.
 [[nodiscard]] PhotoInfo load_photo_info(const std::filesystem::path& path);
 

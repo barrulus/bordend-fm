@@ -373,9 +373,6 @@ picture::PhotoInfo Helpers::photo_info(const std::filesystem::path& path) {
     if (file < 0) {
         return {};
     }
-    std::filesystem::path sidecar_path = path;
-    sidecar_path += ".xmp";
-    const int sidecar = open_regular(sidecar_path);  // -1 when there is none
     const protocol::Request message{.magic = protocol::kRequestMagic,
                                     .kind = protocol::Kind::photo_info,
                                     .max_width = 0,
@@ -392,13 +389,9 @@ picture::PhotoInfo Helpers::photo_info(const std::filesystem::path& path) {
         return true;
     };
     std::string why;
-    const std::array<int, 2> both{file, sidecar};
-    const bool done =
-        run(message, std::span<const int>{both}.first(sidecar >= 0 ? 2 : 1), accept, why);
+    const std::array<int, 1> fds{file};
+    const bool done = run(message, fds, accept, why);
     ::close(file);
-    if (sidecar >= 0) {
-        ::close(sidecar);
-    }
     return done ? info : picture::PhotoInfo{};
 }
 

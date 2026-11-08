@@ -1,9 +1,9 @@
 #pragma once
 
 // What Nordend and its preview helper say to each other, on a private SOCK_SEQPACKET socket
-// (one message per packet). Nordend sends a request with the file's descriptor (and, for a
-// photo's information, its sidecar's); the helper answers a picture with the result and a sealed
-// memfd holding its pixels, or the information as text fields. A
+// (one message per packet). Nordend sends a request with the file's descriptor; the helper
+// answers a picture with the result and a sealed memfd holding its pixels, or the information as
+// text fields. A
 // helper leaving after its idle time first sends a goodbye, so that a request racing with its
 // exit is sent again to a new one.
 
@@ -38,7 +38,7 @@ inline constexpr int kSandboxFailedExit = 3;
 // Four bytes, for a request laid out without padding.
 enum class Kind : std::uint32_t {  // NOLINT(performance-enum-size)
     picture = 0,                   // the file's picture, max_width x max_height at most
-    photo_info = 1,  // what the file says about itself (EXIF), and its sidecar's rating
+    photo_info = 1,  // what the file says about itself (EXIF)
 };
 
 struct Request {

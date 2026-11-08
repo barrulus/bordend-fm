@@ -14,7 +14,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
     }
     if (::write(fd, data, size) == static_cast<ssize_t>(size)) {
         static_cast<void>(nordend::formats::make_picture(fd, 256, 256));
-        static_cast<void>(nordend::formats::photo_info(fd, -1));
+        static_cast<void>(nordend::formats::photo_info(fd));
     }
     ::close(fd);
     return 0;

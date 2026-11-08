@@ -4,6 +4,25 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — No more sidecar ratings (ROADMAP 2e-4)
+
+**Tested by the author** (2026-11-08): EXIF as before, no stars row; an ORF renamed and the
+rename undone, its sidecar following.
+
+**Decision** (the author, 2026-11-08, in place of reading `xmp:Rating` ourselves): Nordend
+shows its own ratings only (ROADMAP 5, in extended attributes); editors' sidecars (darktable,
+Lightroom, Capture One...) become a plugin (8c). So the stars from `FILE.xmp` leave the info
+pane until step 5 (the author's sidecars in "piramide vincent" all said 0). Moving, renaming and
+trashing a photo's darktable sidecars along with it stays: that is file handling, not reading.
+
+**Done**: `read_photo_info(fd)` and `formats::photo_info(fd)` without a sidecar; Nordend no
+longer opens `FILE.xmp`, the helper gets one descriptor for a photo's information; the warm-up
+no longer reads a sidecar (`shot.jpg.xmp` out of it); `PhotoInfo::rating` kept, empty, for step
+5. exiv2 is no longer called by Nordend's code: only linked, and its input adapter (`FdIo`)
+unused, until 2e-5.
+
+---
+
 ## 2026-11-08 — TIFFs whose data cannot fill them refused at once (2c follow-up)
 
 **Found** by the 10-minute fuzz after 2e-3 (`nordend-fuzz-picture`, 2 timeouts, both real in the

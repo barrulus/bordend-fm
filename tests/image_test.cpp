@@ -309,7 +309,7 @@ TEST_CASE("image: an uncompressed TIFF preview is read, strip by strip") {
     CHECK(image::decode_preview(cropped).image.width == 96);
 }
 
-TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rating") {
+TEST_CASE("image: a photo's shot from EXIF and its upright size; no sidecar rating") {
     const picture::PhotoInfo shot = image::read_photo_info(kData / "shot.jpg");
     CHECK(shot.width == 32);  // 48x32 stored, orientation 6
     CHECK(shot.height == 48);
@@ -320,7 +320,9 @@ TEST_CASE("image: a photo's shot from EXIF, upright size, and its darktable rati
     CHECK(shot.iso == "200");
     CHECK(shot.focal_length == "25.0 mm");
     CHECK(shot.taken == "2026-08-31 16:34");
-    CHECK(shot.rating == std::optional<int>{3});  // from shot.jpg.xmp
+    // shot.jpg.xmp next to it rates it 3: not read since 2e-4 (editors' sidecars are a
+    // plugin's; Nordend's own rating comes with ROADMAP 5).
+    CHECK_FALSE(shot.rating);
 
     const picture::PhotoInfo plain = image::read_photo_info(kData / "blocks.png");
     CHECK(plain.width == 48);

@@ -18,7 +18,7 @@ struct Family {
     std::string_view name;
     bool (*recognises)(std::span<const std::uint8_t> head);
     picture::Loaded (*picture)(int fd, std::uint32_t max_width, std::uint32_t max_height);
-    picture::PhotoInfo (*info)(int fd, int sidecar_fd);  // nullptr: nothing to say
+    picture::PhotoInfo (*info)(int fd);  // nullptr: nothing to say
 };
 
 // In the order they are asked. A new family: its module under formats/, one line here.
@@ -27,7 +27,7 @@ constexpr std::array kFamilies{
         .name = "image",
         .recognises = image::recognises,
         .picture = [](int fd, std::uint32_t w, std::uint32_t h) { return image::load(fd, w, h); },
-        .info = [](int fd, int sidecar) { return image::read_photo_info(fd, sidecar); }},
+        .info = [](int fd) { return image::read_photo_info(fd); }},
 };
 
 // The family a file's first bytes belong to; the image family when none claims them.
@@ -55,9 +55,9 @@ picture::Loaded make_picture(int fd, std::uint32_t max_width, std::uint32_t max_
     return family_for(fd).picture(fd, max_width, max_height);
 }
 
-picture::PhotoInfo photo_info(int fd, int sidecar_fd) {
+picture::PhotoInfo photo_info(int fd) {
     const Family& family = family_for(fd);
-    return family.info != nullptr ? family.info(fd, sidecar_fd) : picture::PhotoInfo{};
+    return family.info != nullptr ? family.info(fd) : picture::PhotoInfo{};
 }
 
 }  // namespace nordend::formats

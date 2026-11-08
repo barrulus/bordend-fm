@@ -94,9 +94,8 @@ void answer_picture(int socket, int file, const protocol::Request& request) {
     }
 }
 
-void answer_photo_info(int socket, int file, int sidecar) {
-    const std::vector<std::byte> bytes =
-        protocol::encode_info(nordend::formats::photo_info(file, sidecar));
+void answer_photo_info(int socket, int file) {
+    const std::vector<std::byte> bytes = protocol::encode_info(nordend::formats::photo_info(file));
     static_cast<void>(protocol::send_packet(socket, bytes));
 }
 
@@ -111,20 +110,13 @@ int memfd_of(const isolate::WarmUpPicture& file) {
 }
 
 // Each kind of picture once, from a memfd, before the cage closes: whatever the libraries load
-// on first use (exiv2's XMP parser, libjxl's tables...) is loaded now. And one photo's
-// information with its sidecar, for exiv2's EXIF and XMP readers.
+// on first use (libjxl's tables...) is loaded now. And one photo's information.
 void warm_up() {
     const isolate::WarmUpPicture* photo = nullptr;
-    const isolate::WarmUpPicture* sidecar = nullptr;
     for (std::size_t i = 0; i < isolate::kWarmUpCount; ++i) {
         const isolate::WarmUpPicture& file = isolate::kWarmUp[i];  // NOLINT: generated array
-        const std::string_view name{file.name};
-        if (name == "shot.jpg") {
+        if (std::string_view{file.name} == "shot.jpg") {
             photo = &file;
-        }
-        if (name.ends_with(".xmp")) {
-            sidecar = &file;
-            continue;
         }
         const int fd = memfd_of(file);
         if (fd >= 0) {
@@ -132,16 +124,11 @@ void warm_up() {
             ::close(fd);
         }
     }
-    if (photo != nullptr && sidecar != nullptr) {
+    if (photo != nullptr) {
         const int fd = memfd_of(*photo);
-        const int xmp = memfd_of(*sidecar);
-        if (fd >= 0 && xmp >= 0) {
-            static_cast<void>(nordend::formats::photo_info(fd, xmp));
-        }
-        for (const int open : {fd, xmp}) {
-            if (open >= 0) {
-                ::close(open);
-            }
+        if (fd >= 0) {
+            static_cast<void>(nordend::formats::photo_info(fd));
+            ::close(fd);
         }
     }
     ::malloc_trim(0);
@@ -230,7 +217,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         if (request.kind == protocol::Kind::photo_info) {
-            answer_photo_info(socket, file, packet->fds[1]);
+            answer_photo_info(socket, file);
         } else if (request.kind == protocol::Kind::picture) {
             answer_picture(socket, file, request);
         } else {

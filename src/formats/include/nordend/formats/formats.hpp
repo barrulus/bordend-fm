@@ -21,8 +21,7 @@ namespace nordend::formats {
 [[nodiscard]] picture::Loaded make_picture(int fd, std::uint32_t max_width,
                                            std::uint32_t max_height);
 
-// What the file open as fd says about itself (EXIF), and the rating in its sidecar
-// (sidecar_fd, -1 when none); empty when its family has nothing to say.
-[[nodiscard]] picture::PhotoInfo photo_info(int fd, int sidecar_fd);
+// What the file open as fd says about itself (EXIF); empty when its family has nothing to say.
+[[nodiscard]] picture::PhotoInfo photo_info(int fd);
 
 }  // namespace nordend::formats

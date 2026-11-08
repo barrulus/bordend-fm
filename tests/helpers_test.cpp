@@ -69,7 +69,7 @@ TEST_CASE("helpers: the helper makes the same pictures as this process") {
     CHECK(helpers.running() == 1);  // one after the other: one helper did it all
 }
 
-TEST_CASE("helpers: a photo's information from the helper, its sidecar's rating included") {
+TEST_CASE("helpers: a photo's information from the helper") {
     isolate::Helpers helpers{real(1)};
     for (const char* name : {"shot.jpg", "with-thumbnail.jpg", "blocks.png", "truncated.jpg"}) {
         INFO(name);
@@ -88,7 +88,7 @@ TEST_CASE("helpers: a photo's information from the helper, its sidecar's rating 
     }
     const picture::PhotoInfo shot = helpers.photo_info(kData / "shot.jpg");
     CHECK(shot.camera == "OM-1");
-    CHECK(shot.rating.has_value());  // from shot.jpg.xmp, sent as a second descriptor
+    CHECK_FALSE(shot.rating);  // shot.jpg.xmp is not read (2e-4)
     CHECK(helpers.photo_info(kData / "missing.jpg").camera.empty());
 }
 

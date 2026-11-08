@@ -123,7 +123,6 @@ void same_info(const image::PhotoInfo& ours, const image::PhotoInfo& theirs) {
     CHECK(ours.flash == theirs.flash);
     CHECK(ours.white_balance == theirs.white_balance);
     CHECK(ours.software == theirs.software);
-    CHECK(ours.rating == theirs.rating);
 }
 
 }  // namespace
@@ -141,11 +140,8 @@ TEST_CASE("exiv2 reference: embedded previews and photo information as exiv2 gav
             same_preview(image::embedded_preview(file.fd, side),
                          image::reference::embedded_preview(file.fd, side));
         }
-        fs::path sidecar_path = path;
-        sidecar_path += ".xmp";
-        const Fd sidecar{sidecar_path};
-        same_info(image::read_photo_info(file.fd, sidecar.fd),
-                  image::reference::read_photo_info(file.fd, sidecar.fd));
+        // The sidecar's rating is no longer read (2e-4): exiv2 is asked without it.
+        same_info(image::read_photo_info(file.fd), image::reference::read_photo_info(file.fd, -1));
     }
 }
 
@@ -291,7 +287,6 @@ TEST_CASE("exiv2 reference: every way a value is written, on TIFFs made here") {
         }
         const Fd file{path};
         REQUIRE(file.fd >= 0);
-        same_info(image::read_photo_info(file.fd, -1),
-                  image::reference::read_photo_info(file.fd, -1));
+        same_info(image::read_photo_info(file.fd), image::reference::read_photo_info(file.fd, -1));
     }
 }

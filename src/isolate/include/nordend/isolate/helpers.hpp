@@ -49,7 +49,7 @@ public:
     // Thread-safe: called from the workers.
     [[nodiscard]] picture::Loaded load(const picture::LoadRequest& request);
 
-    // What path says about itself (EXIF) and its sidecar's (path.xmp) rating, read by a helper;
+    // What path says about itself (EXIF), read by a helper;
     // empty when it cannot be read. Thread-safe.
     [[nodiscard]] picture::PhotoInfo photo_info(const std::filesystem::path& path);
 

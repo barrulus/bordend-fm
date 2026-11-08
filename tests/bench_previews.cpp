@@ -42,8 +42,8 @@ int main(int argc, char** argv) {
                 break;
             }
             if (info) {
-                const image::PhotoInfo photo = exiv2 ? image::reference::read_photo_info(fd, -1)
-                                                     : image::read_photo_info(fd, -1);
+                const image::PhotoInfo photo =
+                    exiv2 ? image::reference::read_photo_info(fd, -1) : image::read_photo_info(fd);
                 bytes = photo.camera.size();
             } else {
                 const image::EmbeddedPreview preview =
