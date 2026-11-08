@@ -120,7 +120,8 @@ README's [What's next](../README.md#whats-next).
   photo is already loading. Text files open on a page you can scroll, in your monospace font
   (darktable sidecars included), read in UTF-8, UTF-16 (with its byte order mark) or Latin-1
   (Windows-1252, for files from old editors: "caffè 3€" shows as written), with **syntax
-  colours** for C and C++ (more languages coming), made from your theme's colours and readable
+  colours** for C, C++, Rust, Python, JavaScript, TypeScript, Lua and Luau (more coming), the
+  language found from the file's type, its extension or its `#!` line, made from your theme's colours and readable
   on its page; the info pane's first lines are coloured too; any other file shows what it is.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,

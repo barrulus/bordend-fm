@@ -4,6 +4,53 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Rust, Python, JavaScript/TypeScript, Lua/Luau (ROADMAP 3b-2b, first group)
+
+**Tested by the author** (2026-11-08, installed in `~/.local`, on his own files: a Rust crate,
+a Python script, a Svelte project's `vite.config.ts` and `eslint.config.js`, swayimg's
+`init.lua`): "tutto perfetto".
+
+**Done**: the languages' tables moved out of the lexer into `formats/text/src/languages.{hpp,cpp}`
+(word lists kept out of clang-format); the lexer grew what these languages need, each a field of
+`Syntax`: nested block comments (Rust), Lua's long brackets (`--[==[ ]==]` comments, `[[ ]]`
+strings, any number of `=`), strings that go on over lines (Rust's, JavaScript's template
+literals; a backslash at a line's end in any string with escapes), Python's triple quotes,
+string prefixes as a list (C++ `u8 u U L`, Rust `b c`, Python's `r b f u t` and their
+combinations in any case, those with an `r` raw), Rust raw strings `r#"…"#` with any number of
+`#`, decorators (`@name.attr`, Python and TypeScript), Rust attributes `#[…]`/`#![…]` and
+`name!` macros (not `!=`), Rust lifetimes (`'a`, `'static`) told from characters (`'x'`, `'é'`,
+`'\''`), ranges (`0..10`) ending a number, capitals as constants (Python, Rust, JS, Lua) or
+macros (C). Language detection gained extensions, tried after the MIME type and file names:
+`.ts` is Qt Linguist and `.tsx` Tiled for shared-mime-info, `.jsx` and `.luau` plain text; a
+`.ts` whose first line starts with `<` stays XML. MIME types as this system names them:
+`text/rust`, `text/x-python3`/`text/x-python`, `text/javascript`, `text/x-lua`. Interpreters:
+`python`, `pypy`, `node`, `deno`, `bun`, `lua`, `luajit`, `luau`, with a version after the name
+(`python3.12`, `lua5.4`).
+
+**Tests**: `tests/syntax_test.cpp` grew to 17 cases: detection by extension and interpreter
+(the Qt Linguist and Tiled cases, `env -S`, versions, a hidden `.rs`), and one case per language
+(Rust: macros, attributes, lifetimes against characters, raw/byte strings, strings over lines,
+nested comments, ranges; Python: decorators, every prefix, triple quotes, an unclosed string
+ending with its line; JS/TS: templates over lines, types, decorators; Lua/Luau: long comments
+and strings with levels, `nil`, Luau types). 389 tests.
+
+**Checked**: offscreen snapshots of a Rust demo and of `tests/fuzz/make_dng_seeds.py` (a real
+Python file: its docstring, constants in capitals, calls, the shebang as a comment).
+Tests green in `build`, `build-asan`, `build-tsan`.
+
+**Fuzzing** (short run): `nordend-fuzz-text`, the first byte now choosing among plain text, C++,
+Rust, Python, JavaScript and Lua; 10 minutes, 3 processes at the lowest priority, 3b-2a's corpus
+plus six seeds for the new languages: 1.15 million inputs, coverage 963 → 1211 edges, no crash,
+timeout or out-of-memory.
+
+**Measured**: the general lexer first coloured `browser.cpp` in 1073 µs against 780 µs for
+3b-2a's (both rebuilt the same way, measured side by side); a 256-entry table of quotes instead
+of `quotes.find()` after every word (−90 µs) and trying words first in each step (nothing that
+starts a comment starts with a letter) took it to 622 µs, quicker than before. Quick Look on
+`browser.cpp` through the helper: 1.44 ms (1.62 at 3b-2a).
+
+---
+
 ## 2026-11-08 — Syntax colours, C and C++ first (ROADMAP 3b-2a)
 
 **Tested by the author** (2026-11-08, installed in `~/.local`): C and C++ files coloured in

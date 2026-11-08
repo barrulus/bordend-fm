@@ -93,6 +93,15 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## The general lexer (ROADMAP 3b-2b, first group)
+
+### 2026-11-08
+
+`colour` on `browser.cpp`'s lines (3449 lines, 5470 spans), 300 runs, median: 3b-2a's lexer
+780 µs and the general one 1073 µs, both compiled with `g++ -O3` from their sources side by side;
+then 973 µs with a table of quotes, 622 µs with words tried first. Quick Look on the same file
+through the helper: 1.44 ms.
+
 ## Syntax colours (ROADMAP 3b-2a)
 
 ### 2026-11-08
