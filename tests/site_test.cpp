@@ -1,5 +1,5 @@
-// The site's documentation (site/docs/index.html) lists the keyboard shortcuts from data in the page; this keeps that
-// data the same as views::shortcuts(), the table Nordend itself works from.
+// The site's documentation (site/docs/index.html) lists the keyboard shortcuts from data in the
+// page; this keeps that data the same as views::shortcuts(), the table Nordend itself works from.
 #include <cstddef>
 #include <fstream>
 #include <sstream>
