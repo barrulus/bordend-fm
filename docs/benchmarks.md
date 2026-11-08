@@ -109,7 +109,11 @@ after exiv2 left the build:
 | PSS | 5.8 MB | 3.4 MB |
 | Anonymous | 1.2 MB | 0.65 MB |
 | Spawn to cage closed (median) | 4.4 ms | 3.3 ms |
-| Binary (stripped) | 0.91 MB | 0.91 MB |
+| Binary (stripped, MiB) | 0.87 MB | 0.87 MB |
+
+Fuzzing at the end of 2e (an hour, five targets in parallel, 3 processes each, nice 19 while a
+game ran): camera 1.6 million inputs, picture 3.2 million, tiff 37.2 million, dng 31.9 million,
+ljpeg 41.9 million; no crash, timeout or out-of-memory.
 
 ## Photo information: Nordend's reader against exiv2 (ROADMAP 2e-3)
 

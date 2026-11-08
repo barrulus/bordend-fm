@@ -4,6 +4,23 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Nordend 0.4.0
+
+Step 2 (image previews) closed and released as 0.4.0, the author's choice ("tanto ci lavoriamo
+molto bene fino alla versione 1"): CR3 and PEF previews and more DNGs (Pentax, an editor's
+export) come in a 0.4.x when samples arrive. CMake version, README (badge, note, Versions, What's
+next, At a glance: nordend 3.85 MB / 3.20 stripped, the helper 0.97 / 0.87, 46 600 + 15 700
+lines, 355 tests) and features say so. The README's helper size had been written in decimal MB
+at 2e-5 (1.02 / 0.91): now in MiB like the rest.
+
+The site is taken down until its SvelteKit version (the author, the same day: "lasciamo solo
+readme e basta"): `site/`, the Pages workflow and `tests/site_test.cpp` removed, GitHub Pages
+switched off, the repository's homepage cleared; the README points to the repository's own
+documents (features, benchmarks, the example config, F1 for the shortcuts); the Void template's
+homepage is the GitHub repository.
+
+---
+
 ## 2026-11-08 — exiv2 out of Nordend (ROADMAP 2e-5)
 
 **Tested by the author** (2026-11-08, installed build, fresh cache): "funziona tutto".
@@ -20,8 +37,12 @@ brotli stays, libjxl's); after its warm-up RSS 10.3 -> 7.8 MB, PSS 5.8 -> 3.4 MB
 40). Binary size unchanged (exiv2 was a shared library). Tests green in `build`, `build-asan`,
 `build-tsan` (356).
 
-**Open**: the long fuzz run of every target at the end of 2e (when the author does not need the
-PC); the cage could now refuse mapping files (only exiv2 asked for it): to be proposed.
+**Fuzzing, the long run closing 2e** (2026-11-08, an hour, the five targets side by side, 3
+processes each, at the lowest priority while the author played): `nordend-fuzz-camera` 1.6
+million inputs, `-picture` 3.2 million, `-tiff` 37.2 million, `-dng` 31.9 million, `-ljpeg` 41.9
+million; no crash, timeout or out-of-memory.
+
+**Open**: the cage could now refuse mapping files (only exiv2 asked for it): to be proposed.
 
 ---
 

@@ -9,24 +9,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-2a6a9e" alt="release v0.3.1"></a>
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/release-v0.4.0-2a6a9e" alt="release v0.4.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-356%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="356 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-355%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="355 tests, ASan, TSan">
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
 
 > [!NOTE]
-> **Young software, used every day by its author.** 0.3.1 reads more raw previews (DNG at full
-> size where the camera stored one, Samsung SRW, PGM and PPM), after the **command palette**
-> (<kbd>Ctrl</kbd>+<kbd>K</kbd>), **finding files** (<kbd>Ctrl</kbd>+<kbd>F</kbd>) and an icon in
-> your desktop's accent in 0.3.0.
+> **Young software, used every day by its author.** 0.4.0 reads pictures with **Nordend's own
+> code**: DNG developed when its previews are too small, TIFF, raw previews and EXIF without
+> exiv2, each picture made in a **caged helper process**. 0.3.0 brought the command palette
+> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files (<kbd>Ctrl</kbd>+<kbd>F</kbd>).
 > On Void Linux, [install it as a package](#on-void-linux); anywhere else,
 > [build it from source](#from-source) in about a minute.
-
-<p align="center">
-  <a href="https://pankaspe.github.io/nordend-fm/docs/"><img src="https://img.shields.io/badge/Read_the_docs-pankaspe.github.io%2Fnordend--fm-6DBDF0?style=for-the-badge&labelColor=0E1519" alt="Read the docs on pankaspe.github.io/nordend-fm"></a>
-</p>
 
 <p align="center">
   <img src="docs/images/readme-screenshot.webp" alt="Nordend in a light theme: the column view in a folder of photos exported from darktable, the context menu open on one with Open With, its preview and EXIF in the info pane" width="100%">
@@ -65,7 +61,8 @@ colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Nocta
   real name, a real freedesktop trash, and <kbd>Ctrl</kbd>+<kbd>Z</kbd>.
 - **Keyboard first, mouse always.** Every action has a key (<kbd>F1</kbd> lists them) and a click.
 
-Everything it does, and every shortcut, is in the [guide](https://pankaspe.github.io/nordend-fm/docs/#guide).
+Everything it does is in [docs/features.md](docs/features.md); inside Nordend, <kbd>F1</kbd> lists
+every shortcut.
 
 ## Features
 
@@ -100,9 +97,9 @@ Everything it does, and every shortcut, is in the [guide](https://pankaspe.githu
 
 | | |
 |---|---|
-| Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 1.02 MB (0.91 stripped), a separate caged helper |
+| Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 0.97 MB (0.87 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 8); no GTK, no Qt, no GLib |
-| Code | about 45 700 lines of C++20, 14 600 of tests (356 test cases, under ASan and TSan too) |
+| Code | about 46 600 lines of C++20, 15 700 of tests (355 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -117,8 +114,7 @@ The design's four targets, measured on 2026-11-01 (Ryzen 7 5700G, RX 6650 XT, SA
 | Quick Look of an ORF raw photo: < 100 ms | **82-96 ms** |
 | Scrolling with no dropped frame | worst frame **3.7 ms** of 13.3 (75 Hz) |
 
-More on the [site](https://pankaspe.github.io/nordend-fm/docs/#performance), every method in
-[docs/benchmarks.md](docs/benchmarks.md).
+Every measurement and its method is in [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Install
 
@@ -144,7 +140,7 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 sudo xbps-install -R hostdir/binpkgs nordend
 ```
 
-The package is the latest release, **0.3.1**. What `main` gains after it comes with the next
+The package is the latest release, **0.4.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
 ### From source
@@ -178,8 +174,10 @@ xdg-mime default nordend.desktop inode/directory
 "Mod+E" = { action = "spawn nordend", repeat = false }
 ```
 
-Configuration, the command line and the development tools are on the
-[site](https://pankaspe.github.io/nordend-fm/docs/#install).
+Configuration: every key, with its default, in [docs/config.example.toml](docs/config.example.toml)
+(copy it to `~/.config/nordend/config.toml`; `nordend --check-config` reports any problem). The
+command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
+for a bug report).
 
 ## Versions
 
@@ -190,7 +188,8 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | exiv2 gone: raw files' previews and the info pane's EXIF read by Nordend's own code (the same previews and values on every sample, 3 to 100 times quicker), the preview helper down from 21 libraries to 17 and from 10.3 to 7.8 MB, ready in 3.3 ms instead of 4.4; darktable sidecars' ratings no longer read (Nordend's own ratings come next, editors' sidecars will be a plugin's); DNG developed by Nordend's own reader when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files): lossless JPEG and uncompressed sensor data read identically to LibRaw and 2-4 times faster, the file's colour matrices and tone curve, its vignetting and lens corrections (DNG gain maps and warp), half size or smaller; TIFF with Nordend's own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, grey, RGB, YCbCr, palette, CMYK, alpha, tiles), identical to libtiff on 36 test files and 12 real ones; pictures made apart: the libraries that read photos run in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock: no files, no network, no programs), so a file that crashes or hangs one costs only its preview, and Nordend itself no longer loads exiv2, libjxl or libwebp (21 libraries down to 17, 2.5 ms less to load them); one path for every picture: the format is told by the file's bytes, not its name; a file that cannot be shown says why in a plain sentence |
+| on `main`, next | — |
+| [0.4.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0), 2026-11-08 | Image previews read by Nordend's own code: DNG developed when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files) with the file's colour, tone curve, vignetting and lens corrections, read identically to LibRaw and 2-4 times faster; TIFF with its own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, CMYK, tiles, a scanner's scan in a SubIFD); raw files' previews and the info pane's EXIF without exiv2 (the same results, 3 to 100 times quicker); pictures made in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock), so a file that crashes or hangs one costs only its preview; one path for every picture, told by the file's bytes; a plain sentence when a file cannot be shown. Canon CRW and Minolta MRW get that sentence; darktable sidecars' ratings are no longer read (Nordend's own ratings come next) |
 | [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
 | [0.2.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.2.0), 2026-11-06 | Sort By in the context menu; tabs (a folder, a view, a history and a zoom each, remembered); zoom in the columns and the details |
@@ -204,21 +203,18 @@ three.
 
 0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
 lists; 0.3.0 the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files
-(<kbd>Ctrl</kbd>+<kbd>F</kbd>); 0.3.1 more raw previews. Coming, roughly in this order:
-**previews, one family at a time**: images first (one path for every format, file parsers in an
-isolated helper, our own TIFF and DNG decoders; raw files keep showing the JPEG their camera
-stored), then text (syntax highlighting, selecting and copying), then other common formats one
-by one (SVG, AVIF, fonts, archive contents, audio tags).
+(<kbd>Ctrl</kbd>+<kbd>F</kbd>); 0.3.1 more raw previews; 0.4.0 image previews read by Nordend's own
+code in caged helpers. Coming, roughly in this order: **previews, one family at a time**: text
+next (syntax highlighting, selecting and copying), then other common formats one by one (SVG,
+AVIF, fonts, archive contents, audio tags).
 After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
 for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations
 and batch renaming; translations, a file chooser for other applications, plugins in Luau (one
 system, each plugin caged; heavy formats such as PDF and video, and local AI search, as separate
-engines). The
-full list is on the [roadmap](https://pankaspe.github.io/nordend-fm/docs/#roadmap).
+engines).
 
 ## Documentation
 
-[The site](https://pankaspe.github.io/nordend-fm/) · [The docs](https://pankaspe.github.io/nordend-fm/docs/) ·
 [Features](docs/features.md) ·
 [Devlog](docs/devlog.md) ·
 [Benchmarks](docs/benchmarks.md) ·
