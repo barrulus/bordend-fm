@@ -23,12 +23,26 @@ using nordend::text::Style;
 
 // Where a line ends inside something that goes on to the next.
 struct State {
-    enum class In : std::uint8_t { code, comment, string };
+    enum class In : std::uint8_t { code, comment, string, heredoc };
     In in{In::code};
-    std::string close;    // what ends it: "*/", ")delim\"", "\"\"\"", "]==]"
+    std::string close;    // what ends it: "*/", ")delim\"", "\"\"\"", "]==]", a heredoc's word
     bool escapes{false};  // a string: a backslash escapes the next character
     int depth{0};         // nested comments: how many are open
+    bool tabs{false};     // a heredoc's last line may start with tabs (<<-)
+    // A heredoc opened on this line: its lines start with the next one.
+    std::string heredoc;
+    bool heredoc_tabs{false};
 };
+
+// The state inside a comment or a string that may go on over lines.
+State inside(State::In in, std::string close, bool escapes, int depth) {
+    State state;
+    state.in = in;
+    state.close = std::move(close);
+    state.escapes = escapes;
+    state.depth = depth;
+    return state;
+}
 
 bool is_digit(char c) { return c >= '0' && c <= '9'; }
 
@@ -66,8 +80,17 @@ Tables make_tables(const Syntax& syntax) {
         open(quote);
         tables.quotes.at(static_cast<unsigned char>(quote)) = true;
     }
-    if (syntax.lua_long_brackets) {
+    if (!syntax.long_comment.empty()) {
+        open(syntax.long_comment.front());
+    }
+    if (syntax.long_strings) {
         open('[');
+    }
+    if (syntax.variables != Variables::none) {
+        open('$');
+    }
+    if (syntax.heredocs) {
+        open('<');
     }
     if (syntax.decorator != '\0') {
         open(syntax.decorator);
@@ -81,10 +104,10 @@ Tables make_tables(const Syntax& syntax) {
             open(byte);
         }
     }
-    // Later lists win: a keyword over a constant over a type.
+    // Later lists win: a keyword over a constant over a builtin over a type.
     for (const auto& [list, style] :
-         {std::pair{syntax.types, Style::type}, std::pair{syntax.constants, Style::number},
-          std::pair{syntax.keywords, Style::keyword}}) {
+         {std::pair{syntax.types, Style::type}, std::pair{syntax.functions, Style::function},
+          std::pair{syntax.constants, Style::number}, std::pair{syntax.keywords, Style::keyword}}) {
         for (const std::string_view word : list) {
             tables.words[word] = style;
         }
@@ -125,6 +148,10 @@ public:
         : syntax_{syntax}, tables_{tables}, line_{line}, state_{state}, out_{out} {}
 
     void run() {
+        if (state_.in == State::In::heredoc) {
+            heredoc_line();
+            return;
+        }
         if (state_.in == State::In::comment) {
             go_on_comment(0);
         } else if (state_.in == State::In::string) {
@@ -133,8 +160,17 @@ public:
         if (state_.in == State::In::code && pos_ == 0 && syntax_.preprocessor) {
             directive();
         }
+        if (state_.in == State::In::code && pos_ == 0 && syntax_.make_targets) {
+            make_line();
+        }
         while (pos_ < line_.size() && state_.in == State::In::code) {
             step();
+        }
+        if (state_.in == State::In::code && !state_.heredoc.empty()) {
+            state_.in = State::In::heredoc;
+            state_.close = std::move(state_.heredoc);
+            state_.tabs = state_.heredoc_tabs;
+            state_.heredoc.clear();
         }
     }
 
@@ -189,8 +225,7 @@ private:
 
     void open_comment(std::size_t start, std::size_t opening, std::string close) {
         pos_ = start + opening;
-        state_ = {
-            .in = State::In::comment, .close = std::move(close), .escapes = false, .depth = 1};
+        state_ = inside(State::In::comment, std::move(close), false, 1);
         go_on_comment(start);
     }
 
@@ -227,8 +262,7 @@ private:
     void open_string(std::size_t start, std::size_t quote, std::string close, bool escapes,
                      bool multiline) {
         pos_ = quote + close.size();
-        state_ = {
-            .in = State::In::string, .close = std::move(close), .escapes = escapes, .depth = 0};
+        state_ = inside(State::In::string, std::move(close), escapes, 0);
         go_on_string(start);
         if (state_.in == State::In::string && !multiline && !(escapes && line_.ends_with('\\'))) {
             state_ = {};  // a string never closed: it ends with its line
@@ -280,20 +314,29 @@ private:
             word();
             return;
         }
-        if (syntax_.lua_long_brackets) {
-            if (at("--")) {
-                if (const std::size_t length = long_bracket(line_.substr(pos_ + 2))) {
-                    open_comment(pos_, 2 + length, "]" + std::string(length - 2, '=') + "]");
-                    return;
-                }
-            } else if (const std::size_t length = long_bracket(line_.substr(pos_))) {
-                // [==[ ends at ]==]: as many "=" between the brackets.
+        // [==[ ends at ]==]: as many "=" between the brackets.
+        const std::string_view long_comment = syntax_.long_comment;
+        if (at(long_comment)) {
+            if (const std::size_t length = long_bracket(line_.substr(pos_ + long_comment.size()))) {
+                open_comment(pos_, long_comment.size() + length,
+                             "]" + std::string(length - 2, '=') + "]");
+                return;
+            }
+        }
+        if (syntax_.long_strings) {
+            if (const std::size_t length = long_bracket(line_.substr(pos_))) {
                 open_string(pos_, pos_, "]" + std::string(length - 2, '=') + "]", false, true);
                 return;
             }
         }
+        if (c == '$' && syntax_.variables != Variables::none && variable()) {
+            return;
+        }
+        if (syntax_.heredocs && c == '<' && next() == '<' && next(2) != '<' && heredoc()) {
+            return;
+        }
         for (const std::string_view marker : syntax_.line_comments) {
-            if (at(marker)) {
+            if (at(marker) && (!syntax_.comment_at_word_start || at_word_start())) {
                 emit(pos_, line_.size(), Style::comment);
                 pos_ = line_.size();
                 return;
@@ -328,6 +371,189 @@ private:
         ++pos_;
     }
 
+    // Where a shell word may start: the line's start, after a space or ; | & ( ).
+    [[nodiscard]] bool at_word_start() const {
+        if (pos_ == 0) {
+            return true;
+        }
+        const char before = line_[pos_ - 1];
+        return is_space(before) || before == ';' || before == '|' || before == '&' ||
+               before == '(' || before == ')';
+    }
+
+    // Where a shell command starts, so NAME=value sets a variable: the line's start, after
+    // ; | & ( {, or after export, local, readonly, declare, typeset.
+    [[nodiscard]] bool at_command() const {
+        std::size_t i = pos_;
+        while (i > 0 && is_space(line_[i - 1])) {
+            --i;
+        }
+        if (i == 0 || std::string_view{";|&({"}.find(line_[i - 1]) != std::string_view::npos) {
+            return true;
+        }
+        std::size_t word = i;
+        while (word > 0 && is_word(line_[word - 1])) {
+            --word;
+        }
+        const std::string_view before = line_.substr(word, i - word);
+        return before == "export" || before == "local" || before == "readonly" ||
+               before == "declare" || before == "typeset";
+    }
+
+    // Just past the closing bracket matching the opening one at from (nesting counted); the
+    // line's end when none.
+    [[nodiscard]] std::size_t matching(std::size_t from, char open, char close) const {
+        int depth = 0;
+        for (std::size_t i = from; i < line_.size(); ++i) {
+            if (line_[i] == open) {
+                ++depth;
+            } else if (line_[i] == close && --depth == 0) {
+                return i + 1;
+            }
+        }
+        return line_.size();
+    }
+
+    // $name and its kin, at pos_; false when the $ is just a character.
+    bool variable() {
+        const std::size_t start = pos_;
+        const char after = next();
+        const auto take = [&](std::size_t end, Style style) {
+            pos_ = end;
+            emit(start, end, style);
+            return true;
+        };
+        switch (syntax_.variables) {
+            case Variables::shell:
+                if (after == '{') {
+                    return take(matching(pos_ + 1, '{', '}'), Style::type);
+                }
+                if (after == '(') {
+                    return false;  // $(command): lexed as code
+                }
+                if (after != '\0' && (is_digit(after) || std::string_view{"@#?$!*-"}.find(after) !=
+                                                             std::string_view::npos)) {
+                    return take(pos_ + 2, Style::type);
+                }
+                break;
+            case Variables::make:
+                if (after == '(' || after == '{') {
+                    const char close = after == '(' ? ')' : '}';
+                    std::size_t i = pos_ + 2;
+                    while (i < line_.size() && (is_word(line_[i]) || line_[i] == '-')) {
+                        ++i;
+                    }
+                    if (i < line_.size() && line_[i] != close) {
+                        return take(i, Style::function);  // $(shell ...): a function
+                    }
+                    return take(matching(pos_ + 1, after, close), Style::type);
+                }
+                if (after != '\0' &&
+                    std::string_view{"@<^*?%+|$"}.find(after) != std::string_view::npos) {
+                    return take(pos_ + 2, Style::type);
+                }
+                break;
+            case Variables::cmake:
+                if (after == '{') {
+                    return take(matching(pos_ + 1, '{', '}'), Style::type);
+                }
+                if (after == '<') {
+                    return take(matching(pos_ + 1, '<', '>'), Style::function);
+                }
+                if (line_.substr(pos_ + 1).starts_with("ENV{") ||
+                    line_.substr(pos_ + 1).starts_with("CACHE{")) {
+                    return take(matching(line_.find('{', pos_), '{', '}'), Style::type);
+                }
+                return false;
+            case Variables::none:
+                return false;
+        }
+        if (is_word_start(after)) {
+            std::size_t i = pos_ + 1;
+            while (i < line_.size() && is_word(line_[i])) {
+                ++i;
+            }
+            return take(i, Style::type);
+        }
+        return false;
+    }
+
+    // <<EOF, <<-EOF, <<'EOF', << "EOF": the operator and its word as a string; the lines from
+    // the next one to the word alone on its line are the heredoc's.
+    bool heredoc() {
+        const std::size_t start = pos_;
+        std::size_t i = pos_ + 2;
+        const bool tabs = i < line_.size() && line_[i] == '-';
+        i += tabs ? 1 : 0;
+        while (i < line_.size() && is_space(line_[i])) {
+            ++i;
+        }
+        const char quote = i < line_.size() ? line_[i] : '\0';
+        const bool quoted = quote == '\'' || quote == '"';
+        const bool escaped = quote == '\\';
+        i += (quoted || escaped) ? 1 : 0;
+        const std::size_t word = i;
+        while (i < line_.size() && (is_word(line_[i]) || line_[i] == '-' || line_[i] == '.')) {
+            ++i;
+        }
+        // << alone, or << 2 unquoted: a shift (in $(( ))), not a heredoc.
+        if (i == word || (!quoted && is_digit(line_[word]))) {
+            return false;
+        }
+        state_.heredoc = std::string{line_.substr(word, i - word)};
+        state_.heredoc_tabs = tabs;
+        if (quoted && i < line_.size() && line_[i] == quote) {
+            ++i;
+        }
+        pos_ = i;
+        emit(start, i, Style::string);
+        return true;
+    }
+
+    // A line of a heredoc: a string, the last one its word alone (after tabs with <<-).
+    void heredoc_line() {
+        std::string_view bare = line_;
+        if (state_.tabs) {
+            bare.remove_prefix(std::min(bare.find_first_not_of('\t'), bare.size()));
+        }
+        emit(0, line_.size(), Style::string);
+        pos_ = line_.size();
+        if (bare == state_.close) {
+            state_ = {};
+        }
+    }
+
+    // A Makefile line: "target: prerequisites" names a target, "NAME = value" (or :=, ?=, +=,
+    // !=, ::=) sets a variable. Recipes (a tab first) and directives are lexed as code.
+    void make_line() {
+        if (line_.empty() || is_space(line_.front())) {
+            return;
+        }
+        std::size_t i = 0;
+        while (i < line_.size() && (is_word(line_[i]) || std::string_view{".-/%$(){}"}.find(
+                                                             line_[i]) != std::string_view::npos)) {
+            ++i;
+        }
+        const std::size_t name = i;
+        while (i < line_.size() && is_space(line_[i])) {
+            ++i;
+        }
+        if (name == 0 || i >= line_.size()) {
+            return;
+        }
+        const std::string_view rest = line_.substr(i);
+        const bool assignment = rest.starts_with('=') || rest.starts_with(":=") ||
+                                rest.starts_with("::=") || rest.starts_with("?=") ||
+                                rest.starts_with("+=") || rest.starts_with("!=");
+        if (assignment) {
+            emit(0, name, Style::type);
+            pos_ = name;
+        } else if (rest.starts_with(':') && !tables_.words.contains(line_.substr(0, name))) {
+            emit(0, name, Style::function);
+            pos_ = name;
+        }
+    }
+
     // A string opened by the quote at quote, its prefix from start; raw: no escapes.
     void quoted(std::size_t start, std::size_t quote, bool raw) {
         const char q = line_[quote];
@@ -352,10 +578,7 @@ private:
             return false;
         }
         pos_ = open + 1;
-        state_ = {.in = State::In::string,
-                  .close = ")" + std::string{delimiter} + "\"",
-                  .escapes = false,
-                  .depth = 0};
+        state_ = inside(State::In::string, ")" + std::string{delimiter} + "\"", false, 0);
         go_on_string(start);
         return true;
     }
@@ -371,10 +594,7 @@ private:
         }
         const std::size_t hashes = i - pos_;
         pos_ = i + 1;
-        state_ = {.in = State::In::string,
-                  .close = "\"" + std::string(hashes, '#'),
-                  .escapes = false,
-                  .depth = 0};
+        state_ = inside(State::In::string, "\"" + std::string(hashes, '#'), false, 0);
         go_on_string(start);
         return true;
     }
@@ -464,6 +684,7 @@ private:
 
     void word() {
         const std::size_t start = pos_;
+        const bool command_start = syntax_.variables == Variables::shell && at_command();
         while (pos_ < line_.size() && is_word(line_[pos_])) {
             ++pos_;
         }
@@ -481,6 +702,11 @@ private:
         bool raw = false;
         if (tables_.quotes.at(static_cast<unsigned char>(after)) && string_prefix(name, raw)) {
             quoted(start, pos_, raw);
+            return;
+        }
+        // NAME=value where a command could start: a shell variable set.
+        if (command_start && after == '=') {
+            emit(start, pos_, Style::type);
             return;
         }
         if (syntax_.bang_macros && after == '!' && next() != '=') {

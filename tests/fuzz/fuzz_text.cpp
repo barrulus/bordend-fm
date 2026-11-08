@@ -22,9 +22,16 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
         {.max_bytes = 64, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8},
         {.max_bytes = 7, .max_line_bytes = 1, .max_lines = 2, .tab_width = 1},
     }};
-    static constexpr std::array<std::string_view, 6> kTypes{"text/plain",      "text/x-c++src",
-                                                            "text/rust",       "text/x-python3",
-                                                            "text/javascript", "text/x-lua"};
+    static constexpr std::array<std::string_view, 10> kTypes{"text/plain",
+                                                             "text/x-c++src",
+                                                             "text/rust",
+                                                             "text/x-python3",
+                                                             "text/javascript",
+                                                             "text/x-lua",
+                                                             "application/x-shellscript",
+                                                             "application/x-fishscript",
+                                                             "text/x-cmake",
+                                                             "text/x-makefile"};
     const nordend::text::Limits& limits = kLimits.at(data[0] % kLimits.size());
     const std::string_view mime = kTypes.at((data[0] / kLimits.size()) % kTypes.size());
     const std::span<const std::uint8_t> file{data + 1, size - 1};

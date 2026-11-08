@@ -4,6 +4,50 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Shell, fish, CMake, Makefiles (ROADMAP 3b-2b, second group)
+
+**Tested by the author** (2026-11-08, installed in `~/.local`: a Makefile, a script found by its
+`#!`, the Void `template`, his `config.fish`, this `CMakeLists.txt`): "funziona tutto".
+
+**Done**: four languages and what they need in `Syntax`: `#` comments only where a word may
+start (`a#b` and `$#` are no comments in shell); `$` variables written three ways
+(`Variables::shell`: `$name`, `${…}`, `$1`, `$@ $# $?…`, `$(…)` lexed as code; `make`:
+`$(NAME)`/`${NAME}`, `$@ $< $^…`, `$(shell …)` naming a function; `cmake`: `${…}` nested,
+`$ENV{…}`, `$CACHE{…}`, `$<generator:expressions>`); heredocs (`<<EOF`, `<<-EOF` with tabs
+before the closing word, `<<'EOF'`, `<< "EOF"`; `<<<` and `1 << 2` are not), carried in the
+lexer's state from the line after the operator to the closing word alone on its line; a list of
+builtins coloured as functions (`echo`, `printf`, `set`…); shell assignments `NAME=value` where
+a command starts (line start, after `; | & ( {`, after `export`/`local`/`readonly`/`declare`/
+`typeset`: `echo a=b` stays an argument; a second assignment on one command is not told apart);
+Makefile lines (`target:` a function, `NAME =`/`:=`/`?=`/`+=`/`!=`/`::=` a variable, recipes
+lexed as code); Lua's long brackets generalised (`long_comment` "--" or "#", `long_strings`) so
+CMake gets `#[[ ]]` comments and `[[ ]]` arguments. Detection: `application/x-shellscript`,
+`application/x-fishscript`, `text/x-cmake`, `text/x-makefile` (all `text/plain` subtypes here);
+`.sh .bash .zsh .ksh .fish .cmake .mk .mak`; names `.bashrc`, `.profile`, `.zshrc`, `.envrc`,
+`PKGBUILD`, `APKBUILD`, xbps-src's `template`, `CMakeLists.txt`, `Makefile`, `GNUmakefile`;
+interpreters `sh bash dash zsh ksh mksh ash busybox fish make`.
+
+**Tests**: `tests/syntax_test.cpp` grew to 23 cases (detection; shell words, variables,
+comments in words, strings over lines, assignments; heredocs and their look-alikes; fish; CMake
+commands, variables, generator expressions, bracket comments and arguments; Makefile targets,
+variables, functions, directives). 395 tests.
+
+**Checked**: offscreen snapshots of void-noctalia's `build-package.sh` and this repository's
+`CMakeLists.txt`; dumps of the Void `template` and the author's `config.fish`. A `then` that
+looked half coloured in the shrunken snapshot was whole at full size.
+Tests green in `build`, `build-asan`, `build-tsan`.
+
+**Fuzzing** (short run): `nordend-fuzz-text` with ten types (the four new ones added), 10
+minutes, 3 processes at the lowest priority, the previous corpus plus six seeds (a build script,
+heredocs and expansions, `config.fish`, this `CMakeLists.txt`, CMake brackets and generator
+expressions, a Makefile): 0.8 million inputs, coverage 1211 → 1550 edges, no crash, timeout or
+out-of-memory.
+
+**Measured**: colouring `browser.cpp` 662 µs (622 µs before this group: the checks for long
+comments, variables and heredocs in every step).
+
+---
+
 ## 2026-11-08 — Rust, Python, JavaScript/TypeScript, Lua/Luau (ROADMAP 3b-2b, first group)
 
 **Tested by the author** (2026-11-08, installed in `~/.local`, on his own files: a Rust crate,

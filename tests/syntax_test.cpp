@@ -286,3 +286,100 @@ TEST_CASE("syntax: Lua and Luau") {
     CHECK(colour({"local n: number = 1"}, "text/plain", "x.luau") ==
           Lines{"{k:local} n: {t:number} = {n:1}"});
 }
+
+namespace {
+
+Lines shell(const Lines& lines) { return colour(lines, "application/x-shellscript"); }
+
+Lines fish(const Lines& lines) { return colour(lines, "application/x-fishscript"); }
+
+Lines cmake(const Lines& lines) { return colour(lines, "text/x-cmake"); }
+
+Lines make(const Lines& lines) { return colour(lines, "text/x-makefile"); }
+
+}  // namespace
+
+TEST_CASE("syntax: shell, fish, CMake and Makefiles found") {
+    const auto name_of = [](std::string_view name, std::string_view mime,
+                            std::string_view first = {}) -> std::string {
+        const family::Language* language = family::language_for(name, mime, first);
+        return language == nullptr ? "" : std::string{family::language_name(*language)};
+    };
+    CHECK(name_of("build.sh", "application/x-shellscript") == "Shell");
+    CHECK(name_of("run", "application/x-shellscript", "#!/bin/sh") == "Shell");
+    CHECK(name_of("a.bash", "text/plain") == "Shell");
+    CHECK(name_of(".bashrc", "text/plain") == "Shell");
+    CHECK(name_of("template", "text/plain") == "Shell");  // xbps-src
+    CHECK(name_of("PKGBUILD", "text/plain") == "Shell");
+    CHECK(name_of("tool", "text/plain", "#!/usr/bin/env bash") == "Shell");
+    CHECK(name_of("config.fish", "application/x-fishscript") == "fish");
+    CHECK(name_of("tool", "text/plain", "#!/usr/bin/env fish") == "fish");
+    CHECK(name_of("CMakeLists.txt", "text/x-cmake") == "CMake");
+    CHECK(name_of("CMakeLists.txt", "text/plain") == "CMake");
+    CHECK(name_of("Makefile", "text/x-makefile") == "Makefile");
+    CHECK(name_of("rules.mk", "text/plain") == "Makefile");
+}
+
+TEST_CASE("syntax: shell") {
+    CHECK(
+        shell({"if [ -f \"$file\" ]; then echo ${HOME}/x $1 $#; fi"}) ==
+        Lines{
+            "{k:if} [ -f {s:\"$file\"} ]; {k:then} {f:echo} {t:${HOME}}/x {t:$1} {t:$#}; {k:fi}"});
+    CHECK(shell({"for f in *.txt; do printf '%s\\n' \"$f\"; done  # list"}) ==
+          Lines{"{k:for} f {k:in} *.txt; {k:do} {f:printf} {s:'%s\\n'} {s:\"$f\"}; {k:done}  "
+                "{c:# list}"});
+    // # inside a word is no comment; $(command) is code.
+    CHECK(shell({"url=a#b; n=$(wc -l < f)"}) == Lines{"{t:url}=a#b; {t:n}=$(wc -l < f)"});
+    // A second assignment on the same command (x=1 y=2 cmd) is not told from an argument.
+    CHECK(shell({"x=$name y=true"}) == Lines{"{t:x}={t:$name} y={n:true}"});
+    CHECK(shell({"pkgname=nordend; echo a=b"}) == Lines{"{t:pkgname}=nordend; {f:echo} a=b"});
+    CHECK(shell({"export PATH=$HOME/bin; local n=1"}) ==
+          Lines{"{f:export} {t:PATH}={t:$HOME}/bin; {f:local} {t:n}={n:1}"});
+    // Strings go on over lines.
+    CHECK(shell({"msg='one", "two' ; ok"}) == Lines{"{t:msg}={s:'one}", "{s:two'} ; ok"});
+}
+
+TEST_CASE("syntax: heredocs") {
+    CHECK(shell({"cat <<EOF > out", "Hello $USER", "  EOF", "EOF", "echo done"}) ==
+          Lines{"cat {s:<<EOF} > out", "{s:Hello $USER}", "{s:  EOF}", "{s:EOF}",
+                "{f:echo} {k:done}"});
+    // <<- lets the last line start with tabs; quoted words.
+    CHECK(shell({"cat <<-'END'", "\ttext", "\tEND", "x"}) ==
+          Lines{"cat {s:<<-'END'}", "{s:\ttext}", "{s:\tEND}", "x"});
+    CHECK(shell({"cat << \"STOP\"", "a", "STOP"}) ==
+          Lines{"cat {s:<< \"STOP\"}", "{s:a}", "{s:STOP}"});
+    // A here-string and a shift are not heredocs.
+    CHECK(shell({"cat <<< \"$x\"", "echo"}) == Lines{"cat <<< {s:\"$x\"}", "{f:echo}"});
+    CHECK(shell({"echo $((1 << 2))"}) == Lines{"{f:echo} $(({n:1} << {n:2}))"});
+}
+
+TEST_CASE("syntax: fish") {
+    CHECK(fish({"function greet --argument name", "    set -l msg \"hi $name\"", "end"}) ==
+          Lines{"{k:function} greet --argument name", "    {f:set} -l msg {s:\"hi $name\"}",
+                "{k:end}"});
+    CHECK(fish({"if test -n $argv[1]; and not status is-interactive  # x"}) ==
+          Lines{"{k:if} {f:test} -n {t:$argv}[{n:1}]; {k:and} {k:not} {f:status} is-interactive  "
+                "{c:# x}"});
+}
+
+TEST_CASE("syntax: CMake") {
+    CHECK(cmake({"add_library(nordend_text STATIC src/text.cpp)  # the module"}) ==
+          Lines{"{f:add_library}(nordend_text {n:STATIC} src/text.cpp)  {c:# the module}"});
+    CHECK(cmake({"if(NOT ${NAME}_FOUND AND $ENV{HOME})"}) ==
+          Lines{"{k:if}({n:NOT} {t:${NAME}}{n:_FOUND} {n:AND} {t:$ENV{HOME}})"});
+    CHECK(cmake({"set(x \"a ${b}\" ON)"}) == Lines{"{f:set}(x {s:\"a ${b}\"} {n:ON})"});
+    CHECK(cmake({"target_link_libraries(t $<$<CONFIG:Debug>:asan>)"}) ==
+          Lines{"{f:target_link_libraries}(t {f:$<$<CONFIG:Debug>:asan>})"});
+    CHECK(cmake({"#[[ a", "comment ]] x"}) == Lines{"{c:#[[ a}", "{c:comment ]]} x"});
+    CHECK(cmake({"message([==[raw]==])"}) == Lines{"{f:message}({s:[==[raw]==]})"});
+}
+
+TEST_CASE("syntax: Makefiles") {
+    CHECK(make({"CC := gcc", "all: main.o util.o", "\t$(CC) -o $@ $^ $(shell pkg-config x)"}) ==
+          Lines{"{t:CC} := gcc", "{f:all}: main.o util.o",
+                "\t{t:$(CC)} -o {t:$@} {t:$^} {f:$(shell} pkg-config x)"});
+    CHECK(make({"ifeq ($(OS),Linux)  # linux", "include common.mk", "endif"}) ==
+          Lines{"{k:ifeq} ({t:$(OS)},Linux)  {c:# linux}", "{k:include} common.mk", "{k:endif}"});
+    CHECK(make({".PHONY: clean", "%.o: %.c", "CFLAGS += -O2"}) ==
+          Lines{"{f:.PHONY}: clean", "{f:%.o}: %.c", "{t:CFLAGS} += -O2"});
+}

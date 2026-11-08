@@ -12,6 +12,14 @@
 // text family: the lexer in syntax.cpp reads these tables).
 namespace nordend::formats::text {
 
+// $variables, as each language writes them.
+enum class Variables : std::uint8_t {
+    none,
+    shell,  // $name, ${name}, $1, $@, $#, $?
+    make,   // $(NAME), ${NAME}, $@, $<, $^; $(function args): the function's name
+    cmake,  // ${NAME} (nested), $ENV{NAME}, $CACHE{NAME}; $<generator:expressions>
+};
+
 // Strings whose end is a delimiter of the string's own choosing, without escapes.
 enum class RawStrings : std::uint8_t {
     none,
@@ -30,7 +38,11 @@ struct Syntax {
     std::string_view block_open{};                      // "/*"; empty: none
     std::string_view block_close{};                     // "*/"
     bool nested_comments{false};                        // /* /* */ */ is one comment (Rust)
-    bool lua_long_brackets{false};        // --[==[ comments ]==] and [[ strings ]], any number of =
+    // Long brackets with any number of "=": after long_comment ("--" in Lua, "#" in CMake) a
+    // comment --[==[ ... ]==]; with long_strings, [[ ... ]] a string.
+    std::string_view long_comment{};
+    bool long_strings{false};
+    bool comment_at_word_start{false};    // # starts a comment only where a word could (shell)
     std::string_view quotes{};            // characters that open a string
     std::string_view multiline_quotes{};  // of those, the ones whose strings go on over lines
     bool triple_quotes{false};            // """ and ''' strings, over lines (Python)
@@ -46,12 +58,16 @@ struct Syntax {
     bool rust_attributes{false};   // #[attribute] and #![attribute]
     bool bang_macros{false};       // name! is a macro (Rust)
     bool lifetimes{false};         // 'a is a lifetime, 'a' a character (Rust)
+    Variables variables{Variables::none};
+    bool heredocs{false};      // <<EOF ... EOF, <<-'EOF': the lines in between a string (shell)
+    bool make_targets{false};  // target: at a line's start a function, NAME = a variable
     std::span<const std::string_view> keywords{};
     std::span<const std::string_view> types{};
     std::span<const std::string_view> constants{};
-    bool camel_case_types{false};                  // Registry, TextLayout: types
-    bool suffix_t_types{false};                    // size_t, uint32_t: types
-    std::optional<nordend::text::Style> capitals;  // NORDEND_VERSION: a macro (C), a constant
+    std::span<const std::string_view> functions{};   // builtins: echo, printf, cd
+    bool camel_case_types{false};                    // Registry, TextLayout: types
+    bool suffix_t_types{false};                      // size_t, uint32_t: types
+    std::optional<nordend::text::Style> capitals{};  // NORDEND_VERSION: a macro (C), a constant
 };
 
 struct Language {

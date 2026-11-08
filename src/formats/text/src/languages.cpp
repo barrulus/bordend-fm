@@ -218,7 +218,8 @@ constexpr auto kLuaConstants = std::to_array<std::string_view>({"false", "nil", 
 
 constexpr Syntax kLua{
     .line_comments = kDashComments,
-    .lua_long_brackets = true,
+    .long_comment = "--",
+    .long_strings = true,
     .quotes = "\"'`",
     .keywords = kLuaKeywords,
     .types = kLuaTypes,
@@ -232,6 +233,118 @@ constexpr std::array<std::string_view, 1> kLuaExtensions{".lua"};
 constexpr std::array<std::string_view, 2> kLuaInterpreters{"lua", "luajit"};
 constexpr std::array<std::string_view, 1> kLuauExtensions{".luau"};
 constexpr std::array<std::string_view, 1> kLuauInterpreters{"luau"};
+
+// ---------------------------------------------------------------------------------------------
+// Shell (sh, bash, zsh) and fish
+// ---------------------------------------------------------------------------------------------
+
+constexpr auto kShellKeywords = std::to_array<std::string_view>({
+    "case", "coproc", "do", "done", "elif", "else", "esac", "fi", "for", "function", "if", "in",
+    "select", "then", "time", "until", "while",
+});
+
+constexpr auto kShellBuiltins = std::to_array<std::string_view>({
+    "alias", "bg", "bind", "break", "builtin", "cd", "command", "continue", "declare", "echo",
+    "eval", "exec", "exit", "export", "fg", "getopts", "hash", "jobs", "kill", "let", "local",
+    "mapfile", "popd", "printf", "pushd", "pwd", "read", "readarray", "readonly", "return", "set",
+    "shift", "shopt", "source", "test", "trap", "type", "typeset", "ulimit", "umask", "unalias",
+    "unset", "wait",
+});
+
+constexpr auto kShellConstants = std::to_array<std::string_view>({"false", "true"});
+
+constexpr Syntax kShell{
+    .line_comments = kHashComments,
+    .comment_at_word_start = true,
+    .quotes = "\"'",
+    .multiline_quotes = "\"'",
+    .variables = Variables::shell,
+    .heredocs = true,
+    .keywords = kShellKeywords,
+    .constants = kShellConstants,
+    .functions = kShellBuiltins,
+};
+
+constexpr auto kFishKeywords = std::to_array<std::string_view>({
+    "and", "begin", "break", "case", "continue", "else", "end", "for", "function", "if", "in",
+    "not", "or", "return", "switch", "while",
+});
+
+constexpr auto kFishBuiltins = std::to_array<std::string_view>({
+    "abbr", "alias", "argparse", "bind", "builtin", "cd", "command", "commandline", "complete",
+    "contains", "count", "echo", "emit", "eval", "exec", "exit", "functions", "math", "printf",
+    "read", "set", "set_color", "source", "status", "string", "test", "type",
+});
+
+constexpr Syntax kFish{
+    .line_comments = kHashComments,
+    .comment_at_word_start = true,
+    .quotes = "\"'",
+    .multiline_quotes = "\"'",
+    .variables = Variables::shell,
+    .keywords = kFishKeywords,
+    .constants = kShellConstants,
+    .functions = kFishBuiltins,
+};
+
+constexpr std::array<std::string_view, 1> kShellMime{"application/x-shellscript"};
+constexpr std::array<std::string_view, 4> kShellExtensions{".sh", ".bash", ".zsh", ".ksh"};
+constexpr std::array<std::string_view, 12> kShellNames{
+    ".bashrc", ".bash_profile", ".bash_logout", ".bash_aliases", ".profile", ".zshrc",
+    ".zprofile", ".zshenv", ".envrc", "PKGBUILD", "APKBUILD", "template",
+};
+constexpr std::array<std::string_view, 8> kShellInterpreters{
+    "sh", "bash", "dash", "zsh", "ksh", "mksh", "ash", "busybox",
+};
+constexpr std::array<std::string_view, 1> kFishMime{"application/x-fishscript"};
+constexpr std::array<std::string_view, 1> kFishExtensions{".fish"};
+constexpr std::array<std::string_view, 1> kFishInterpreters{"fish"};
+
+// ---------------------------------------------------------------------------------------------
+// CMake and Makefiles
+// ---------------------------------------------------------------------------------------------
+
+constexpr auto kCMakeKeywords = std::to_array<std::string_view>({
+    "block", "break", "continue", "else", "elseif", "endblock", "endforeach", "endfunction",
+    "endif", "endmacro", "endwhile", "foreach", "function", "if", "macro", "return", "while",
+});
+
+constexpr auto kCMakeConstants = std::to_array<std::string_view>({
+    "FALSE", "IGNORE", "N", "NO", "NOTFOUND", "OFF", "ON", "TRUE", "Y", "YES",
+});
+
+constexpr Syntax kCMake{
+    .line_comments = kHashComments,
+    .long_comment = "#",
+    .long_strings = true,
+    .quotes = "\"",
+    .multiline_quotes = "\"",
+    .variables = Variables::cmake,
+    .keywords = kCMakeKeywords,
+    .constants = kCMakeConstants,
+    .capitals = Style::number,
+};
+
+constexpr auto kMakeKeywords = std::to_array<std::string_view>({
+    "-include", "define", "else", "endef", "endif", "export", "ifdef", "ifeq", "ifndef", "ifneq",
+    "include", "override", "private", "sinclude", "undefine", "unexport", "vpath",
+});
+
+constexpr Syntax kMake{
+    .line_comments = kHashComments,
+    .quotes = "\"'",
+    .variables = Variables::make,
+    .make_targets = true,
+    .keywords = kMakeKeywords,
+};
+
+constexpr std::array<std::string_view, 1> kCMakeMime{"text/x-cmake"};
+constexpr std::array<std::string_view, 1> kCMakeExtensions{".cmake"};
+constexpr std::array<std::string_view, 1> kCMakeNames{"CMakeLists.txt"};
+constexpr std::array<std::string_view, 1> kMakeMime{"text/x-makefile"};
+constexpr std::array<std::string_view, 2> kMakeExtensions{".mk", ".mak"};
+constexpr std::array<std::string_view, 3> kMakeNames{"Makefile", "makefile", "GNUmakefile"};
+constexpr std::array<std::string_view, 1> kMakeInterpreters{"make"};
 
 // clang-format on
 
@@ -260,6 +373,28 @@ constexpr std::array kLanguages{
              .extensions = kLuauExtensions,
              .interpreters = kLuauInterpreters,
              .syntax = &kLua},
+    Language{.name = "Shell",
+             .mime = kShellMime,
+             .extensions = kShellExtensions,
+             .file_names = kShellNames,
+             .interpreters = kShellInterpreters,
+             .syntax = &kShell},
+    Language{.name = "fish",
+             .mime = kFishMime,
+             .extensions = kFishExtensions,
+             .interpreters = kFishInterpreters,
+             .syntax = &kFish},
+    Language{.name = "CMake",
+             .mime = kCMakeMime,
+             .extensions = kCMakeExtensions,
+             .file_names = kCMakeNames,
+             .syntax = &kCMake},
+    Language{.name = "Makefile",
+             .mime = kMakeMime,
+             .extensions = kMakeExtensions,
+             .file_names = kMakeNames,
+             .interpreters = kMakeInterpreters,
+             .syntax = &kMake},
 };
 
 }  // namespace
