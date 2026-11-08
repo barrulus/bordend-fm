@@ -128,8 +128,9 @@ TEST_CASE("dng: sensor data of real DNGs as LibRaw reads it" *
 
 // Developed plainly (no look) and set beside LibRaw's development of the same file: half size,
 // the camera's white balance, the file's matrix, sRGB, no automatic brightness, highlights
-// clipped. Measured 2026-11-07 on the six samples: mean difference 0.1 to 1.7 levels of 255, at
-// worst 14 in one cell (crops differ by a few pixels).
+// clipped, no opcodes (LibRaw applies none of list 3, the DJI's gain map and warp). Measured
+// 2026-11-07 on the six samples: mean difference 0.1 to 1.7 levels of 255, at worst 14 in one
+// cell (crops differ by a few pixels).
 TEST_CASE("dng: developed as LibRaw develops it" *
           doctest::skip(kSamples.empty() || !fs::is_directory(kSamples))) {
     const std::vector<fs::path> files = dngs();
@@ -146,7 +147,7 @@ TEST_CASE("dng: developed as LibRaw develops it" *
         std::string error;
         image::Problem problem{};
         const std::optional<dng::Developed> ours =
-            dng::develop(got(container), {.look = false}, error, problem);
+            dng::develop(got(container), {.look = false, .opcodes = false}, error, problem);
         ::close(fd);
         REQUIRE_MESSAGE(ours.has_value(), error);
 

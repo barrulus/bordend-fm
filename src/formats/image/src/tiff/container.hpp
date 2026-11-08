@@ -201,6 +201,9 @@ inline constexpr std::uint16_t kActiveArea = 50829;
 inline constexpr std::uint16_t kProfileToneCurve = 50940;
 inline constexpr std::uint16_t kForwardMatrix1 = 50964;
 inline constexpr std::uint16_t kForwardMatrix2 = 50965;
+inline constexpr std::uint16_t kOpcodeList1 = 51008;
+inline constexpr std::uint16_t kOpcodeList2 = 51009;
+inline constexpr std::uint16_t kOpcodeList3 = 51022;
 inline constexpr std::uint16_t kBaselineExposureOffset = 51109;
 }  // namespace tag
 

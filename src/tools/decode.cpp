@@ -8,7 +8,8 @@
 // last image decoded, over a mid gray where it is transparent, to look at it (magick OUT.ppm
 // OUT.png). A camera raw shows what Nordend shows of it (image::load, unscaled: its largest
 // preview), not the first image of its TIFF structure. --raw also reads a DNG's sensor data
-// (ROADMAP 2d), prints its time and the development's, and writes the last one read as a 16-bit
+// (ROADMAP 2d), prints its time and the development's (half size and in a 2560x1440 box, with
+// and without the file's opcodes), and writes the last one read as a 16-bit
 // PGM (CFA) or PPM (linear raw) of the stored values.
 #include "nordend/formats/image/decode.hpp"
 
@@ -121,23 +122,40 @@ bool read_sensor(const char* arg, int fd, int runs, std::vector<std::uint16_t>& 
         arg, raw->width, raw->height, megapixels, raw->cfa ? "CFA" : "linear raw", raw->samples,
         raw->bits, static_cast<unsigned long long>(raw->compression), median,
         megapixels / (median / 1000.0));
-    // The development alone (sensor read included), as load() would do it.
-    times.clear();
-    std::optional<image::dng::Developed> developed;
-    for (int run = 0; run < runs; ++run) {
-        const auto start = Clock::now();
-        developed = image::dng::develop(*container, {}, error, problem);
-        times.push_back(ms_since(start));
-    }
-    if (times.size() > 1) {
-        times.erase(times.begin());
-    }
-    std::ranges::sort(times);
-    if (developed) {
-        std::printf("%s: developed %ux%u in %.1f ms (sensor read included)\n", arg,
-                    developed->image.width, developed->image.height, times[times.size() / 2]);
-    } else {
-        std::printf("%s: not developed: %s\n", arg, error.c_str());
+
+    // The development alone (sensor read included): at half size and into a 2560x1440 box (Quick
+    // Look on a 1440p screen), with the file's opcodes and without them.
+    struct Run {
+        const char* what{nullptr};
+        image::dng::DevelopOptions options;
+    };
+
+    const std::array<Run, 4> developments{{
+        {"half size", {}},
+        {"half size, no opcodes", {.opcodes = false}},
+        {"2560x1440 box", {.max_width = 2560, .max_height = 1440}},
+        {"2560x1440 box, no opcodes", {.opcodes = false, .max_width = 2560, .max_height = 1440}},
+    }};
+    for (const Run& development : developments) {
+        times.clear();
+        std::optional<image::dng::Developed> developed;
+        for (int run = 0; run < runs; ++run) {
+            const auto start = Clock::now();
+            developed = image::dng::develop(*container, development.options, error, problem);
+            times.push_back(ms_since(start));
+        }
+        if (times.size() > 1) {
+            times.erase(times.begin());
+        }
+        std::ranges::sort(times);
+        if (developed) {
+            std::printf("%s: developed (%s) %ux%u in %.1f ms (sensor read included)\n", arg,
+                        development.what, developed->image.width, developed->image.height,
+                        times[times.size() / 2]);
+        } else {
+            std::printf("%s: not developed: %s\n", arg, error.c_str());
+            break;
+        }
     }
     width = raw->width;
     height = raw->height;

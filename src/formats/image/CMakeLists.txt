@@ -6,6 +6,7 @@ add_library(nordend_formats_image
     src/dng/colour.cpp
     src/dng/develop.cpp
     src/dng/ljpeg.cpp
+    src/dng/opcodes.cpp
     src/dng/raw.cpp
     src/fd_file.cpp
     src/jpeg_segments.cpp

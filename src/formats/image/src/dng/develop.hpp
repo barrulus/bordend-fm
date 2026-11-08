@@ -5,8 +5,8 @@
 // demosaic artefacts; averaged by area to the size it will be shown at), black and
 // white levels, white balance on the camera's neutral with clipped highlights kept white, the
 // file's colour (colour.hpp) to sRGB, BaselineExposure, ProfileToneCurve or a light curve of ours,
-// the default crop. Rows come two at a time from the sensor's bands: the sensor is never whole in
-// memory.
+// the default crop, the file's gain maps and lens warp (opcodes.hpp, 2d-4). Rows come two at a
+// time from the sensor's bands: the sensor is never whole in memory.
 
 #include <cstdint>
 #include <optional>
@@ -21,6 +21,9 @@ struct DevelopOptions {
     // The look (exposure and tone curve); false gives plain sRGB of the scene's colours (the
     // tests compare that with LibRaw's).
     bool look{true};
+    // The file's opcodes (gain maps, lens warp); false leaves them out (LibRaw does too, so the
+    // tests comparing with it do).
+    bool opcodes{true};
     // The box the picture will be shown in (0: none): the half-resolution picture is averaged by
     // area to fit in it (as picture::scale_to_fit would, but on linear light), so that the colour
     // is worked out only for the pixels that will be shown.

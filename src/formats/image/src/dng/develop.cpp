@@ -4,14 +4,19 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <span>
 #include <vector>
 
 #include "colour.hpp"
+#include "opcodes.hpp"
 #include "raw.hpp"
 
 #if defined(__SSE__)
 #  include <xmmintrin.h>
+#endif
+#if defined(__SSE2__)
+#  include <emmintrin.h>
 #endif
 
 namespace nordend::formats::image::dng {
@@ -125,7 +130,10 @@ std::vector<Share> shares(std::uint32_t blocks, std::uint32_t outputs) {
     std::vector<Share> out(blocks);
     const double ratio = static_cast<double>(blocks) / static_cast<double>(outputs);
     for (std::uint32_t i = 0; i < blocks; ++i) {
-        const auto to = std::min(outputs - 1, static_cast<std::uint32_t>(i / ratio));
+        auto to = std::min(outputs - 1, static_cast<std::uint32_t>(i / ratio));
+        if (to + 1 < outputs && (to + 1) * ratio <= i) {
+            ++to;  // i / ratio came out just under the output where block i starts
+        }
         double first = std::min(1.0, ((to + 1) * ratio) - i);
         if (to + 1 >= outputs || first <= 0.0) {
             first = 1.0;
@@ -141,6 +149,210 @@ bool fail(std::string& error, Problem& problem, Problem kind, std::string why) {
     error = std::move(why);
     problem = kind;
     return false;
+}
+
+// The gain maps' gains for the output pixels, a row at a time. The maps are smooth (a few dozen
+// points across thousands of pixels) and the averaging by area is linear, so they are applied
+// to the averaged values: where each output column falls in a map's grid is found once, and for
+// each output row the grid is interpolated down to it, then across.
+class Shading {
+public:
+    // A slot of a pixel's gains: 0-3 a site of the 2x2 block (gain maps before demosaic on a
+    // colour filter array), 4-6 a colour.
+    static constexpr std::size_t kColour = 4;
+
+    // columns: each output column's centre in the image's pixels; size: the image's.
+    Shading(std::vector<double> columns, double image_width, double image_height)
+        : columns_{std::move(columns)},
+          width_{image_width},
+          height_{image_height},
+          sites_(columns_.size() * 4) {}
+
+    // map multiplying, in each output pixel, the gain of slot by its map plane map_plane.
+    void add(const GainMap& map, std::vector<std::array<std::uint32_t, 2>> targets) {
+        if (targets.empty()) {
+            return;
+        }
+        Use use{.map = &map,
+                .targets = std::move(targets),
+                .first = {},
+                .fraction = {},
+                .inside = {},
+                .row = {}};
+        for (const double x : columns_) {
+            const GainMap::Step step = map.step_h(x / width_);
+            use.first.push_back(step.first);
+            use.fraction.push_back(static_cast<float>(step.fraction));
+            use.inside.push_back(x >= map.area[1] && x < map.area[3] ? 1 : 0);
+        }
+        use.row.resize(use.targets.size() * (std::size_t{map.points_h} + 1));
+        for (const auto& [slot, plane] : use.targets) {
+            has_sites_ = has_sites_ || slot < kColour;
+        }
+        uses_.push_back(std::move(use));
+    }
+
+    [[nodiscard]] bool empty() const { return uses_.empty(); }
+
+    // The gains of the output row whose centre is at y in the image's pixels, three a pixel
+    // (red, green, blue); sites give a colour's gain the way the block's sites make its value
+    // (one red, two greens averaged, one blue).
+    void row(double y, std::span<float> gains, std::size_t red_site,
+             std::array<std::size_t, 2> green_sites, std::size_t blue_site) {
+        std::ranges::fill(gains, 1.0F);
+        std::ranges::fill(sites_, 1.0F);
+        for (Use& use : uses_) {
+            const GainMap& map = *use.map;
+            if (y < map.area[0] || y >= map.area[2]) {
+                continue;
+            }
+            const GainMap::Step down = map.step_v(y / height_);
+            const std::uint32_t next = std::min(down.first + 1, map.points_v - 1);
+            const std::size_t stride = std::size_t{map.points_h} + 1;
+            for (std::size_t t = 0; t < use.targets.size(); ++t) {
+                const std::uint32_t plane = use.targets[t][1];
+                float* values = use.row.data() + (t * stride);
+                for (std::uint32_t j = 0; j < map.points_h; ++j) {
+                    const float upper = map.gain(down.first, j, plane);
+                    values[j] = upper + ((map.gain(next, j, plane) - upper) *
+                                         static_cast<float>(down.fraction));
+                }
+                values[map.points_h] = values[map.points_h - 1];  // the last point's next
+            }
+            for (std::size_t t = 0; t < use.targets.size(); ++t) {
+                const float* values = use.row.data() + (t * stride);
+                const std::size_t slot = use.targets[t][0];
+                float* to = slot < kColour ? sites_.data() + slot : gains.data() + slot - kColour;
+                const std::size_t step = slot < kColour ? 4 : 3;
+                for (std::size_t x = 0; x < columns_.size(); ++x, to += step) {
+                    const float* at = values + use.first[x];
+                    const float gain = at[0] + ((at[1] - at[0]) * use.fraction[x]);
+                    *to *= use.inside[x] != 0 ? gain : 1.0F;
+                }
+            }
+        }
+        if (has_sites_) {
+            for (std::size_t x = 0; x < columns_.size(); ++x) {
+                const float* site = sites_.data() + (x * 4);
+                gains[x * 3] *= site[red_site];
+                gains[(x * 3) + 1] *= (site[green_sites[0]] + site[green_sites[1]]) * 0.5F;
+                gains[(x * 3) + 2] *= site[blue_site];
+            }
+        }
+    }
+
+private:
+    struct Use {
+        const GainMap* map;
+        std::vector<std::array<std::uint32_t, 2>> targets;  // slot, map plane
+        std::vector<std::uint32_t> first;                   // for each output column
+        std::vector<float> fraction;
+        std::vector<std::uint8_t> inside;
+        std::vector<float> row;  // each target's points_h values at the row, and the last again
+    };
+
+    std::vector<double> columns_;
+    double width_;
+    double height_;
+    std::vector<float> sites_;
+    bool has_sites_{false};
+    std::vector<Use> uses_;
+};
+
+// The picture moved by the lens warp, sampled between the four nearest pixels (the edge pixels
+// beyond the picture). The picture shows the image's area from (left, top), scale image pixels
+// a picture pixel across and down. The warp is smooth: where a pixel comes from is worked out
+// every 16 pixels of a row and in between along a line (off by far less than a pixel).
+// Two rows' pixels at p and p + 4 (above) and q and q + 4 (below) mixed, with weights of
+// 1/256: ay of the row below, ax of the right-hand pixel. Opaque.
+inline std::uint32_t bilinear(const std::uint8_t* p, const std::uint8_t* q, std::uint32_t ax,
+                              std::uint32_t ay) {
+#if defined(__SSE2__)
+    // Both pixels of a row at once, a colour in each 16-bit lane: every product fits (255 x 256).
+    // NOLINTBEGIN(portability-simd-intrinsics,cppcoreguidelines-pro-type-reinterpret-cast)
+    const __m128i zero = _mm_setzero_si128();
+    const __m128i half = _mm_set1_epi16(128);
+    const __m128i upper =
+        _mm_unpacklo_epi8(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(p)), zero);
+    const __m128i lower =
+        _mm_unpacklo_epi8(_mm_loadl_epi64(reinterpret_cast<const __m128i*>(q)), zero);
+    __m128i v = _mm_add_epi16(
+        _mm_add_epi16(_mm_mullo_epi16(upper, _mm_set1_epi16(static_cast<std::int16_t>(256 - ay))),
+                      _mm_mullo_epi16(lower, _mm_set1_epi16(static_cast<std::int16_t>(ay)))),
+        half);
+    v = _mm_srli_epi16(v, 8);
+    __m128i h = _mm_add_epi16(
+        _mm_add_epi16(
+            _mm_mullo_epi16(v, _mm_set1_epi16(static_cast<std::int16_t>(256 - ax))),
+            _mm_mullo_epi16(_mm_srli_si128(v, 8), _mm_set1_epi16(static_cast<std::int16_t>(ax)))),
+        half);
+    h = _mm_srli_epi16(h, 8);
+    return static_cast<std::uint32_t>(_mm_cvtsi128_si32(_mm_packus_epi16(h, zero))) | 0xFF000000U;
+    // NOLINTEND(portability-simd-intrinsics,cppcoreguidelines-pro-type-reinterpret-cast)
+#else
+    std::uint32_t out = 0xFF000000U;
+    for (std::uint32_t c = 0; c < 3; ++c) {
+        const std::uint32_t upper = (((p[c] * (256 - ax)) + (p[c + 4] * ax) + 128) >> 8U);
+        const std::uint32_t lower = (((q[c] * (256 - ax)) + (q[c + 4] * ax) + 128) >> 8U);
+        out |= (((upper * (256 - ay)) + (lower * ay) + 128) >> 8U) << (8 * c);
+    }
+    return out;
+#endif
+}
+
+// The picture moved by the lens warp, sampled between the four nearest pixels (the edge pixels
+// beyond the picture). The picture shows the image's area from (left, top), scale image pixels
+// a picture pixel across and down. The warp is smooth: where a pixel comes from is worked out
+// every 16 pixels of a row and in between along a line (off by far less than a pixel).
+void apply_warp(picture::Image& picture, const WarpMap& map, double left, double top,
+                double scale_x, double scale_y) {
+    constexpr std::uint32_t knot = 16;
+    const std::uint32_t width = picture.width;
+    const std::uint32_t height = picture.height;
+    if (width < 2 || height < 2) {
+        return;
+    }
+    std::vector<std::uint8_t> out(picture.rgba.size());
+    const std::uint8_t* in = picture.rgba.data();
+    const std::size_t row_bytes = std::size_t{width} * 4;
+    // Positions in 1/256 of a pixel, up to the last pixel less 1/256: the four pixels mixed are
+    // always in the picture (the last one weighs 255/256 there).
+    constexpr float steps = 256.0F;
+    const float last_x = (static_cast<float>(width - 1) * steps) - 1.0F;
+    const float last_y = (static_cast<float>(height - 1) * steps) - 1.0F;
+    // Where the knots of a row come from, in 1/256 of a picture pixel (centres at whole
+    // pixels): every knot pixels, the last one at or past the row's end.
+    const std::uint32_t knots = ((width - 1) / knot) + 2;
+    std::vector<float> from_x(knots);
+    std::vector<float> from_y(knots);
+    std::uint8_t* pixel = out.data();
+    for (std::uint32_t y = 0; y < height; ++y) {
+        const double image_y = top + ((y + 0.5) * scale_y);
+        for (std::uint32_t k = 0; k < knots; ++k) {
+            const double x = k * knot;
+            const std::array<double, 2> from = map.source(left + ((x + 0.5) * scale_x), image_y);
+            from_x[k] = static_cast<float>((((from[0] - left) / scale_x) - 0.5) *
+                                           static_cast<double>(steps));
+            from_y[k] = static_cast<float>((((from[1] - top) / scale_y) - 0.5) *
+                                           static_cast<double>(steps));
+        }
+        for (std::uint32_t k = 0, x = 0; x < width; ++k) {
+            const std::uint32_t span = std::min(knot, width - x);
+            const float step_x = (from_x[k + 1] - from_x[k]) / static_cast<float>(knot);
+            const float step_y = (from_y[k + 1] - from_y[k]) / static_cast<float>(knot);
+            float fx = from_x[k];
+            float fy = from_y[k];
+            for (std::uint32_t i = 0; i < span; ++i, ++x, pixel += 4, fx += step_x, fy += step_y) {
+                // NaN and below 0 to 0, beyond the end to its last step.
+                const auto px = static_cast<std::uint32_t>(fx >= 0.0F ? smaller(fx, last_x) : 0.0F);
+                const auto py = static_cast<std::uint32_t>(fy >= 0.0F ? smaller(fy, last_y) : 0.0F);
+                const std::uint8_t* p = in + ((py >> 8U) * row_bytes) + (std::size_t{px >> 8U} * 4);
+                const std::uint32_t mixed = bilinear(p, p + row_bytes, px & 255U, py & 255U);
+                std::memcpy(pixel, &mixed, 4);
+            }
+        }
+    }
+    picture.rgba = std::move(out);
 }
 
 }  // namespace
@@ -179,6 +391,15 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
     if (!colour) {
         problem = Problem::unknown_format;
         return std::nullopt;
+    }
+    Opcodes opcodes;
+    if (options.opcodes) {
+        std::optional<Opcodes> read = read_opcodes(raw.ifd, error);
+        if (!read) {
+            problem = Problem::unknown_format;
+            return std::nullopt;
+        }
+        opcodes = std::move(*read);
     }
 
     // The default crop from an even offset in the active area (so that the pattern's phase is
@@ -281,6 +502,63 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
         }
     }
     const auto white = static_cast<float>(raw.white[0]);
+
+    // The gain maps, in the active area's pixels (the image the opcodes work on). On a colour
+    // filter array, those before demosaic go to the block's sites they cover: every one, or one
+    // on a pitch of 2 (the blocks start on even rows and columns of the active area).
+    const double image_width = raw.active[3] - raw.active[1];
+    const double image_height = raw.active[2] - raw.active[0];
+    const double left_edge = x0 - left;  // of the crop, in the image
+    const double top_edge = y0 - top;
+    const double scale_x = 2.0 * blocks_across / width;  // image pixels an output pixel across
+    const double scale_y = 2.0 * blocks_down / height;
+    std::vector<double> column_centres(width);
+    for (std::uint32_t x = 0; x < width; ++x) {
+        column_centres[x] = left_edge + ((x + 0.5) * scale_x);
+    }
+    Shading shading{std::move(column_centres), image_width, image_height};
+    const auto colours_of = [](const GainMap& map) {
+        std::vector<std::array<std::uint32_t, 2>> targets;
+        for (std::uint32_t c = map.plane; c < 3 && c - map.plane < map.planes; ++c) {
+            targets.push_back({static_cast<std::uint32_t>(Shading::kColour) + c, c - map.plane});
+        }
+        return targets;
+    };
+    for (const GainMap& map : opcodes.before_demosaic) {
+        if (!raw.cfa) {
+            if (map.row_pitch != 1 || map.column_pitch != 1) {
+                fail(error, problem, Problem::unknown_format,
+                     "a linear DNG with a GainMap on a pitch");
+                return std::nullopt;
+            }
+            shading.add(map, colours_of(map));
+            continue;
+        }
+        if (map.row_pitch > 2 || map.column_pitch > 2) {
+            fail(error, problem, Problem::unknown_format,
+                 "a DNG with a GainMap on a pitch of more than 2");
+            return std::nullopt;
+        }
+        std::vector<std::array<std::uint32_t, 2>> targets;
+        for (std::uint32_t site = 0; map.plane == 0 && site < 4; ++site) {
+            const std::uint32_t row = y0 - top + (site / 2);
+            const std::uint32_t column = x0 - left + (site % 2);
+            if ((row % 2 == map.area[0] % 2 || map.row_pitch == 1) &&
+                (column % 2 == map.area[1] % 2 || map.column_pitch == 1)) {
+                targets.push_back({site, 0});
+            }
+        }
+        shading.add(map, std::move(targets));
+    }
+    for (const GainMap& map : opcodes.after_demosaic) {
+        if (map.row_pitch != 1 || map.column_pitch != 1) {
+            fail(error, problem, Problem::unknown_format,
+                 "a DNG with a GainMap on a pitch after demosaic");
+            return std::nullopt;
+        }
+        shading.add(map, colours_of(map));
+    }
+    std::vector<float> row_gains(std::size_t{width} * 3, 1.0F);
     const std::vector<float> delta_h(raw.black_delta_h.begin(), raw.black_delta_h.end());
     const std::vector<float> delta_v(raw.black_delta_v.begin(), raw.black_delta_v.end());
 
@@ -386,10 +664,15 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
     const auto finish_row = [&](std::uint32_t y) {
         std::uint8_t* pixel = out.image.rgba.data() + (std::size_t{y} * width * 4);
         float* sum = same_size ? sums.data() : open.at(y % 2).data();
-        for (std::uint32_t x = 0; x < width; ++x, pixel += 4, sum += 3) {
-            const float red = within(sum[0] * factor[0], 0.0F, 1.0F);
-            const float green = within(sum[1] * factor[1], 0.0F, 1.0F);
-            const float blue = within(sum[2] * factor[2], 0.0F, 1.0F);
+        if (!shading.empty()) {
+            shading.row(top_edge + ((y + 0.5) * scale_y), row_gains, red_site, green_sites,
+                        blue_site);
+        }
+        const float* shade = row_gains.data();
+        for (std::uint32_t x = 0; x < width; ++x, pixel += 4, sum += 3, shade += 3) {
+            const float red = within(sum[0] * factor[0] * shade[0], 0.0F, 1.0F);
+            const float green = within(sum[1] * factor[1] * shade[1], 0.0F, 1.0F);
+            const float blue = within(sum[2] * factor[2] * shade[2], 0.0F, 1.0F);
             sum[0] = 0.0F;
             sum[1] = 0.0F;
             sum[2] = 0.0F;
@@ -487,6 +770,10 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
         }
         problem = Problem::damaged;
         return std::nullopt;
+    }
+    if (opcodes.warp) {
+        apply_warp(out.image, WarpMap{*opcodes.warp, image_width, image_height}, left_edge,
+                   top_edge, scale_x, scale_y);
     }
     problem = Problem::none;
     return out;

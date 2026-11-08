@@ -84,7 +84,9 @@ README's [What's next](../README.md#whats-next).
   converter) is developed by Nordend's own reader instead: lossless JPEG or uncompressed sensor
   data (8-16 bit, strips or tiles, linear raw too), black and white levels, the camera's white
   balance with highlights kept white, the file's colour matrices for the shot's light, its
-  baseline exposure and tone curve (else a light curve of Nordend's), the default crop, at half
+  baseline exposure and tone curve (else a light curve of Nordend's), the default crop, the
+  file's corrections (gain maps for vignetting and colour shading, the lens warp: a DJI drone's
+  corners no longer dark; a correction Nordend does not apply keeps the preview), at half
   size or smaller, straight to the size shown; in Quick Look in about 105 ms (Canon) to 260 ms
   (M240 at 2560x1440). Each is shown upright, in the shape it
   was shot, without the black bars some cameras put on their thumbnails; a preview the camera

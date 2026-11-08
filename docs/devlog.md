@@ -4,6 +4,53 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — DNG opcodes: gain maps and lens warp (ROADMAP 2d-4)
+
+**Tested by the author** (2026-11-08, installed build, fresh cache): test plan passed (DJI's
+corners as bright as the rest, no lines, straight shores; the other DNGs as before);
+`nordend-decode`: DJI in a 2560x1440 box 109.1 ms without opcodes, 141.0 ms with them.
+
+**Done**
+- `src/formats/image/src/dng/opcodes.{hpp,cpp}`: OpcodeList1/2/3 read big-endian (whatever the
+  file's order), sizes and values checked before allocating (grids up to 2^20 points, gains
+  0-16, finite numbers). `GainMap` in lists 2 and 3 (maps of ones dropped), `WarpRectilinear` in
+  list 3 (green's coefficients when there are three planes: the planes differ by under half a
+  pixel at the sizes developed). FixBadPixelsConstant/List skipped (a site is averaged with
+  three others at least); opcodes flagged optional or skippable for previews skipped; anything
+  else the file requires (or a gain map after the warp, or on a pitch other than 1 or 2) stops
+  the development and `load()` shows the previews, as the DNG specification asks.
+- `develop()`: gain maps applied to the averaged values per output pixel (the maps are smooth
+  and the averaging linear): list 3 per colour; list 2 per site of the 2x2 block (pitch 2 picks
+  one site: red, blue, or one green whose gain is averaged with the other's). The warp is a last
+  pass over the developed picture (bilinear, SSE2 with a portable fallback).
+  `DevelopOptions::opcodes` (default on) lets the LibRaw comparison leave them out (LibRaw
+  applies none of list 3).
+- `nordend-decode --raw` times the development at half size and in a 2560x1440 box, with and
+  without opcodes. Fuzz seeds with every opcode shape (`cfa16-opcodes`, `linear-opcodes`).
+- **Fixed, a slip of mine in 2d-3** (`719a942`, seen in this step's Quick Look snapshot): thin
+  lines across a developed DNG reduced to fit (the DJI in Quick Look: pairs of lines a few
+  hundred pixels apart, both ways). `shares()` worked out the output pixel a block starts in as
+  `i / ratio`, which in doubles can come out just under an output's edge (block 1025 of 4000 into
+  1920: just under 492); that block then went whole into the pixel before, one pixel too bright
+  and the next too dark. Now moved on to the right pixel; checked for every size up to 600
+  blocks (every output gets exactly its share), and a test (18 blocks into 14).
+- Fixed too (the author's OK): a DNG with DefaultCropSize but no DefaultCropOrigin (or the other
+  way round) lost its crop; the missing one now takes the specification's default (origin 0, 0;
+  size the rest of the area). None of the samples is affected (all have both).
+
+**Measured** (`docs/benchmarks.md`): DJI in a 2560x1440 box 108.6 -> about 137 ms (gain map
+about 8, warp about 18); the other samples unchanged (the S22's four maps are all ones).
+Fuzzing an hour on 4 processes with the new seeds: `nordend-fuzz-dng` 70.5 million inputs, no
+crash, timeout or out-of-memory. Tests green in `build`, `build-asan`, `build-tsan`.
+
+**Decisions** (with the author): unknown required opcodes fall back to the preview; bad pixel
+fixes are skipped.
+
+**Open**: the warp's geometry checked by tests and by the author's eye only (the DJI's preview
+is framed differently).
+
+---
+
 ## 2026-11-07 — DNG fuzzing and timings (ROADMAP 2d-3)
 
 **Tested by the author** (2026-11-07, installed build, fresh cache): "funziona tutto". In his

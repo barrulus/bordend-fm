@@ -93,6 +93,40 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## DNG opcodes: gain maps and lens warp (ROADMAP 2d-4)
+
+### 2026-11-08
+
+`nordend-decode --runs 9 --raw` (median of 8 runs after the first, one process, sensor read
+included), with the file's opcodes and without (`DevelopOptions::opcodes`):
+
+| File | Opcodes | 2560x1440 box | Half size |
+|---|---|---|---|
+| DJI FC3170 | GainMap 32x32x3 + WarpRectilinear (list 3) | 108.6 -> 135.8-139.8 ms | 243.8 -> 384.9 ms |
+| Samsung S22 | 4 GainMaps of ones (list 2): dropped | 295 ms, unchanged | |
+| Canon, M240, M8, GX20 | none | unchanged | |
+
+Of the DJI's 27-31 ms in the box: the gain map about 8 ms (interpolated once a row along the
+grid, then a multiply a colour), the warp about 18 ms (a 1920x1440 RGBA pass: where each pixel
+comes from worked out every 16 pixels and on a line between, bilinear in 16-bit lanes with
+SSE2). How the warp got there (a standalone copy of the function, 1920x1440): per-pixel
+polynomial in doubles and `lround` 100 ms; knots every 16 pixels 45 ms; whole RGBA words mixed
+as two 16-bit pairs 30 ms (no better: the multiplies, not the memory: nearest pixel only 8.6 ms,
+the 11 MB new buffer included); SSE2 18 ms.
+
+Quick Look (offscreen snapshot, helpers caged, 2560x1440, three runs): DJI 207-227 ms (2d-3:
+169-187).
+
+Fuzzing (`build-fuzz`, an hour, 4 processes, seeds with every opcode shape):
+`nordend-fuzz-dng` 70.5 million inputs (about 19 500 a second); no crash, timeout or
+out-of-memory.
+
+Checked by eye against the DJI's own embedded rendering (960x720): the gain map lifts the
+corners by up to 2.57 times (1.4 stops) and matches it; the warp moves the corners by under 4 %
+(about 3 px of 800 halfway to a corner), which the preview cannot confirm (it is framed about 9
+px differently all over); the warp's formula is checked by tests (twice the size from the
+centre).
+
 ## DNG development made quicker (ROADMAP 2d-3)
 
 ### 2026-11-07

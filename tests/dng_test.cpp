@@ -1,7 +1,9 @@
 // DNG sensor data (ROADMAP 2d-1): the lossless JPEG decoder against libjpeg-turbo's, and DNGs
-// built here (strips, tiles, packed depths, linearization, levels, damage).
+// built here (strips, tiles, packed depths, linearization, levels, damage); their development
+// (2d-2) and opcodes (2d-4).
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -19,6 +21,7 @@
 #include "dng/colour.hpp"
 #include "dng/develop.hpp"
 #include "dng/ljpeg.hpp"
+#include "dng/opcodes.hpp"
 #include "dng/raw.hpp"
 #include "nordend/formats/image/load.hpp"
 #include "temp_dir.hpp"
@@ -853,6 +856,23 @@ TEST_CASE("dng: developed at half size, levels, balance and crop") {
         CHECK(developed.full_height == 22);
         CHECK(all_of(developed.image, 118, 118, 118));
     }
+    SUBCASE("a default crop with only its size, or only its origin (the other as by default)") {
+        const dng::Developed sized = got(develop_file(
+            make_dng({sensor(grey)},
+                     sensor_fields({W::rationals(tag::kDefaultCropSize, {{36, 1}, {26, 1}})}),
+                     false, camera_fields(0.5, 0.25)),
+            {.look = false}, error));
+        CHECK(sized.full_width == 36);
+        CHECK(sized.full_height == 26);
+        const dng::Developed placed = got(develop_file(
+            make_dng({sensor(grey)},
+                     sensor_fields({W::rationals(tag::kDefaultCropOrigin, {{4, 1}, {2, 1}})}),
+                     false, camera_fields(0.5, 0.25)),
+            {.look = false}, error));
+        CHECK(placed.full_width == 36);
+        CHECK(placed.full_height == 28);
+        CHECK(all_of(placed.image, 118, 118, 118));
+    }
     SUBCASE("for a small box, averaged by area to fit it") {
         // 20x15 at half size into 10x5: a third, 7x5 (as scale_to_fit would make it).
         const dng::Developed developed = got(
@@ -860,6 +880,19 @@ TEST_CASE("dng: developed at half size, levels, balance and crop") {
                          {.look = false, .max_width = 10, .max_height = 5}, error));
         CHECK(developed.image.width == 7);
         CHECK(developed.image.height == 5);
+        CHECK(all_of(developed.image, 118, 118, 118));
+    }
+    SUBCASE("averaged by area where a block starts right on an output pixel's edge") {
+        // 18 blocks into 14: block 9 starts where output 7 does, but 9 / (18 / 14) comes out
+        // just under 7 in doubles; it once went whole into output 6 (a line of pixels too bright
+        // and one too dark, as across a DJI's 4000 blocks into 1920).
+        const dng::Developed developed = got(develop_file(
+            make_dng({sensor(grey)},
+                     sensor_fields({W::rationals(tag::kDefaultCropOrigin, {{0, 1}, {0, 1}}),
+                                    W::rationals(tag::kDefaultCropSize, {{36, 1}, {30, 1}})}),
+                     false, camera_fields(0.5, 0.25)),
+            {.look = false, .max_width = 14, .max_height = 100}, error));
+        CHECK(developed.image.width == 14);
         CHECK(all_of(developed.image, 118, 118, 118));
     }
     SUBCASE("not developed: no colour, or a pattern other than Bayer") {
@@ -901,4 +934,326 @@ TEST_CASE("dng: load() develops a DNG whose previews are too small") {
     CHECK(small.failure == image::Failure::none);
     CHECK(small.from_preview);
     CHECK(small.image.width == 16);
+}
+
+namespace {
+
+// Opcode lists as a DNG stores them: big-endian whatever the file's byte order.
+class ListWriter {
+public:
+    static void u32(std::vector<std::uint8_t>& to, std::uint32_t v) {
+        for (int shift = 24; shift >= 0; shift -= 8) {
+            to.push_back(static_cast<std::uint8_t>(v >> shift));
+        }
+    }
+
+    static void f64(std::vector<std::uint8_t>& to, double v) {
+        const auto bits = std::bit_cast<std::uint64_t>(v);
+        u32(to, static_cast<std::uint32_t>(bits >> 32));
+        u32(to, static_cast<std::uint32_t>(bits));
+    }
+
+    static void f32(std::vector<std::uint8_t>& to, float v) {
+        u32(to, std::bit_cast<std::uint32_t>(v));
+    }
+
+    ListWriter& add(std::uint32_t id, std::uint32_t flags, const std::vector<std::uint8_t>& body) {
+        u32(ops_, id);
+        u32(ops_, 0x01030000);
+        u32(ops_, flags);
+        u32(ops_, static_cast<std::uint32_t>(body.size()));
+        ops_.insert(ops_.end(), body.begin(), body.end());
+        ++count_;
+        return *this;
+    }
+
+    [[nodiscard]] std::vector<std::uint8_t> bytes() const {
+        std::vector<std::uint8_t> out;
+        u32(out, count_);
+        out.insert(out.end(), ops_.begin(), ops_.end());
+        return out;
+    }
+
+private:
+    std::vector<std::uint8_t> ops_;
+    std::uint32_t count_{0};
+};
+
+constexpr std::uint32_t kGainMapId = 9;
+constexpr std::uint32_t kWarpId = 1;
+
+struct GainMapSpec {
+    std::array<std::uint32_t, 4> area{0, 0, 30, 40};
+    std::uint32_t plane{0};
+    std::uint32_t planes{3};
+    std::uint32_t row_pitch{1};
+    std::uint32_t column_pitch{1};
+    std::uint32_t points_v{1};
+    std::uint32_t points_h{1};
+    double spacing_v{1.0};
+    double spacing_h{1.0};
+    std::uint32_t map_planes{1};
+    std::vector<float> gains{2.0F};
+};
+
+std::vector<std::uint8_t> gain_map(const GainMapSpec& m) {
+    std::vector<std::uint8_t> b;
+    for (const std::uint32_t v : m.area) {
+        ListWriter::u32(b, v);
+    }
+    for (const std::uint32_t v :
+         {m.plane, m.planes, m.row_pitch, m.column_pitch, m.points_v, m.points_h}) {
+        ListWriter::u32(b, v);
+    }
+    for (const double v : {m.spacing_v, m.spacing_h, 0.0, 0.0}) {
+        ListWriter::f64(b, v);
+    }
+    ListWriter::u32(b, m.map_planes);
+    for (const float g : m.gains) {
+        ListWriter::f32(b, g);
+    }
+    return b;
+}
+
+// WarpRectilinear with planes x (radial k0-k3, tangential) and the centre.
+std::vector<std::uint8_t> warp(const std::vector<std::array<double, 6>>& planes, double cx = 0.5,
+                               double cy = 0.5) {
+    std::vector<std::uint8_t> b;
+    ListWriter::u32(b, static_cast<std::uint32_t>(planes.size()));
+    for (const std::array<double, 6>& k : planes) {
+        for (const double v : k) {
+            ListWriter::f64(b, v);
+        }
+    }
+    ListWriter::f64(b, cx);
+    ListWriter::f64(b, cy);
+    return b;
+}
+
+W::Field opcode_list(std::uint16_t which, const ListWriter& list) {
+    W::Field f = W::bytes(which, list.bytes());
+    f.type = 7;  // UNDEFINED
+    return f;
+}
+
+// 18 % grey through a neutral of (0.5, 1, 0.25), rows from first_bright on at 50 % instead.
+std::vector<std::uint8_t> grey_sensor(std::uint32_t first_bright = 30) {
+    return sensor([=](std::size_t colour, std::uint32_t row) {
+        const std::array<double, 3> neutral{0.5, 1.0, 0.25};
+        const double level = row >= first_bright ? 0.5 : 0.18;
+        return kBlack + (level * (kWhite - kBlack) * neutral.at(colour));
+    });
+}
+
+// Whether the pixels of columns [x0, x1) and rows [y0, y1) are (r, g, b), give or take one.
+bool region_is(const nordend::picture::Image& picture, std::uint32_t x0, std::uint32_t x1,
+               std::uint32_t y0, std::uint32_t y1, int r, int g, int b) {
+    for (std::uint32_t y = y0; y < y1; ++y) {
+        for (std::uint32_t x = x0; x < x1; ++x) {
+            const std::uint8_t* p =
+                picture.rgba.data() + ((std::size_t{y} * picture.width + x) * 4);
+            if (std::abs(p[0] - r) > 1 || std::abs(p[1] - g) > 1 || std::abs(p[2] - b) > 1) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
+TEST_CASE("dng: opcode lists") {
+    std::string error;
+    SUBCASE("gain maps by list; ones dropped; bad pixel fixes and optional unknowns skipped") {
+        dng::Opcodes opcodes;
+        ListWriter two;
+        two.add(kGainMapId, 0, gain_map({.gains = {1.0F}}))
+            .add(kGainMapId, 0, gain_map({.row_pitch = 2, .column_pitch = 2}))
+            .add(4, 0, std::vector<std::uint8_t>(8))   // FixBadPixelsConstant
+            .add(5, 0, std::vector<std::uint8_t>(12))  // FixBadPixelsList
+            .add(77, 1, {})                            // unknown, optional
+            .add(3, 2, std::vector<std::uint8_t>(8));  // FixVignetteRadial, skippable for previews
+        REQUIRE(dng::read_list(two.bytes(), 2, opcodes, error));
+        REQUIRE(opcodes.before_demosaic.size() == 1);
+        CHECK(opcodes.before_demosaic[0].row_pitch == 2);
+        ListWriter three;
+        three.add(kGainMapId, 0, gain_map({}))
+            .add(
+                kWarpId, 0,
+                warp({{1, 0.1, 0, 0, 0, 0}, {0.9, 0.2, 0.3, 0.4, 0.01, 0.02}, {1, 0.3, 0, 0, 0, 0}},
+                     0.4, 0.6));
+        REQUIRE(dng::read_list(three.bytes(), 3, opcodes, error));
+        CHECK(opcodes.after_demosaic.size() == 1);
+        const dng::Warp& w = got(opcodes.warp);  // green's coefficients of three planes
+        CHECK(w.radial == std::array{0.9, 0.2, 0.3, 0.4});
+        CHECK(w.tangential == std::array{0.01, 0.02});
+        CHECK(w.centre_x == 0.4);
+        CHECK(w.centre_y == 0.6);
+    }
+    SUBCASE("refused: what must be applied and is not known, damage, a gain map after the warp") {
+        const auto refused = [&](const ListWriter& list, int number) {
+            dng::Opcodes opcodes;
+            return !dng::read_list(list.bytes(), number, opcodes, error);
+        };
+        CHECK(refused(ListWriter{}.add(2, 0, std::vector<std::uint8_t>(8)), 3));
+        CHECK(error ==
+              "a DNG asking for WarpFisheye in opcode list 3, which Nordend does not apply");
+        CHECK(refused(ListWriter{}.add(kGainMapId, 0, gain_map({})), 1));
+        CHECK(error == "a DNG asking for GainMap in opcode list 1, which Nordend does not apply");
+        CHECK(refused(ListWriter{}.add(kWarpId, 0, warp({{1, 0, 0, 0, 0, 0}})), 2));
+        CHECK(refused(ListWriter{}
+                          .add(kWarpId, 0, warp({{1, 0, 0, 0, 0, 0}}))
+                          .add(kGainMapId, 0, gain_map({})),
+                      3));
+        CHECK(error == "a DNG with a GainMap after its WarpRectilinear");
+        std::vector<std::uint8_t> short_map = gain_map({});
+        short_map.resize(short_map.size() - 1);
+        CHECK(refused(ListWriter{}.add(kGainMapId, 0, short_map), 3));
+        CHECK(error == "a DNG with a damaged GainMap");
+        CHECK(refused(ListWriter{}.add(kGainMapId, 0, gain_map({.gains = {-1.0F}})), 3));
+        CHECK(refused(ListWriter{}.add(kGainMapId, 0, gain_map({.gains = {NAN}})), 3));
+        CHECK(refused(
+            ListWriter{}.add(kGainMapId, 0,
+                             gain_map({.points_v = 2, .spacing_v = 0.0, .gains = {2.0F, 2.0F}})),
+            3));
+        CHECK(refused(ListWriter{}.add(kWarpId, 0, warp({{NAN, 0, 0, 0, 0, 0}})), 3));
+        std::vector<std::uint8_t> cut = ListWriter{}.add(kGainMapId, 0, gain_map({})).bytes();
+        cut.resize(cut.size() - 3);
+        dng::Opcodes opcodes;
+        CHECK_FALSE(dng::read_list(cut, 3, opcodes, error));
+        CHECK(error == "a DNG with a damaged opcode list");
+    }
+    SUBCASE("a gain map between its points, and its edge beyond them") {
+        dng::Opcodes opcodes;
+        REQUIRE(dng::read_list(
+            ListWriter{}
+                .add(kGainMapId, 0,
+                     gain_map({.points_v = 2, .points_h = 2, .gains = {1.0F, 2.0F, 3.0F, 4.0F}}))
+                .bytes(),
+            3, opcodes, error));
+        const dng::GainMap& map = opcodes.after_demosaic.at(0);
+        CHECK(map.at(0.0, 0.0, 0) == doctest::Approx(1.0));
+        CHECK(map.at(0.5, 0.5, 0) == doctest::Approx(2.5));
+        CHECK(map.at(1.0, 0.25, 2) == doctest::Approx(3.25));
+        CHECK(map.at(-1.0, 7.0, 0) == doctest::Approx(2.0));
+    }
+    SUBCASE("the warp: from the optical centre, radially") {
+        const dng::Warp half{
+            .radial = {0.5, 0.0, 0.0, 0.0}, .tangential = {}, .centre_x = 0.5, .centre_y = 0.5};
+        const dng::WarpMap map{half, 40.0, 30.0};
+        CHECK(map.source(20.0, 15.0) == std::array{20.0, 15.0});
+        CHECK(map.source(0.0, 0.0) == std::array{10.0, 7.5});
+        CHECK(map.source(40.0, 15.0) == std::array{30.0, 15.0});
+        // r^2 = 1 at the corners: 1 + 1 + 1 + 1 = 4 times as far.
+        const dng::Warp radial{
+            .radial = {1.0, 1.0, 1.0, 1.0}, .tangential = {}, .centre_x = 0.5, .centre_y = 0.5};
+        const std::array<double, 2> corner = dng::WarpMap{radial, 40.0, 30.0}.source(40.0, 30.0);
+        CHECK(corner[0] == doctest::Approx(20.0 + (4 * 20.0)));
+        CHECK(corner[1] == doctest::Approx(15.0 + (4 * 15.0)));
+    }
+}
+
+TEST_CASE("dng: developed with the file's opcodes") {
+    std::string error;
+    SUBCASE("a gain map after demosaic on the right half: twice as bright there") {
+        ListWriter list;
+        list.add(kGainMapId, 0, gain_map({.area = {0, 20, 30, 40}}));
+        const std::vector<std::uint8_t> file =
+            make_dng({grey_sensor()}, sensor_fields({opcode_list(tag::kOpcodeList3, list)}), false,
+                     camera_fields(0.5, 0.25));
+        const dng::Developed developed = got(develop_file(file, {.look = false}, error));
+        CHECK(region_is(developed.image, 0, 10, 0, 15, 118, 118, 118));
+        CHECK(region_is(developed.image, 10, 20, 0, 15, 162, 162, 162));
+        // Left out on request.
+        const dng::Developed plain =
+            got(develop_file(file, {.look = false, .opcodes = false}, error));
+        CHECK(all_of(plain.image, 118, 118, 118));
+    }
+    // A gain map before demosaic develops as the sensor with those sites multiplied would.
+    const auto scaled_sensor = [](std::array<double, 3> gains) {
+        return sensor([=](std::size_t colour, std::uint32_t) {
+            const std::array<double, 3> neutral{0.5, 1.0, 0.25};
+            return kBlack + (0.18 * gains.at(colour) * (kWhite - kBlack) * neutral.at(colour));
+        });
+    };
+    const auto same = [](const nordend::picture::Image& a, const nordend::picture::Image& b) {
+        if (a.width != b.width || a.height != b.height || a.rgba.size() != b.rgba.size()) {
+            return false;
+        }
+        for (std::size_t i = 0; i < a.rgba.size(); ++i) {
+            if (std::abs(a.rgba[i] - b.rgba[i]) > 1) {
+                return false;
+            }
+        }
+        return true;
+    };
+    SUBCASE("a gain map before demosaic on the red sites only") {
+        ListWriter list;
+        list.add(kGainMapId, 0, gain_map({.planes = 1, .row_pitch = 2, .column_pitch = 2}));
+        const dng::Developed developed = got(develop_file(
+            make_dng({grey_sensor()}, sensor_fields({opcode_list(tag::kOpcodeList2, list)}), false,
+                     camera_fields(0.5, 0.25)),
+            {.look = false}, error));
+        const dng::Developed expected =
+            got(develop_file(make_dng({scaled_sensor({2.0, 1.0, 1.0})}, sensor_fields(), false,
+                                      camera_fields(0.5, 0.25)),
+                             {.look = false}, error));
+        CHECK(same(developed.image, expected.image));
+        CHECK(developed.image.rgba[0] > developed.image.rgba[1] + 20);
+    }
+    SUBCASE("a gain map before demosaic on one green of the two: their average") {
+        ListWriter list;
+        list.add(kGainMapId, 0,
+                 gain_map({.area = {0, 1, 30, 40},
+                           .planes = 1,
+                           .row_pitch = 2,
+                           .column_pitch = 2,
+                           .gains = {3.0F}}));
+        const dng::Developed developed = got(develop_file(
+            make_dng({grey_sensor()}, sensor_fields({opcode_list(tag::kOpcodeList2, list)}), false,
+                     camera_fields(0.5, 0.25)),
+            {.look = false}, error));
+        const dng::Developed expected =  // (3 + 1) / 2
+            got(develop_file(make_dng({scaled_sensor({1.0, 2.0, 1.0})}, sensor_fields(), false,
+                                      camera_fields(0.5, 0.25)),
+                             {.look = false}, error));
+        CHECK(same(developed.image, expected.image));
+    }
+    SUBCASE("the lens warp: twice as large from the centre") {
+        // Bright from row 8 (the picture's row 4) down; at twice the size, from row 0.
+        ListWriter list;
+        list.add(kWarpId, 0, warp({{0.5, 0, 0, 0, 0, 0}}));
+        const std::vector<std::uint8_t> file =
+            make_dng({grey_sensor(8)}, sensor_fields({opcode_list(tag::kOpcodeList3, list)}), false,
+                     camera_fields(0.5, 0.25));
+        const dng::Developed plain =
+            got(develop_file(file, {.look = false, .opcodes = false}, error));
+        CHECK(region_is(plain.image, 0, 20, 0, 4, 118, 118, 118));
+        CHECK(region_is(plain.image, 0, 20, 4, 15, 188, 188, 188));
+        const dng::Developed developed = got(develop_file(file, {.look = false}, error));
+        CHECK(region_is(developed.image, 0, 20, 1, 15, 188, 188, 188));
+        CHECK(developed.image.width == 20);
+        CHECK(developed.image.height == 15);
+    }
+    SUBCASE("an opcode Nordend does not apply: not developed (the previews are shown)") {
+        ListWriter list;
+        list.add(2, 0, std::vector<std::uint8_t>(8));  // WarpFisheye
+        const std::vector<std::uint8_t> file =
+            make_dng({grey_sensor()}, sensor_fields({opcode_list(tag::kOpcodeList3, list)}), false,
+                     camera_fields(0.5, 0.25));
+        CHECK_FALSE(develop_file(file, {}, error));
+        CHECK(error ==
+              "a DNG asking for WarpFisheye in opcode list 3, which Nordend does not apply");
+        CHECK(develop_file(file, {.opcodes = false}, error));
+        const nordend::test::TempDir dir;
+        const fs::path path = dir.path / "fisheye.dng";
+        {
+            std::ofstream out{path, std::ios::binary};
+            out.write(reinterpret_cast<const char*>(file.data()),  // NOLINT: bytes to chars
+                      static_cast<std::streamsize>(file.size()));
+        }
+        const image::Loaded loaded = image::load({.path = path, .max_width = 64, .max_height = 64});
+        CHECK(loaded.failure == image::Failure::none);
+        CHECK(loaded.from_preview);
+    }
 }

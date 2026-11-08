@@ -146,11 +146,18 @@ void read_areas(const tiff::Ifd& ifd, Raw& raw) {
     const double width = raw.active[3] - raw.active[1];
     const double height = raw.active[2] - raw.active[0];
     raw.crop = {0.0, 0.0, width, height};
-    const std::vector<double> origin = ifd.reals(tiff::tag::kDefaultCropOrigin, 2);
-    const std::vector<double> size = ifd.reals(tiff::tag::kDefaultCropSize, 2);
-    if (origin.size() == 2 && size.size() == 2 && origin[0] >= 0.0 && origin[1] >= 0.0 &&
-        size[0] >= 1.0 && size[1] >= 1.0 && origin[0] + size[0] <= width &&
-        origin[1] + size[1] <= height) {
+    // Either tag may be missing: the origin is then 0, 0 and the size the rest of the area (DNG
+    // specification's defaults).
+    std::vector<double> origin = ifd.reals(tiff::tag::kDefaultCropOrigin, 2);
+    if (origin.size() != 2) {
+        origin = {0.0, 0.0};
+    }
+    std::vector<double> size = ifd.reals(tiff::tag::kDefaultCropSize, 2);
+    if (size.size() != 2) {
+        size = {width - origin[0], height - origin[1]};
+    }
+    if (origin[0] >= 0.0 && origin[1] >= 0.0 && size[0] >= 1.0 && size[1] >= 1.0 &&
+        origin[0] + size[0] <= width && origin[1] + size[1] <= height) {
         raw.crop = {origin[0], origin[1], size[0], size[1]};
     }
 }

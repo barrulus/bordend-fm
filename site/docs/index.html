@@ -171,7 +171,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O on a worker pool with priorities and
     cancellation; pictures made by up to one caged helper process per worker.</td></tr>
-    <tr><th>Tests</th><td>337 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>353 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -777,7 +777,7 @@ follow_accent = true</code></pre>
 
   <h3 id="architecture/quality">Quality</h3>
   <ul>
-    <li>337 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    <li>353 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
     before every commit; clang-tidy and clang-format on every change.</li>
     <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
     surfaceless EGL context, without a window.</li>
@@ -802,11 +802,12 @@ follow_accent = true</code></pre>
   <ol>
     <li><strong>Image previews</strong>: one path for every format; file parsers in an isolated
     helper (seccomp, landlock, no network); our own TIFF and DNG decoders (done: a DNG with only a
-    small preview is developed by Nordend; next: fuzzing, the DNG lens corrections). Raw files keep
+    small preview is developed by Nordend, with the file's vignetting and lens corrections). Raw files keep
     showing the JPEG their camera stored; one without a readable preview says so.</li>
     <li><strong>Text previews</strong>: syntax highlighting in your theme's colours, selecting and
-    copying</li>
-    <li><strong>Other formats</strong>, one at a time</li>
+    copying; each kind of file read by an engine of Nordend's own, in its cage</li>
+    <li><strong>Other common formats</strong>, one at a time: SVG, AVIF, fonts, the contents of
+    zip and tar.gz archives, audio tags and covers</li>
   </ol>
   <p>0.1.0, the first release, came out after a week of daily use by the author, with a memory
   log: no bugs found, memory steady. 0.2.0 added Sort By in the context menu, tabs and zoom in the
@@ -819,7 +820,10 @@ follow_accent = true</code></pre>
     <li>A Quick Look for photographers: 100 % zoom, EXIF, histogram, rating from Quick Look,
     side-by-side comparison</li>
     <li>A dual pane, a queue of operations with its undo history, batch renaming</li>
-    <li>Scripting in Luau</li>
+    <li>Plugins in Luau, one system and one language: previews, info, commands and search
+    providers, each plugin caged with the permissions it declares (no network by default).
+    Heavy formats (PDF, video, HEIC, office documents) and local AI search come as separate
+    engines, installed only by those who want them</li>
     <li>A file chooser for other applications (the desktop portal's FileChooser)</li>
     <li>Opening text files in an external editor (Helix) from Nordend</li>
     <li>Translations, Italian first</li>

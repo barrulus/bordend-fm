@@ -2,7 +2,8 @@
 """Writes small DNGs for nordend-fuzz-dng (ROADMAP 2d) into the folder given: a 16x16 RGB
 thumbnail in IFD0 with the colour tags, the raw image in a SubIFD, in the shapes the reader
 knows: 16-bit and packed 12-bit CFA strips, lossless JPEG strips and tiles (from the fixtures in
-tests/data/image/dng), linear raw, a linearization table, black level deltas, crops.
+tests/data/image/dng), linear raw, a linearization table, black level deltas, crops, opcode
+lists (gain maps before and after demosaic, a lens warp, bad pixel fixes).
 
     python3 -I tests/fuzz/make_dng_seeds.py build-fuzz/fuzz/seeds-dng
 """
@@ -13,12 +14,12 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(HERE, "..", "data", "image", "dng")
 
-BYTE, ASCII, SHORT, LONG, RATIONAL, SRATIONAL, FLOAT = 1, 2, 3, 4, 5, 10, 11
-SIZES = {BYTE: 1, ASCII: 1, SHORT: 2, LONG: 4, RATIONAL: 8, SRATIONAL: 8, FLOAT: 4}
+BYTE, ASCII, SHORT, LONG, RATIONAL, UNDEFINED, SRATIONAL, FLOAT = 1, 2, 3, 4, 5, 7, 10, 11
+SIZES = {BYTE: 1, ASCII: 1, SHORT: 2, LONG: 4, RATIONAL: 8, UNDEFINED: 1, SRATIONAL: 8, FLOAT: 4}
 
 
 def encode(kind, values):
-    if kind == BYTE:
+    if kind in (BYTE, UNDEFINED):
         return bytes(values)
     if kind == SHORT:
         return struct.pack("<%dH" % len(values), *values)
@@ -119,6 +120,27 @@ def packed12(width, height):
     return bytes(out)
 
 
+def opcode_list(ops):
+    """An opcode list (big-endian whatever the file's order) of (id, flags, body)."""
+    out = struct.pack(">I", len(ops))
+    for op, flags, body in ops:
+        out += struct.pack(">IIII", op, 0x01030000, flags, len(body)) + body
+    return out
+
+
+def gain_map(area, plane, planes, pitch, points, map_planes, gains):
+    body = struct.pack(">4I", *area) + struct.pack(">6I", plane, planes, pitch, pitch, *points)
+    body += struct.pack(">4d", 1.0 / max(1, points[0] - 1), 1.0 / max(1, points[1] - 1), 0.0, 0.0)
+    return body + struct.pack(">I", map_planes) + struct.pack(">%df" % len(gains), *gains)
+
+
+def warp(planes, cx=0.5, cy=0.5):
+    body = struct.pack(">I", len(planes))
+    for k in planes:
+        body += struct.pack(">6d", *k)
+    return body + struct.pack(">2d", cx, cy)
+
+
 def main():
     out = sys.argv[1]
     os.makedirs(out, exist_ok=True)
@@ -144,6 +166,22 @@ def main():
             (259, SHORT, [7]), (262, SHORT, [34892]), (277, SHORT, [3]),
         ], more=[(50940, FLOAT, [0.0, 0.0, 0.5, 0.625, 1.0, 1.0])]),
     }
+    shading = [(9, 0, gain_map([r, c, 24, 32], 0, 1, 2, (2, 2), 1, [1.0, 1.2, 1.4, 1.6]))
+               for r in (0, 1) for c in (0, 1)]
+    after = [(9, 0, gain_map([0, 0, 24, 32], 0, 3, 1, (3, 3), 3, [1.0 + i / 30 for i in range(27)])),
+             (1, 0, warp([[0.98, 0.13, -0.33, 0.17, 0.001, -0.002]] * 3, 0.45, 0.55))]
+    bad_pixels = [(5, 0, struct.pack(">5I", 0, 2, 0, 3, 4) + b"\0" * 20)]
+    seeds["cfa16-opcodes"] = dng([sixteen(32, 24)], cfa(32, 24, 16, 1, [
+        (50714, SHORT, [512]), (50717, SHORT, [60000]),
+        (51008, UNDEFINED, opcode_list(bad_pixels)), (51009, UNDEFINED, opcode_list(shading)),
+        (51022, UNDEFINED, opcode_list(after))]))
+    seeds["linear-opcodes"] = dng([rgb], [
+        (254, LONG, [0]), (256, LONG, [37]), (257, LONG, [29]), (258, SHORT, [14, 14, 14]),
+        (259, SHORT, [7]), (262, SHORT, [34892]), (277, SHORT, [3]),
+        (51009, UNDEFINED, opcode_list([(9, 0, gain_map([0, 0, 29, 37], 0, 3, 1, (2, 1), 1,
+                                                        [0.9, 1.1]))])),
+        (51022, UNDEFINED, opcode_list([(1, 0, warp([[1.02, -0.05, 0.0, 0.0, 0.0, 0.0]])),
+                                        (77, 1, b"")]))])
     for name, data in seeds.items():
         with open(os.path.join(out, name + ".dng"), "wb") as f:
             f.write(data)
