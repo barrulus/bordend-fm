@@ -1,5 +1,6 @@
 // Nordend's own metadata readers (ROADMAP 2e) against the exiv2 code they replace
-// (exiv2_reference.cpp): the same embedded previews (bytes, size, crop, orientation, full size)
+// (exiv2_reference.cpp): the same embedded previews (a JPEG's bytes, a TIFF one's pixels, size,
+// crop, orientation, full size; why none was found is only a log line, not compared)
 // and the same photo information, file by file. On the fixtures here, every file of the
 // NORDEND_RAW_SAMPLES folder and of the folders in NORDEND_EXTRA_SAMPLES (colon-separated: the
 // author's own photos, never in the repository), when they are set. Built only when exiv2 is
@@ -76,7 +77,18 @@ struct Fd {
 };
 
 void same_preview(const image::EmbeddedPreview& ours, const image::EmbeddedPreview& theirs) {
-    CHECK(ours.data == theirs.data);
+    // A JPEG is the file's bytes, the same; a TIFF preview is copied out of the file as a TIFF
+    // of its own, by each in its way: the same pixels.
+    if (ours.tiff && theirs.tiff) {
+        const image::Decoded a = image::decode_preview(ours);
+        const image::Decoded b = image::decode_preview(theirs);
+        CHECK(a.error == b.error);
+        CHECK(a.image.width == b.image.width);
+        CHECK(a.image.height == b.image.height);
+        CHECK(a.image.rgba == b.image.rgba);
+    } else {
+        CHECK(ours.data == theirs.data);
+    }
     CHECK(ours.tiff == theirs.tiff);
     CHECK(ours.width == theirs.width);
     CHECK(ours.height == theirs.height);
@@ -90,8 +102,6 @@ void same_preview(const image::EmbeddedPreview& ours, const image::EmbeddedPrevi
     CHECK(ours.orientation == theirs.orientation);
     CHECK(ours.full_width == theirs.full_width);
     CHECK(ours.full_height == theirs.full_height);
-    // Both found one or both did not; the wording of a failure may differ.
-    CHECK(ours.error.empty() == theirs.error.empty());
 }
 
 void same_info(const image::PhotoInfo& ours, const image::PhotoInfo& theirs) {

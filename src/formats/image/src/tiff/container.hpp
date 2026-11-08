@@ -4,8 +4,9 @@
 // BigTIFF, Intel and Motorola byte order, from a file (pread, never the whole file) or from
 // bytes in memory (an EXIF block, a raw file's preview). The camera raw formats built like TIFF
 // (ORF, RW2) are read too when asked: same structure, another magic number. The decoder
-// (decode.hpp), the DNG reader and exiv2's replacement build on this.
+// (decode.hpp), the DNG reader and the camera previews' reader build on this.
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -23,6 +24,13 @@ class Source {
 public:
     explicit Source(const detail::FdFile& file) : file_{&file}, size_{file.size()} {}
 
+    // length bytes of the file from base on, as if they were the whole of it (a maker note's
+    // own TIFF structure).
+    Source(const detail::FdFile& file, std::uint64_t base, std::uint64_t length)
+        : file_{&file},
+          base_{base},
+          size_{file.size() > base ? std::min(length, file.size() - base) : 0} {}
+
     explicit Source(std::span<const std::uint8_t> bytes) : bytes_{bytes}, size_{bytes.size()} {}
 
     [[nodiscard]] std::uint64_t size() const { return size_; }
@@ -39,6 +47,7 @@ public:
 
 private:
     const detail::FdFile* file_{nullptr};
+    std::uint64_t base_{0};
     std::span<const std::uint8_t> bytes_;
     std::uint64_t size_{0};
 };
@@ -84,6 +93,12 @@ public:
     // raw formats' own (RW2's 0x55, ORF's "RO"/"RS").
     [[nodiscard]] static std::optional<Container> open(const Source& source,
                                                        bool any_magic = false);
+
+    // A TIFF structure without its header (a maker note's): byte order and first IFD given.
+    [[nodiscard]] static Container headless(const Source& source, bool little,
+                                            std::uint64_t first_ifd) {
+        return Container{source, little, false, first_ifd};
+    }
 
     [[nodiscard]] bool little_endian() const { return little_; }
 

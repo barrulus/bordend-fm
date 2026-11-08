@@ -6,6 +6,11 @@ target_include_directories(nordend-fuzz-tiff
 target_link_libraries(nordend-fuzz-tiff PRIVATE nordend::formats::image nordend::warnings)
 target_link_options(nordend-fuzz-tiff PRIVATE -fsanitize=fuzzer)
 
+# Camera files' previews (ROADMAP 2e): seeds are the first bytes of raw files, kept locally.
+add_executable(nordend-fuzz-camera fuzz_camera.cpp)
+target_link_libraries(nordend-fuzz-camera PRIVATE nordend::formats::image nordend::warnings)
+target_link_options(nordend-fuzz-camera PRIVATE -fsanitize=fuzzer)
+
 add_executable(nordend-fuzz-picture fuzz_picture.cpp)
 target_link_libraries(nordend-fuzz-picture PRIVATE nordend::formats nordend::warnings)
 target_link_options(nordend-fuzz-picture PRIVATE -fsanitize=fuzzer)

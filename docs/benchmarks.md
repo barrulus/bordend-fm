@@ -93,6 +93,31 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Raw previews: Nordend's reader against exiv2 (ROADMAP 2e-2)
+
+### 2026-11-08
+
+`nordend-bench-previews exiv2|ours 30 SIDE FILE` (best of 30: open, find the preview for a long
+side of SIDE, read its bytes, close; page cache warm, machine idle after a game, load 1.4):
+
+| File | 160 px: exiv2 -> ours | 4000 px: exiv2 -> ours |
+|---|---|---|
+| OM-1 ORF (author's) | 3.45 -> 0.03 ms | 4.16 -> 0.66 ms |
+| Nikon Z 7II NEF | 2.46 -> 0.14 ms | 14.78 -> 4.25 ms |
+| Canon 5DS CR2 | 11.81 -> 3.47 ms | 11.77 -> 3.47 ms |
+| Sony ARW (_SNY1264) | 3.31 -> 0.21 ms | 8.08 -> 1.94 ms |
+| Fujifilm RAF | 3.56 -> 0.38 ms | 3.48 -> 0.38 ms |
+| Panasonic GX7 RW2 | 2.21 -> 0.04 ms | 2.32 -> 0.44 ms |
+| Samsung EX2F SRW | 1.81 -> 0.53 ms | 1.78 -> 0.53 ms |
+| DJI DNG | 1.87 -> 0.03 ms | 3.67 -> 0.61 ms |
+| Samsung S22 DNG | 31.31 -> 5.44 ms | 31.09 -> 5.53 ms |
+| Hasselblad 3FR | 1.55 -> 0.20 ms | 1.56 -> 0.20 ms |
+
+Most of what is left is reading the preview's bytes (the S22's is 4 MB; the 5DS takes its 5.7
+MB JPEG even for a thumbnail, as before: its 160x120 one is 4:3 with black bars). System calls
+for an ORF's thumbnail (`strace -c -f`, two files minus one): 35 -> 22. An earlier run that read
+Olympus's maker note whole (1.8 MB) took 2 ms for the ORF: the note is now read through a window.
+
 ## DNG opcodes: gain maps and lens warp (ROADMAP 2d-4)
 
 ### 2026-11-08

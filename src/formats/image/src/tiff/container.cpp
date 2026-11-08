@@ -17,7 +17,7 @@ std::vector<std::uint8_t> Source::read(std::uint64_t offset, std::size_t length)
         return {};
     }
     if (file_ != nullptr) {
-        return file_->read_exactly(offset, length);
+        return file_->read_exactly(base_ + offset, length);
     }
     const auto start = bytes_.begin() + static_cast<std::ptrdiff_t>(offset);
     return {start, start + static_cast<std::ptrdiff_t>(length)};
@@ -28,7 +28,7 @@ bool Source::read_into(std::uint64_t offset, std::span<std::uint8_t> to) const {
         return false;
     }
     if (file_ != nullptr) {
-        const std::optional<std::size_t> got = file_->read_into(offset, to);
+        const std::optional<std::size_t> got = file_->read_into(base_ + offset, to);
         return got && *got == to.size();
     }
     std::copy_n(bytes_.begin() + static_cast<std::ptrdiff_t>(offset), to.size(), to.begin());

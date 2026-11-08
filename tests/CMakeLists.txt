@@ -73,6 +73,11 @@ pkg_check_modules(EXIV2_REFERENCE QUIET IMPORTED_TARGET exiv2)
 if(EXIV2_REFERENCE_FOUND)
     target_sources(nordend-tests PRIVATE exiv2_reference.cpp exiv2_reference_test.cpp)
     target_link_libraries(nordend-tests PRIVATE PkgConfig::EXIV2_REFERENCE)
+    # Nordend's reader against exiv2's, timed (tools, not tests).
+    add_executable(nordend-bench-previews bench_previews.cpp exiv2_reference.cpp)
+    target_include_directories(nordend-bench-previews PRIVATE ${PROJECT_SOURCE_DIR}/src/formats/image/src)
+    target_link_libraries(nordend-bench-previews
+        PRIVATE nordend::formats::image PkgConfig::EXIV2_REFERENCE nordend::warnings)
 endif()
 
 # A preview helper that misbehaves on purpose (crash, hang, nonsense), and the real one, for

@@ -4,7 +4,6 @@
 #include <cerrno>
 #include <cstring>
 #include <exception>
-#include <exiv2/exiv2.hpp>
 #include <fcntl.h>
 #include <mutex>
 #include <optional>
@@ -13,18 +12,18 @@
 #include <unistd.h>
 #include <utility>
 
-#include "exiv2_init.hpp"
+#include "camera/previews.hpp"
 #include "fd_file.hpp"
 #include "jpeg_segments.hpp"
 #include "nordend/formats/image/decode.hpp"
 #include "tiff/decode.hpp"
+#include "tiff/extract.hpp"
 
 namespace nordend::formats::image {
 namespace {
 
-// Bytes read to find a JPEG's EXIF segment (at most 64 KB, after the few segments before it),
-// to find a preview's size in its header, and to read a raw file's first IFD.
-constexpr std::size_t kExifHead = std::size_t{256} * 1024;
+// Bytes read to find a preview's size in its header, and to read a raw file's first IFD.
+constexpr std::size_t kLongPreviewHead = std::size_t{256} * 1024;
 constexpr std::size_t kPreviewHead = std::size_t{64} * 1024;
 constexpr std::size_t kIfdHead = std::size_t{64} * 1024;
 
@@ -33,63 +32,18 @@ constexpr std::size_t kIfdHead = std::size_t{64} * 1024;
 struct Candidate {
     std::uint32_t width{0};
     std::uint32_t height{0};
-    std::optional<std::size_t> property;  // exiv2's preview, by index; else read from the file:
-    std::size_t offset{0};
-    std::size_t length{0};
+    std::optional<tiff::Ifd> ifd;  // an image of the file's TIFF structure; else a JPEG stream:
+    std::uint64_t offset{0};
+    std::uint64_t length{0};
     bool tiff{false};
     std::optional<PreviewCrop> crop;
 
     [[nodiscard]] std::uint32_t long_side() const { return std::max(width, height); }
 };
 
-std::optional<std::int64_t> number(const Exiv2::ExifData& exif, const char* key) {
-    const auto it = exif.findKey(Exiv2::ExifKey{key});
-    if (it == exif.end() || it->count() == 0) {
-        return std::nullopt;
-    }
-    return it->toInt64();
-}
-
-// The Olympus / OM System maker-note preview: its offset counts from the maker note, which
-// counts from the TIFF data (at the start of a raw file, after "Exif\0\0" in a JPEG).
-std::optional<Candidate> olympus_preview(const detail::FdFile& file, const Exiv2::Image& image) {
-    const Exiv2::ExifData& exif = image.exifData();
-    const auto valid = number(exif, "Exif.OlympusCs.PreviewImageValid");
-    const auto start = number(exif, "Exif.OlympusCs.PreviewImageStart");
-    const auto length = number(exif, "Exif.OlympusCs.PreviewImageLength");
-    const auto maker_note = number(exif, "Exif.MakerNote.Offset");
-    if (valid.value_or(0) != 1 || !start || !length || !maker_note || *start <= 0 || *length <= 4 ||
-        *maker_note < 0) {
-        return std::nullopt;
-    }
-    std::size_t tiff = 0;
-    if (image.imageType() == Exiv2::ImageType::jpeg) {
-        const std::vector<std::uint8_t> head = file.read(0, kExifHead);
-        const std::optional<detail::JpegExif> segment = detail::jpeg_exif(head);
-        if (!segment) {
-            return std::nullopt;
-        }
-        tiff = segment->offset;
-    }
-    Candidate candidate;
-    candidate.offset =
-        tiff + static_cast<std::size_t>(*maker_note) + static_cast<std::size_t>(*start);
-    candidate.length = static_cast<std::size_t>(*length);
-    // Its size is in its own header: read the start of it.
-    const std::vector<std::uint8_t> head =
-        file.read_exactly(candidate.offset, std::min(candidate.length, kPreviewHead));
-    const std::optional<detail::JpegSize> size = detail::jpeg_size(head);
-    if (!size) {
-        return std::nullopt;  // not a JPEG where the tags say
-    }
-    candidate.width = size->width;
-    candidate.height = size->height;
-    return candidate;
-}
-
 // The Panasonic crop: the GX8 stores a 4:3 preview whatever the aspect ratio set in the camera,
 // and the frame shot in its first IFD, in sensor pixels (CropTop/Left/Bottom/Right, tags
-// 0x2F-0x32, which exiv2 does not read), within the sensor's borders (tags 0x04-0x07).
+// 0x2F-0x32), within the sensor's borders (tags 0x04-0x07).
 struct SensorCrop {
     std::uint32_t left{0};
     std::uint32_t top{0};
@@ -181,14 +135,6 @@ void order_by_preference(std::vector<Candidate>& candidates, std::uint32_t min_l
 
 }  // namespace
 
-void detail::init_exiv2() {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        Exiv2::XmpParser::initialize();  // makes exiv2 safe to use from several threads
-        Exiv2::LogMsg::setLevel(Exiv2::LogMsg::mute);
-    });
-}
-
 EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_t min_long_side) {
     const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
@@ -202,128 +148,122 @@ EmbeddedPreview embedded_preview(const std::filesystem::path& path, std::uint32_
 }
 
 EmbeddedPreview embedded_preview(int fd, std::uint32_t min_long_side) {
-    detail::init_exiv2();
     EmbeddedPreview result;
     const std::optional<detail::FdFile> file = detail::FdFile::of(fd);
     if (!file) {
         result.error = "cannot read the file";
         return result;
     }
-    try {
-        // With an input of its own, exiv2 answers a type it does not know with nothing, not an
-        // exception.
-        const Exiv2::Image::UniquePtr image =
-            Exiv2::ImageFactory::open(std::make_unique<detail::FdIo>(*file));
-        if (!image) {
-            result.error = "a file type exiv2 does not read";
-            return result;
+    const std::optional<camera::CameraFile> camera = camera::read(*file);
+    if (!camera) {
+        return result;  // a type that keeps none Nordend reads (PNG, Sigma X3F): none, no error
+    }
+    std::vector<Candidate> candidates;
+    for (const camera::Found& found : camera->previews) {
+        if (found.ifd) {
+            candidates.push_back({.width = found.width,
+                                  .height = found.height,
+                                  .ifd = found.ifd,
+                                  .offset = 0,
+                                  .length = 0,
+                                  .tiff = true,
+                                  .crop = std::nullopt});
+            continue;
         }
-        image->readMetadata();
-        std::vector<Candidate> candidates;
-        Exiv2::PreviewManager previews{*image};
-        const Exiv2::PreviewPropertiesList properties = previews.getPreviewProperties();
-        // Canon's TIFF previews (CR2's third IFD) are sensor data without white balance or
-        // tone curve: green and dark (checked on the 1D Mark II, 1D X and 5DS samples).
-        const bool tiffs = image->imageType() != Exiv2::ImageType::cr2;
-        for (std::size_t i = 0; i < properties.size(); ++i) {
-            const bool tiff = properties[i].mimeType_ == "image/tiff";
-            if (properties[i].mimeType_ == "image/jpeg" || (tiff && tiffs)) {
-                candidates.push_back({.width = static_cast<std::uint32_t>(properties[i].width_),
-                                      .height = static_cast<std::uint32_t>(properties[i].height_),
-                                      .property = i,
-                                      .offset = 0,
-                                      .length = properties[i].size_,
-                                      .tiff = tiff,
-                                      .crop = std::nullopt});
-            }
-        }
-        if (std::optional<Candidate> olympus = olympus_preview(*file, *image)) {
-            candidates.push_back(*olympus);
-        }
-        const std::optional<SensorCrop> sensor_crop =
-            image->imageType() == Exiv2::ImageType::rw2 ? panasonic_crop(*file) : std::nullopt;
-        if (sensor_crop) {
-            for (Candidate& candidate : candidates) {
-                candidate.crop = sensor_crop->in(candidate.width, candidate.height);
-                candidate.width = candidate.crop->width;
-                candidate.height = candidate.crop->height;
-            }
-        }
-        // The EXIF thumbnail is 4:3 whatever the photo: a 3:2 or 16:9 one comes with black bars
-        // (Canon, Nikon, Sony, Panasonic GX7 1:1). Previews shaped unlike the largest are dropped.
-        const auto largest = std::ranges::max_element(
-            candidates, {}, [](const Candidate& c) { return std::uint64_t{c.width} * c.height; });
-        if (largest != candidates.end() && largest->width > 0 && largest->height > 0) {
-            const std::uint64_t w = largest->width;
-            const std::uint64_t h = largest->height;
-            std::erase_if(candidates, [&](const Candidate& c) {
-                // |c.width / c.height - w / h| > 2 % of w / h, in integers.
-                const std::uint64_t a = std::uint64_t{c.width} * h;
-                const std::uint64_t b = std::uint64_t{c.height} * w;
-                return (a > b ? a - b : b - a) * 50 > b;
-            });
-        }
-        // Tried in order; one that turns out broken (Samsung EX2F's 640x360 JPEG stops before
-        // its end) is passed over for the next.
-        order_by_preference(candidates, min_long_side);
-        std::vector<std::uint8_t> data;
-        std::optional<Candidate> picked;
-        for (Candidate chosen : candidates) {
-            if (chosen.property) {
-                const Exiv2::PreviewImage preview =
-                    previews.getPreviewImage(properties.at(*chosen.property));
-                data.assign(preview.pData(), preview.pData() + preview.size());
-            } else {
-                data = file->read_exactly(chosen.offset, chosen.length);
-            }
-            if (chosen.tiff) {
-                // A TIFF preview compressed as JPEG (DNG): the JPEG itself, read like any other.
-                if (const auto inner = tiff::jpeg_in_tiff(data)) {
-                    const std::optional<detail::JpegSize> size = detail::jpeg_size(*inner);
-                    if (!size) {
-                        continue;
-                    }
-                    data = std::vector<std::uint8_t>(inner->begin(), inner->end());
-                    chosen.tiff = false;
-                    if (!chosen.crop) {
-                        chosen.width = size->width;
-                        chosen.height = size->height;
-                    }
-                }
-            }
-            const bool usable = chosen.tiff ? tiff::Container::open(tiff::Source{data}).has_value()
-                                            : detail::whole_jpeg(data);
-            if (usable) {
-                picked = chosen;
+        // Its size is in its own header: read the start of it (further when the segments
+        // before the frame fill the first read: Fujifilm's EXIF and FlashPix ones).
+        std::optional<detail::JpegSize> size;
+        for (const std::size_t limit : {kPreviewHead, kLongPreviewHead}) {
+            const std::vector<std::uint8_t> head = file->read_exactly(
+                found.offset,
+                static_cast<std::size_t>(std::min<std::uint64_t>(found.length, limit)));
+            size = detail::jpeg_size(head);
+            if (size || found.length <= limit) {
                 break;
             }
         }
-        if (!picked) {
-            return result;
+        if (!size) {
+            continue;  // not a JPEG where the tags say
         }
-        const Candidate& chosen = *picked;
-        result.data = std::move(data);
-        result.tiff = chosen.tiff;
-        result.width = chosen.width;
-        result.height = chosen.height;
-        result.crop = chosen.crop;
-        if (sensor_crop) {
-            result.full_width = sensor_crop->right - sensor_crop->left;
-            result.full_height = sensor_crop->bottom - sensor_crop->top;
-        } else {
-            result.full_width = image->pixelWidth();
-            result.full_height = image->pixelHeight();
-        }
-        const auto orientation = number(image->exifData(), "Exif.Image.Orientation");
-        if (orientation && *orientation >= 1 && *orientation <= 8) {
-            result.orientation = static_cast<std::uint8_t>(*orientation);
-        }
-    } catch (const std::exception& error) {
-        // exiv2's own errors, and the standard ones its checks throw (std::overflow_error from
-        // its safe arithmetic, found by fuzzing): a file it cannot read, never a crash.
-        result = {};
-        result.error = error.what();
+        candidates.push_back({.width = size->width,
+                              .height = size->height,
+                              .ifd = std::nullopt,
+                              .offset = found.offset,
+                              .length = found.length,
+                              .tiff = false,
+                              .crop = std::nullopt});
     }
+    const std::optional<SensorCrop> sensor_crop =
+        camera->type == camera::Type::rw2 ? panasonic_crop(*file) : std::nullopt;
+    if (sensor_crop) {
+        for (Candidate& candidate : candidates) {
+            candidate.crop = sensor_crop->in(candidate.width, candidate.height);
+            candidate.width = candidate.crop->width;
+            candidate.height = candidate.crop->height;
+        }
+    }
+    // The EXIF thumbnail is 4:3 whatever the photo: a 3:2 or 16:9 one comes with black bars
+    // (Canon, Nikon, Sony, Panasonic GX7 1:1). Previews shaped unlike the largest are dropped.
+    const auto largest = std::ranges::max_element(
+        candidates, {}, [](const Candidate& c) { return std::uint64_t{c.width} * c.height; });
+    if (largest != candidates.end() && largest->width > 0 && largest->height > 0) {
+        const std::uint64_t w = largest->width;
+        const std::uint64_t h = largest->height;
+        std::erase_if(candidates, [&](const Candidate& c) {
+            // |c.width / c.height - w / h| > 2 % of w / h, in integers.
+            const std::uint64_t a = std::uint64_t{c.width} * h;
+            const std::uint64_t b = std::uint64_t{c.height} * w;
+            return (a > b ? a - b : b - a) * 50 > b;
+        });
+    }
+    // Tried in order; one that turns out broken (Samsung EX2F's 640x360 JPEG stops before its
+    // end) is passed over for the next.
+    order_by_preference(candidates, min_long_side);
+    std::vector<std::uint8_t> data;
+    std::optional<Candidate> picked;
+    for (Candidate chosen : candidates) {
+        data = chosen.ifd
+                   ? tiff::extract(*chosen.ifd)
+                   : file->read_exactly(chosen.offset, static_cast<std::size_t>(chosen.length));
+        if (chosen.tiff) {
+            // A TIFF preview compressed as JPEG (DNG): the JPEG itself, read like any other.
+            if (const auto inner = tiff::jpeg_in_tiff(data)) {
+                const std::optional<detail::JpegSize> size = detail::jpeg_size(*inner);
+                if (!size) {
+                    continue;
+                }
+                data = std::vector<std::uint8_t>(inner->begin(), inner->end());
+                chosen.tiff = false;
+                if (!chosen.crop) {
+                    chosen.width = size->width;
+                    chosen.height = size->height;
+                }
+            }
+        }
+        const bool usable = chosen.tiff ? tiff::Container::open(tiff::Source{data}).has_value()
+                                        : detail::whole_jpeg(data);
+        if (usable) {
+            picked = chosen;
+            break;
+        }
+    }
+    if (!picked) {
+        return result;
+    }
+    const Candidate& chosen = *picked;
+    result.data = std::move(data);
+    result.tiff = chosen.tiff;
+    result.width = chosen.width;
+    result.height = chosen.height;
+    result.crop = chosen.crop;
+    if (sensor_crop) {
+        result.full_width = sensor_crop->right - sensor_crop->left;
+        result.full_height = sensor_crop->bottom - sensor_crop->top;
+    } else {
+        result.full_width = camera->full_width;
+        result.full_height = camera->full_height;
+    }
+    result.orientation = camera->orientation;
     return result;
 }
 

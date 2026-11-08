@@ -21,8 +21,9 @@ struct PreviewCrop {
 
 // An image that a camera file carries next to its main image: the EXIF thumbnail (160x120), the
 // maker-note preview of Olympus / OM System JPEGs (1600x1200) and raw files (3200x2400), the
-// previews exiv2 knows in other raw formats, and, when a file has no JPEG one large enough, a
-// small uncompressed TIFF (Hasselblad 3FR). Decoding one is a fraction of decoding the photo.
+// previews other raw formats keep (read by Nordend's own code: camera/previews.hpp), and, when a
+// file has no JPEG one large enough, a small uncompressed TIFF (Hasselblad 3FR). Decoding one is
+// a fraction of decoding the photo.
 struct EmbeddedPreview {
     std::vector<std::uint8_t> data;  // a JPEG or a TIFF; empty when there is none
     bool tiff{false};

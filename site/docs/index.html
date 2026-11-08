@@ -171,7 +171,7 @@
     three views and Quick Look: decoded photos go back to the system.</td></tr>
     <tr><th>Threads</th><td>The window on one thread, I/O on a worker pool with priorities and
     cancellation; pictures made by up to one caged helper process per worker.</td></tr>
-    <tr><th>Tests</th><td>353 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
+    <tr><th>Tests</th><td>355 test cases, run under AddressSanitizer and ThreadSanitizer too.</td></tr>
     <tr><th>License</th><td><a href="https://github.com/pankaspe/nordend-fm/blob/main/LICENSE">MIT</a></td></tr>
   </table></div>
 </section>
@@ -748,7 +748,7 @@ follow_accent = true</code></pre>
     <tr><td><code>core</code></td><td>The event loop (one <code>poll()</code>), the worker pool with priorities and cancellation, config, logging, memory</td></tr>
     <tr><td><code>ui</code></td><td>Wayland, EGL, the GLES renderer, text and icons, input, the clipboard and drag and drop, scrolling physics</td></tr>
     <tr><td><code>fs</code></td><td>Asynchronous directory loading, MIME types identical to GLib, inotify, places, file operations, the copy engine, the trash</td></tr>
-    <tr><td><code>image</code></td><td>Decoding (wuffs, libwebp, libjxl), raw files' embedded previews through exiv2, EXIF orientation, scaling</td></tr>
+    <tr><td><code>image</code></td><td>Decoding (wuffs, libwebp, libjxl), raw files' embedded previews (Nordend's own reader), EXIF orientation, scaling</td></tr>
     <tr><td><code>preview</code></td><td>Quick Look and the info pane: one provider per kind (image, raw, text, information)</td></tr>
     <tr><td><code>thumbs</code></td><td>Thumbnails in the freedesktop cache</td></tr>
     <tr><td><code>theme</code></td><td>The Noctalia palette, its live reload, the desktop's colours</td></tr>
@@ -777,7 +777,7 @@ follow_accent = true</code></pre>
 
   <h3 id="architecture/quality">Quality</h3>
   <ul>
-    <li>353 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
+    <li>355 test cases (doctest), run under AddressSanitizer with UBSan and under ThreadSanitizer
     before every commit; clang-tidy and clang-format on every change.</li>
     <li>Drawing is checked offscreen: <code>nordend-snapshot</code> renders the real views through a
     surfaceless EGL context, without a window.</li>

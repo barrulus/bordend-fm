@@ -36,10 +36,10 @@ constexpr std::size_t kHead = std::size_t{64} * 1024;
 enum class Kind : std::uint8_t {
     image,       // PNG, GIF, WebP, JPEG XL, PGM/PPM: decoded whole, never a stored preview
     jpeg,        // decoded whole; a camera's (with EXIF) may carry a larger preview first
-    container,   // TIFF and the raw formats built like it, RAF, CR3, CRW, MRW: previews only
+    container,   // TIFF and the raw formats built like it, RAF, CR3: previews only
     plain_tiff,  // a TIFF that is not a camera raw: decoded here, read piece by piece
-    no_reader,   // a raw format exiv2 does not read (Sigma X3F)
-    unknown,     // nothing known: only a camera raw's MIME type led here, so exiv2 may know it
+    no_reader,   // a raw format with no preview Nordend reads (Sigma X3F, Canon CRW, Minolta MRW)
+    unknown,     // nothing known: only a camera raw's MIME type led here
 };
 
 bool starts_with(std::span<const std::uint8_t> data, std::string_view prefix) {
@@ -70,12 +70,14 @@ Kind kind_of(std::span<const std::uint8_t> head) {
             return Kind::container;
         }
     }
-    if (starts_with(head, "FUJIFILM") || starts_with(head, "\0MRM"sv) ||
-        starts_with(head, "II\x1a\0\0\0HEAPCCDR"sv) ||
+    if (starts_with(head, "FUJIFILM") ||
         (head.size() >= 12 && starts_with(head.subspan(4), "ftypcrx "))) {
         return Kind::container;
     }
-    if (starts_with(head, "FOVb")) {
+    // Decided with the author (2026-11-08): the old Canon CRW and Minolta MRW get the plain
+    // message, as Sigma's X3F.
+    if (starts_with(head, "FOVb") || starts_with(head, "\0MRM"sv) ||
+        starts_with(head, "II\x1a\0\0\0HEAPCCDR"sv)) {
         return Kind::no_reader;
     }
     return Kind::unknown;

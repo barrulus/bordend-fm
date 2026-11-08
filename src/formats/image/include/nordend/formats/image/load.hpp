@@ -28,7 +28,7 @@ using picture::LoadRequest;
 // The same from a file open for reading as fd (kept open, the caller's).
 [[nodiscard]] Loaded load(int fd, std::uint32_t max_width, std::uint32_t max_height);
 
-// How many times load() has asked exiv2 for a file's previews, since the program started (for
+// How many times load() has looked for a file's previews, since the program started (for
 // tests: formats that cannot carry one never reach it).
 [[nodiscard]] std::uint64_t embedded_preview_reads() noexcept;
 

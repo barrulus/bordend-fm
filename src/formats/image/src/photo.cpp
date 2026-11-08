@@ -4,6 +4,7 @@
 #include <exiv2/exiv2.hpp>
 #include <fcntl.h>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string_view>
 #include <system_error>
@@ -81,6 +82,14 @@ std::optional<int> sidecar_rating(int sidecar_fd) {
 }
 
 }  // namespace
+
+void detail::init_exiv2() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        Exiv2::XmpParser::initialize();  // makes exiv2 safe to use from several threads
+        Exiv2::LogMsg::setLevel(Exiv2::LogMsg::mute);
+    });
+}
 
 PhotoInfo read_photo_info(const std::filesystem::path& path) {
     const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);

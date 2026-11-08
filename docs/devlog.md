@@ -4,6 +4,49 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Raw previews found by Nordend's own reader (ROADMAP 2e-2)
+
+**Tested by the author** (2026-11-08, installed build, fresh cache): "funziona tutto" (the sample
+folder in the grid and Quick Look, his ORFs, the info pane).
+
+**Done**
+- `src/formats/image/src/camera/previews.{hpp,cpp}`: the previews of a camera file without
+  exiv2. TIFF-like files (TIFF, NEF, CR2, ARW, ORF, RW2, SRW, DNG, 3FR, ERF): every IFD of the
+  chain, its SubIFDs and theirs; a JPEG by `JPEGInterchangeFormat` or as an old-style JPEG strip
+  (CR2's IFD0), a reduced 8-bit RGB/YCbCr image as a TIFF preview (not in CR2: sensor-like);
+  sensor data never (CFA, LinearRaw, CR2's slices). Maker notes: Olympus / OM System (thumbnail,
+  CameraSettings preview), Nikon (PreviewIFD), Samsung (PreviewIFD), each read through a window
+  of the file as long as the note (no longer read whole: an ORF's is 1.8 MB, holding its
+  preview). RAF: the JPEG in its header and that JPEG's EXIF thumbnail; RW2: the JPEG of tag
+  0x2E and its thumbnail; a JPEG: its EXIF thumbnail and Olympus maker-note preview. The main
+  image's size as exiv2 gave it per format (TIFF: the first full-resolution IFD of IFD0 and its
+  SubIFDs not holding a JPEG; CR2: PixelX/YDimension; RW2: SensorWidth/Height; ORF: IFD0; RAF:
+  record 0x100 of its raw header) and the EXIF orientation.
+- `tiff::extract`: one IFD's image copied out as a TIFF of its own (the decoder and the
+  JPEG-in-TIFF check read TIFFs); `tiff::Source` over a window of the file,
+  `Container::headless` for a structure without its header (Olympus's note).
+- `preview.cpp`: the same choice as before (shapes, order, broken ones passed over, the
+  Panasonic crop), its candidates from the reader; exiv2 no longer used for previews. CRW and
+  MRW get the plain message (decided with the author).
+- Caught by the comparison with the exiv2 reference before the author saw anything: CR2's
+  sensor IFD (a lossless JPEG, compression 6) taken for a preview; RAF's JPEG size beyond the
+  first 64 kB read (now up to 256 kB when needed); and, after the note window, a Nikon Coolscan
+  note's preview IFD pointing past the note (the window is now as long as the note, as exiv2
+  reads it).
+- `nordend-fuzz-camera` (seeds: the first 96 kB of the sample raws, kept locally);
+  `nordend-bench-previews ours|exiv2 RUNS SIDE FILE...` (built with the exiv2 reference).
+
+**Measured** (`docs/benchmarks.md`): the same previews as exiv2 on the fixtures, the 33 readable
+samples and 30 of the author's ORFs (3 379 checks); finding the preview 3 to 100 times quicker
+(ORF 3.5 -> 0.03 ms for the thumbnail, 4.2 -> 0.7 ms for the 3200x2400 one with its bytes); 35 ->
+22 system calls per ORF. Fuzzing: an hour, 5.7 million inputs, clean (before the note window), then 20 minutes, 1.3
+million, clean. Tests green in `build`, `build-asan`, `build-tsan` (355).
+
+**Open**: Pentax maker-note previews (no PEF sample yet), CR3 (no sample yet), old-style
+Olympus maker notes ("OLYMP\0", E-1 era: none in the samples).
+
+---
+
 ## 2026-11-08 — A scanner's TIFF shows its scan, not its thumbnail (2c follow-up)
 
 **Found** on a sample the author added (Nikon Coolscan IV ED): IFD0 is a 320x218 reduced image
