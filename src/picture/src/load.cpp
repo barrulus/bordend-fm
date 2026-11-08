@@ -1,7 +1,5 @@
 #include "nordend/picture/load.hpp"
 
-#include <algorithm>
-#include <array>
 #include <mutex>
 #include <utility>
 
@@ -69,40 +67,6 @@ PhotoInfo load_photo_info(const std::filesystem::path& path) {
         loader = current_info_loader;
     }
     return loader ? loader(path) : PhotoInfo{};
-}
-
-bool may_show(std::string_view mime) noexcept {
-    static constexpr std::array<std::string_view, 30> kTypes{"image/png",
-                                                             "image/jpeg",
-                                                             "image/gif",
-                                                             "image/webp",
-                                                             "image/jxl",
-                                                             "image/tiff",
-                                                             "image/x-adobe-dng",
-                                                             "image/x-canon-cr2",
-                                                             "image/x-canon-cr3",
-                                                             "image/x-canon-crw",
-                                                             "image/x-dcraw",
-                                                             "image/x-fuji-raf",
-                                                             "image/x-kodak-dcr",
-                                                             "image/x-kodak-k25",
-                                                             "image/x-kodak-kdc",
-                                                             "image/x-minolta-mrw",
-                                                             "image/x-nikon-nef",
-                                                             "image/x-nikon-nrw",
-                                                             "image/x-olympus-orf",
-                                                             "image/x-panasonic-raw",
-                                                             "image/x-panasonic-raw2",
-                                                             "image/x-panasonic-rw",
-                                                             "image/x-panasonic-rw2",
-                                                             "image/x-pentax-pef",
-                                                             "image/x-portable-graymap",
-                                                             "image/x-portable-pixmap",
-                                                             "image/x-sigma-x3f",
-                                                             "image/x-sony-arw",
-                                                             "image/x-sony-sr2",
-                                                             "image/x-sony-srf"};
-    return std::ranges::find(kTypes, mime) != kTypes.end();
 }
 
 }  // namespace nordend::picture

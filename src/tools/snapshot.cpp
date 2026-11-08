@@ -66,11 +66,11 @@
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
 #include "nordend/core/worker_pool.hpp"
+#include "nordend/engines/engines.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
 #include "nordend/isolate/helpers.hpp"
-#include "nordend/picture/load.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/desktop.hpp"
@@ -91,7 +91,7 @@ namespace {
 
 namespace log = nordend::log;
 namespace core = nordend::core;
-namespace picture = nordend::picture;
+namespace engines = nordend::engines;
 namespace isolate = nordend::isolate;
 namespace preview = nordend::preview;
 namespace ui = nordend::ui;
@@ -369,20 +369,12 @@ int main(int argc, char** argv) {
             ui::IconSet icons{fonts};
             core::EventLoop loop;
             core::WorkerPool pool{loop};
-            // Pictures are made by the isolated preview helpers (ROADMAP 2b), never here.
+            // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
             {
-                isolate::HelperOptions options;
-                options.program = isolate::default_program();
-                if (options.program.empty()) {
-                    log::warn("nordend-preview not found: no previews of pictures");
-                }
-                auto helpers = std::make_shared<isolate::Helpers>(std::move(options));
-                picture::set_loader([helpers](const picture::LoadRequest& request) {
-                    return helpers->load(request);
-                });
-                picture::set_info_loader([helpers](const std::filesystem::path& path) {
-                    return helpers->photo_info(path);
-                });
+                auto registry = std::make_shared<const engines::Registry>(
+                    engines::Registry::load(engines::default_directory(), engines::locate_program));
+                isolate::use_engines(*registry);
+                engines::set_installed(std::move(registry));
             }
             nordend::fs::DirectoryWatcher watcher{loop};
             std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches

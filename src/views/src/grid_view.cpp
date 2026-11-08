@@ -3,14 +3,15 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <utility>
 #include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
+#include "nordend/engines/engines.hpp"
 #include "nordend/fs/icon.hpp"
-#include "nordend/picture/load.hpp"
 #include "nordend/ui/text_field.hpp"
 #include "nordend/views/format.hpp"
 
@@ -298,6 +299,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     // The cache size that covers the icon in physical pixels.
     const thumbs::Size thumbnail_size =
         thumbs::size_for(static_cast<std::uint32_t>(std::lround(icon * renderer.scale())));
+    const std::shared_ptr<const engines::Registry> engines = engines::installed();
     for (std::size_t row = range.first; row < range.last; ++row) {
         const float y = area_.y + row_top(row) - offset;
         for (std::size_t column = 0; column < columns_; ++column) {
@@ -328,8 +330,9 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             fs::Entry typed = entry;
             typed.mime = folder_->mime_of(entry);
             const ui::Texture* thumbnail = nullptr;
-            if (thumbnails_ != nullptr && !entry.is_directory() &&
-                picture::may_show(mime_->name(typed.mime))) {
+            const engines::Family* family =
+                entry.is_directory() ? nullptr : engines->find(*mime_, typed.mime);
+            if (thumbnails_ != nullptr && family != nullptr && family->thumbnails) {
                 thumbnail =
                     thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
             }

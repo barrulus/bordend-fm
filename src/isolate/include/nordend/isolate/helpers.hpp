@@ -13,6 +13,7 @@
 #include <thread>
 #include <vector>
 
+#include "nordend/engines/engines.hpp"
 #include "nordend/picture/load.hpp"
 #include "nordend/picture/photo_info.hpp"
 
@@ -87,8 +88,10 @@ private:
     std::thread reaper_;  // declared last: started once the rest is ready
 };
 
-// Where nordend-preview is: next to the running program (the build tree), else in
-// ../libexec/nordend/ (installed). Empty when neither exists.
-[[nodiscard]] std::filesystem::path default_program();
+// Sends pictures and photo information to the engine of registry that makes pictures, through
+// its own helpers (options.program is set from the engine). The first such engine when there
+// are several (load_picture names no type to choose by); a warning in the log when there is none.
+// The helpers live as long as the loaders set.
+void use_engines(const engines::Registry& registry, HelperOptions options = {});
 
 }  // namespace nordend::isolate

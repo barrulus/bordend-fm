@@ -119,12 +119,3 @@ TEST_CASE("load: exiv2 only for files that can carry a stored preview") {
     CHECK(load(kData / "tiff-preview.tif", 128).failure == Failure::none);  // a plain TIFF: ours
     CHECK(image::embedded_preview_reads() == before + 1);
 }
-
-TEST_CASE("load: may_show picks image and raw types") {
-    CHECK(picture::may_show("image/jpeg"));
-    CHECK(picture::may_show("image/x-olympus-orf"));
-    CHECK(picture::may_show("image/tiff"));  // Nikon TIFF, Hasselblad 3FR
-    CHECK(picture::may_show("image/x-portable-pixmap"));
-    CHECK_FALSE(picture::may_show("image/svg+xml"));
-    CHECK_FALSE(picture::may_show("text/plain"));
-}

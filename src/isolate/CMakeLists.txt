@@ -5,7 +5,8 @@ add_library(nordend_isolate
     src/protocol.cpp)
 add_library(nordend::isolate ALIAS nordend_isolate)
 target_include_directories(nordend_isolate PUBLIC include PRIVATE src)
-target_link_libraries(nordend_isolate PUBLIC nordend::picture PRIVATE nordend::warnings)
+target_link_libraries(nordend_isolate PUBLIC nordend::picture nordend::engines
+                                      PRIVATE nordend::core nordend::warnings)
 
 # Tiny pictures of every kind the helper reads, decoded once before it closes its cage, so that
 # the libraries load what they need while they still can: generated from the test fixtures at

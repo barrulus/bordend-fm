@@ -84,6 +84,7 @@ add_subdirectory(src/core)      # logging, event loop, worker pool, config
 add_subdirectory(src/ui)        # Wayland connection, windows, rendering
 add_subdirectory(src/theme)     # Noctalia palette, hot reload
 add_subdirectory(src/fs)        # directory loading and sorting
+add_subdirectory(src/engines)   # engines' manifests: who shows which type (3a)
 add_subdirectory(src/picture)   # pictures: Image, turning, scaling, the cache's PNG, the loader
 add_subdirectory(src/formats)   # the families of files read in the helper (image today)
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache

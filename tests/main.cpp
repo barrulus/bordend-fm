@@ -1,7 +1,9 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <unistd.h>
 #include <utility>
@@ -9,6 +11,7 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/engines/engines.hpp"
 #include "nordend/formats/image/load.hpp"
 #include "nordend/formats/image/photo.hpp"
 #include "nordend/fs/trash.hpp"
@@ -32,6 +35,12 @@ int main(int argc, char** argv) {
         // NOLINTNEXTLINE(concurrency-mt-unsafe): no other thread yet
         setenv(name, (std::filesystem::path{root} / folder).c_str(), 1);
     }
+    // The engines Nordend ships, from their manifests in the source tree (their programs are not
+    // started here).
+    nordend::engines::set_installed(std::make_shared<const nordend::engines::Registry>(
+        nordend::engines::Registry::load(NORDEND_ENGINES, [](std::string_view program) {
+            return std::filesystem::path{program};
+        })));
     // Pictures made in this process, by the image family itself (Nordend sends them to its
     // isolated helpers instead; tests/helpers_test.cpp covers that path).
     nordend::picture::set_loader([](const nordend::picture::LoadRequest& request) {

@@ -7,6 +7,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <functional>
+#include <memory>
 #include <poll.h>
 #include <span>
 #include <spawn.h>
@@ -18,6 +19,7 @@
 #include <unistd.h>
 #include <utility>
 
+#include "nordend/core/log.hpp"
 #include "protocol.hpp"
 
 extern char** environ;  // NOLINT(readability-redundant-declaration): POSIX, not in a header
@@ -395,21 +397,25 @@ picture::PhotoInfo Helpers::photo_info(const std::filesystem::path& path) {
     return done ? info : picture::PhotoInfo{};
 }
 
-std::filesystem::path default_program() {
-    std::error_code error;
-    const std::filesystem::path self = std::filesystem::read_symlink("/proc/self/exe", error);
-    if (error) {
-        return {};
-    }
-    const std::filesystem::path here = self.parent_path();
-    for (const std::filesystem::path& candidate :
-         {here / "nordend-preview",
-          here.parent_path() / "libexec" / "nordend" / "nordend-preview"}) {
-        if (::access(candidate.c_str(), X_OK) == 0) {
-            return candidate;
+void use_engines(const engines::Registry& registry, HelperOptions options) {
+    for (const engines::Engine& engine : registry.engines()) {
+        const auto& families = engine.manifest.families;
+        if (std::ranges::none_of(families, [](const engines::Family& family) {
+                return family.shows == engines::Shows::picture;
+            })) {
+            continue;
         }
+        options.program = engine.program;
+        auto helpers = std::make_shared<Helpers>(std::move(options));
+        picture::set_loader(
+            [helpers](const picture::LoadRequest& request) { return helpers->load(request); });
+        if (std::ranges::any_of(families, &engines::Family::info)) {
+            picture::set_info_loader(
+                [helpers](const std::filesystem::path& path) { return helpers->photo_info(path); });
+        }
+        return;
     }
-    return {};
+    log::warn("no engine makes pictures: no previews of pictures");
 }
 
 }  // namespace nordend::isolate

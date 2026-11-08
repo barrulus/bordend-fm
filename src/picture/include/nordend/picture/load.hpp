@@ -66,9 +66,4 @@ void set_info_loader(InfoLoader loader);
 // empty when none is set or the file says nothing. Thread-safe.
 [[nodiscard]] PhotoInfo load_photo_info(const std::filesystem::path& path);
 
-// Whether a file of this MIME type may give a picture: the image formats Nordend decodes and
-// camera raw files. Used to choose between a thumbnail and an icon before reading anything; the
-// file's bytes decide in load().
-[[nodiscard]] bool may_show(std::string_view mime) noexcept;
-
 }  // namespace nordend::picture

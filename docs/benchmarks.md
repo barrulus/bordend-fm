@@ -93,6 +93,15 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Engines' manifests (ROADMAP 3a)
+
+### 2026-11-08
+
+`engines::Registry::load` on the build tree's `engines/` (one manifest, the image engine's 30
+types; its program looked up next to the binary), timed with `steady_clock` around each call in a
+throwaway program linked against the build's libraries, 200 runs, warm cache: median 54 µs, min
+53 µs, max 170-220 µs (the first runs). Nordend does it once at start-up.
+
 ## The preview helper without exiv2 (ROADMAP 2e-5)
 
 ### 2026-11-08

@@ -11,6 +11,7 @@ add_executable(nordend-tests
     context_menu_test.cpp
     details_view_test.cpp
     devices_test.cpp
+    engines_test.cpp
     drag_drop_test.cpp
     directory_model_test.cpp
     directory_test.cpp
@@ -51,7 +52,7 @@ add_executable(nordend-tests
     undo_test.cpp
     worker_pool_test.cpp
     xcursor_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::thumbs nordend::preview nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::thumbs nordend::preview nordend::engines nordend::isolate nordend::platform doctest::doctest nordend::warnings)
 
 # The helper protocol's private header, for its tests; the image family's private readers (TIFF,
 # DNG, lossless JPEG), for theirs.
@@ -97,6 +98,7 @@ target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
             NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
             NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg"
+            NORDEND_ENGINES="${PROJECT_SOURCE_DIR}/data/engines"
             NORDEND_PREVIEW_HELPER="$<TARGET_FILE:nordend-preview>"
             NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>"
             NORDEND_SANDBOX_PROBE="$<TARGET_FILE:nordend-sandbox-probe>")

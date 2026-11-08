@@ -30,11 +30,11 @@
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
 #include "nordend/core/worker_pool.hpp"
+#include "nordend/engines/engines.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/places.hpp"
 #include "nordend/isolate/helpers.hpp"
-#include "nordend/picture/load.hpp"
 #include "nordend/platform/about.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/opener.hpp"
@@ -60,7 +60,7 @@
 namespace {
 
 namespace core = nordend::core;
-namespace picture = nordend::picture;
+namespace engines = nordend::engines;
 namespace isolate = nordend::isolate;
 namespace fs = nordend::fs;
 namespace log = nordend::log;
@@ -230,6 +230,18 @@ int print_about() {
                      .value = commit.empty() ? std::string{NORDEND_VERSION}
                                              : std::format("{} ({})", NORDEND_VERSION, commit)});
     std::ranges::move(platform::system_about(), std::back_inserter(lines));
+    // The engines found, and where their programs are: an installation in one line.
+    const std::filesystem::path directory = engines::default_directory();
+    const engines::Registry registry = engines::Registry::load(directory, engines::locate_program);
+    std::string found;
+    for (const engines::Engine& engine : registry.engines()) {
+        found += std::format("{}{} ({})", found.empty() ? "" : ", ", engine.manifest.name,
+                             engine.program.string());
+    }
+    if (found.empty()) {
+        found = directory.empty() ? "none found" : std::format("none in {}", directory.string());
+    }
+    lines.push_back({.label = "Engines", .value = found});
     // The GPU as OpenGL names it, from a context without a window.
     try {
         const ui::Offscreen offscreen{1, 1};
@@ -403,18 +415,12 @@ int main(int argc, char** argv) {
         });
 
         core::WorkerPool pool{loop};
-        // Pictures are made by the isolated preview helpers (ROADMAP 2b), never here.
+        // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
         {
-            isolate::HelperOptions options;
-            options.program = isolate::default_program();
-            if (options.program.empty()) {
-                log::warn("nordend-preview not found: no previews of pictures");
-            }
-            auto helpers = std::make_shared<isolate::Helpers>(std::move(options));
-            picture::set_loader(
-                [helpers](const picture::LoadRequest& request) { return helpers->load(request); });
-            picture::set_info_loader(
-                [helpers](const std::filesystem::path& path) { return helpers->photo_info(path); });
+            auto registry = std::make_shared<const engines::Registry>(
+                engines::Registry::load(engines::default_directory(), engines::locate_program));
+            isolate::use_engines(*registry);
+            engines::set_installed(std::move(registry));
         }
         // Nordend's icon in the desktop's accent (ROADMAP 9.2), written on a worker.
         bool follow_accent = config.icon.follow_accent;

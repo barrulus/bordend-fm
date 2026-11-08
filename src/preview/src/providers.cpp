@@ -1,19 +1,22 @@
 #include <utility>
 
 #include "nordend/core/log.hpp"
+#include "nordend/engines/engines.hpp"
 #include "nordend/picture/load.hpp"
 #include "nordend/preview/preview.hpp"
 
 namespace nordend::preview {
 namespace {
 
-// Images and camera raw files (from their embedded previews), fitted to the area.
+// What an engine shows as a picture (images, camera raw files from their embedded previews),
+// fitted to the area.
 class ImageProvider final : public Provider {
 public:
     [[nodiscard]] Kind kind() const override { return Kind::image; }
 
     [[nodiscard]] bool can_handle(const fs::MimeDatabase& mime, fs::MimeId type) const override {
-        return picture::may_show(mime.name(type));
+        const engines::Family* family = engines::installed()->find(mime, type);
+        return family != nullptr && family->shows == engines::Shows::picture;
     }
 
     [[nodiscard]] Content load(const Request& request,

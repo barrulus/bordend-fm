@@ -104,6 +104,11 @@ README's [What's next](../README.md#whats-next).
   network, start a program or signal another one, and has at most 4 GiB of memory. They start when a
   picture is first needed (at most one per worker), give their memory back after a quiet second,
   and Nordend closes them after 30 s without work.
+- **Engines described by manifests:** each reader program (an *engine*; `nordend-preview` is the
+  image engine) comes with a small TOML manifest in `share/nordend/engines/` saying which types
+  it shows and what it gives back. Nordend reads them at start-up (about 0.05 ms) and asks them
+  who shows a file; a broken manifest or a missing program is skipped with a warning, and the
+  files it would show get the information card. `nordend --about` lists the engines found.
 - **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look
   and everywhere else: not a kind Nordend shows, no readable preview in a raw file, too large,
   damaged, or unreadable.
@@ -372,7 +377,8 @@ go back to the system.
 - **`nordend --about`**: Nordend's version and commit, the distribution, the kernel, the
   desktop, the versions of Noctalia and Umbriel when they are running (asked of the very
   programs running, never of another copy) and the GPU (from a surfaceless OpenGL context), one
-  "Label: value" line each, ready to paste into a bug report.
+  "Label: value" line each, ready to paste into a bug report; and the engines found, with
+  their programs.
 - Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
   template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with

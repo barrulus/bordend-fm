@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-08 — Engines and their manifests (ROADMAP 3a)
+
+**Tested by the author** (2026-11-08, installed in `~/.local`): the manifest installed and found
+by `--about`; protocol 2 refused with its line and "none in …"; restored and found again;
+thumbnails, Quick Look on raw files and the info pane's EXIF as before; text as before.
+
+**Decided with the author** (2026-11-08): step 3 starts by making the image helper the first
+*engine*, described by a manifest on disk rather than a list compiled into Nordend, so that an
+engine packaged apart (step 8, Void subpackages) adds itself by installing a manifest. MIME types
+match exactly unless a family asks for its subtypes (`subclasses = true`, for text). No cage field
+yet: today the engine builds its own cage and a manifest could neither widen nor check it; it
+comes with the Luau plugins (8a), where Nordend applies the cage. Text stays where it is until
+3b-1.
+
+**Done**: a new module `engines/` (no file parser): `parse_manifest` (strict: an unknown key, a
+value of the wrong type, another protocol, a program given as a path, a type listed twice: the
+manifest is refused, with its file and line), `Registry` (`load` reads every `*.toml` of a
+directory in name order, skipping with a warning a broken manifest, a missing program, or an
+engine showing a type an earlier one shows; `find(mime, type)`; `engine_of`), `default_directory`
+(`engines/` next to the program in the build tree, else `../share/nordend/engines/`),
+`locate_program` (next to the program, else `../libexec/nordend/`; a file name only) and the
+registry in use (`set_installed`/`installed`). `data/engines/image.toml` lists the 30 types of
+the old `picture::may_show`, which is gone: Quick Look and the info pane (`preview::provider_for`)
+and the grid's thumbnails ask the registry (`thumbnails = true`). `isolate::use_engines` replaces
+`default_program`: the helpers start the program the manifest names, and the photo information
+goes to an engine with `info = true`. `nordend --about` lists the engines and their programs
+("Engines: image (/usr/libexec/nordend/nordend-preview)", or "none in DIR"). CMake copies the
+manifests next to `nordend` in the build tree and installs them. The tests load the shipped
+manifest from the source tree (`tests/main.cpp`).
+
+**Tests**: `tests/engines_test.cpp`, 7 cases: the shipped manifest shows exactly the 30 types of
+before (and not SVG, text, PDF), a full manifest read, 18 ways a manifest is refused (with the
+line), exact types against subtypes (an exact type wins over a family of subtypes), first engine
+wins, a directory with good, broken and uninstalled engines, `locate_program` refusing paths.
+361 tests.
+
+**Checked**: offscreen snapshots before and after (`nordend-snapshot`, a folder with PNG, JPEG,
+WebP, JXL, TIFF, a DNG and a RAF): the grid's thumbnails, Quick Look on the DNG and the info
+pane's EXIF identical (one glyph of the free space in the status bar differs, `/tmp` changing).
+Without any manifest, and with one speaking protocol 2: Quick Look shows the information card,
+`--about` says why, Nordend carries on. Installed in a scratch prefix: the manifest in
+`share/nordend/engines/`, found by `--about`; the Void template needs no change.
+
+**Measured**: reading the manifests (`Registry::load` on the build tree's, one engine, warm
+cache, 200 runs): median 54 µs.
+
+**Open**: when two engines make pictures, `picture::load_picture` names no type to choose by, so
+the first is used (logged); to settle when a second picture engine exists (8c).
+
+---
+
 ## 2026-11-08 — Nordend 0.4.0
 
 Step 2 (image previews) closed and released as 0.4.0, the author's choice ("tanto ci lavoriamo
