@@ -17,6 +17,11 @@ CMake version, README (badge, note, install note, Versions, What's next, At a gl
 anonymous today, as before) and features say so. The engine protocol is 4: Nordend 0.5.0's
 helper and manifest go together, installed by the same package.
 
+Released: tag `v0.5.0` on `0bc58c8` and the GitHub release by the author. Void template on it
+(here and in void-noctalia): sha256 `ba1c06d2…bdaffd7` of the tag's archive (fetched twice, the
+same); `nordend-0.5.0_1` builds with no error or warning, the same run dependencies as 0.4.0, the
+engine's manifest at `/usr/share/nordend/engines/base.toml`.
+
 ---
 
 ## 2026-11-09 — Text pages: sideways, keys, caption, minified files, logs (ROADMAP 3b-4)
