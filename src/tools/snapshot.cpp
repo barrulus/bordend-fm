@@ -507,8 +507,10 @@ int main(int argc, char** argv) {
                                                     [](nordend::fs::Resolution, bool) {});
                 }
                 frame();  // lays out: keys need the viewport
+                // Each key finds what the one before loaded (Space, then Ctrl+A on the text).
                 for (const ui::KeyEvent& event : parse_keys(keys)) {
                     columns->key(event, views::Browser::Clock::now());
+                    run_until(loop, [&] { return !columns->loading(); });
                 }
                 std::string_view fields{sort};
                 while (!fields.empty()) {

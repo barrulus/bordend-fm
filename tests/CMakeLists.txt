@@ -34,6 +34,7 @@ add_executable(nordend-tests
     pointer_shapes_test.cpp
     tabs_test.cpp
     text_test.cpp
+    text_selection_test.cpp
     platform_test.cpp
     preview_test.cpp
     quick_look_test.cpp

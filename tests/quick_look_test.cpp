@@ -1,11 +1,14 @@
 #include "nordend/views/quick_look.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <variant>
@@ -18,12 +21,18 @@
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
+#include "nordend/theme/palette.hpp"
+#include "nordend/ui/icons.hpp"
+#include "nordend/ui/offscreen.hpp"
+#include "nordend/ui/renderer.hpp"
+#include "nordend/ui/text.hpp"
 #include "nordend/views/browser.hpp"
 #include "temp_dir.hpp"
 
 using nordend::core::EventLoop;
 using nordend::core::WorkerPool;
 using nordend::views::Browser;
+using nordend::views::QuickLook;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -209,4 +218,98 @@ TEST_CASE("quick look: a folder's card counts its entries; a wheel turn over tex
     f.browser.pointer(wheel, Browser::Clock::now());
     CHECK(look.is_open());  // scrolling does not close it
     CHECK(look.shown() == "notes.txt");
+}
+
+TEST_CASE("quick look: Ctrl+A and Ctrl+C take a text page's text, not the files") {
+    Fixture f;
+    std::ofstream{f.dir.path / "notes.txt"} << "first line\nsecond line\n";
+    std::vector<nordend::views::SystemClipboard::Format> offered;
+    nordend::views::SystemClipboard clipboard;
+    clipboard.offer = [&](std::vector<nordend::views::SystemClipboard::Format> formats) {
+        offered = std::move(formats);
+    };
+    f.browser.set_system_clipboard(std::move(clipboard));
+    REQUIRE(f.settle());
+    auto& look = f.browser.quick_look();
+    f.press(XKB_KEY_End);  // notes.txt
+    f.press(XKB_KEY_space);
+    REQUIRE(f.settle());
+    REQUIRE(look.shows_text());
+    // Nothing selected: Ctrl+C copies the file, as without Quick Look.
+    f.press(XKB_KEY_c, {.ctrl = true});
+    REQUIRE_FALSE(offered.empty());
+    CHECK(offered.front().first == "x-special/gnome-copied-files");
+    f.press(XKB_KEY_a, {.ctrl = true});
+    CHECK(look.selected_text() == "first line\nsecond line");
+    f.press(XKB_KEY_c, {.ctrl = true});
+    REQUIRE(offered.size() == 3);
+    CHECK(offered.front().first == "text/plain;charset=utf-8");
+    CHECK(offered.front().second == "first line\nsecond line");
+    CHECK(look.is_open());
+    // Walking to another entry drops the selection.
+    f.press(XKB_KEY_Up);
+    CHECK(look.selected_text().empty());
+}
+
+TEST_CASE("quick look: on a text page the pointer selects; a click beside it closes") {
+    constexpr std::int32_t width = 1000;
+    constexpr std::int32_t height = 700;
+    std::unique_ptr<nordend::ui::Offscreen> gl;
+    try {
+        gl = std::make_unique<nordend::ui::Offscreen>(width, height);
+    } catch (const std::runtime_error& error) {
+        MESSAGE("no offscreen OpenGL: " << error.what());
+        return;
+    }
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    nordend::ui::IconSet icons{fonts};
+    Fixture f;
+    // Ten lines of the same words: the page's middle is on one of them.
+    std::ofstream notes{f.dir.path / "notes.txt"};
+    for (int i = 0; i < 10; ++i) {
+        notes << "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi\n";
+    }
+    notes.close();
+    REQUIRE(f.settle());
+    auto& look = f.browser.quick_look();
+    f.press(XKB_KEY_End);
+    f.press(XKB_KEY_space);
+    REQUIRE(f.settle());
+    REQUIRE(look.shows_text());
+    const auto draw = [&] {
+        renderer.begin_frame(width, height, 1.0F, {});
+        f.browser.draw(renderer, {0.0F, 0.0F, width, height}, nordend::theme::Palette{}, icons,
+                       Browser::Clock::now());
+        renderer.end_frame();
+    };
+    draw();
+    const auto pointer = [&](nordend::ui::PointerEvent::Kind kind, float x, float y, int clicks) {
+        nordend::ui::PointerEvent event;
+        event.kind = kind;
+        event.x = x;
+        event.y = y;
+        event.button = nordend::ui::PointerButton::left;
+        event.click_count = clicks;
+        f.browser.pointer(event, Browser::Clock::now());
+    };
+    using Kind = nordend::ui::PointerEvent::Kind;
+    // A double click in the middle of the page: a whole word, Quick Look still open.
+    const float middle_x = width / 2.0F;
+    const float middle_y = (height - 44.0F) / 2.0F;
+    pointer(Kind::press, middle_x, middle_y, 2);
+    pointer(Kind::release, middle_x, middle_y, 2);
+    CHECK(look.is_open());
+    const std::string word = look.selected_text();
+    CHECK_FALSE(word.empty());
+    CHECK(word.find(' ') == std::string::npos);
+    // A drag down three lines: more than a line, from that word on.
+    pointer(Kind::press, middle_x, middle_y, 1);
+    pointer(Kind::motion, middle_x, middle_y + (3.0F * QuickLook::kTextLineHeight), 0);
+    pointer(Kind::release, middle_x, middle_y + (3.0F * QuickLook::kTextLineHeight), 0);
+    CHECK(std::ranges::count(look.selected_text(), '\n') == 3);
+    draw();  // the selection drawn behind the text
+    // Beside the page: Quick Look closes.
+    pointer(Kind::press, 5.0F, 5.0F, 1);
+    CHECK_FALSE(look.is_open());
 }

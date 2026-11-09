@@ -130,6 +130,10 @@ README's [What's next](../README.md#whats-next).
   language found from the file's type, its name (`PKGBUILD`,
   Void's `template`, `CMakeLists.txt`, `Cargo.lock`, `.clang-format`, `.gitignore`), its extension or its `#!` line, made from your theme's colours and readable
   on its page; the info pane's first lines are coloured too; any other file shows what it is.
+  On a text page you **select and copy**: drag (the page scrolls when you go past its top or
+  bottom), double click a word, triple click a line, Shift+click to extend, Ctrl+A for the whole
+  file, Ctrl+C copies the text (with nothing selected it copies the file, as anywhere else); a
+  click beside the page still closes Quick Look.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,
   exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`

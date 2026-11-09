@@ -34,6 +34,10 @@ constexpr float kLineHeight = QuickLook::kTextLineHeight;
 constexpr float kPagePadding = 16.0F;
 constexpr float kGutterGap = 16.0F;     // between the line numbers and the text
 constexpr float kPageColumns = 120.0F;  // characters a page is wide, at most
+// Selecting past the lines' top or bottom scrolls: this many logical pixels a second for each
+// pixel beyond, at most kAutoscrollMax.
+constexpr float kAutoscrollPerPixel = 12.0F;
+constexpr float kAutoscrollMax = 4000.0F;
 constexpr float kPageRadius = 10.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
@@ -114,6 +118,9 @@ void QuickLook::close() {
     folder_.reset();
     shown_name_.clear();
     shown_key_.clear();
+    selection_.clear();
+    selecting_ = false;
+    layout_ = {};
     redraw_();
 }
 
@@ -199,6 +206,9 @@ void QuickLook::follow(std::shared_ptr<Folder> folder) {
     if (moved) {
         folder_->sniff(index == 0 ? 0 : index - 1, index + 2);
         text_scroller_.jump_to(0.0F);
+        selection_.clear();
+        selecting_ = false;
+        layout_ = {};
     }
     std::unordered_set<std::string> keep{key};
     ensure(*entry, true);
@@ -227,23 +237,100 @@ const preview::Text* QuickLook::shown_text() const {
     return shown == nullptr ? nullptr : std::get_if<preview::Text>(shown);
 }
 
-void QuickLook::pointer(const ui::PointerEvent& event, Clock::time_point now) {
-    if (event.kind != ui::PointerEvent::Kind::scroll || shown_text() == nullptr) {
-        return;
+bool QuickLook::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    const preview::Text* const text = shown_text();
+    if (text == nullptr) {
+        return false;
     }
-    if (event.wheel_y != 0.0F) {
-        text_scroller_.wheel(event.wheel_y, now);
-    } else if (event.scroll_y != 0.0F) {
-        text_scroller_.finger(event.scroll_y, now);
+    using Kind = ui::PointerEvent::Kind;
+    switch (event.kind) {
+        case Kind::scroll:
+            if (event.wheel_y != 0.0F) {
+                text_scroller_.wheel(event.wheel_y, now);
+            } else if (event.scroll_y != 0.0F) {
+                text_scroller_.finger(event.scroll_y, now);
+            }
+            if (event.scroll_finger && event.scroll_stop) {
+                text_scroller_.release(now);
+            }
+            if (selecting_) {
+                selection_.drag(point_at(pointer_x_, pointer_y_, *text), text->lines);
+            }
+            redraw_();
+            return false;
+        case Kind::press:
+            if (event.button != ui::PointerButton::left || !layout_.valid ||
+                !layout_.page.contains(event.x, event.y)) {
+                return false;
+            }
+            selection_.press(point_at(event.x, event.y, *text), event.click_count,
+                             event.modifiers.shift, text->lines);
+            selecting_ = true;
+            pointer_x_ = event.x;
+            pointer_y_ = event.y;
+            autoscrolled_ = now;
+            redraw_();
+            return true;
+        case Kind::motion:
+            if (selecting_) {
+                pointer_x_ = event.x;
+                pointer_y_ = event.y;
+                selection_.drag(point_at(event.x, event.y, *text), text->lines);
+                autoscrolled_ = now;
+                redraw_();
+            }
+            return false;
+        case Kind::release:
+            if (event.button == ui::PointerButton::left) {
+                selecting_ = false;
+            }
+            return false;
+        case Kind::enter:
+        case Kind::leave:
+            return false;
     }
-    if (event.scroll_finger && event.scroll_stop) {
-        text_scroller_.release(now);
+    return false;
+}
+
+TextPoint QuickLook::point_at(float x, float y, const preview::Text& text) const {
+    if (text.lines.empty() || layout_.char_width <= 0.0F) {
+        return {};
     }
-    redraw_();
+    // Above the lines: the first line's start; below: the last line's end.
+    const float from_top = y - layout_.lines.y + text_scroller_.offset();
+    if (from_top < 0.0F) {
+        return {};
+    }
+    const auto line = static_cast<std::size_t>(from_top / kLineHeight);
+    if (line >= text.lines.size()) {
+        return {text.lines.size() - 1, text.lines.back().size()};
+    }
+    // The nearer edge of the character under the pointer: half way through one is after it.
+    const float columns = std::max(0.0F, (x - layout_.text_x) / layout_.char_width);
+    const auto column = static_cast<std::size_t>(std::lround(columns));
+    return {line, byte_at_column(text.lines[line], column)};
+}
+
+bool QuickLook::autoscrolling() const {
+    return selecting_ && layout_.valid &&
+           (pointer_y_ < layout_.lines.y || pointer_y_ > layout_.lines.bottom());
+}
+
+void QuickLook::select_all_text() {
+    if (const preview::Text* const text = shown_text()) {
+        selection_.select_all(text->lines);
+        redraw_();
+    }
+}
+
+std::string QuickLook::selected_text() const {
+    const preview::Text* const text = shown_text();
+    return text == nullptr ? std::string{} : selection_.text(text->lines);
 }
 
 bool QuickLook::animating(Clock::time_point now) const {
-    return is_open() && (fade_at(opened_, now) < 1.0F || text_scroller_.animating());
+    return is_open() &&
+           (fade_at(opened_, now) < 1.0F || text_scroller_.animating() || autoscrolling());
 }
 
 bool QuickLook::loading() const {
@@ -397,10 +484,24 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
                          page.height - (2.0F * kPagePadding)};
     text_scroller_.set_extent(content, inner.height);
     text_scroller_.advance(now);
-    const float offset = text_scroller_.offset();
     const float numbers_right = page.x + kPagePadding + gutter;
     const float text_x = numbers_right + kGutterGap;
     const float text_room = page.right() - kPagePadding - text_x;
+    layout_ = {
+        .page = page, .lines = inner, .text_x = text_x, .char_width = char_width, .valid = true};
+    // Selecting with the pointer above or below the lines: the page scrolls that way, faster
+    // the farther it is, and the selection follows.
+    if (autoscrolling()) {
+        const float beyond =
+            pointer_y_ < inner.y ? pointer_y_ - inner.y : pointer_y_ - inner.bottom();
+        const float seconds = std::chrono::duration<float>(now - autoscrolled_).count();
+        const float speed =
+            std::clamp(beyond * kAutoscrollPerPixel, -kAutoscrollMax, kAutoscrollMax);
+        text_scroller_.jump_to(text_scroller_.offset() + (speed * std::min(seconds, 0.1F)));
+        autoscrolled_ = now;
+        selection_.drag(point_at(pointer_x_, pointer_y_, text), text.lines);
+    }
+    const float offset = text_scroller_.offset();
     // The line box is about 1.2 times the font size: centered in the line height.
     const float baseline_shift = (kLineHeight - (kTextSize * 1.2F)) / 2.0F;
     renderer.push_clip(inner);
@@ -408,6 +509,26 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
     const auto first = static_cast<std::size_t>(std::max(0.0F, offset / kLineHeight));
     const auto last = std::min(
         count, static_cast<std::size_t>(std::ceil((offset + inner.height) / kLineHeight)) + 1);
+    // The selection behind the text: each line's selected characters, and a character's room
+    // for its line break when that is selected too.
+    if (!selection_.empty()) {
+        const auto [from, to] = selection_.range();
+        for (std::size_t i = std::max(first, from.line); i < last && i <= to.line; ++i) {
+            const std::string_view line = text.lines[i];
+            const std::size_t start = i == from.line ? column_at_byte(line, from.byte) : 0;
+            const std::size_t end = i == to.line ? column_at_byte(line, to.byte)
+                                                 : column_at_byte(line, line.size()) + 1;
+            if (end <= start) {
+                continue;
+            }
+            const float x = text_x + (static_cast<float>(start) * char_width);
+            const float width = std::min(static_cast<float>(end - start) * char_width,
+                                         std::max(0.0F, text_x + text_room - x));
+            renderer.fill_rect(
+                {x, inner.y + (static_cast<float>(i) * kLineHeight) - offset, width, kLineHeight},
+                palette.secondary_container.with_alpha(fade));
+        }
+    }
     for (std::size_t i = first; i < last; ++i) {
         const float y = inner.y + (static_cast<float>(i) * kLineHeight) - offset + baseline_shift;
         const std::string number = std::to_string(i + 1);

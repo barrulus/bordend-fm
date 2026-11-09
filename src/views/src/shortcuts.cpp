@@ -411,6 +411,18 @@ constexpr std::array kShortcuts{
              .action = "The next file, the previous",
              .scope = scope::kQuickLook,
              .keysyms = {XKB_KEY_Up, XKB_KEY_Down, XKB_KEY_Left, XKB_KEY_Right}},
+    Shortcut{.group = "Quick Look",
+             .keys = "Ctrl+A",
+             .action = "Select a text file's text (or drag on it)",
+             .scope = scope::kQuickLook,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_a, XKB_KEY_A}},
+    Shortcut{.group = "Quick Look",
+             .keys = "Ctrl+C",
+             .action = "Copy the text selected",
+             .scope = scope::kQuickLook,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_c, XKB_KEY_C}},
 };
 
 }  // namespace

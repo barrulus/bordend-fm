@@ -382,6 +382,20 @@ void Browser::take_selection(bool cut) {
                  false);
 }
 
+void Browser::copy_text(std::string text) {
+    // The clipboard holds text now, not files: Ctrl+V has nothing to paste here.
+    clipboard_ = {};
+    cut_marks_ = {};
+    const auto lines = static_cast<std::size_t>(std::ranges::count(text, '\n')) + 1;
+    const std::string what = lines == 1
+                                 ? std::format("{} characters", column_at_byte(text, text.size()))
+                                 : std::format("{} lines", lines);
+    if (system_.offer) {
+        system_.offer({{std::string{kText}, text}, {"UTF8_STRING", text}, {"text/plain", text}});
+    }
+    show_message(std::format("Copied {}", what), false);
+}
+
 void Browser::paste() {
     const std::shared_ptr<Folder> folder = current_folder();
     if (!folder) {
@@ -2314,12 +2328,11 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
         return;
     }
     if (quick_look_.is_open()) {
-        // Over the overlay: a click closes it, scrolling moves a text page, the rest waits
-        // until it is gone.
-        if (event.kind == ui::PointerEvent::Kind::press) {
+        // Over the overlay: a click on a text page selects, elsewhere it closes; scrolling
+        // moves a text page; the rest waits until it is gone.
+        const bool taken = quick_look_.pointer(event, now);
+        if (event.kind == ui::PointerEvent::Kind::press && !taken) {
             quick_look_.close();
-        } else {
-            quick_look_.pointer(event, now);
         }
         if (event.kind != ui::PointerEvent::Kind::leave) {
             pointer_x_ = event.x;
@@ -3236,6 +3249,21 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
             (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{})) {
             quick_look_.close();
             return true;
+        }
+        // On a text page Ctrl+A selects its text and Ctrl+C copies it (with nothing selected,
+        // Ctrl+C copies the file, as without Quick Look).
+        if (quick_look_.shows_text()) {
+            if ((event.keysym == XKB_KEY_a || event.keysym == XKB_KEY_A) &&
+                event.modifiers == ui::Modifiers{.ctrl = true}) {
+                quick_look_.select_all_text();
+                return true;
+            }
+            if (command == Command::copy) {
+                if (std::string text = quick_look_.selected_text(); !text.empty()) {
+                    copy_text(std::move(text));
+                    return true;
+                }
+            }
         }
         if (command != Command::none) {
             run(command, now);

@@ -36,6 +36,7 @@ add_library(nordend_views
     src/tab_bar.cpp
     src/title_bar.cpp
     src/quick_look.cpp
+    src/text_selection.cpp
     src/thumbnails.cpp
     src/undo.cpp)
 add_library(nordend::views ALIAS nordend_views)

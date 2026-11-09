@@ -23,6 +23,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/texture.hpp"
 #include "nordend/views/folder.hpp"
+#include "nordend/views/text_selection.hpp"
 
 namespace nordend::views {
 
@@ -60,8 +61,22 @@ public:
     // folder); closes when it is on nothing.
     void follow(std::shared_ptr<Folder> folder);
 
-    // Wheel and touchpad scroll a text page; other pointer events are the owner's.
-    void pointer(const ui::PointerEvent& event, Clock::time_point now);
+    // Wheel and touchpad scroll a text page; on it, the left button selects text (drag, double
+    // click a word, triple click a line, Shift+click to extend). True when a press was taken
+    // (on the page); the owner does what it wants with the others (a click elsewhere closes).
+    bool pointer(const ui::PointerEvent& event, Clock::time_point now);
+
+    // A text page is shown (Ctrl+A and Ctrl+C are then its own).
+    [[nodiscard]] bool shows_text() const { return shown_text() != nullptr; }
+
+    // Selects the whole text shown.
+    void select_all_text();
+
+    // The text selected; empty when nothing is.
+    [[nodiscard]] std::string selected_text() const;
+
+    // The selection on the text page (tests).
+    [[nodiscard]] const TextSelection& text_selection() const noexcept { return selection_; }
 
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, Clock::time_point now);
@@ -135,6 +150,25 @@ private:
     Clock::time_point opened_;
     std::unordered_map<std::string, Slot> slots_;  // the shown entry and its neighbours
     ui::Scroller text_scroller_;                   // the shown text page
+    TextSelection selection_;                      // on the shown text page
+
+    // The text page as last drawn, for the pointer: the lines' area, where text starts, a
+    // character's width; valid once drawn.
+    struct TextLayout {
+        ui::Rect page;
+        ui::Rect lines;
+        float text_x{0.0F};
+        float char_width{0.0F};
+        bool valid{false};
+    };
+
+    TextLayout layout_;
+    bool selecting_{false};  // the left button is down on the page
+    float pointer_y_{0.0F};  // while selecting: above or below the lines scrolls
+    float pointer_x_{0.0F};
+    Clock::time_point autoscrolled_;  // the last frame that scrolled while selecting
+    [[nodiscard]] TextPoint point_at(float x, float y, const preview::Text& text) const;
+    [[nodiscard]] bool autoscrolling() const;
     // Textures of slots dropped outside a draw: deleted at the next draw, with GL current.
     std::vector<std::unique_ptr<ui::Texture>> retired_;
     // The size images are made for: the last drawn image area, in physical pixels.

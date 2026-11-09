@@ -4,6 +4,62 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-09 — Selecting and copying text in Quick Look (ROADMAP 3b-3)
+
+**Tested by the author** (2026-11-09, installed in `~/.local`, the test plan on `browser.cpp`:
+dragging, scrolling past the page's bottom, double and triple click, Shift+click, Ctrl+A,
+Ctrl+C pasted elsewhere, arrows, a click beside the page, Ctrl+C with nothing selected, F1):
+"tutti i test passati, funziona".
+
+**Done**: `views::TextSelection` (`text_selection.{hpp,cpp}`, no drawing, no pointer: points as
+line and byte) keeps a selection by characters, words or lines: a press (one click a place, two
+the word, three the line with its break), a drag reaching out from what the press took by the
+same unit (a drag after a double click goes by words), Shift+click extending (from the last
+press when nothing is selected), select all, the text joined by `\n`. Words are letters, digits,
+`_` and any byte beyond ASCII (so `caffè_1` is one); a run of spaces is one; punctuation goes one
+character at a time. Columns and bytes are converted counting UTF-8 characters
+(`byte_at_column`, `column_at_byte`): the page is monospace and tabs are expanded on reading.
+`QuickLook` keeps the page's layout from the last draw (page, lines area, where text starts, a
+character's width) and turns pointer positions into points (half way through a character is
+after it; above the lines the first line's start, below the last line's end); a left press on
+the page selects and is taken (`pointer` now says so), a press elsewhere still closes Quick Look;
+while the button is down above or below the lines the page scrolls, 12 px/s for each pixel
+beyond (at most 4000 px/s), as an animation (so it goes on with the pointer still), the selection
+following. The selection is drawn behind the text in `secondary_container`, the colour text
+fields select with, a character's room for each selected line break. Walking to another file,
+closing or reopening drops it. `Browser`: on a text page Ctrl+A selects its text and Ctrl+C puts
+it on the clipboard (`text/plain;charset=utf-8`, `UTF8_STRING`, `text/plain`) with a message
+("Copied 12 lines", "Copied 7 characters"); Nordend's own file clipboard is emptied then, so
+Ctrl+V has nothing to paste; with nothing selected Ctrl+C copies the file as before. F1 lists both
+under Quick Look. The snapshot tool now waits after each key for what it loaded, so
+`--keys "space,Ctrl+a"` shows the selection.
+
+**Tests**: `tests/text_selection_test.cpp` (columns and bytes with a two-byte `è`; drags over
+lines and back past the press; words, spaces, punctuation, lines, dragging by words and lines, the
+last line without a break; Shift+click, select all, clear, a point inside a character, no text);
+in `quick_look_test.cpp` Ctrl+A/Ctrl+C through the browser with a fake clipboard (the file first
+when nothing is selected, then the text; walking drops the selection), and an offscreen-drawn
+page: a double click in its middle takes one word and keeps Quick Look open, a drag three lines
+down selects across them, a click beside the page closes it.
+
+**Checked**: offscreen snapshot of a C++ file with Ctrl+A, in the default palette (a saturated
+blue) and in the author's Noctalia colours (a muted grey-green, the text readable on it): kept,
+as text fields use the same colour.
+
+**Fuzzing, the long run for step 3's parsers** (2026-11-09, started once the last lexer was in:
+3b-3 and 3b-4 add none; an hour, the six targets side by side, 3 processes each, at the lowest
+priority while the author was out): `nordend-fuzz-camera` 1.3 million inputs (coverage 1745 →
+1806), `-picture` 2.2 million (4299 → 4310), `-tiff` 31.7 million (1382 → 1383), `-dng` 27.4
+million (2891 → 2894), `-ljpeg` 36.0 million (368), `-text` 0.9 million (2539 → 2611); no crash,
+timeout or out-of-memory. 416 tests, green in `build`, `build-asan`, `build-tsan` after it.
+
+**Open**: wide characters (CJK, emoji) take two columns on screen but count one, so on such lines
+a selection made with the pointer may be one character off (Ctrl+A and Ctrl+C stay exact).
+clang-tidy's `bugprone-forward-declaration-namespace` on `isolate/helpers.hpp` (`Request`), seen
+through `snapshot.cpp`, predates this step.
+
+---
+
 ## 2026-11-09 — Markdown and diffs (ROADMAP 3b-2b, fourth group)
 
 **Tested by the author** (2026-11-09, installed in `~/.local`, the test plan: this `README.md`,
