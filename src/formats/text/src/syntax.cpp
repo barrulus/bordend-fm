@@ -23,12 +23,13 @@ using nordend::text::Style;
 
 // Where a line ends inside something that goes on to the next.
 struct State {
-    enum class In : std::uint8_t { code, comment, string, heredoc };
+    enum class In : std::uint8_t { code, comment, string, heredoc, block };
     In in{In::code};
-    std::string close;    // what ends it: "*/", ")delim\"", "\"\"\"", "]==]", a heredoc's word
-    bool escapes{false};  // a string: a backslash escapes the next character
-    int depth{0};         // nested comments: how many are open
-    bool tabs{false};     // a heredoc's last line may start with tabs (<<-)
+    std::string close;      // what ends it: "*/", ")delim\"", "\"\"\"", "]==]", a heredoc's word
+    bool escapes{false};    // a string: a backslash escapes the next character
+    int depth{0};           // nested comments: how many are open
+    bool tabs{false};       // a heredoc's last line may start with tabs (<<-)
+    std::size_t indent{0};  // a YAML block scalar: its lines are indented more than this
     // A heredoc opened on this line: its lines start with the next one.
     std::string heredoc;
     bool heredoc_tabs{false};
@@ -148,6 +149,14 @@ public:
         : syntax_{syntax}, tables_{tables}, line_{line}, state_{state}, out_{out} {}
 
     void run() {
+        if (syntax_.dedicated == Dedicated::yaml) {
+            yaml();
+            return;
+        }
+        if (syntax_.dedicated == Dedicated::ignore || syntax_.dedicated == Dedicated::attributes) {
+            ignore_line(syntax_.dedicated == Dedicated::attributes);
+            return;
+        }
         if (state_.in == State::In::heredoc) {
             heredoc_line();
             return;
@@ -162,6 +171,12 @@ public:
         }
         if (state_.in == State::In::code && pos_ == 0 && syntax_.make_targets) {
             make_line();
+        }
+        if (state_.in == State::In::code && pos_ == 0 && syntax_.keys == Keys::ini) {
+            ini_line();
+        }
+        if (state_.in == State::In::code && pos_ == 0 && syntax_.keys == Keys::toml) {
+            toml_header();
         }
         while (pos_ < line_.size() && state_.in == State::In::code) {
             step();
@@ -306,6 +321,9 @@ private:
         const char c = line_[pos_];
         if (!tables_.opens.at(static_cast<unsigned char>(c))) {
             ++pos_;  // a space, an operator, punctuation
+            return;
+        }
+        if ((syntax_.keys == Keys::json || syntax_.keys == Keys::toml) && at_key_start() && key()) {
             return;
         }
         // Words first, the most common: no comment marker starts with a letter, and prefixed
@@ -523,6 +541,143 @@ private:
         }
     }
 
+    // Where a key may start in JSON and TOML: the line's start, after {, a comma or a comment.
+    [[nodiscard]] bool at_key_start() const {
+        std::size_t i = pos_;
+        while (i > 0 && is_space(line_[i - 1])) {
+            --i;
+        }
+        const std::string_view close = syntax_.block_close;
+        return i == 0 || line_[i - 1] == '{' || line_[i - 1] == ',' ||
+               (!close.empty() && line_.substr(0, i).ends_with(close));
+    }
+
+    // Just past a quoted key starting at i (a quote there); npos when it does not close on the
+    // line.
+    [[nodiscard]] std::size_t quoted_key(std::size_t i) const {
+        const char q = line_[i];
+        const bool escapes = syntax_.literal_quotes.find(q) == std::string_view::npos;
+        for (++i; i < line_.size(); ++i) {
+            if (line_[i] == '\\' && escapes) {
+                ++i;
+            } else if (line_[i] == q) {
+                return i + 1;
+            }
+        }
+        return std::string_view::npos;
+    }
+
+    // A key at pos_: "name": (JSON; JSON5 allows a bare name or 'name'), or name = and
+    // a."b.c".d = (TOML), coloured as a keyword. False when what is there is not one.
+    bool key() {
+        const char separator = syntax_.keys == Keys::json ? ':' : '=';
+        std::size_t i = pos_;
+        while (true) {
+            if (i < line_.size() && tables_.quotes.at(static_cast<unsigned char>(line_[i]))) {
+                i = quoted_key(i);
+                if (i == std::string_view::npos) {
+                    return false;
+                }
+            } else {
+                const std::size_t name = i;
+                while (i < line_.size() &&
+                       (is_word(line_[i]) || line_[i] == '-' || line_[i] == '$')) {
+                    ++i;
+                }
+                if (i == name) {
+                    return false;
+                }
+            }
+            const std::size_t end = i;
+            while (i < line_.size() && is_space(line_[i])) {
+                ++i;
+            }
+            if (syntax_.keys == Keys::toml && i < line_.size() && line_[i] == '.') {
+                ++i;
+                while (i < line_.size() && is_space(line_[i])) {
+                    ++i;
+                }
+                continue;
+            }
+            if (i < line_.size() && line_[i] == separator &&
+                (i + 1 >= line_.size() || line_[i + 1] != '=')) {
+                emit(pos_, end, Style::keyword);
+                pos_ = end;
+                return true;
+            }
+            return false;
+        }
+    }
+
+    // [table] and [[array.of.tables]] alone on a line (a comment may follow): a type. An
+    // array of arrays in a value, [1, 2], is not one: a key holds no commas.
+    void toml_header() {
+        std::size_t i = 0;
+        while (i < line_.size() && is_space(line_[i])) {
+            ++i;
+        }
+        if (i >= line_.size() || line_[i] != '[') {
+            return;
+        }
+        const bool array = i + 1 < line_.size() && line_[i + 1] == '[';
+        const std::size_t open = i + (array ? 2 : 1);
+        const std::size_t close = line_.find(array ? "]]" : "]", open);
+        if (close == std::string_view::npos || close == open) {
+            return;
+        }
+        for (std::size_t k = open; k < close; ++k) {
+            const char c = line_[k];
+            if (!is_word(c) && std::string_view{" \t.-\"'"}.find(c) == std::string_view::npos) {
+                return;
+            }
+        }
+        const std::size_t end = close + (array ? 2 : 1);
+        std::size_t rest = end;
+        while (rest < line_.size() && is_space(line_[rest])) {
+            ++rest;
+        }
+        if (rest < line_.size() && line_[rest] != '#') {
+            return;
+        }
+        emit(i, end, Style::type);
+        pos_ = end;
+    }
+
+    // An INI line (.desktop, systemd units, .gitconfig, .editorconfig): ; and # comments,
+    // [section] headers, key= and key: (Name[it]=, keys with spaces); the value lexed as code.
+    void ini_line() {
+        std::size_t i = 0;
+        while (i < line_.size() && is_space(line_[i])) {
+            ++i;
+        }
+        if (i >= line_.size()) {
+            return;
+        }
+        if (line_[i] == ';' || line_[i] == '#') {
+            emit(i, line_.size(), Style::comment);
+            pos_ = line_.size();
+            return;
+        }
+        if (line_[i] == '[') {
+            const std::size_t close = line_.rfind(']');
+            if (close != std::string_view::npos && close > i) {
+                emit(i, close + 1, Style::type);
+                pos_ = close + 1;
+                return;
+            }
+        }
+        const std::size_t separator = line_.find_first_of("=:", i);
+        if (separator == std::string_view::npos || separator == i) {
+            return;
+        }
+        std::size_t end = separator;
+        while (end > i && is_space(line_[end - 1])) {
+            --end;
+        }
+        emit(i, end, Style::keyword);
+        pos_ = separator;
+    }
+
     // A Makefile line: "target: prerequisites" names a target, "NAME = value" (or :=, ?=, +=,
     // !=, ::=) sets a variable. Recipes (a tab first) and directives are lexed as code.
     void make_line() {
@@ -557,6 +712,7 @@ private:
     // A string opened by the quote at quote, its prefix from start; raw: no escapes.
     void quoted(std::size_t start, std::size_t quote, bool raw) {
         const char q = line_[quote];
+        raw = raw || syntax_.literal_quotes.find(q) != std::string_view::npos;
         if (syntax_.triple_quotes && line_.substr(quote).starts_with(std::string(3, q))) {
             open_string(start, quote, std::string(3, q), !raw, true);
             return;
@@ -661,9 +817,12 @@ private:
                 (((before == 'e' || before == 'E') && !hex) || before == 'p' || before == 'P');
             const bool separator = c == '\'' && syntax_.digit_separators &&
                                    pos_ + 1 < line_.size() && is_word(line_[pos_ + 1]);
+            // 1979-05-27, 07:32:00, -08:00: between digits.
+            const bool date = syntax_.dates && (c == '-' || c == ':' || c == '+') &&
+                              is_digit(before) && is_digit(next());
             // A range, 0..10 (Rust, Lua's concatenation): the number ends before it.
             const bool range = c == '.' && next() == '.';
-            if (range || (!is_word(c) && c != '.' && !exponent_sign && !separator)) {
+            if (range || (!is_word(c) && c != '.' && !exponent_sign && !separator && !date)) {
                 break;
             }
             ++pos_;
@@ -744,6 +903,339 @@ private:
             return Style::type;
         }
         return std::nullopt;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // YAML: keys, quoted strings over lines, block scalars (| and >, their lines a string while
+    // indented more than their key), anchors and aliases, tags, documents' --- and ...;
+    // plain values coloured only when a number or a constant.
+
+    void yaml() {
+        if (state_.in == State::In::block && block_line()) {
+            return;
+        }
+        if (state_.in == State::In::string) {
+            go_on_string(0);
+        }
+        if (state_.in != State::In::code) {
+            return;
+        }
+        if (pos_ == 0 && yaml_line_start()) {
+            return;
+        }
+        std::size_t node = 0;  // the column of the line's last key or "- ": a block's parent
+        while (node < line_.size() && line_[node] == ' ') {
+            ++node;
+        }
+        int flow = 0;  // inside [ ] or { }: commas and brackets end plain values
+        while (pos_ < line_.size() && state_.in == State::In::code) {
+            yaml_step(flow, node);
+        }
+    }
+
+    // A block scalar's line: a string while indented more than its key (blank lines too);
+    // false when the block has ended and the line is lexed as YAML.
+    bool block_line() {
+        const std::size_t first = line_.find_first_not_of(" \t\r");
+        if (first == std::string_view::npos) {
+            pos_ = line_.size();
+            return true;
+        }
+        if (first > state_.indent) {
+            emit(first, line_.size(), Style::string);
+            pos_ = line_.size();
+            return true;
+        }
+        state_ = {};
+        return false;
+    }
+
+    // ---, ... and %directives at a line's start; true when nothing is left to lex.
+    bool yaml_line_start() {
+        if (line_.starts_with('%')) {
+            emit(0, line_.size(), Style::function);
+            pos_ = line_.size();
+            return true;
+        }
+        if ((line_.starts_with("---") || line_.starts_with("...")) &&
+            (line_.size() == 3 || is_space(line_[3]))) {
+            emit(0, 3, Style::keyword);
+            pos_ = 3;
+        }
+        return false;
+    }
+
+    [[nodiscard]] static bool flow_character(char c) {
+        return c == ',' || c == '[' || c == ']' || c == '{' || c == '}';
+    }
+
+    // Just past an anchor's, an alias's or a tag's name starting at from.
+    [[nodiscard]] std::size_t yaml_name_end(std::size_t from, int flow) const {
+        while (from < line_.size() && !is_space(line_[from]) &&
+               (flow == 0 || !flow_character(line_[from]))) {
+            ++from;
+        }
+        return from;
+    }
+
+    void yaml_step(int& flow, std::size_t& node) {
+        const char c = line_[pos_];
+        const char after = next();
+        const bool spaced = after == '\0' || is_space(after);
+        if (is_space(c)) {
+            ++pos_;
+        } else if (c == '#' && (pos_ == 0 || is_space(line_[pos_ - 1]))) {
+            emit(pos_, line_.size(), Style::comment);
+            pos_ = line_.size();
+        } else if ((c == '-' || c == '?' || c == ':') && spaced) {
+            if (c == '-') {
+                node = pos_;
+            }
+            ++pos_;
+        } else if (flow_character(c)) {
+            if (c == '[' || c == '{') {
+                ++flow;
+            } else if ((c == ']' || c == '}') && flow > 0) {
+                --flow;
+            }
+            ++pos_;
+        } else if (c == '&' || c == '*') {
+            const std::size_t end = yaml_name_end(pos_ + 1, flow);
+            emit(pos_, end, Style::function);
+            pos_ = end;
+        } else if (c == '!') {
+            const std::size_t end = yaml_name_end(pos_ + 1, flow);
+            emit(pos_, end, Style::type);
+            pos_ = end;
+        } else if ((c == '|' || c == '>') && block_scalar(node)) {
+            return;
+        } else if (c == '"' || c == '\'') {
+            yaml_quoted(flow, node);
+        } else {
+            plain(flow, node);
+        }
+    }
+
+    // | and > with their indicators (|-, >+, |2), then nothing but a comment: the lines after
+    // are a string while indented more than node. False when the | starts a plain value.
+    bool block_scalar(std::size_t node) {
+        std::size_t i = pos_ + 1;
+        while (i < line_.size() && (is_digit(line_[i]) || line_[i] == '-' || line_[i] == '+')) {
+            ++i;
+        }
+        std::size_t rest = i;
+        while (rest < line_.size() && is_space(line_[rest])) {
+            ++rest;
+        }
+        if (rest < line_.size() && (line_[rest] != '#' || rest == i)) {
+            return false;
+        }
+        emit(rest, line_.size(), Style::comment);
+        pos_ = line_.size();
+        state_ = {};
+        state_.in = State::In::block;
+        state_.indent = node;
+        return true;
+    }
+
+    // "..." (escapes) and '...' ('' a quote), over lines when not closed; a key when a colon
+    // follows.
+    void yaml_quoted(int flow, std::size_t& node) {
+        const std::size_t start = pos_;
+        const char q = line_[pos_];
+        std::size_t i = pos_ + 1;
+        std::size_t end = std::string_view::npos;
+        while (i < line_.size()) {
+            // \" in double quotes, '' in single ones: the quote stays inside.
+            const bool escaped =
+                (q == '"' && line_[i] == '\\') ||
+                (q == '\'' && line_[i] == '\'' && i + 1 < line_.size() && line_[i + 1] == '\'');
+            if (escaped) {
+                i += 2;
+            } else if (line_[i] == q) {
+                end = i + 1;
+                break;
+            } else {
+                ++i;
+            }
+        }
+        if (end == std::string_view::npos) {
+            emit(start, line_.size(), Style::string);
+            pos_ = line_.size();
+            state_ = inside(State::In::string, std::string(1, q), q == '"', 0);
+            return;
+        }
+        pos_ = end;
+        while (i + 1 < line_.size() && is_space(line_[i + 1])) {
+            ++i;
+        }
+        const bool is_key = i + 1 < line_.size() && line_[i + 1] == ':' &&
+                            (i + 2 >= line_.size() || is_space(line_[i + 2]) || flow > 0);
+        if (is_key) {
+            node = start;
+        }
+        emit(start, end, is_key ? Style::keyword : Style::string);
+    }
+
+    // A plain value or key: to ": ", " #", the line's end (and in flows a comma or bracket).
+    void plain(int flow, std::size_t& node) {
+        const std::size_t start = pos_;
+        std::size_t i = pos_;
+        while (i < line_.size()) {
+            const char c = line_[i];
+            if (c == ':' && (i + 1 >= line_.size() || is_space(line_[i + 1]) ||
+                             (flow > 0 && flow_character(line_[i + 1])))) {
+                break;
+            }
+            if ((c == '#' && is_space(line_[i - 1])) || (flow > 0 && flow_character(c))) {
+                break;
+            }
+            ++i;
+        }
+        std::size_t end = i;
+        while (end > start && is_space(line_[end - 1])) {
+            --end;
+        }
+        pos_ = std::max(i, start + 1);
+        if (i < line_.size() && line_[i] == ':') {
+            node = start;
+            emit(start, end, Style::keyword);
+        } else if (yaml_scalar(line_.substr(start, end - start))) {
+            emit(start, end, Style::number);
+        }
+    }
+
+    // A number (12, -1.5e3, 0x1F, 0o17, .inf, 1_000, 2026-11-09, 12:30:00) or a constant
+    // (true, null, ~, yes, off: YAML 1.1's too, which many files still write).
+    [[nodiscard]] static bool yaml_scalar(std::string_view text) {
+        std::string folded{text};
+        std::ranges::transform(folded, folded.begin(), lower);
+        for (const std::string_view constant :
+             {"true", "false", "null", "~", "yes", "no", "on", "off"}) {
+            if (folded == constant) {
+                return true;
+            }
+        }
+        std::string_view number = folded;
+        if (number.starts_with('+') || number.starts_with('-')) {
+            number.remove_prefix(1);
+        }
+        if (number == ".inf" || number == ".nan") {
+            return true;
+        }
+        if (number.size() > 2 && (number.starts_with("0x") || number.starts_with("0o"))) {
+            const std::string_view digits =
+                number[1] == 'x' ? "0123456789abcdef_" : std::string_view{"01234567_"};
+            return number.substr(2).find_first_not_of(digits) == std::string_view::npos;
+        }
+        if (number.empty() ||
+            !(is_digit(number.front()) ||
+              (number.front() == '.' && number.size() > 1 && is_digit(number[1])))) {
+            return false;
+        }
+        return number.find_first_not_of("0123456789._:-+etz") == std::string_view::npos;
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // .gitignore and its kin, .gitattributes: one pattern a line (no state between lines).
+
+    void ignore_line(bool attributes) {
+        pos_ = line_.size();
+        if (line_.starts_with('#')) {
+            emit(0, line_.size(), Style::comment);
+            return;
+        }
+        std::size_t start = 0;
+        if (line_.starts_with('!')) {
+            emit(0, 1, Style::keyword);
+            start = 1;
+        }
+        std::size_t end = line_.size();
+        if (attributes) {
+            // The pattern ends at the first space, or after its closing quote: "a b" text.
+            end = start;
+            if (end < line_.size() && line_[end] == '"') {
+                const std::size_t close = line_.find('"', end + 1);
+                end = close == std::string_view::npos ? line_.size() : close + 1;
+            }
+            while (end < line_.size() && !is_space(line_[end])) {
+                end += line_[end] == '\\' ? std::size_t{2} : std::size_t{1};
+            }
+            end = std::min(end, line_.size());
+        }
+        pattern(start, end);
+        if (attributes) {
+            attribute_list(end);
+        }
+    }
+
+    // A pattern in [from, to): wildcards as functions, a leading / (from the root only) and a
+    // trailing one (folders only) as types; \ escapes the next character; trailing spaces
+    // do not count.
+    void pattern(std::size_t from, std::size_t to) {
+        std::size_t last = to;
+        while (last > from && is_space(line_[last - 1]) &&
+               (last - 1 == from || line_[last - 2] != '\\')) {
+            --last;
+        }
+        for (std::size_t i = from; i < last;) {
+            const char c = line_[i];
+            if (c == '\\') {
+                i += 2;
+            } else if (c == '*' || c == '?') {
+                const std::size_t start = i;
+                while (i < last && (line_[i] == '*' || line_[i] == '?')) {
+                    ++i;
+                }
+                emit(start, i, Style::function);
+            } else if (c == '[') {
+                // [abc], [!a-z], []x]: a ] right after the opening (or its !) is a member.
+                std::size_t close = i + 1;
+                if (close < last && (line_[close] == '!' || line_[close] == '^')) {
+                    ++close;
+                }
+                if (close < last && line_[close] == ']') {
+                    ++close;
+                }
+                while (close < last && line_[close] != ']') {
+                    ++close;
+                }
+                if (close < last) {
+                    emit(i, close + 1, Style::function);
+                    i = close + 1;
+                } else {
+                    ++i;
+                }
+            } else if (c == '/' && (i == from || i + 1 == last)) {
+                emit(i, i + 1, Style::type);
+                ++i;
+            } else {
+                ++i;
+            }
+        }
+    }
+
+    // text -diff !eol eol=lf: each name (with its - or !) as a key, the value after = as a
+    // string.
+    void attribute_list(std::size_t from) {
+        std::size_t i = from;
+        while (i < line_.size()) {
+            while (i < line_.size() && is_space(line_[i])) {
+                ++i;
+            }
+            const std::size_t start = i;
+            while (i < line_.size() && !is_space(line_[i]) && line_[i] != '=') {
+                ++i;
+            }
+            emit(start, i, Style::keyword);
+            if (i < line_.size() && line_[i] == '=') {
+                const std::size_t value = i + 1;
+                while (i < line_.size() && !is_space(line_[i])) {
+                    ++i;
+                }
+                emit(value, i, Style::string);
+            }
+        }
     }
 
     const Syntax& syntax_;

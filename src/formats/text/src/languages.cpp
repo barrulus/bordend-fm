@@ -346,6 +346,92 @@ constexpr std::array<std::string_view, 2> kMakeExtensions{".mk", ".mak"};
 constexpr std::array<std::string_view, 3> kMakeNames{"Makefile", "makefile", "GNUmakefile"};
 constexpr std::array<std::string_view, 1> kMakeInterpreters{"make"};
 
+// ---------------------------------------------------------------------------------------------
+// JSON, TOML, YAML and INI
+// ---------------------------------------------------------------------------------------------
+
+// JSON with JSONC's and JSON5's comments, single quotes and names: plain JSON has none, so the
+// one syntax reads all three.
+constexpr auto kJsonConstants = std::to_array<std::string_view>({
+    "Infinity", "NaN", "false", "null", "true",
+});
+
+constexpr Syntax kJson{
+    .line_comments = kSlashComments,
+    .block_open = "/*",
+    .block_close = "*/",
+    .quotes = "\"'",
+    .keys = Keys::json,
+    .constants = kJsonConstants,
+};
+
+constexpr auto kTomlConstants = std::to_array<std::string_view>({"false", "inf", "nan", "true"});
+
+constexpr Syntax kToml{
+    .line_comments = kHashComments,
+    .quotes = "\"'",
+    .literal_quotes = "'",
+    .triple_quotes = true,
+    .dates = true,
+    .keys = Keys::toml,
+    .constants = kTomlConstants,
+};
+
+constexpr Syntax kYaml{
+    .dedicated = Dedicated::yaml,
+};
+
+constexpr auto kIniConstants = std::to_array<std::string_view>({"false", "true"});
+
+constexpr Syntax kIni{
+    .keys = Keys::ini,
+    .constants = kIniConstants,
+};
+
+constexpr std::array<std::string_view, 7> kJsonMime{
+    "application/json", "application/json5", "application/geo+json", "application/ld+json",
+    "application/schema+json", "application/x-ipynb+json", "application/manifest+json",
+};
+constexpr std::array<std::string_view, 7> kJsonExtensions{
+    ".json", ".jsonc", ".json5", ".jsonl", ".geojson", ".webmanifest", ".ipynb",
+};
+constexpr std::array<std::string_view, 2> kJsonNames{"flake.lock", "deno.lock"};
+constexpr std::array<std::string_view, 2> kTomlMime{"application/toml", "text/x-toml"};
+constexpr std::array<std::string_view, 1> kTomlExtensions{".toml"};
+constexpr std::array<std::string_view, 4> kTomlNames{
+    "Cargo.lock", "Pipfile", "poetry.lock", "uv.lock",
+};
+constexpr std::array<std::string_view, 3> kYamlMime{
+    "application/yaml", "application/x-yaml", "text/x-yaml",
+};
+constexpr std::array<std::string_view, 2> kYamlExtensions{".yaml", ".yml"};
+constexpr std::array<std::string_view, 4> kYamlNames{
+    ".clang-format", ".clang-tidy", ".clangd", ".yamllint",
+};
+constexpr std::array<std::string_view, 2> kIniMime{"application/x-desktop", "text/x-dbus-service"};
+constexpr std::array<std::string_view, 15> kIniExtensions{
+    ".ini", ".desktop", ".directory", ".flatpakref", ".flatpakrepo",
+    // systemd units
+    ".service", ".socket", ".timer", ".mount", ".automount", ".path", ".target", ".slice",
+    ".network", ".netdev",
+};
+constexpr Syntax kIgnore{
+    .dedicated = Dedicated::ignore,
+};
+
+constexpr Syntax kAttributes{
+    .dedicated = Dedicated::attributes,
+};
+
+constexpr std::array<std::string_view, 9> kIgnoreNames{
+    ".gitignore", ".dockerignore", ".ignore", ".rgignore", ".fdignore", ".npmignore",
+    ".prettierignore", ".eslintignore", ".stignore",
+};
+constexpr std::array<std::string_view, 1> kAttributesNames{".gitattributes"};
+constexpr std::array<std::string_view, 4> kIniNames{
+    ".editorconfig", ".gitconfig", ".gitmodules", "mimeapps.list",
+};
+
 // clang-format on
 
 constexpr std::array kLanguages{
@@ -395,6 +481,28 @@ constexpr std::array kLanguages{
              .file_names = kMakeNames,
              .interpreters = kMakeInterpreters,
              .syntax = &kMake},
+    Language{.name = "JSON",
+             .mime = kJsonMime,
+             .extensions = kJsonExtensions,
+             .file_names = kJsonNames,
+             .syntax = &kJson},
+    Language{.name = "TOML",
+             .mime = kTomlMime,
+             .extensions = kTomlExtensions,
+             .file_names = kTomlNames,
+             .syntax = &kToml},
+    Language{.name = "YAML",
+             .mime = kYamlMime,
+             .extensions = kYamlExtensions,
+             .file_names = kYamlNames,
+             .syntax = &kYaml},
+    Language{.name = "INI",
+             .mime = kIniMime,
+             .extensions = kIniExtensions,
+             .file_names = kIniNames,
+             .syntax = &kIni},
+    Language{.name = "Ignore patterns", .file_names = kIgnoreNames, .syntax = &kIgnore},
+    Language{.name = "Git attributes", .file_names = kAttributesNames, .syntax = &kAttributes},
 };
 
 }  // namespace

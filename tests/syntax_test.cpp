@@ -13,6 +13,18 @@ namespace text = nordend::text;
 namespace family = nordend::formats::text;
 using Lines = std::vector<std::string>;
 
+// Lines printed when a check fails, one per line.
+template <>
+struct doctest::StringMaker<Lines> {
+    static doctest::String convert(const Lines& lines) {
+        std::string out;
+        for (const std::string& line : lines) {
+            out += "\n    " + line;
+        }
+        return out.c_str();
+    }
+};
+
 namespace {
 
 // A line with its coloured pieces marked: {k:if} keyword, {t:} type, {s:} string, {n:} number or
@@ -382,4 +394,128 @@ TEST_CASE("syntax: Makefiles") {
           Lines{"{k:ifeq} ({t:$(OS)},Linux)  {c:# linux}", "{k:include} common.mk", "{k:endif}"});
     CHECK(make({".PHONY: clean", "%.o: %.c", "CFLAGS += -O2"}) ==
           Lines{"{f:.PHONY}: clean", "{f:%.o}: %.c", "{t:CFLAGS} += -O2"});
+}
+
+TEST_CASE("syntax: JSON, TOML, YAML and INI found") {
+    const auto name_of = [](std::string_view name, std::string_view mime) -> std::string {
+        const family::Language* language = family::language_for(name, mime, {});
+        return language == nullptr ? "" : std::string{family::language_name(*language)};
+    };
+    CHECK(name_of("a.json", "application/json") == "JSON");
+    CHECK(name_of("a.geojson", "application/geo+json") == "JSON");
+    CHECK(name_of("tsconfig.jsonc", "text/plain") == "JSON");
+    CHECK(name_of("flake.lock", "text/plain") == "JSON");
+    CHECK(name_of("Cargo.toml", "application/toml") == "TOML");
+    CHECK(name_of("Cargo.lock", "text/plain") == "TOML");
+    CHECK(name_of("a.yml", "application/yaml") == "YAML");
+    CHECK(name_of(".clang-format", "text/plain") == "YAML");
+    CHECK(name_of("nordend.desktop", "application/x-desktop") == "INI");
+    CHECK(name_of("sshd.service", "text/x-dbus-service") == "INI");
+    CHECK(name_of("a.timer", "text/plain") == "INI");
+    CHECK(name_of(".editorconfig", "text/plain") == "INI");
+    // .conf and .cfg hold too many different languages to guess.
+    CHECK(name_of("a.conf", "text/plain").empty());
+    CHECK(name_of("a.cfg", "text/plain").empty());
+}
+
+namespace {
+
+Lines json(const Lines& lines) { return colour(lines, "application/json"); }
+
+Lines toml(const Lines& lines) { return colour(lines, "application/toml"); }
+
+Lines yaml(const Lines& lines) { return colour(lines, "application/yaml"); }
+
+Lines ini(const Lines& lines) { return colour(lines, "application/x-desktop"); }
+
+}  // namespace
+
+TEST_CASE("syntax: JSON") {
+    CHECK(json({"{\"name\": \"nordend\", \"n\": -1.5e3, \"ok\": true, \"x\": null,"}) ==
+          Lines{"{{k:\"name\"}: {s:\"nordend\"}, {k:\"n\"}: -{n:1.5e3}, {k:\"ok\"}: {n:true}, "
+                "{k:\"x\"}: {n:null},"});
+    // A quote escaped inside a key; strings in arrays are values.
+    CHECK(json({"  \"a\\\"b\" : [\"c\", \"d\"]"}) ==
+          Lines{"  {k:\"a\\\"b\"} : [{s:\"c\"}, {s:\"d\"}]"});
+    // JSONC and JSON5: comments, names and single quotes.
+    CHECK(json({"// settings", "{ editor: 'x', /* off */ \"b\": 1 }"}) ==
+          Lines{"{c:// settings}", "{ {k:editor}: {s:'x'}, {c:/* off */} {k:\"b\"}: {n:1} }"});
+}
+
+TEST_CASE("syntax: TOML") {
+    CHECK(toml({"[package]  # the crate", "name = \"nordend\"", "version.workspace = true"}) ==
+          Lines{"{t:[package]}  {c:# the crate}", "{k:name} = {s:\"nordend\"}",
+                "{k:version.workspace} = {n:true}"});
+    CHECK(toml({"[[bin]]", "a.\"b.c\".d = 1_000", "build-deps = { cc = \"1\", x = 0x1F }"}) ==
+          Lines{"{t:[[bin]]}", "{k:a.\"b.c\".d} = {n:1_000}",
+                "{k:build-deps} = { {k:cc} = {s:\"1\"}, {k:x} = {n:0x1F} }"});
+    // Dates and times are numbers; an array of arrays is no header.
+    CHECK(toml({"when = 1979-05-27T07:32:00-08:00", "t = 07:32:00", "[1, 2],"}) ==
+          Lines{"{k:when} = {n:1979-05-27T07:32:00-08:00}", "{k:t} = {n:07:32:00}",
+                "[{n:1}, {n:2}],"});
+    // Literal strings have no escapes; triple quotes go on over lines.
+    CHECK(toml({"path = 'C:\\dir\\'", "text = \"\"\"", "a = \"b\"", "\"\"\" # end"}) ==
+          Lines{"{k:path} = {s:'C:\\dir\\'}", "{k:text} = {s:\"\"\"}", "{s:a = \"b\"}",
+                "{s:\"\"\"} {c:# end}"});
+}
+
+TEST_CASE("syntax: YAML") {
+    CHECK(yaml({"---", "name: nordend  # app", "version: 0.5", "tags: [a, 1, true]"}) ==
+          Lines{"{k:---}", "{k:name}: nordend  {c:# app}", "{k:version}: {n:0.5}",
+                "{k:tags}: [a, {n:1}, {n:true}]"});
+    // A URL is no key nor comment; a quoted key; anchors, aliases and tags.
+    CHECK(yaml({"url: http://x.org/#top", "\"a b\": 'it''s'", "base: &b !!map {x: ~}", "<<: *b"}) ==
+          Lines{"{k:url}: http://x.org/#top", "{k:\"a b\"}: {s:'it''s'}",
+                "{k:base}: {f:&b} {t:!!map} {{k:x}: {n:~}}", "{k:<<}: {f:*b}"});
+    // A list of mappings.
+    CHECK(yaml({"- name: build", "  run: make -j8", "- -1"}) ==
+          Lines{"- {k:name}: build", "  {k:run}: make -j8", "- {n:-1}"});
+}
+
+TEST_CASE("syntax: YAML block scalars") {
+    // Lines more indented than the key are the string, blank ones too; a # inside is text.
+    CHECK(yaml({"script: |  # keep", "  echo a  # not a comment", "", "    b", "next: 1"}) ==
+          Lines{"{k:script}: |  {c:# keep}", "  {s:echo a  # not a comment}", "", "    {s:b}",
+                "{k:next}: {n:1}"});
+    // Under a list item the key's column counts, not the dash's.
+    CHECK(yaml({"- run: >-", "    folded", "  name: x"}) ==
+          Lines{"- {k:run}: >-", "    {s:folded}", "  {k:name}: x"});
+    // A | inside a value is no block.
+    CHECK(yaml({"cmd: a | b", "x: 1"}) == Lines{"{k:cmd}: a | b", "{k:x}: {n:1}"});
+    // Double-quoted strings go on over lines.
+    CHECK(yaml({"msg: \"one", "two\": x", "y: 2"}) ==
+          Lines{"{k:msg}: {s:\"one}", "{s:two\"}: x", "{k:y}: {n:2}"});
+}
+
+TEST_CASE("syntax: INI and desktop entries") {
+    CHECK(ini({"[Desktop Entry]", "Name=Nordend", "Name[it]=Nordend", "Terminal=false", "# comment",
+               "; another", "Exec=nordend %U # not a comment"}) ==
+          Lines{"{t:[Desktop Entry]}", "{k:Name}=Nordend", "{k:Name[it]}=Nordend",
+                "{k:Terminal}={n:false}", "{c:# comment}", "{c:; another}",
+                "{k:Exec}=nordend %U # not a comment"});
+    CHECK(colour({"[remote \"origin\"]", "\turl = git@github.com:a/b", "[Service]",
+                  "ExecStart=/usr/bin/x --n=2"},
+                 "text/plain",
+                 ".gitconfig") == Lines{"{t:[remote \"origin\"]}", "\t{k:url} = git@github.com:a/b",
+                                        "{t:[Service]}", "{k:ExecStart}=/usr/bin/x --n={n:2}"});
+}
+
+TEST_CASE("syntax: ignore files and .gitattributes") {
+    const auto ignore = [](const Lines& lines) {
+        return colour(lines, "text/plain", ".gitignore");
+    };
+    CHECK(ignore({"# build output", "/build/", "*.o", "!keep.o", "src/**/gen-?.[ch]",
+                  "\\#not-a-comment", "a\\*b", "logs/  "}) ==
+          Lines{"{c:# build output}", "{t:/}build{t:/}", "{f:*}.o", "{k:!}keep.o",
+                "src/{f:**}/gen-{f:?}.{f:[ch]}", "\\#not-a-comment", "a\\*b", "logs{t:/}  "});
+    // A [ never closed, [!a] and []x].
+    CHECK(ignore({"a[b", "[!a]x", "[]x]"}) == Lines{"a[b", "{f:[!a]}x", "{f:[]x]}"});
+    CHECK(colour({"# x"}, "text/plain", ".dockerignore") == Lines{"{c:# x}"});
+
+    const auto attributes = [](const Lines& lines) {
+        return colour(lines, "text/plain", ".gitattributes");
+    };
+    CHECK(attributes({"*.png binary", "*.sh  text eol=lf -diff !merge", "\"a b\" text", "# c"}) ==
+          Lines{"{f:*}.png {k:binary}", "{f:*}.sh  {k:text} {k:eol}={s:lf} {k:-diff} {k:!merge}",
+                "\"a b\" {k:text}", "{c:# c}"});
 }

@@ -121,8 +121,12 @@ README's [What's next](../README.md#whats-next).
   (darktable sidecars included), read in UTF-8, UTF-16 (with its byte order mark) or Latin-1
   (Windows-1252, for files from old editors: "caffè 3€" shows as written), with **syntax
   colours** for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell scripts (heredocs
-  included), fish, CMake and Makefiles (more coming), the language found from the file's type,
-  its name (`PKGBUILD`, Void's `template`, `CMakeLists.txt`), its extension or its `#!` line, made from your theme's colours and readable
+  included), fish, CMake, Makefiles, JSON (with JSONC's and JSON5's comments), TOML, YAML
+  (block scalars, anchors and tags included) and INI files (desktop entries, systemd units,
+  `.gitconfig`, `.editorconfig`), keys set apart from their values, and `.gitignore` (and
+  `.dockerignore`, `.ignore`, `.npmignore`...) and `.gitattributes`, wildcards and negations
+  standing out (more coming), the language found from the file's type, its name (`PKGBUILD`,
+  Void's `template`, `CMakeLists.txt`, `Cargo.lock`, `.clang-format`, `.gitignore`), its extension or its `#!` line, made from your theme's colours and readable
   on its page; the info pane's first lines are coloured too; any other file shows what it is.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,

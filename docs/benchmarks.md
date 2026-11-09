@@ -93,6 +93,24 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Data and configuration files (ROADMAP 3b-2b, third group)
+
+### 2026-11-09
+
+`colour` alone on lines already read, a harness compiled with `g++ -O3 -DNDEBUG` from
+`syntax.cpp` and `languages.cpp`, 300 runs, median, at `nice 19`:
+
+| File | Lines | Spans | Median |
+|---|---|---|---|
+| `build/compile_commands.json` (311 kB, long lines) | 1292 | 1720 | 258 µs |
+| Rust's `target-spec-json-schema.json` (26 kB) | 1390 | 1094 | 81 µs |
+| a CI workflow repeated 100 times (YAML: block scalars, anchors, flows) | 3300 | 5000 | 194 µs |
+| `docs/config.example.toml` repeated 140 times | 3220 | 3500 | 130 µs |
+| `browser.cpp` (C++, for comparison: 662 µs on 2026-11-08) | 3449 | 5470 | 685 µs |
+
+The C++ figure moves within the runs' noise: the new checks (keys, INI lines, TOML headers) run
+only for the languages that have them.
+
 ## The general lexer (ROADMAP 3b-2b, first group)
 
 ### 2026-11-08

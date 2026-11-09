@@ -4,6 +4,76 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-09 — JSON, TOML, YAML, INI, ignore files (ROADMAP 3b-2b, third group)
+
+**Tested by the author** (2026-11-09, installed in `~/.local`, the two test plans: this
+repository's YAML, TOML, desktop entry and `.gitignore`, `/usr/share/applications`,
+`.gitconfig`, a JSON with comments, void-noctalia's `.gitignore`): "funziona tutto perfetto",
+then "ok perfetto" for the ignore files.
+
+**Done**: four languages for data and configuration files, the same colours in all of them:
+keys as keywords, section headers as types, strings, numbers and constants, comments; in YAML
+anchors and aliases as functions, tags as types, `---`/`...` as keywords. In `Syntax`:
+`Keys::json` (a string, or JSON5's bare name, before `:`, where a key may start: line start,
+after `{`, a comma or a block comment), `Keys::toml` (bare, quoted and dotted keys before `=`,
+inline tables too; `[table]` and `[[array]]` alone on a line, `[1, 2]` in a value is none),
+`Keys::ini` (`key=` and `key:` at a line's start, `Name[it]=`, keys with spaces; `[section]`;
+`;` and `#` comments only on their own line, so `Exec=x # y` keeps its `#`), `literal_quotes`
+(TOML's `'...'` and `'''...'''` without escapes), `dates` (`1979-05-27T07:32:00-08:00` one
+number). JSON reads JSONC and JSON5 too (comments, single quotes, names, `NaN`/`Infinity`):
+plain JSON has none of them, so one syntax serves all three. YAML has its own line lexer
+(`Dedicated::yaml`): keys before `: ` (also after `- `, quoted, inside flows), `#` a comment only
+at a line's start or after a space (`http://x/#top` is a value), plain values coloured only when
+a number, a date or a constant (YAML 1.1's `yes`/`off` included, `~`), `'it''s'` and `"\""`
+quoted strings going on over lines, block scalars `|`/`>` with their indicators: the lines after
+are a string while indented more than their key (under a list item, the key's column, not the
+dash's), blank lines included; `%YAML` directives. Detection: `application/json` (and `json5`,
+`geo+json`, `ld+json`, `schema+json`, `x-ipynb+json`, `manifest+json`), `application/toml`,
+`application/yaml`, `application/x-desktop`, `text/x-dbus-service`; `.jsonc .json5 .jsonl
+.geojson .webmanifest .ipynb .toml .yaml .yml .ini .desktop .directory .flatpakref
+.flatpakrepo` and systemd units (`.service .socket .timer .mount .automount .path .target
+.slice .network .netdev`); names `flake.lock`, `deno.lock`, `Cargo.lock`, `Pipfile`,
+`poetry.lock`, `uv.lock`, `.clang-format`, `.clang-tidy`, `.clangd`, `.yamllint`,
+`.editorconfig`, `.gitconfig`, `.gitmodules`, `mimeapps.list`. Not `.conf` nor `.cfg`: too many
+languages behind them (agreed with the author).
+
+Then, asked by the author once the four worked: ignore files, by name (`.gitignore`,
+`.dockerignore`, `.ignore`, `.rgignore`, `.fdignore`, `.npmignore`, `.prettierignore`,
+`.eslintignore`, `.stignore`; all `text/plain` here), and `.gitattributes`, each a line lexer of
+its own (`Dedicated::ignore`, `Dedicated::attributes`, no state between lines): `#` comments
+at a line's start only (`\#` is a name), a leading `!` as a keyword, wildcards `*`, `**`, `?`,
+`[a-z]` (with `[!a]` and `[]x]`) as functions, a leading `/` (from the root) and a trailing one
+(folders only) as types, `\` escaping, trailing spaces not counted; in `.gitattributes` the
+pattern (quoted when it holds spaces) then attributes as keys (`text`, `-diff`, `!merge`) with
+values after `=` as strings. `.git/info/exclude` is left out: its name alone says nothing.
+
+**Tests**: six new cases in `tests/syntax_test.cpp` (detection, `.conf`/`.cfg` left plain;
+JSON keys with escaped quotes, JSONC/JSON5; TOML headers, dotted and quoted keys, inline
+tables, dates, literal and triple-quoted strings; YAML keys, URLs, quoted keys, anchors, tags,
+flows, lists; block scalars, their end, a `|` inside a value, quoted strings over lines; INI
+desktop entries, `.gitconfig`, systemd lines), and one for ignore files and `.gitattributes`.
+Failing checks now print the marked lines. 403 tests (the README said 395 after the second
+group: it was 396). The fuzz target picks a file name too (`fuzz`, `.gitignore`,
+`.gitattributes`) from its first byte, for the languages found by name only.
+
+**Checked**: offscreen snapshots of a CI workflow (YAML), `docs/config.example.toml`,
+`data/nordend.desktop`, Rust's `target-spec-json-schema.json`, the `.gitignore` of this
+repository and of void-noctalia, a `.gitattributes` with LFS lines. Tests green in `build`,
+`build-asan`, `build-tsan`; clang-tidy clean.
+
+**Fuzzing** (short run): `nordend-fuzz-text` with fourteen types (the four new ones added), 10
+minutes, 3 processes at the lowest priority, the previous corpus plus seven seeds (the YAML
+workflow, `config.example.toml`, the JSON schema, a desktop entry, a D-Bus service, JSON5, TOML
+and YAML edge cases): 0.64 million inputs, coverage 1864 → 2003 edges, no crash, timeout or
+out-of-memory. A second run once ignore files came, the same way, with the file name picked too
+and three more seeds (this `.gitignore`, ignore edge cases, a `.gitattributes`): 0.60 million
+inputs, coverage 2138 → 2160 edges, no crash, timeout or out-of-memory.
+
+**Measured** (`docs/benchmarks.md`): `compile_commands.json` (311 kB) 258 µs, 3300 lines of YAML
+194 µs, 3220 of TOML 130 µs; `browser.cpp` 685 µs (662 before, within the noise).
+
+---
+
 ## 2026-11-08 — Shell, fish, CMake, Makefiles (ROADMAP 3b-2b, second group)
 
 **Tested by the author** (2026-11-08, installed in `~/.local`: a Makefile, a script found by its
