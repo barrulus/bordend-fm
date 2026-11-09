@@ -66,6 +66,10 @@ public:
     // (on the page); the owner does what it wants with the others (a click elsewhere closes).
     bool pointer(const ui::PointerEvent& event, Clock::time_point now);
 
+    // On a text page: Home and End go to its top and bottom, Page Up and Page Down a page up
+    // and down. False for other keys, or when no text page is shown.
+    bool text_key(const ui::KeyEvent& event, Clock::time_point now);
+
     // A text page is shown (Ctrl+A and Ctrl+C are then its own).
     [[nodiscard]] bool shows_text() const { return shown_text() != nullptr; }
 
@@ -93,8 +97,10 @@ public:
     // The name of the entry shown; empty when closed.
     [[nodiscard]] const std::string& shown() const noexcept { return shown_name_; }
 
-    // The shown text page's scrolling (the snapshot tool's benchmark).
+    // The shown text page's scrolling (the snapshot tool's benchmark), and sideways.
     [[nodiscard]] ui::Scroller& text_scroller() noexcept { return text_scroller_; }
+
+    [[nodiscard]] ui::Scroller& text_sideways() noexcept { return text_sideways_; }
 
     // Size of the sharp image of the shown entry once made (tests).
     [[nodiscard]] std::optional<std::pair<std::uint32_t, std::uint32_t>> image_size() const;
@@ -150,7 +156,12 @@ private:
     Clock::time_point opened_;
     std::unordered_map<std::string, Slot> slots_;  // the shown entry and its neighbours
     ui::Scroller text_scroller_;                   // the shown text page
-    TextSelection selection_;                      // on the shown text page
+    ui::Scroller text_sideways_;                   // its long lines, sideways
+    // The widest line of the text it was counted for, in characters.
+    const preview::Text* widest_for_{nullptr};
+    std::size_t widest_{0};
+    std::string bottom_for_;   // the log last opened at its bottom (its key)
+    TextSelection selection_;  // on the shown text page
 
     // The text page as last drawn, for the pointer: the lines' area, where text starts, a
     // character's width; valid once drawn.
@@ -158,6 +169,7 @@ private:
         ui::Rect page;
         ui::Rect lines;
         float text_x{0.0F};
+        float text_room{0.0F};  // the text's width on the page (line numbers apart)
         float char_width{0.0F};
         bool valid{false};
     };

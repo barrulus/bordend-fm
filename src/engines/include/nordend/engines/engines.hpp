@@ -25,7 +25,7 @@
 //   [engine]
 //   name = "base"
 //   program = "nordend-preview"    # a file name, in libexec/nordend
-//   protocol = 3
+//   protocol = 4
 //
 //   [[family]]
 //   name = "image"
@@ -38,7 +38,7 @@ namespace nordend::engines {
 
 // The protocol Nordend speaks with its engines (isolate/src/protocol.hpp): an engine whose
 // manifest names another is skipped. Raised with every change to the messages.
-inline constexpr std::int64_t kProtocol = 3;
+inline constexpr std::int64_t kProtocol = 4;
 
 // What a family gives back for Nordend to draw.
 enum class Shows : std::uint8_t {

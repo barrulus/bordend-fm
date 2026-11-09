@@ -5,7 +5,7 @@
 [engine]
 name = "base"
 program = "nordend-preview"
-protocol = 3
+protocol = 4
 
 [[family]]
 name = "image"

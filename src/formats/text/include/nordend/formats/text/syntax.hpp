@@ -21,7 +21,8 @@ struct Language;
 [[nodiscard]] std::string_view language_name(const Language& language);
 
 // Colours text's lines as language, from its first line (text.spans gets one entry per line;
-// text.language its name).
+// text.language its name). A minified file (nordend::text::looks_minified) gets the name and
+// empty spans.
 void highlight(nordend::text::Text& text, const Language& language);
 
 // Both: the language from name, mime and the first line, then the colours; text untouched when

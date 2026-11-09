@@ -45,8 +45,10 @@ public:
 
     [[nodiscard]] Content load(const Request& request,
                                const core::CancelToken& cancel) const override {
-        text::Loaded loaded =
-            text::load_text({.path = request.path, .mime = request.mime, .limits = {}});
+        // A log's newest lines are at its end: read from there.
+        text::Loaded loaded = text::load_text({.path = request.path,
+                                               .mime = request.mime,
+                                               .limits = {.tail = request.mime == "text/x-log"}});
         if (loaded.failure == text::Failure::none) {
             return std::move(loaded.text);
         }

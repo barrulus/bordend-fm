@@ -528,6 +528,15 @@ Lines diff(const Lines& lines) { return colour(lines, "text/x-patch"); }
 
 }  // namespace
 
+TEST_CASE("syntax: a minified file keeps its language, not its colours") {
+    text::Text text;
+    text.lines = {"var a=1;" + std::string(600, ' ') + "function f(){return 2}"};
+    family::colour(text, "app.min.js", "text/javascript");
+    CHECK(text.language == "JavaScript");
+    REQUIRE(text.spans.size() == 1);
+    CHECK(text.spans.front().empty());
+}
+
 TEST_CASE("syntax: Markdown and diffs found") {
     const auto name_of = [](std::string_view name, std::string_view mime) -> std::string {
         const family::Language* language = family::language_for(name, mime, {});

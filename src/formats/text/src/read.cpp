@@ -224,7 +224,52 @@ Loaded unreadable(int error) {
             .text = {}};
 }
 
+// Reads [offset, offset + data.size()) of fd into data; the bytes read, or -1 and errno.
+ssize_t read_at(int fd, std::span<std::uint8_t> data, std::size_t offset) {
+    std::size_t got = 0;
+    while (got < data.size()) {
+        const ssize_t read =
+            ::pread(fd, data.data() + got, data.size() - got, static_cast<off_t>(offset + got));
+        if (read < 0 && errno == EINTR) {
+            continue;
+        }
+        if (read < 0) {
+            return -1;
+        }
+        if (read == 0) {
+            break;
+        }
+        got += static_cast<std::size_t>(read);
+    }
+    return static_cast<ssize_t>(got);
+}
+
 }  // namespace
+
+Loaded read_tail(int fd, std::size_t size, const Limits& limits) {
+    std::vector<std::uint8_t> data(limits.max_bytes);
+    const ssize_t got = read_at(fd, data, size - limits.max_bytes);
+    if (got < 0) {
+        return unreadable(errno);
+    }
+    std::span<const std::uint8_t> bytes = std::span{data}.first(static_cast<std::size_t>(got));
+    // The first line is cut: it starts after the first line end (a file of one long line keeps
+    // its end, from a character's start).
+    const auto newline = std::ranges::find(bytes, std::uint8_t{'\n'});
+    if (newline != bytes.end()) {
+        bytes = bytes.subspan(static_cast<std::size_t>(newline - bytes.begin()) + 1);
+    } else {
+        while (!bytes.empty() && (bytes.front() & 0xC0U) == 0x80U) {
+            bytes = bytes.subspan(1);
+        }
+    }
+    Loaded loaded = decode(bytes, false, limits);
+    if (loaded.failure == Failure::none) {
+        loaded.text.truncated = true;
+        loaded.text.tail = true;
+    }
+    return loaded;
+}
 
 Loaded decode(std::span<const std::uint8_t> bytes, bool more, const Limits& limits) {
     Text text;
@@ -290,23 +335,24 @@ Loaded decode(std::span<const std::uint8_t> bytes, bool more, const Limits& limi
 }
 
 Loaded read(int fd, const Limits& limits) {
-    // One byte more than the limit tells whether the file goes on.
-    std::vector<std::uint8_t> data(limits.max_bytes + 1);
-    std::size_t got = 0;
-    while (got < data.size()) {
-        const ssize_t read =
-            ::pread(fd, data.data() + got, data.size() - got, static_cast<off_t>(got));
-        if (read < 0 && errno == EINTR) {
-            continue;
-        }
-        if (read < 0) {
+    // A log's end: its last max_bytes, from the first line that starts in them.
+    if (limits.tail) {
+        struct stat info{};
+        if (::fstat(fd, &info) != 0) {
             return unreadable(errno);
         }
-        if (read == 0) {
-            break;
+        const auto size = static_cast<std::size_t>(std::max<off_t>(info.st_size, 0));
+        if (size > limits.max_bytes) {
+            return read_tail(fd, size, limits);
         }
-        got += static_cast<std::size_t>(read);
     }
+    // One byte more than the limit tells whether the file goes on.
+    std::vector<std::uint8_t> data(limits.max_bytes + 1);
+    const ssize_t read = read_at(fd, data, 0);
+    if (read < 0) {
+        return unreadable(errno);
+    }
+    const auto got = static_cast<std::size_t>(read);
     const bool more = got > limits.max_bytes;
     return decode(std::span{data}.first(std::min(got, limits.max_bytes)), more, limits);
 }

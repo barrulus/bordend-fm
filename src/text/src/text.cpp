@@ -25,6 +25,17 @@ std::string_view encoding_name(Encoding encoding) noexcept {
     return "UTF-8";
 }
 
+bool looks_minified(const Text& text) noexcept {
+    if (text.lines.empty()) {
+        return false;
+    }
+    std::size_t bytes = 0;
+    for (const std::string& line : text.lines) {
+        bytes += line.size();
+    }
+    return bytes / text.lines.size() > kMinifiedLineBytes;
+}
+
 void set_loader(Loader loader) {
     const std::scoped_lock lock{loader_mutex};
     current_loader = std::move(loader);

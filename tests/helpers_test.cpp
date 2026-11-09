@@ -1,6 +1,7 @@
 #include "nordend/isolate/helpers.hpp"
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -236,7 +237,8 @@ TEST_CASE("helpers: the helper reads the same text as this process") {
     isolate::Helpers helpers{real(1)};
     for (const text::Limits limits :
          {text::Limits{}, text::Limits{.max_bytes = 8192, .max_line_bytes = 256, .max_lines = 40},
-          text::Limits{.max_bytes = 100, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8}}) {
+          text::Limits{.max_bytes = 100, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8},
+          text::Limits{.max_bytes = 8192, .tail = true}}) {
         for (const fs::path& file : files) {
             INFO(file.filename().string(), " ", limits.max_bytes);
             const bool code = file.extension() == ".cpp";
@@ -250,6 +252,7 @@ TEST_CASE("helpers: the helper reads the same text as this process") {
             CHECK(there.text.truncated == here.text.truncated);
             CHECK(there.text.encoding == here.text.encoding);
             CHECK(there.text.crlf == here.text.crlf);
+            CHECK(there.text.tail == here.text.tail);
             CHECK(there.text.language == here.text.language);
             CHECK(there.text.spans == here.text.spans);
             CHECK(there.text.language == (code ? "C++" : ""));
@@ -284,6 +287,14 @@ TEST_CASE("helpers: a text request travels whole, and too much is refused") {
     CHECK(back.limits.tab_width == 8);
     CHECK(back.name == "notes.md");
     CHECK(back.mime == "text/markdown");
+    CHECK_FALSE(back.limits.tail);
+    const std::optional<protocol::TextAsk> tail = protocol::decode_text_request(
+        protocol::encode_text_request({.tail = true}, "app.log", "text/x-log"));
+    CHECK(tail.value_or(protocol::TextAsk{}).limits.tail);
+    // A tail that is neither 0 nor 1 is nonsense.
+    std::vector<std::byte> two = bytes;
+    two[offsetof(protocol::TextRequest, tail)] = std::byte{2};
+    CHECK_FALSE(protocol::decode_text_request(two));
     // Names are cut at 255 bytes; limits past the helper's are lowered to them.
     const std::optional<protocol::TextAsk> long_name = protocol::decode_text_request(
         protocol::encode_text_request({.max_bytes = std::size_t{1} << 30U,

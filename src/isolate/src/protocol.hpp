@@ -81,6 +81,7 @@ struct TextRequest {
     std::uint16_t tab_width{0};
     std::uint8_t name_length{0};
     std::uint8_t mime_length{0};
+    std::uint8_t tail{0};  // 1: the file's end (text::Limits::tail)
 };
 
 // A text answer: this, then detail_length bytes of detail and language_length bytes of the
@@ -97,7 +98,7 @@ struct TextResponse {
     std::uint32_t spans{0};          // coloured pieces, all lines together
     std::uint16_t detail_length{0};  // at most kMaxDetail
     std::uint8_t language_length{0};
-    std::uint8_t reserved{0};
+    std::uint8_t tail{0};  // 1: the lines are the file's end (text::Text::tail)
 };
 
 // A text's payload: its lines joined by '\n' (bytes), zeros to a multiple of 4, then each span

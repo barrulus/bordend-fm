@@ -17,8 +17,14 @@ namespace nordend::formats::text {
 [[nodiscard]] nordend::text::Loaded decode(std::span<const std::uint8_t> bytes, bool more,
                                            const nordend::text::Limits& limits);
 
-// The text of the file open as fd (the caller's, kept open), read from its start with pread.
+// The text of the file open as fd (the caller's, kept open), read from its start with pread; with
+// limits.tail, from its end when it is longer than limits.max_bytes (read_tail).
 [[nodiscard]] nordend::text::Loaded read(int fd, const nordend::text::Limits& limits);
+
+// The end of the file open as fd, size bytes long (more than limits.max_bytes): its last
+// max_bytes from the first line starting in them; truncated and tail set.
+[[nodiscard]] nordend::text::Loaded read_tail(int fd, std::size_t size,
+                                              const nordend::text::Limits& limits);
 
 // The text of request.path, read in this process (tests and tools), coloured as the language its
 // name, type or first line says (syntax.hpp).

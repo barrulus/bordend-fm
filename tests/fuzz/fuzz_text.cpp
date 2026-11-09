@@ -38,13 +38,16 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
                                                              "application/x-desktop",
                                                              "text/markdown",
                                                              "text/x-patch"};
-    const nordend::text::Limits& limits = kLimits.at(data[0] % kLimits.size());
+    nordend::text::Limits limits = kLimits.at(data[0] % kLimits.size());
     const std::string_view mime = kTypes.at((data[0] / kLimits.size()) % kTypes.size());
     // Languages found by name only (with text/plain): ignore files, .gitattributes.
-    static constexpr std::array<std::string_view, 3> kNames{"fuzz", ".gitignore", ".gitattributes"};
+    // A log is read from its end (Limits::tail).
+    static constexpr std::array<std::string_view, 4> kNames{"fuzz", ".gitignore", ".gitattributes",
+                                                            "fuzz.log"};
     const std::string_view name =
         kNames.at((data[0] / (kLimits.size() * kTypes.size())) % kNames.size());
     const std::span<const std::uint8_t> file{data + 1, size - 1};
+    limits.tail = name.ends_with(".log");
     static_cast<void>(nordend::formats::text::decode(file, true, limits));
     const int fd = ::memfd_create("fuzz", MFD_CLOEXEC);
     if (fd < 0) {

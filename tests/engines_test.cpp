@@ -25,7 +25,7 @@ std::filesystem::path anywhere(std::string_view program) { return std::filesyste
 constexpr std::string_view kEngine = R"([engine]
 name = "test"
 program = "nordend-test-engine"
-protocol = 3
+protocol = 4
 )";
 
 std::string manifest(std::string_view families) {
@@ -173,12 +173,12 @@ TEST_CASE("engines: a manifest Nordend cannot trust is refused, saying where") {
           std::string::npos);
     // Another protocol, a path for a program, a name that is not one.
     CHECK(refused("[engine]\nname = \"x\"\nprogram = \"p\"\nprotocol = 1\n" + family)
-              .find("protocol 1, Nordend speaks 3") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 3\nprogram = \"../../bin/sh\"\n" + family)
+              .find("protocol 1, Nordend speaks 4") != std::string::npos);
+    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 4\nprogram = \"../../bin/sh\"\n" + family)
               .find("must be a file name") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 3\nprogram = \"..\"\n" + family)
+    CHECK(refused("[engine]\nname = \"x\"\nprotocol = 4\nprogram = \"..\"\n" + family)
               .find("must be a file name") != std::string::npos);
-    CHECK(refused("[engine]\nname = \"Big One\"\nprotocol = 3\nprogram = \"p\"\n" + family)
+    CHECK(refused("[engine]\nname = \"Big One\"\nprotocol = 4\nprogram = \"p\"\n" + family)
               .find("is not [a-z0-9-]") != std::string::npos);
     CHECK(refused("[engine]\nname = \"x\"\nprotocol = \"3\"\nprogram = \"p\"\n" + family)
               .find("whole number") != std::string::npos);
@@ -242,17 +242,17 @@ TEST_CASE("engines: a directory of manifests, the broken ones skipped") {
     const nordend::test::TempDir dir;
     const std::string png =
         "\n[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = [\"image/png\"]\n";
-    dir.write("b-second.toml", "[engine]\nname = \"second\"\nprogram = \"two\"\nprotocol = 3\n" +
+    dir.write("b-second.toml", "[engine]\nname = \"second\"\nprogram = \"two\"\nprotocol = 4\n" +
                                    std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\n"
                                                "mime = [\"image/png\", \"image/gif\"]\n"});
     dir.write("a-first.toml",
-              "[engine]\nname = \"first\"\nprogram = \"one\"\nprotocol = 3\n" + png);
+              "[engine]\nname = \"first\"\nprogram = \"one\"\nprotocol = 4\n" + png);
     dir.write("c-broken.toml", "[engine]\nname = \"broken\"\n");
     dir.write("d-missing.toml",
-              "[engine]\nname = \"missing\"\nprogram = \"absent\"\nprotocol = 3\n" +
+              "[engine]\nname = \"missing\"\nprogram = \"absent\"\nprotocol = 4\n" +
                   std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\nmime = "
                               "[\"image/jxl\"]\n"});
-    dir.write("e-third.toml", "[engine]\nname = \"third\"\nprogram = \"three\"\nprotocol = 3\n" +
+    dir.write("e-third.toml", "[engine]\nname = \"third\"\nprogram = \"three\"\nprotocol = 4\n" +
                                   std::string{"\n[[family]]\nname = \"f\"\nshows = \"picture\"\n"
                                               "mime = [\"image/webp\"]\n"});
     dir.write("notes.txt", "not a manifest");

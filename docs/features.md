@@ -133,7 +133,12 @@ README's [What's next](../README.md#whats-next).
   On a text page you **select and copy**: drag (the page scrolls when you go past its top or
   bottom), double click a word, triple click a line, Shift+click to extend, Ctrl+A for the whole
   file, Ctrl+C copies the text (with nothing selected it copies the file, as anywhere else); a
-  click beside the page still closes Quick Look.
+  click beside the page still closes Quick Look. Long lines scroll sideways (Shift+wheel, or the
+  touchpad), the line numbers staying put; Home and End reach the text's top and bottom, Page Up
+  and Page Down a page (the arrows still walk the folder). The caption says the language, the
+  encoding, CRLF when the file has it, the lines and the size. A minified file (lines over 500
+  bytes on average) is shown plain, its caption saying so. A log (`.log`) larger than what is read
+  shows its newest lines: its last 256 KiB, opened at the bottom, "last N lines" in the caption.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
   dates (including the birth time), type, and for photos the shot itself (camera, lens,
   exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`

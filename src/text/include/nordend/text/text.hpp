@@ -46,10 +46,11 @@ struct Span {
     bool operator==(const Span&) const = default;
 };
 
-// The beginning of a text file, ready to draw line by line.
+// The beginning of a text file (or its end, for a log), ready to draw line by line.
 struct Text {
     std::vector<std::string> lines;  // UTF-8, tabs expanded, no line ends, never a '\n'
     bool truncated{false};           // the file goes on past what was read
+    bool tail{false};                // the lines are the file's end: what came before was left out
     Encoding encoding{Encoding::utf8};
     bool crlf{false};  // some line ended with "\r\n"
     // The language the lines were coloured as ("C++"); empty, and no spans, when none.
@@ -63,7 +64,16 @@ struct Limits {
     std::size_t max_line_bytes{1024};                // longer lines are cut (minified files)
     std::size_t max_lines{0};                        // more are left out; 0: no limit
     std::size_t tab_width{4};
+    // Read the file's end (a log's newest lines): its last max_bytes, from a line's start.
+    bool tail{false};
 };
+
+// Lines this long on average are a minified file's (JavaScript, CSS, JSON on one line): shown
+// without colours, which would only paint a wall.
+inline constexpr std::size_t kMinifiedLineBytes = 500;
+
+// Whether text's lines average more than kMinifiedLineBytes.
+[[nodiscard]] bool looks_minified(const Text& text) noexcept;
 
 enum class Failure : std::uint8_t {
     none,

@@ -449,7 +449,7 @@ text::Loaded Helpers::load_text(const text::LoadRequest& request) {
             reply.length != sizeof(response) + response.detail_length + response.language_length ||
             response.failure > static_cast<std::uint8_t>(text::Failure::unreadable) ||
             response.encoding > static_cast<std::uint8_t>(text::Encoding::cp1252) ||
-            response.truncated > 1 || response.crlf > 1 ||
+            response.truncated > 1 || response.crlf > 1 || response.tail > 1 ||
             (response.lines > 0 && response.failure != 0)) {
             why = "the preview helper said something else";
             return false;
@@ -462,6 +462,7 @@ text::Loaded Helpers::load_text(const text::LoadRequest& request) {
         result.text.encoding = static_cast<text::Encoding>(response.encoding);
         result.text.truncated = response.truncated != 0;
         result.text.crlf = response.crlf != 0;
+        result.text.tail = response.tail != 0;
         if (result.failure == text::Failure::none) {
             // A line is at least its '\n' in the file.
             const std::uint64_t most_lines = std::min<std::uint64_t>(

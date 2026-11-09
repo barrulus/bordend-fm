@@ -176,6 +176,39 @@ TEST_CASE("text: read from a file") {
           text::Failure::unreadable);
 }
 
+TEST_CASE("text: a log's end, from a line's start") {
+    const TempDir dir;
+    const fs::path file = write(dir.path / "app.log", "aaa\nbbb\nccc\nddd\n");
+    // The last 9 bytes are "\nccc\nddd\n": the cut line before them is left out.
+    const text::Loaded end =
+        family::load({.path = file, .mime = {}, .limits = {.max_bytes = 9, .tail = true}});
+    CHECK(end.failure == text::Failure::none);
+    CHECK(end.text.lines == Lines{"ccc", "ddd"});
+    CHECK(end.text.tail);
+    CHECK(end.text.truncated);
+    // A file within the limit is read whole, from its start.
+    const text::Loaded whole =
+        family::load({.path = file, .mime = {}, .limits = {.max_bytes = 64, .tail = true}});
+    CHECK(whole.text.lines == Lines{"aaa", "bbb", "ccc", "ddd"});
+    CHECK_FALSE(whole.text.tail);
+    CHECK_FALSE(whole.text.truncated);
+    // One long line: its end, from a character's start (never half an "è").
+    const fs::path one = write(dir.path / "one.log", "èèèèè");
+    const text::Loaded cut =
+        family::load({.path = one, .mime = {}, .limits = {.max_bytes = 5, .tail = true}});
+    CHECK(cut.text.lines == Lines{"èè"});
+    CHECK(cut.text.encoding == text::Encoding::utf8);
+}
+
+TEST_CASE("text: minified files look so") {
+    text::Text text;
+    CHECK_FALSE(text::looks_minified(text));
+    text.lines = {std::string(1100, 'x'), "a"};
+    CHECK(text::looks_minified(text));
+    text.lines.emplace_back("b");
+    CHECK_FALSE(text::looks_minified(text));  // 1102 bytes over three lines
+}
+
 TEST_CASE("text: no loader, no text") {
     const text::Loader kept = [](const text::LoadRequest& request) {
         return family::load(request);

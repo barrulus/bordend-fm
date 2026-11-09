@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -312,4 +313,90 @@ TEST_CASE("quick look: on a text page the pointer selects; a click beside it clo
     // Beside the page: Quick Look closes.
     pointer(Kind::press, 5.0F, 5.0F, 1);
     CHECK_FALSE(look.is_open());
+}
+
+TEST_CASE("quick look: a log opens at its end; keys and Shift+wheel move a text page") {
+    constexpr std::int32_t width = 1000;
+    constexpr std::int32_t height = 700;
+    std::unique_ptr<nordend::ui::Offscreen> gl;
+    try {
+        gl = std::make_unique<nordend::ui::Offscreen>(width, height);
+    } catch (const std::runtime_error& error) {
+        MESSAGE("no offscreen OpenGL: " << error.what());
+        return;
+    }
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    nordend::ui::IconSet icons{fonts};
+    Fixture f;
+    // A log longer than what is read (256 KiB), lines longer than the page is wide.
+    {
+        std::ofstream log{f.dir.path / "z.log"};
+        for (int i = 0; i < 4000; ++i) {
+            log << "2026-11-09 12:00:00 line " << i << ' ' << std::string(100, 'x') << '\n';
+        }
+    }
+    // Written after the folder was read: wait until it is listed.
+    REQUIRE(run_until(f.loop, [&] {
+        const auto& entries = f.browser.columns().column(0).folder().entries();
+        return std::ranges::any_of(
+            entries, [](const nordend::fs::Entry& entry) { return entry.name == "z.log"; });
+    }));
+    REQUIRE(f.settle());
+    auto& look = f.browser.quick_look();
+    const auto draw = [&] {
+        renderer.begin_frame(width, height, 1.0F, {});
+        f.browser.draw(renderer, {0.0F, 0.0F, width, height}, nordend::theme::Palette{}, icons,
+                       Browser::Clock::now());
+        renderer.end_frame();
+    };
+    f.press(XKB_KEY_End);  // z.log
+    f.press(XKB_KEY_space);
+    REQUIRE(f.settle());
+    REQUIRE(look.shows_text());
+    const auto* text = std::get_if<nordend::preview::Text>(look.content());
+    REQUIRE(text != nullptr);
+    CHECK(text->tail);
+    CHECK(text->lines.back().starts_with("2026-11-09 12:00:00 line 3999 "));
+    draw();
+    auto& down = look.text_scroller();
+    CHECK(down.offset() == down.max_offset());  // its newest lines in sight
+    CHECK(down.max_offset() > 0.0F);
+    // Home and End reach the top and the bottom; Page Down goes down a page.
+    // Scrolling glides in time: draw until it has arrived.
+    const auto settle_scroll = [&] {
+        const auto until = Browser::Clock::now() + 2s;
+        while (look.animating(Browser::Clock::now()) && Browser::Clock::now() < until) {
+            draw();
+        }
+        draw();
+    };
+    f.press(XKB_KEY_Home);
+    settle_scroll();
+    CHECK(down.offset() == 0.0F);
+    f.press(XKB_KEY_Page_Down);
+    settle_scroll();
+    CHECK(down.offset() > 0.0F);
+    CHECK(down.offset() < down.max_offset());
+    f.press(XKB_KEY_End);
+    settle_scroll();
+    CHECK(std::abs(down.offset() - down.max_offset()) < 1.0F);  // a glide stops within a pixel
+    CHECK(look.shown() == "z.log");  // the keys moved the page, not the folder's cursor
+    // Shift+wheel: sideways, the lines being wider than the page.
+    auto& sideways = look.text_sideways();
+    CHECK(sideways.max_offset() > 0.0F);
+    nordend::ui::PointerEvent wheel;
+    wheel.kind = nordend::ui::PointerEvent::Kind::scroll;
+    wheel.x = width / 2.0F;
+    wheel.y = height / 2.0F;
+    wheel.wheel_y = 2.0F;
+    wheel.modifiers = {.shift = true};
+    f.browser.pointer(wheel, Browser::Clock::now());
+    settle_scroll();
+    CHECK(sideways.offset() > 0.0F);
+    // The next file starts at its left and top again.
+    f.press(XKB_KEY_Up);
+    REQUIRE(f.settle());
+    draw();
+    CHECK(sideways.offset() == 0.0F);
 }

@@ -110,6 +110,7 @@ void answer_text(int socket, int file, const protocol::TextAsk& ask) {
     response.encoding = static_cast<std::uint8_t>(loaded.text.encoding);
     response.truncated = loaded.text.truncated ? 1 : 0;
     response.crlf = loaded.text.crlf ? 1 : 0;
+    response.tail = loaded.text.tail ? 1 : 0;
     std::string_view language;
     int payload = -1;
     if (loaded.failure == nordend::text::Failure::none) {

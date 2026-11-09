@@ -6,6 +6,7 @@
 #include <format>
 #include <unordered_set>
 #include <variant>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
 #include "nordend/core/log.hpp"
@@ -121,6 +122,7 @@ void QuickLook::close() {
     selection_.clear();
     selecting_ = false;
     layout_ = {};
+    bottom_for_.clear();
     redraw_();
 }
 
@@ -206,6 +208,7 @@ void QuickLook::follow(std::shared_ptr<Folder> folder) {
     if (moved) {
         folder_->sniff(index == 0 ? 0 : index - 1, index + 2);
         text_scroller_.jump_to(0.0F);
+        text_sideways_.jump_to(0.0F);
         selection_.clear();
         selecting_ = false;
         layout_ = {};
@@ -245,13 +248,24 @@ bool QuickLook::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     using Kind = ui::PointerEvent::Kind;
     switch (event.kind) {
         case Kind::scroll:
-            if (event.wheel_y != 0.0F) {
-                text_scroller_.wheel(event.wheel_y, now);
-            } else if (event.scroll_y != 0.0F) {
-                text_scroller_.finger(event.scroll_y, now);
+            // Shift turns the wheel sideways; a touchpad and a tilting wheel go both ways.
+            if (event.modifiers.shift && event.wheel_y != 0.0F) {
+                text_sideways_.wheel(event.wheel_y, now);
+            } else {
+                if (event.wheel_y != 0.0F) {
+                    text_scroller_.wheel(event.wheel_y, now);
+                } else if (event.scroll_y != 0.0F) {
+                    text_scroller_.finger(event.scroll_y, now);
+                }
+                if (event.wheel_x != 0.0F) {
+                    text_sideways_.wheel(event.wheel_x, now);
+                } else if (event.scroll_x != 0.0F) {
+                    text_sideways_.finger(event.scroll_x, now);
+                }
             }
             if (event.scroll_finger && event.scroll_stop) {
                 text_scroller_.release(now);
+                text_sideways_.release(now);
             }
             if (selecting_) {
                 selection_.drag(point_at(pointer_x_, pointer_y_, *text), text->lines);
@@ -306,14 +320,48 @@ TextPoint QuickLook::point_at(float x, float y, const preview::Text& text) const
         return {text.lines.size() - 1, text.lines.back().size()};
     }
     // The nearer edge of the character under the pointer: half way through one is after it.
-    const float columns = std::max(0.0F, (x - layout_.text_x) / layout_.char_width);
+    const float columns =
+        std::max(0.0F, (x - layout_.text_x + text_sideways_.offset()) / layout_.char_width);
     const auto column = static_cast<std::size_t>(std::lround(columns));
     return {line, byte_at_column(text.lines[line], column)};
 }
 
 bool QuickLook::autoscrolling() const {
-    return selecting_ && layout_.valid &&
-           (pointer_y_ < layout_.lines.y || pointer_y_ > layout_.lines.bottom());
+    if (!selecting_ || !layout_.valid) {
+        return false;
+    }
+    const bool above_below = pointer_y_ < layout_.lines.y || pointer_y_ > layout_.lines.bottom();
+    const bool beside =
+        text_sideways_.max_offset() > 0.0F &&
+        (pointer_x_ < layout_.text_x || pointer_x_ > layout_.text_x + layout_.text_room);
+    return above_below || beside;
+}
+
+bool QuickLook::text_key(const ui::KeyEvent& event, Clock::time_point now) {
+    if (shown_text() == nullptr || !layout_.valid || event.modifiers != ui::Modifiers{}) {
+        return false;
+    }
+    // A page: what is shown less a line, so that one stays in sight.
+    const float page = std::max(kLineHeight, layout_.lines.height - kLineHeight);
+    const float from = text_scroller_.destination();
+    switch (event.keysym) {
+        case XKB_KEY_Home:
+            text_scroller_.glide_to(0.0F, now);
+            break;
+        case XKB_KEY_End:
+            text_scroller_.glide_to(text_scroller_.max_offset(), now);
+            break;
+        case XKB_KEY_Page_Up:
+            text_scroller_.glide_to(from - page, now);
+            break;
+        case XKB_KEY_Page_Down:
+            text_scroller_.glide_to(from + page, now);
+            break;
+        default:
+            return false;
+    }
+    redraw_();
+    return true;
 }
 
 void QuickLook::select_all_text() {
@@ -329,8 +377,8 @@ std::string QuickLook::selected_text() const {
 }
 
 bool QuickLook::animating(Clock::time_point now) const {
-    return is_open() &&
-           (fade_at(opened_, now) < 1.0F || text_scroller_.animating() || autoscrolling());
+    return is_open() && (fade_at(opened_, now) < 1.0F || text_scroller_.animating() ||
+                         text_sideways_.animating() || autoscrolling());
 }
 
 bool QuickLook::loading() const {
@@ -467,10 +515,14 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
         renderer.fonts().layout("0", kTextSize, scale, 0.0F, ui::Ellipsis::end, mono).width / scale;
     const std::size_t count = text.lines.size();
     const std::string last_number = std::to_string(std::max<std::size_t>(count, 1));
-    const float gutter = static_cast<float>(last_number.size()) * char_width;
+    // A log's end has no line numbers: they would count from where the reading started, not
+    // from the file's first line (to count those, the whole file would be read).
+    const bool numbered = !text.tail;
+    const float gutter = numbered ? static_cast<float>(last_number.size()) * char_width : 0.0F;
+    const float gutter_gap = numbered ? kGutterGap : 0.0F;
     const float content = static_cast<float>(count) * kLineHeight;
     const float page_width = std::min(
-        area.width, (2.0F * kPagePadding) + gutter + kGutterGap + (kPageColumns * char_width));
+        area.width, (2.0F * kPagePadding) + gutter + gutter_gap + (kPageColumns * char_width));
     const float page_height =
         std::min(area.height, std::max(content, kLineHeight) + (2.0F * kPagePadding));
     const ui::Rect page{area.x + ((area.width - page_width) / 2.0F),
@@ -483,32 +535,73 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
     const ui::Rect inner{page.x, page.y + kPagePadding, page.width,
                          page.height - (2.0F * kPagePadding)};
     text_scroller_.set_extent(content, inner.height);
+    // A log opens on its newest lines, at the bottom.
+    if (text.tail && bottom_for_ != shown_key_) {
+        text_scroller_.jump_to(content);
+        bottom_for_ = shown_key_;
+    }
     text_scroller_.advance(now);
     const float numbers_right = page.x + kPagePadding + gutter;
-    const float text_x = numbers_right + kGutterGap;
+    const float text_x = numbers_right + gutter_gap;
     const float text_room = page.right() - kPagePadding - text_x;
-    layout_ = {
-        .page = page, .lines = inner, .text_x = text_x, .char_width = char_width, .valid = true};
-    // Selecting with the pointer above or below the lines: the page scrolls that way, faster
-    // the farther it is, and the selection follows.
+    // Long lines scroll sideways, to the widest one's end and a character more.
+    if (widest_for_ != &text) {
+        widest_for_ = &text;
+        widest_ = 0;
+        for (const std::string& line : text.lines) {
+            widest_ = std::max(widest_, column_at_byte(line, line.size()));
+        }
+    }
+    text_sideways_.set_extent(static_cast<float>(widest_ + 1) * char_width, text_room);
+    text_sideways_.advance(now);
+    layout_ = {.page = page,
+               .lines = inner,
+               .text_x = text_x,
+               .text_room = text_room,
+               .char_width = char_width,
+               .valid = true};
+    // Selecting with the pointer beyond the lines (above, below, beside): the page scrolls that
+    // way, faster the farther it is, and the selection follows.
     if (autoscrolling()) {
-        const float beyond =
-            pointer_y_ < inner.y ? pointer_y_ - inner.y : pointer_y_ - inner.bottom();
-        const float seconds = std::chrono::duration<float>(now - autoscrolled_).count();
-        const float speed =
-            std::clamp(beyond * kAutoscrollPerPixel, -kAutoscrollMax, kAutoscrollMax);
-        text_scroller_.jump_to(text_scroller_.offset() + (speed * std::min(seconds, 0.1F)));
+        const float seconds =
+            std::min(std::chrono::duration<float>(now - autoscrolled_).count(), 0.1F);
+        const auto step = [&](float beyond) {
+            return std::clamp(beyond * kAutoscrollPerPixel, -kAutoscrollMax, kAutoscrollMax) *
+                   seconds;
+        };
+        if (pointer_y_ < inner.y || pointer_y_ > inner.bottom()) {
+            const float beyond =
+                pointer_y_ < inner.y ? pointer_y_ - inner.y : pointer_y_ - inner.bottom();
+            text_scroller_.jump_to(text_scroller_.offset() + step(beyond));
+        }
+        if (pointer_x_ < text_x || pointer_x_ > text_x + text_room) {
+            const float beyond =
+                pointer_x_ < text_x ? pointer_x_ - text_x : pointer_x_ - (text_x + text_room);
+            text_sideways_.jump_to(text_sideways_.offset() + step(beyond));
+        }
         autoscrolled_ = now;
         selection_.drag(point_at(pointer_x_, pointer_y_, text), text.lines);
     }
     const float offset = text_scroller_.offset();
+    const float sideways = text_sideways_.offset();
+    const ui::Rect text_area{text_x, inner.y, text_room, inner.height};
     // The line box is about 1.2 times the font size: centered in the line height.
     const float baseline_shift = (kLineHeight - (kTextSize * 1.2F)) / 2.0F;
-    renderer.push_clip(inner);
     const theme::SyntaxColors colours = theme::syntax_colors(palette);
     const auto first = static_cast<std::size_t>(std::max(0.0F, offset / kLineHeight));
     const auto last = std::min(
         count, static_cast<std::size_t>(std::ceil((offset + inner.height) / kLineHeight)) + 1);
+    // The line numbers stay put; the text beside them scrolls both ways.
+    renderer.push_clip(inner);
+    for (std::size_t i = first; numbered && i < last; ++i) {
+        const float y = inner.y + (static_cast<float>(i) * kLineHeight) - offset + baseline_shift;
+        const std::string number = std::to_string(i + 1);
+        renderer.draw_text(number, numbers_right - (static_cast<float>(number.size()) * char_width),
+                           y, kTextSize, palette.on_surface_variant.with_alpha(0.7F * fade), 0.0F,
+                           ui::Ellipsis::end, mono);
+    }
+    renderer.pop_clip();
+    renderer.push_clip(text_area);
     // The selection behind the text: each line's selected characters, and a character's room
     // for its line break when that is selected too.
     if (!selection_.empty()) {
@@ -521,30 +614,36 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
             if (end <= start) {
                 continue;
             }
-            const float x = text_x + (static_cast<float>(start) * char_width);
-            const float width = std::min(static_cast<float>(end - start) * char_width,
-                                         std::max(0.0F, text_x + text_room - x));
+            const float x = text_x - sideways + (static_cast<float>(start) * char_width);
+            const float width = static_cast<float>(end - start) * char_width;
             renderer.fill_rect(
                 {x, inner.y + (static_cast<float>(i) * kLineHeight) - offset, width, kLineHeight},
                 palette.secondary_container.with_alpha(fade));
         }
     }
     for (std::size_t i = first; i < last; ++i) {
-        const float y = inner.y + (static_cast<float>(i) * kLineHeight) - offset + baseline_shift;
-        const std::string number = std::to_string(i + 1);
-        renderer.draw_text(number, numbers_right - (static_cast<float>(number.size()) * char_width),
-                           y, kTextSize, palette.on_surface_variant.with_alpha(0.7F * fade), 0.0F,
-                           ui::Ellipsis::end, mono);
-        if (!text.lines[i].empty()) {
-            const std::vector<ui::ColorRun> runs = i < text.spans.size()
-                                                       ? colour_runs(text.spans[i], colours, fade)
-                                                       : std::vector<ui::ColorRun>{};
-            renderer.draw_text_runs(text.lines[i], text_x, y, kTextSize,
-                                    palette.on_surface.with_alpha(fade), runs, text_room,
-                                    ui::Ellipsis::end, mono);
+        if (text.lines[i].empty()) {
+            continue;
         }
+        const float y = inner.y + (static_cast<float>(i) * kLineHeight) - offset + baseline_shift;
+        const std::vector<ui::ColorRun> runs = i < text.spans.size()
+                                                   ? colour_runs(text.spans[i], colours, fade)
+                                                   : std::vector<ui::ColorRun>{};
+        // Whole: the clip cuts it at the page's edge, and it scrolls into sight.
+        renderer.draw_text_runs(text.lines[i], text_x - sideways, y, kTextSize,
+                                palette.on_surface.with_alpha(fade), runs, 0.0F, ui::Ellipsis::end,
+                                mono);
     }
     renderer.pop_clip();
+    if (text_sideways_.max_offset() > 0.0F) {
+        const float content_width = static_cast<float>(widest_ + 1) * char_width;
+        const float thumb = std::max(kScrollbarMinThumb, text_room * text_room / content_width);
+        const float travel = text_room - thumb;
+        const float thumb_x = text_x + (travel * sideways / text_sideways_.max_offset());
+        renderer.draw_box({thumb_x, page.bottom() - kScrollbarWidth - 4.0F, thumb, kScrollbarWidth},
+                          {.fill = palette.on_surface_variant.with_alpha(0.45F * fade),
+                           .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+    }
     // Scrollbar: a thin thumb, only when there is something to scroll.
     if (text_scroller_.max_offset() > 0.0F) {
         const float thumb = std::max(kScrollbarMinThumb, inner.height * inner.height / content);
@@ -555,8 +654,23 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
                            .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
     }
 
-    std::string caption = entry.name + "   ";
-    if (text.truncated) {
+    // name   C++   UTF-8   CRLF   3449 lines   120 kB
+    std::string caption = entry.name;
+    if (!text.language.empty()) {
+        caption += "   " + text.language;
+        if (text::looks_minified(text)) {
+            caption += " (minified)";
+        }
+    }
+    caption += "   ";
+    caption += text::encoding_name(text.encoding);
+    if (text.crlf) {
+        caption += "   CRLF";
+    }
+    caption += "   ";
+    if (text.tail) {
+        caption += std::format("last {} lines", count);
+    } else if (text.truncated) {
         caption += std::format("first {} lines", count);
     } else {
         caption += count == 1 ? std::string{"1 line"} : std::format("{} lines", count);

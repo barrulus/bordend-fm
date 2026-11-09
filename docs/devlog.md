@@ -4,6 +4,58 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-09 — Text pages: sideways, keys, caption, minified files, logs (ROADMAP 3b-4)
+
+**Tested by the author** (2026-11-09, installed in `~/.local`, the test plan: a 6000-line log,
+a minified JavaScript, a Windows-1252 file with CRLF, `browser.cpp`, a photo's Home/End):
+"approvato, funziona". Step 3 is done.
+
+**Done**: the last part of step 3, as proposed and agreed (Home/End/PgUp/PgDn and logs' ends
+confirmed by the author). **Sideways**: lines are drawn whole (no ellipsis) at the text's left
+less a second `ui::Scroller` (`text_sideways_`), clipped to the text's area, the line numbers in
+their own clip, so only the text moves; the extent is the widest line in characters (counted once
+per text) and one more; Shift+wheel and a touchpad's or tilting wheel's x move it; a thin thumb
+under the text; selecting past the text's left or right scrolls that way as past its top or
+bottom; the next file starts at the left again. **Keys** (`QuickLook::text_key`, before the view
+gets them): Home and End glide to the top and the bottom, Page Up and Page Down by the lines shown
+less one; the arrows still walk the folder; on a picture nothing changes. F1 lists them under Quick
+Look. **Caption**: `name   C++   UTF-8   CRLF   3449 lines   120 kB` (the language when known,
+"(minified)" after it, CRLF only when present, "first N lines" or "last N lines" when cut).
+**Minified**: `nordend::text::looks_minified` (lines over `kMinifiedLineBytes` = 500 on average);
+`highlight` then names the language and leaves every line plain. **Logs**: `text::Limits::tail`
+asks for the file's end; `formats::text::read` then `fstat`s the file (the cage allows `fstat` on
+a descriptor) and, when it is larger than `max_bytes`, `read_tail` reads its last `max_bytes`
+from the first line starting in them (one long line: from a character's start), `truncated` and
+`text::Text::tail` set; the text provider asks so for `text/x-log`; Quick Look opens such a text
+at its bottom and draws no line numbers (they would count from where the reading started: the real
+ones need the whole file read). The head read and the tail read share `read_at`. The protocol
+carries `tail` both ways (the request's new last byte, the response's former `reserved` one),
+checked to be 0 or 1: **protocol 4** (`engines::kProtocol`, `base.toml`), 3 having never been
+released.
+
+**Tests**: a log's end from a line's start, a file within the limit read whole, one long line cut
+at a character; `looks_minified`; a minified JavaScript keeps its language without spans; `tail`
+through the request and refused when 2; the helper reads tails the same as this process (inside
+its cage, `fstat` included); offscreen, a 4000-line log over 256 KiB opens at its bottom with its
+last line, Home, Page Down and End move the page (End within a pixel: a glide stops there), the
+keys leave the folder's cursor alone, Shift+wheel scrolls sideways, the next file starts at the
+left. 420 tests.
+
+**Checked**: offscreen snapshots in the author's palette of a 915 kB log (newest lines at the
+bottom, the sideways thumb, "last 1714 lines"; the first take had line numbers 1672-1714, wrong
+for a file of 6000 lines: removed), a minified JavaScript ("JavaScript (minified)", plain), a
+Windows-1252 file with CRLF ("Latin-1   CRLF").
+
+**Fuzzing** (short run): `nordend-fuzz-text` with a fourth name, `fuzz.log`, read with
+`Limits::tail` (its small limits reach the tail path), 10 minutes, 3 processes at the lowest
+priority, the long run's corpus plus two log seeds: 0.30 million inputs, coverage 2599 → 2625
+edges, no crash, timeout or out-of-memory.
+
+**Open**: a minified file's single line is cut at 1024 bytes on reading (`max_line_bytes`), so
+sideways scrolling ends there.
+
+---
+
 ## 2026-11-09 — Selecting and copying text in Quick Look (ROADMAP 3b-3)
 
 **Tested by the author** (2026-11-09, installed in `~/.local`, the test plan on `browser.cpp`:

@@ -3250,8 +3250,12 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
             quick_look_.close();
             return true;
         }
-        // On a text page Ctrl+A selects its text and Ctrl+C copies it (with nothing selected,
-        // Ctrl+C copies the file, as without Quick Look).
+        // On a text page Home, End, Page Up and Page Down move through it; Ctrl+A selects its
+        // text and Ctrl+C copies it (with nothing selected, Ctrl+C copies the file, as without
+        // Quick Look).
+        if (quick_look_.text_key(event, now)) {
+            return true;
+        }
         if (quick_look_.shows_text()) {
             if ((event.keysym == XKB_KEY_a || event.keysym == XKB_KEY_A) &&
                 event.modifiers == ui::Modifiers{.ctrl = true}) {

@@ -271,7 +271,8 @@ std::vector<std::byte> encode_text_request(const text::Limits& limits, std::stri
             std::min<std::size_t>(limits.max_lines, std::numeric_limits<std::uint32_t>::max())),
         .tab_width = static_cast<std::uint16_t>(std::min(limits.tab_width, kMaxTabWidth)),
         .name_length = static_cast<std::uint8_t>(name.size()),
-        .mime_length = static_cast<std::uint8_t>(mime.size())};
+        .mime_length = static_cast<std::uint8_t>(mime.size()),
+        .tail = static_cast<std::uint8_t>(limits.tail ? 1 : 0)};
     std::vector<std::byte> bytes(sizeof(request) + name.size() + mime.size());
     std::memcpy(bytes.data(), &request, sizeof(request));
     std::memcpy(bytes.data() + sizeof(request), name.data(), name.size());
@@ -289,7 +290,7 @@ std::optional<TextAsk> decode_text_request(std::span<const std::byte> bytes) {
         bytes.size() != sizeof(request) + request.name_length + request.mime_length ||
         request.max_bytes == 0 || request.max_bytes > kMaxTextBytes ||
         request.max_line_bytes == 0 || request.max_line_bytes > kMaxTextLineBytes ||
-        request.tab_width == 0 || request.tab_width > kMaxTabWidth) {
+        request.tab_width == 0 || request.tab_width > kMaxTabWidth || request.tail > 1) {
         return std::nullopt;
     }
     const auto* chars = reinterpret_cast<const char*>(bytes.data());  // NOLINT: bytes
@@ -297,7 +298,8 @@ std::optional<TextAsk> decode_text_request(std::span<const std::byte> bytes) {
     ask.limits = {.max_bytes = request.max_bytes,
                   .max_line_bytes = request.max_line_bytes,
                   .max_lines = request.max_lines,
-                  .tab_width = request.tab_width};
+                  .tab_width = request.tab_width,
+                  .tail = request.tail != 0};
     ask.name.assign(chars + sizeof(request), request.name_length);
     ask.mime.assign(chars + sizeof(request) + request.name_length, request.mime_length);
     return ask;

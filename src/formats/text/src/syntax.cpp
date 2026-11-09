@@ -1870,6 +1870,10 @@ std::string_view language_name(const Language& language) { return language.name;
 void highlight(nordend::text::Text& text, const Language& language) {
     text.language = language.name;
     text.spans.assign(text.lines.size(), {});
+    // A minified file: its language said, its lines left plain.
+    if (nordend::text::looks_minified(text)) {
+        return;
+    }
     const Tables& tables = tables_of(*language.syntax);
     State state;
     for (std::size_t i = 0; i < text.lines.size(); ++i) {
