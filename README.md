@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0"><img src="https://img.shields.io/badge/release-v0.4.0-2a6a9e" alt="release v0.4.0"></a>
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-2a6a9e" alt="release v0.5.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-420%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="420 tests, ASan, TSan">
@@ -17,10 +17,10 @@
 </p>
 
 > [!NOTE]
-> **Young software, used every day by its author.** 0.4.0 reads pictures with **Nordend's own
-> code**: DNG developed when its previews are too small, TIFF, raw previews and EXIF without
-> exiv2, each picture made in a **caged helper process**. 0.3.0 brought the command palette
-> (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files (<kbd>Ctrl</kbd>+<kbd>F</kbd>).
+> **Young software, used every day by its author.** 0.5.0 opens **text files** in Quick Look
+> with **syntax colours** for over twenty languages (code, configuration, Markdown, diffs), to
+> select and copy, logs shown from their newest lines; read, like pictures since 0.4.0, by
+> Nordend's own code in a **caged helper process**.
 > On Void Linux, [install it as a package](#on-void-linux); anywhere else,
 > [build it from source](#from-source) in about a minute.
 
@@ -97,9 +97,9 @@ every shortcut.
 
 | | |
 |---|---|
-| Binary | **3.85 MB** (3.20 MB stripped), x86-64; the decoders in `nordend-preview`, 0.97 MB (0.87 stripped), a separate caged helper |
+| Binary | **3.95 MB** (3.28 MB stripped), x86-64; the decoders and text readers in `nordend-preview`, 1.13 MB (1.01 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 8); no GTK, no Qt, no GLib |
-| Code | about 46 600 lines of C++20, 15 700 of tests (420 test cases, under ASan and TSan too) |
+| Code | about 51 300 lines of C++20, 17 400 of tests (420 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -140,7 +140,7 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 sudo xbps-install -R hostdir/binpkgs nordend
 ```
 
-The package is the latest release, **0.4.0**. What `main` gains after it comes with the next
+The package is the latest release, **0.5.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
 ### From source
@@ -189,6 +189,7 @@ settled.
 | Version | What it brought |
 |---|---|
 | on `main`, next | — |
+| [0.5.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0), 2026-11-09 | Text previews: text files in Quick Look and the info pane, read in the caged helper (UTF-8, UTF-16, Latin-1) with syntax colours from your theme for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell (heredocs included), fish, CMake, Makefiles, JSON, TOML, YAML, INI files and desktop entries, `.gitignore` and `.gitattributes`, Markdown (code blocks in their own language) and diffs; select with the pointer, Ctrl+A, Ctrl+C; long lines scroll sideways; Home, End, Page Up and Page Down; a caption with the language, encoding and line ends; minified files shown plain; logs opened at their newest lines. The helper became the first engine, described by a manifest |
 | [0.4.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0), 2026-11-08 | Image previews read by Nordend's own code: DNG developed when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files) with the file's colour, tone curve, vignetting and lens corrections, read identically to LibRaw and 2-4 times faster; TIFF with its own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, CMYK, tiles, a scanner's scan in a SubIFD); raw files' previews and the info pane's EXIF without exiv2 (the same results, 3 to 100 times quicker); pictures made in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock), so a file that crashes or hangs one costs only its preview; one path for every picture, told by the file's bytes; a plain sentence when a file cannot be shown. Canon CRW and Minolta MRW get that sentence; darktable sidecars' ratings are no longer read (Nordend's own ratings come next) |
 | [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
 | [0.3.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.0), 2026-11-06 | The command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>, fuzzy matching with fzy); finding files under a folder (<kbd>Ctrl</kbd>+<kbd>F</kbd>); Nordend's icon follows the desktop's accent colour (`icon.follow_accent`) |
@@ -204,8 +205,8 @@ three.
 0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
 lists; 0.3.0 the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files
 (<kbd>Ctrl</kbd>+<kbd>F</kbd>); 0.3.1 more raw previews; 0.4.0 image previews read by Nordend's own
-code in caged helpers. Coming, roughly in this order: **previews, one family at a time**: text
-next (syntax highlighting, selecting and copying), then other common formats one by one (SVG,
+code in caged helpers; 0.5.0 text previews with syntax colours, selecting and copying. Coming,
+roughly in this order: **previews, one family at a time**: other common formats one by one (SVG,
 AVIF, fonts, archive contents, audio tags).
 After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
 for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations

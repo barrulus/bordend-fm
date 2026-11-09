@@ -4,6 +4,21 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-09 — Nordend 0.5.0
+
+Step 3 (text previews and the engines) closed and released as 0.5.0: 3a (the image helper became
+the first engine, with its manifest), 3b-1 (text read in the base engine), 3b-2 (syntax colours
+for every language planned, plus ignore files and `.gitattributes`), 3b-3 (selecting and copying),
+3b-4 (sideways, page keys, the caption, minified files, logs from their end), all tested by the
+author; the long fuzz run of all six targets clean (an hour), a short text run after 3b-4 clean.
+CMake version, README (badge, note, install note, Versions, What's next, At a glance: nordend
+3.95 MB / 3.28 stripped, the helper 1.13 / 1.01, `readelf -d` NEEDED 17 and 8 as before,
+51 300 + 17 400 lines, 420 tests; memory left at 25 MB: the author's log shows 23.5-24 MB
+anonymous today, as before) and features say so. The engine protocol is 4: Nordend 0.5.0's
+helper and manifest go together, installed by the same package.
+
+---
+
 ## 2026-11-09 — Text pages: sideways, keys, caption, minified files, logs (ROADMAP 3b-4)
 
 **Tested by the author** (2026-11-09, installed in `~/.local`, the test plan: a 6000-line log,
