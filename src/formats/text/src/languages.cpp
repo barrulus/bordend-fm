@@ -432,77 +432,158 @@ constexpr std::array<std::string_view, 4> kIniNames{
     ".editorconfig", ".gitconfig", ".gitmodules", "mimeapps.list",
 };
 
+// ---------------------------------------------------------------------------------------------
+// Markdown and diffs
+// ---------------------------------------------------------------------------------------------
+
+constexpr Syntax kMarkdown{
+    .dedicated = Dedicated::markdown,
+};
+
+constexpr Syntax kDiff{
+    .dedicated = Dedicated::diff,
+};
+
+constexpr std::array<std::string_view, 2> kMarkdownMime{"text/markdown", "text/x-markdown"};
+constexpr std::array<std::string_view, 4> kMarkdownExtensions{".md", ".markdown", ".mkd", ".mdown"};
+constexpr std::array<std::string_view, 3> kDiffMime{
+    "text/x-patch", "text/x-diff", "text/x-reject",
+};
+constexpr std::array<std::string_view, 3> kDiffExtensions{".diff", ".patch", ".rej"};
+
+// The names code fences give each language, in lower case (```C++ finds "c++"). Markdown has
+// none: a fence never holds Markdown coloured as such, so fences never nest.
+constexpr std::array<std::string_view, 2> kCFences{"c", "h"};
+constexpr std::array<std::string_view, 6> kCppFences{"cpp", "c++", "cc", "cxx", "hpp", "cuda"};
+constexpr std::array<std::string_view, 2> kRustFences{"rust", "rs"};
+constexpr std::array<std::string_view, 5> kPythonFences{"python", "py", "python3", "py3", "pyi"};
+constexpr std::array<std::string_view, 6> kJsFences{
+    "javascript", "js", "jsx", "mjs", "cjs", "node",
+};
+constexpr std::array<std::string_view, 3> kTsFences{"typescript", "ts", "tsx"};
+constexpr std::array<std::string_view, 1> kLuaFences{"lua"};
+constexpr std::array<std::string_view, 1> kLuauFences{"luau"};
+constexpr std::array<std::string_view, 7> kShellFences{
+    "sh", "bash", "shell", "zsh", "ksh", "shellscript", "dash",
+};
+constexpr std::array<std::string_view, 1> kFishFences{"fish"};
+constexpr std::array<std::string_view, 1> kCMakeFences{"cmake"};
+constexpr std::array<std::string_view, 3> kMakeFences{"make", "makefile", "mk"};
+constexpr std::array<std::string_view, 4> kJsonFences{"json", "jsonc", "json5", "jsonl"};
+constexpr std::array<std::string_view, 1> kTomlFences{"toml"};
+constexpr std::array<std::string_view, 2> kYamlFences{"yaml", "yml"};
+constexpr std::array<std::string_view, 5> kIniFences{
+    "ini", "desktop", "systemd", "dosini", "gitconfig",
+};
+constexpr std::array<std::string_view, 1> kIgnoreFences{"gitignore"};
+constexpr std::array<std::string_view, 1> kAttributesFences{"gitattributes"};
+constexpr std::array<std::string_view, 3> kDiffFences{"diff", "patch", "udiff"};
+
 // clang-format on
 
 constexpr std::array kLanguages{
-    Language{.name = "C", .mime = kCMime, .syntax = &kCpp},
-    Language{.name = "C++", .mime = kCppMime, .syntax = &kCpp},
-    Language{.name = "Rust", .mime = kRustMime, .extensions = kRustExtensions, .syntax = &kRust},
+    Language{.name = "C", .mime = kCMime, .fence_names = kCFences, .syntax = &kCpp},
+    Language{.name = "C++", .mime = kCppMime, .fence_names = kCppFences, .syntax = &kCpp},
+    Language{.name = "Rust",
+             .mime = kRustMime,
+             .extensions = kRustExtensions,
+             .fence_names = kRustFences,
+             .syntax = &kRust},
     Language{.name = "Python",
              .mime = kPythonMime,
              .extensions = kPythonExtensions,
              .interpreters = kPythonInterpreters,
+             .fence_names = kPythonFences,
              .syntax = &kPython},
     Language{.name = "JavaScript",
              .mime = kJsMime,
              .extensions = kJsExtensions,
              .interpreters = kJsInterpreters,
+             .fence_names = kJsFences,
              .syntax = &kJavaScript},
-    Language{
-        .name = "TypeScript", .mime = kTsMime, .extensions = kTsExtensions, .syntax = &kJavaScript},
+    Language{.name = "TypeScript",
+             .mime = kTsMime,
+             .extensions = kTsExtensions,
+             .fence_names = kTsFences,
+             .syntax = &kJavaScript},
     Language{.name = "Lua",
              .mime = kLuaMime,
              .extensions = kLuaExtensions,
              .interpreters = kLuaInterpreters,
+             .fence_names = kLuaFences,
              .syntax = &kLua},
     Language{.name = "Luau",
              .extensions = kLuauExtensions,
              .interpreters = kLuauInterpreters,
+             .fence_names = kLuauFences,
              .syntax = &kLua},
     Language{.name = "Shell",
              .mime = kShellMime,
              .extensions = kShellExtensions,
              .file_names = kShellNames,
              .interpreters = kShellInterpreters,
+             .fence_names = kShellFences,
              .syntax = &kShell},
     Language{.name = "fish",
              .mime = kFishMime,
              .extensions = kFishExtensions,
              .interpreters = kFishInterpreters,
+             .fence_names = kFishFences,
              .syntax = &kFish},
     Language{.name = "CMake",
              .mime = kCMakeMime,
              .extensions = kCMakeExtensions,
              .file_names = kCMakeNames,
+             .fence_names = kCMakeFences,
              .syntax = &kCMake},
     Language{.name = "Makefile",
              .mime = kMakeMime,
              .extensions = kMakeExtensions,
              .file_names = kMakeNames,
              .interpreters = kMakeInterpreters,
+             .fence_names = kMakeFences,
              .syntax = &kMake},
     Language{.name = "JSON",
              .mime = kJsonMime,
              .extensions = kJsonExtensions,
              .file_names = kJsonNames,
+             .fence_names = kJsonFences,
              .syntax = &kJson},
     Language{.name = "TOML",
              .mime = kTomlMime,
              .extensions = kTomlExtensions,
              .file_names = kTomlNames,
+             .fence_names = kTomlFences,
              .syntax = &kToml},
     Language{.name = "YAML",
              .mime = kYamlMime,
              .extensions = kYamlExtensions,
              .file_names = kYamlNames,
+             .fence_names = kYamlFences,
              .syntax = &kYaml},
     Language{.name = "INI",
              .mime = kIniMime,
              .extensions = kIniExtensions,
              .file_names = kIniNames,
+             .fence_names = kIniFences,
              .syntax = &kIni},
-    Language{.name = "Ignore patterns", .file_names = kIgnoreNames, .syntax = &kIgnore},
-    Language{.name = "Git attributes", .file_names = kAttributesNames, .syntax = &kAttributes},
+    Language{.name = "Ignore patterns",
+             .file_names = kIgnoreNames,
+             .fence_names = kIgnoreFences,
+             .syntax = &kIgnore},
+    Language{.name = "Git attributes",
+             .file_names = kAttributesNames,
+             .fence_names = kAttributesFences,
+             .syntax = &kAttributes},
+    Language{.name = "Markdown",
+             .mime = kMarkdownMime,
+             .extensions = kMarkdownExtensions,
+             .syntax = &kMarkdown},
+    Language{.name = "Diff",
+             .mime = kDiffMime,
+             .extensions = kDiffExtensions,
+             .fence_names = kDiffFences,
+             .syntax = &kDiff},
 };
 
 }  // namespace

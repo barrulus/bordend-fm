@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -23,13 +24,29 @@ using nordend::text::Style;
 
 // Where a line ends inside something that goes on to the next.
 struct State {
-    enum class In : std::uint8_t { code, comment, string, heredoc, block };
+    enum class In : std::uint8_t { code, comment, string, heredoc, block, embedded };
     In in{In::code};
     std::string close;      // what ends it: "*/", ")delim\"", "\"\"\"", "]==]", a heredoc's word
     bool escapes{false};    // a string: a backslash escapes the next character
     int depth{0};           // nested comments: how many are open
     bool tabs{false};       // a heredoc's last line may start with tabs (<<-)
     std::size_t indent{0};  // a YAML block scalar: its lines are indented more than this
+    // Markdown: inside a fenced block (```, ~~~: fence, fence_length) or the front matter
+    // (fence '\0', close "---" or "+++"), its lines lexed as embedded with their own state
+    // (nullptr: a plain block, a string); after_text: the line before was a paragraph's, so
+    // === and --- under it underline a heading.
+    const Language* embedded{nullptr};
+    std::unique_ptr<State> inner;
+    char fence{'\0'};
+    std::size_t fence_length{0};
+    bool after_text{false};
+    // A diff's hunk: the lines of the old file and the new one still to come.
+    std::size_t old_lines{0};
+    std::size_t new_lines{0};
+    // A patch mail (From <hash> first): its message, up to the first header or hunk, holds
+    // no changes, so its - and + lines are a list's.
+    bool mail{false};
+    bool diff_seen{false};
     // A heredoc opened on this line: its lines start with the next one.
     std::string heredoc;
     bool heredoc_tabs{false};
@@ -145,12 +162,21 @@ std::size_t long_bracket(std::string_view text) {
 class LineLexer {
 public:
     LineLexer(const Syntax& syntax, const Tables& tables, std::string_view line, State& state,
-              std::vector<Span>& out)
-        : syntax_{syntax}, tables_{tables}, line_{line}, state_{state}, out_{out} {}
+              std::vector<Span>& out, bool first = false)
+        : syntax_{syntax}, tables_{tables}, line_{line}, state_{state}, out_{out}, first_{first} {}
 
+    // NOLINTNEXTLINE(misc-no-recursion): one level: a fence never holds Markdown
     void run() {
         if (syntax_.dedicated == Dedicated::yaml) {
             yaml();
+            return;
+        }
+        if (syntax_.dedicated == Dedicated::markdown) {
+            markdown();
+            return;
+        }
+        if (syntax_.dedicated == Dedicated::diff) {
+            diff();
             return;
         }
         if (syntax_.dedicated == Dedicated::ignore || syntax_.dedicated == Dedicated::attributes) {
@@ -1137,6 +1163,516 @@ private:
     }
 
     // ---------------------------------------------------------------------------------------
+    // Markdown, highlighted only: headings, emphasis, code spans and fences (in their own
+    // language when the fence names one we know), links, lists, quotes, HTML comments,
+    // rules; a front matter in YAML (---) or TOML (+++) on the first line.
+
+    // NOLINTNEXTLINE(misc-no-recursion): one level: a fence never holds Markdown
+    void markdown() {
+        if (state_.in == State::In::embedded) {
+            embedded_line();
+            return;
+        }
+        if (state_.in == State::In::comment) {
+            go_on_comment(0);
+            if (state_.in == State::In::comment) {
+                return;
+            }
+            markdown_inline();
+            return;
+        }
+        if (first_ && front_matter()) {
+            return;
+        }
+        const bool after_text = state_.after_text;
+        state_.after_text = false;
+        std::size_t i = 0;
+        while (i < line_.size() && is_space(line_[i])) {
+            ++i;
+        }
+        if (i >= line_.size()) {
+            return;
+        }
+        pos_ = i;
+        if (fence_open()) {
+            return;
+        }
+        if (i <= 3 && markdown_block(after_text)) {
+            return;
+        }
+        list_marker();
+        // A paragraph's line: what follows may underline it.
+        state_.after_text = pos_ == i;
+        markdown_inline();
+    }
+
+    // ---, +++ alone on the first line: the front matter, in YAML or TOML, to the same line.
+    bool front_matter() {
+        const std::string_view line = trimmed_end(line_);
+        if (line != "---" && line != "+++") {
+            return false;
+        }
+        emit(0, line.size(), Style::keyword);
+        pos_ = line_.size();
+        state_ = {};
+        state_.in = State::In::embedded;
+        state_.close = std::string{line};
+        state_.embedded = language_for_fence(line == "---" ? "yaml" : "toml");
+        state_.inner = std::make_unique<State>();
+        return true;
+    }
+
+    [[nodiscard]] static std::string_view trimmed_end(std::string_view text) {
+        while (!text.empty() && is_space(text.back())) {
+            text.remove_suffix(1);
+        }
+        return text;
+    }
+
+    // ``` or ~~~ (three or more) at pos_, then the language's name: the lines up to a fence
+    // as long, of the same character, are code.
+    bool fence_open() {
+        const char c = line_[pos_];
+        if (c != '`' && c != '~') {
+            return false;
+        }
+        std::size_t end = pos_;
+        while (end < line_.size() && line_[end] == c) {
+            ++end;
+        }
+        const std::size_t length = end - pos_;
+        const std::string_view info = line_.substr(end);
+        if (length < 3 || (c == '`' && info.find('`') != std::string_view::npos)) {
+            return false;
+        }
+        // ```rust, ``` rust title, ```{.python}: the first word, braces and dot dropped.
+        std::size_t word = 0;
+        while (word < info.size() &&
+               (is_space(info[word]) || info[word] == '{' || info[word] == '.')) {
+            ++word;
+        }
+        std::size_t word_end = word;
+        while (word_end < info.size() && !is_space(info[word_end]) && info[word_end] != '}' &&
+               info[word_end] != ',') {
+            ++word_end;
+        }
+        emit(pos_, line_.size(), Style::string);
+        const Language* language = language_for_fence(info.substr(word, word_end - word));
+        pos_ = line_.size();
+        state_ = {};
+        state_.in = State::In::embedded;
+        state_.fence = c;
+        state_.fence_length = length;
+        state_.embedded = language;
+        state_.inner = std::make_unique<State>();
+        return true;
+    }
+
+    // A line inside a fence or the front matter: the closing line, or code.
+    // NOLINTNEXTLINE(misc-no-recursion): one level: a fence never holds Markdown
+    void embedded_line() {
+        pos_ = line_.size();
+        std::string_view bare = trimmed_end(line_);
+        if (state_.fence == '\0') {
+            if (bare == state_.close || (state_.close == "---" && bare == "...")) {
+                emit(0, bare.size(), Style::keyword);
+                state_ = {};
+                return;
+            }
+        } else {
+            const std::size_t start = std::min(bare.find_first_not_of(" \t"), bare.size());
+            const std::string_view fence = bare.substr(start);
+            if (fence.size() >= state_.fence_length &&
+                fence.find_first_not_of(state_.fence) == std::string_view::npos) {
+                emit(start, bare.size(), Style::string);
+                state_ = {};
+                return;
+            }
+        }
+        if (state_.embedded == nullptr) {
+            emit(0, line_.size(), Style::string);
+            return;
+        }
+        const Syntax& syntax = *state_.embedded->syntax;
+        LineLexer{syntax, tables_of(syntax), line_, *state_.inner, out_}.run();
+    }
+
+    // Headings, rules and setext underlines, quotes, link definitions: true when the line is
+    // done.
+    bool markdown_block(bool after_text) {
+        const std::size_t start = pos_;
+        const std::string_view rest = trimmed_end(line_.substr(start));
+        const char c = rest.front();
+        if (c == '#') {
+            std::size_t hashes = 0;
+            while (hashes < rest.size() && rest[hashes] == '#') {
+                ++hashes;
+            }
+            if (hashes <= 6 && (hashes == rest.size() || is_space(rest[hashes]))) {
+                emit(start, start + rest.size(), Style::keyword);
+                pos_ = line_.size();
+                return true;
+            }
+        }
+        if (c == '>') {
+            emit(start, start + rest.size(), Style::comment);
+            pos_ = line_.size();
+            return true;
+        }
+        // === under a paragraph; --- under one too, else a rule like *** and ___.
+        if (c == '=' && after_text && rest.find_first_not_of('=') == std::string_view::npos) {
+            emit(start, start + rest.size(), Style::keyword);
+            pos_ = line_.size();
+            return true;
+        }
+        if (c == '-' || c == '*' || c == '_') {
+            const bool only =
+                rest.find_first_not_of(std::string{c, ' ', '\t'}) == std::string_view::npos;
+            const auto count = static_cast<std::size_t>(std::ranges::count(rest, c));
+            if (only && count >= 3) {
+                const bool underline =
+                    c == '-' && after_text && rest.find_first_not_of('-') == std::string_view::npos;
+                emit(start, start + rest.size(), underline ? Style::keyword : Style::comment);
+                pos_ = line_.size();
+                return true;
+            }
+        }
+        // [label]: url "title"
+        if (c == '[') {
+            const std::size_t close = line_.find("]:", start);
+            if (close != std::string_view::npos && close > start + 1) {
+                std::size_t url = close + 2;
+                while (url < line_.size() && is_space(line_[url])) {
+                    ++url;
+                }
+                std::size_t end = url;
+                while (end < line_.size() && !is_space(line_[end])) {
+                    ++end;
+                }
+                emit(url, end, Style::function);
+                pos_ = end;
+                markdown_inline();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // - item, * item, + item, 1. item, 2) item, then [ ] or [x]: the markers as numbers.
+    void list_marker() {
+        const std::size_t start = pos_;
+        std::size_t i = pos_;
+        if (line_[i] == '-' || line_[i] == '*' || line_[i] == '+') {
+            ++i;
+        } else {
+            while (i < line_.size() && i - start < 9 && is_digit(line_[i])) {
+                ++i;
+            }
+            if (i == start || i >= line_.size() || (line_[i] != '.' && line_[i] != ')')) {
+                return;
+            }
+            ++i;
+        }
+        if (i < line_.size() && !is_space(line_[i])) {
+            return;
+        }
+        emit(start, i, Style::number);
+        pos_ = i;
+        while (pos_ < line_.size() && is_space(line_[pos_])) {
+            ++pos_;
+        }
+        const std::string_view task = line_.substr(pos_);
+        if (task.size() >= 3 && task[0] == '[' && task[2] == ']' &&
+            (task[1] == ' ' || task[1] == 'x' || task[1] == 'X') &&
+            (task.size() == 3 || is_space(task[3]))) {
+            emit(pos_, pos_ + 3, Style::number);
+            pos_ += 3;
+        }
+    }
+
+    // Emphasis, code spans, links' addresses, autolinks, bare URLs, HTML comments in the rest
+    // of the line. Each kind of opener that found no closer is not looked for again past where
+    // it failed: a line of a thousand * stays linear.
+    void markdown_inline() {
+        std::array<std::size_t, 9> no_emphasis{};  // *, _, ~ by run length 1-3: where none closes
+        no_emphasis.fill(std::string_view::npos);
+        std::array<std::size_t, 17> no_code{};  // `` by run length
+        no_code.fill(std::string_view::npos);
+        bool no_paren = false;
+        while (pos_ < line_.size() && state_.in == State::In::code) {
+            const char c = line_[pos_];
+            if (c == '\\') {
+                pos_ += 2;
+            } else if (c == '`') {
+                code_span(no_code);
+            } else if (c == '*' || c == '_' || c == '~') {
+                emphasis(no_emphasis);
+            } else if (c == ']' && next() == '(' && !no_paren) {
+                const std::size_t close = line_.find(')', pos_ + 2);
+                if (close == std::string_view::npos) {
+                    no_paren = true;
+                    ++pos_;
+                } else {
+                    emit(pos_ + 2, close, Style::function);
+                    pos_ = close + 1;
+                }
+            } else if (c == '<' && line_.substr(pos_).starts_with("<!--")) {
+                open_comment(pos_, 4, "-->");
+            } else if (c == '<') {
+                autolink();
+            } else if (c == 'h' && (pos_ == 0 || !is_word(line_[pos_ - 1])) &&
+                       (line_.substr(pos_).starts_with("https://") ||
+                        line_.substr(pos_).starts_with("http://"))) {
+                // To a space, a bracket or a quote (an HTML attribute's); trailing punctuation
+                // is the sentence's, as GitHub reads it.
+                std::size_t end = pos_;
+                while (end < line_.size() && !is_space(line_[end]) &&
+                       std::string_view{"<>)]\"'"}.find(line_[end]) == std::string_view::npos) {
+                    ++end;
+                }
+                while (std::string_view{".,:;!?*_~"}.find(line_[end - 1]) !=
+                       std::string_view::npos) {
+                    --end;
+                }
+                emit(pos_, end, Style::function);
+                pos_ = end;
+            } else {
+                ++pos_;
+            }
+        }
+        pos_ = std::min(pos_, line_.size());
+    }
+
+    // `code`, ``co`de``: to a run of as many backticks.
+    void code_span(std::array<std::size_t, 17>& none) {
+        const std::size_t start = pos_;
+        std::size_t end = pos_;
+        while (end < line_.size() && line_[end] == '`') {
+            ++end;
+        }
+        const std::size_t length = end - start;
+        pos_ = end;
+        if (length >= none.size() || end >= none.at(length)) {
+            return;
+        }
+        for (std::size_t i = end; i < line_.size();) {
+            if (line_[i] != '`') {
+                ++i;
+                continue;
+            }
+            std::size_t run = i;
+            while (run < line_.size() && line_[run] == '`') {
+                ++run;
+            }
+            if (run - i == length) {
+                emit(start, run, Style::string);
+                pos_ = run;
+                return;
+            }
+            i = run;
+        }
+        none.at(length) = end;
+    }
+
+    // *a*, **a**, ***a***, _a_ (not inside words: snake_case), ~~a~~: one to three of the
+    // same character, not followed by a space, closed by as many not after a space.
+    void emphasis(std::array<std::size_t, 9>& none) {
+        const std::size_t start = pos_;
+        const char c = line_[pos_];
+        std::size_t end = pos_;
+        while (end < line_.size() && line_[end] == c) {
+            ++end;
+        }
+        const std::size_t length = end - start;
+        pos_ = end;
+        std::size_t kind = 2;  // ~
+        if (c == '*') {
+            kind = 0;
+        } else if (c == '_') {
+            kind = 1;
+        }
+        const bool opens = end < line_.size() && !is_space(line_[end]) &&
+                           (c != '_' || start == 0 || !is_word(line_[start - 1]));
+        if (length > 3 || (c == '~' && length != 2) || !opens) {
+            return;
+        }
+        std::size_t& failed = none.at((kind * 3) + length - 1);
+        if (end >= failed) {
+            return;
+        }
+        for (std::size_t i = end + 1; i < line_.size();) {
+            if (line_[i] != c) {
+                ++i;
+                continue;
+            }
+            std::size_t run = i;
+            while (run < line_.size() && line_[run] == c) {
+                ++run;
+            }
+            const bool closes = run - i == length && !is_space(line_[i - 1]) &&
+                                (c != '_' || run >= line_.size() || !is_word(line_[run]));
+            if (closes) {
+                emit(start, run, Style::type);
+                pos_ = run;
+                return;
+            }
+            i = run;
+        }
+        failed = end;
+    }
+
+    // <https://example.org>, <name@example.org>: a link when nothing in it is a space.
+    void autolink() {
+        const std::size_t close = line_.find('>', pos_ + 1);
+        if (close == std::string_view::npos) {
+            pos_ = line_.size();
+            return;
+        }
+        const std::string_view inside = line_.substr(pos_ + 1, close - pos_ - 1);
+        const bool link = !inside.empty() && std::ranges::none_of(inside, is_space) &&
+                          (inside.find("://") != std::string_view::npos ||
+                           inside.find('@') != std::string_view::npos);
+        if (link) {
+            emit(pos_, close + 1, Style::function);
+            pos_ = close + 1;
+        } else {
+            ++pos_;
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Diffs: + and - lines, @@ hunks (their lines counted, so a removed "-- x" inside one is
+    // a removed line and "--- a/x" after it a header), headers, a patch's mail headers.
+
+    void diff() {
+        pos_ = line_.size();
+        if (state_.old_lines > 0 || state_.new_lines > 0) {
+            if (hunk_line()) {
+                return;
+            }
+            state_.old_lines = 0;
+            state_.new_lines = 0;
+        }
+        if (line_.starts_with("@@")) {
+            hunk_header();
+            return;
+        }
+        static constexpr std::array<std::string_view, 17> kHeaders{
+            "diff ",
+            "index ",
+            "--- ",
+            "+++ ",
+            "new file mode",
+            "deleted file mode",
+            "old mode",
+            "new mode",
+            "similarity index",
+            "dissimilarity index",
+            "rename from",
+            "rename to",
+            "copy from",
+            "copy to",
+            "Binary files",
+            "Only in ",
+            "From ",
+        };
+        // A patch mail's "---" before the files' list.
+        if (line_ == "---") {
+            emit(0, line_.size(), Style::keyword);
+            return;
+        }
+        for (const std::string_view header : kHeaders) {
+            if (line_.starts_with(header)) {
+                emit(0, line_.size(), Style::keyword);
+                if (header == "From ") {
+                    // A mail starts (the next one, in a series): its message comes.
+                    state_.mail = true;
+                    state_.diff_seen = false;
+                } else {
+                    state_.diff_seen = true;
+                }
+                return;
+            }
+        }
+        // A patch mail: From:, Subject:, Date: before the message.
+        if (state_.mail && !state_.diff_seen) {
+            for (const std::string_view key : {"From:", "Subject:", "Date:", "To:", "Cc:"}) {
+                if (line_.starts_with(key)) {
+                    emit(0, key.size() - 1, Style::keyword);
+                    return;
+                }
+            }
+            return;  // a patch's message: - and + are a list's, not changes
+        }
+        if (line_.starts_with('\\')) {
+            emit(0, line_.size(), Style::comment);
+        } else if (line_ == "-- ") {
+            return;  // a patch mail's signature: git's version follows
+        } else if (line_.starts_with('+')) {
+            emit(0, line_.size(), Style::added);
+        } else if (line_.starts_with('-')) {
+            emit(0, line_.size(), Style::removed);
+        }
+    }
+
+    // A line inside a hunk; false when it cannot be one (the hunk was shorter than it said).
+    bool hunk_line() {
+        const char c = line_.empty() ? ' ' : line_.front();
+        if (c == '\\') {
+            emit(0, line_.size(), Style::comment);
+            return true;
+        }
+        if (c == '-' && state_.old_lines > 0) {
+            emit(0, line_.size(), Style::removed);
+            --state_.old_lines;
+            return true;
+        }
+        if (c == '+' && state_.new_lines > 0) {
+            emit(0, line_.size(), Style::added);
+            --state_.new_lines;
+            return true;
+        }
+        if (c == ' ' && state_.old_lines > 0 && state_.new_lines > 0) {
+            --state_.old_lines;
+            --state_.new_lines;
+            return true;
+        }
+        return false;
+    }
+
+    // @@ -12,4 +12,6 @@ context: the ranges as a function, their counts kept (1 when left out);
+    // a combined diff's @@@ is coloured but not counted.
+    void hunk_header() {
+        state_.diff_seen = true;
+        const std::size_t close = line_.find("@@", 2);
+        const std::size_t end = close == std::string_view::npos ? line_.size() : close + 2;
+        emit(0, end, Style::function);
+        if (line_.starts_with("@@@")) {
+            return;
+        }
+        const auto count = [&](char sign) -> std::size_t {
+            const std::size_t at = line_.find(sign, 2);
+            if (at == std::string_view::npos || at >= end) {
+                return 0;
+            }
+            std::size_t i = at + 1;
+            while (i < end && is_digit(line_[i])) {
+                ++i;
+            }
+            if (i >= end || line_[i] != ',') {
+                return 1;
+            }
+            std::size_t lines = 0;
+            for (++i; i < end && is_digit(line_[i]) && lines < (std::size_t{1} << 40U); ++i) {
+                lines = (lines * 10) + static_cast<std::size_t>(line_[i] - '0');
+            }
+            return lines;
+        };
+        state_.old_lines = count('-');
+        state_.new_lines = count('+');
+    }
+
+    // ---------------------------------------------------------------------------------------
     // .gitignore and its kin, .gitattributes: one pattern a line (no state between lines).
 
     void ignore_line(bool attributes) {
@@ -1243,6 +1779,7 @@ private:
     std::string_view line_;
     State& state_;
     std::vector<Span>& out_;
+    bool first_{false};  // the file's first line (Markdown's front matter)
     std::size_t pos_{0};
 };
 
@@ -1314,6 +1851,20 @@ const Language* language_for(std::string_view name, std::string_view mime,
     return nullptr;
 }
 
+const Language* language_for_fence(std::string_view name) {
+    if (name.empty() || name.size() > 32) {
+        return nullptr;
+    }
+    std::string folded{name};
+    std::ranges::transform(folded, folded.begin(), lower);
+    for (const Language& language : all_languages()) {
+        if (std::ranges::find(language.fence_names, folded) != language.fence_names.end()) {
+            return &language;
+        }
+    }
+    return nullptr;
+}
+
 std::string_view language_name(const Language& language) { return language.name; }
 
 void highlight(nordend::text::Text& text, const Language& language) {
@@ -1322,7 +1873,7 @@ void highlight(nordend::text::Text& text, const Language& language) {
     const Tables& tables = tables_of(*language.syntax);
     State state;
     for (std::size_t i = 0; i < text.lines.size(); ++i) {
-        LineLexer{*language.syntax, tables, text.lines[i], state, text.spans[i]}.run();
+        LineLexer{*language.syntax, tables, text.lines[i], state, text.spans[i], i == 0}.run();
     }
 }
 

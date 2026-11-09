@@ -519,3 +519,108 @@ TEST_CASE("syntax: ignore files and .gitattributes") {
           Lines{"{f:*}.png {k:binary}", "{f:*}.sh  {k:text} {k:eol}={s:lf} {k:-diff} {k:!merge}",
                 "\"a b\" {k:text}", "{c:# c}"});
 }
+
+namespace {
+
+Lines markdown(const Lines& lines) { return colour(lines, "text/markdown"); }
+
+Lines diff(const Lines& lines) { return colour(lines, "text/x-patch"); }
+
+}  // namespace
+
+TEST_CASE("syntax: Markdown and diffs found") {
+    const auto name_of = [](std::string_view name, std::string_view mime) -> std::string {
+        const family::Language* language = family::language_for(name, mime, {});
+        return language == nullptr ? "" : std::string{family::language_name(*language)};
+    };
+    CHECK(name_of("README.md", "text/markdown") == "Markdown");
+    CHECK(name_of("notes.mdown", "text/plain") == "Markdown");
+    CHECK(name_of("a.patch", "text/x-patch") == "Diff");
+    CHECK(name_of("a.rej", "text/x-reject") == "Diff");
+}
+
+TEST_CASE("syntax: Markdown blocks") {
+    CHECK(markdown({"# Nordend", "#hashtag", "> a quote", "", "---", "***"}) ==
+          Lines{"{k:# Nordend}", "#hashtag", "{c:> a quote}", "", "{c:---}", "{c:***}"});
+    // Underlines: under a paragraph's line only.
+    CHECK(markdown({"Title", "=====", "Other", "---", "", "==="}) ==
+          Lines{"Title", "{k:=====}", "Other", "{k:---}", "", "==="});
+    // Lists, tasks, a rule made of stars is no list.
+    CHECK(markdown({"- one", "  * two", "1. three", "- [x] done", "- [ ] todo", "* * *",
+                    "-not a list"}) == Lines{"{n:-} one", "  {n:*} two", "{n:1.} three",
+                                             "{n:-} {n:[x]} done", "{n:-} {n:[ ]} todo",
+                                             "{c:* * *}", "-not a list"});
+    CHECK(markdown({"[home]: https://nordend.org \"Home\""}) ==
+          Lines{"[home]: {f:https://nordend.org} \"Home\""});
+}
+
+TEST_CASE("syntax: Markdown inline") {
+    CHECK(markdown({"Some *it*, **bold**, ~~gone~~ and `code` here."}) ==
+          Lines{"Some {t:*it*}, {t:**bold**}, {t:~~gone~~} and {s:`code`} here."});
+    // snake_case is no emphasis, 2 * 3 * 4 neither, nor an emphasis never closed.
+    CHECK(markdown({"a snake_case_name, 2 * 3 * 4, **open"}) ==
+          Lines{"a snake_case_name, 2 * 3 * 4, **open"});
+    CHECK(markdown({"``a ` b`` and \\*not\\*"}) == Lines{"{s:``a ` b``} and \\*not\\*"});
+    CHECK(markdown({"See [the docs](docs/features.md), <https://x.org> or https://y.org."}) ==
+          Lines{"See [the docs]({f:docs/features.md}), {f:<https://x.org>} or "
+                "{f:https://y.org}."});
+    CHECK(markdown({"<a href=\"https://x.org\">X</a>"}) ==
+          Lines{"<a href=\"{f:https://x.org}\">X</a>"});
+    CHECK(markdown({"a <!-- hidden", "still --> b *c*"}) ==
+          Lines{"a {c:<!-- hidden}", "{c:still -->} b {t:*c*}"});
+}
+
+TEST_CASE("syntax: Markdown code fences in their language") {
+    CHECK(markdown({"```cpp", "int x = 1; // one", "```", "*after*"}) ==
+          Lines{"{s:```cpp}", "{t:int} x = {n:1}; {c:// one}", "{s:```}", "{t:*after*}"});
+    // A fence the language is not known for, a longer closing one, ~~~, a fence in a list.
+    CHECK(markdown({"```brainfuck", "+[>]", "`````", "~~~ {.python}", "def f(): pass", "~~~"}) ==
+          Lines{"{s:```brainfuck}", "{s:+[>]}", "{s:`````}", "{s:~~~ {.python}}",
+                "{k:def} {f:f}(): {k:pass}", "{s:~~~}"});
+    CHECK(markdown({"- step:", "  ```sh", "  echo hi", "  ```"}) ==
+          Lines{"{n:-} step:", "  {s:```sh}", "  {f:echo} hi", "  {s:```}"});
+    // The language's state goes on across the block's lines; a fence never closed holds the
+    // rest of the file.
+    CHECK(
+        markdown({"```Rust", "/* a", "b */", "```", "```", "# not a heading"}) ==
+        Lines{"{s:```Rust}", "{c:/* a}", "{c:b */}", "{s:```}", "{s:```}", "{s:# not a heading}"});
+}
+
+TEST_CASE("syntax: Markdown front matter") {
+    CHECK(markdown({"---", "title: Nordend", "draft: false", "---", "# Hi"}) ==
+          Lines{"{k:---}", "{k:title}: Nordend", "{k:draft}: {n:false}", "{k:---}", "{k:# Hi}"});
+    CHECK(markdown({"+++", "title = \"x\"", "+++"}) ==
+          Lines{"{k:+++}", "{k:title} = {s:\"x\"}", "{k:+++}"});
+    // Only on the first line.
+    CHECK(markdown({"text", "---", "a: b"}) == Lines{"text", "{k:---}", "a: b"});
+}
+
+TEST_CASE("syntax: diffs") {
+    CHECK(diff({"diff --git a/x b/x", "index 1..2 100644", "--- a/x", "+++ b/x",
+                "@@ -1,3 +1,3 @@ int main()", " same", "-old", "+new", " same"}) ==
+          Lines{"{k:diff --git a/x b/x}", "{k:index 1..2 100644}", "{k:--- a/x}", "{k:+++ b/x}",
+                "{f:@@ -1,3 +1,3 @@} int main()", " same", "{r:-old}", "{a:+new}", " same"});
+    // Inside a hunk "--- x" is a removed line; after it, a header again.
+    // Without headers (a fragment, a Markdown fence's), + and - lines are still changes.
+    CHECK(diff({"-old", "+new", " same"}) == Lines{"{r:-old}", "{a:+new}", " same"});
+    CHECK(markdown({"```diff", "-old", "+new", "```"}) ==
+          Lines{"{s:```diff}", "{r:-old}", "{a:+new}", "{s:```}"});
+    CHECK(diff({"@@ -1 +1 @@", "--- removed", "+++ added", "--- a/y", "+++ b/y",
+                "\\ No newline at end of file"}) ==
+          Lines{"{f:@@ -1 +1 @@}", "{r:--- removed}", "{a:+++ added}", "{k:--- a/y}", "{k:+++ b/y}",
+                "{c:\\ No newline at end of file}"});
+}
+
+TEST_CASE("syntax: git's patch mails") {
+    CHECK(diff({"From 9c235a7 Mon Sep 17 00:00:00 2001", "From: A <a@b>", "Subject: [PATCH] Fix",
+                "", "- a list in the message", "---", " src/a.cpp | 2 +-", "diff --git a/a b/a",
+                "@@ -1,2 +1,2 @@", "-a", "+b", " c", "-- ", "2.47.0"}) ==
+          Lines{"{k:From 9c235a7 Mon Sep 17 00:00:00 2001}", "{k:From}: A <a@b>",
+                "{k:Subject}: [PATCH] Fix", "", "- a list in the message", "{k:---}",
+                " src/a.cpp | 2 +-", "{k:diff --git a/a b/a}", "{f:@@ -1,2 +1,2 @@}", "{r:-a}",
+                "{a:+b}", " c", "-- ", "2.47.0"});
+    // The next mail of a series: its message again.
+    CHECK(diff({"@@ -1 +1 @@", "-a", "+b", "From 1 Mon Sep 17 00:00:00 2001", "- item"}) ==
+          Lines{"{f:@@ -1 +1 @@}", "{r:-a}", "{a:+b}", "{k:From 1 Mon Sep 17 00:00:00 2001}",
+                "- item"});
+}

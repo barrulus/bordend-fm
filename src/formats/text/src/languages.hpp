@@ -43,6 +43,8 @@ enum class Dedicated : std::uint8_t {
     ignore,      // .gitignore and its kin: # comments, ! negations, wildcards, / anchors
     attributes,  // .gitattributes: a pattern as in .gitignore, then attributes (text, -diff,
                  // eol=lf)
+    markdown,    // highlighted, not rendered; fenced code in its own language, front matter
+    diff,        // unified diffs and git's patches: hunks counted, so "--- x" in one is a line
 };
 
 // The tables in languages.cpp name only what they use: GCC's -Wmissing-field-initializers
@@ -98,11 +100,15 @@ struct Language {
     std::span<const std::string_view> extensions{};    // ".rs": when the type says nothing better
     std::span<const std::string_view> file_names{};    // whole names: "Makefile"
     std::span<const std::string_view> interpreters{};  // after #!: "python3", "env node"
+    std::span<const std::string_view> fence_names{};   // after ``` in Markdown: "cpp", "py"
     const Syntax* syntax{};
 };
 
 // NOLINTEND(readability-redundant-member-init)
 
 [[nodiscard]] std::span<const Language> all_languages();
+
+// The language a Markdown code fence names (```rust, ```Python, ```{.sh}); nullptr when none.
+[[nodiscard]] const Language* language_for_fence(std::string_view name);
 
 }  // namespace nordend::formats::text

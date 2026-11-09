@@ -4,6 +4,66 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-09 — Markdown and diffs (ROADMAP 3b-2b, fourth group)
+
+**Tested by the author** (2026-11-09, installed in `~/.local`, the test plan: this `README.md`,
+`docs/devlog.md`, a `git format-patch` of the last commit): "ok funziona". 3b-2 is done.
+
+**Done**: the last two languages of 3b-2, each a line lexer of its own on `Dedicated`.
+**Markdown**, highlighted and not rendered: headings (`#` to `######` and a space) as keywords,
+`===` and `---` as keywords when they underline a paragraph's line (the lexer's state keeps
+`after_text`), else `---`/`***`/`___` rules as comments; `>` quotes and `<!-- -->` comments (over
+lines) as comments; list markers (`-`, `*`, `+`, `1.`, `2)`) and task boxes (`[ ]`, `[x]`) as
+numbers, at any indentation; emphasis `*a*`, `**a**`, `***a***`, `_a_` (not inside words:
+`snake_case`), `~~a~~` as types; code spans of any number of backticks as strings; links'
+addresses (`[text](url)`, `[label]: url`, `<https://…>`, `<a@b>`, bare `http(s)://` stopping at
+quotes and brackets, trailing punctuation left out as GitHub does) as functions; `\` escapes.
+Each kind of opener that found no closer is not looked for again past where it failed, so a line
+of a thousand `*` stays linear. **Fenced code** (```` ``` ```` or `~~~`, three or more, closed by
+a fence as long; at any indentation, so in lists too) is coloured in the language its fence names
+(`cpp`, `rust`, `py`, `sh`, `json`, `yaml`, `diff`… a `fence_names` list per language, any case,
+`{.python}` too), the language's own state carried across the block's lines in an inner `State`;
+an unknown or missing name leaves the block a string. Markdown has no fence names, so fences
+never nest (the recursion is one level). **Front matter**: `---` (YAML) or `+++` (TOML) on the
+first line opens a block in that language up to the same line (`...` too for YAML). **Diffs**
+(`text/x-patch`, `text/x-diff`, `text/x-reject`; `.diff .patch .rej`): `+` lines `added`, `-`
+lines `removed`, `@@ -a,b +c,d @@` as a function with its counts kept so that inside a hunk
+`--- x` is a removed line and after it a header again; headers (`diff`, `index`, `---`, `+++`,
+modes, renames, copies, `Binary files`, `Only in`) as keywords; `\ No newline at end of file` as
+a comment; combined diffs' `@@@` coloured, not counted. Git's patch mails: `From <hash>` starts a
+mail (each of a series), `From:`/`Subject:`/`Date:`/`To:`/`Cc:` as keys, the message's `-` and
+`+` lines left alone up to the first header or hunk, `---` before the files' list a keyword, the
+`-- ` signature plain. Without a mail, `+`/`-` lines outside hunks are changes (fragments,
+Markdown's diff fences).
+
+**Tests**: eight new cases (detection; Markdown blocks, underlines, lists and tasks, link
+definitions; inline emphasis, look-alikes, code spans, links and URLs, comments over lines;
+fences in C++, an unknown language, `~~~ {.python}`, in a list, a language's state across lines,
+a fence never closed; front matter in YAML and TOML, only on the first line; diffs with headers
+and hunks, `---` inside and after a hunk, fragments without headers; patch mails, a series).
+410 tests.
+
+**Checked**: offscreen snapshots of this `README.md` (HTML attributes' URLs stopped at the
+quote, a slip found there and fixed), a `git format-patch` of the last commit, and a Markdown
+page with front matter, `fish`/`toml`/`diff` fences (the `diff` one first showed no colours: the
+mail rule applied to every file; now only to mails). Tests green in `build`, `build-asan`,
+`build-tsan`; clang-tidy clean (the one-level recursion marked as such).
+
+**Fuzzing** (short run): `nordend-fuzz-text` with sixteen types (`text/markdown` and
+`text/x-patch` added; the ignore files' seeds moved to their new first byte), 10 minutes, 3
+processes at the lowest priority, the previous corpus plus six seeds (this README, the Markdown
+page above, the patch, Markdown and diff edge cases): 0.37 million inputs, coverage 2385 → 2547
+edges, no crash, timeout or out-of-memory. The fuzzer was built before clang-tidy's last
+rewrites (De Morgan, parentheses, a nested conditional), which change no behaviour.
+
+**Measured** (`docs/benchmarks.md`): `docs/devlog.md` (308 kB, 4730 lines) 1302 µs, `README.md`
+37 µs, a 1137-line patch 23 µs.
+
+**Checked with the author**: the `added` green, pale in the snapshots' default palette (its
+lightness is the accent's, chosen in 3b-2a), reads well in his Noctalia palette: kept.
+
+---
+
 ## 2026-11-09 — JSON, TOML, YAML, INI, ignore files (ROADMAP 3b-2b, third group)
 
 **Tested by the author** (2026-11-09, installed in `~/.local`, the two test plans: this

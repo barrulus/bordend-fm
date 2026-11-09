@@ -22,7 +22,7 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
         {.max_bytes = 64, .max_line_bytes = 3, .max_lines = 0, .tab_width = 8},
         {.max_bytes = 7, .max_line_bytes = 1, .max_lines = 2, .tab_width = 1},
     }};
-    static constexpr std::array<std::string_view, 14> kTypes{"text/plain",
+    static constexpr std::array<std::string_view, 16> kTypes{"text/plain",
                                                              "text/x-c++src",
                                                              "text/rust",
                                                              "text/x-python3",
@@ -35,7 +35,9 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
                                                              "application/json",
                                                              "application/toml",
                                                              "application/yaml",
-                                                             "application/x-desktop"};
+                                                             "application/x-desktop",
+                                                             "text/markdown",
+                                                             "text/x-patch"};
     const nordend::text::Limits& limits = kLimits.at(data[0] % kLimits.size());
     const std::string_view mime = kTypes.at((data[0] / kLimits.size()) % kTypes.size());
     // Languages found by name only (with text/plain): ignore files, .gitattributes.

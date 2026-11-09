@@ -93,6 +93,23 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Markdown and diffs (ROADMAP 3b-2b, fourth group)
+
+### 2026-11-09
+
+The same harness (`g++ -O3 -DNDEBUG`, 300 runs, median, `nice 19`):
+
+| File | Lines | Spans | Median |
+|---|---|---|---|
+| `docs/devlog.md` (308 kB of Markdown) | 4730 | 3863 | 1302 µs |
+| `README.md` (14 kB) | 233 | 144 | 37 µs |
+| `git format-patch` of the third group's commit (54 kB) | 1137 | 955 | 23 µs |
+| `browser.cpp` (C++, for comparison) | 3449 | 5470 | 710 µs |
+
+Markdown costs about 4 ns a byte, against about 1 for JSON: its inline pass looks at every
+character for emphasis, code, links and URLs. A diff is coloured a line at a time from its first
+character.
+
 ## Data and configuration files (ROADMAP 3b-2b, third group)
 
 ### 2026-11-09

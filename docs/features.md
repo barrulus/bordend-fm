@@ -125,7 +125,9 @@ README's [What's next](../README.md#whats-next).
   (block scalars, anchors and tags included) and INI files (desktop entries, systemd units,
   `.gitconfig`, `.editorconfig`), keys set apart from their values, and `.gitignore` (and
   `.dockerignore`, `.ignore`, `.npmignore`...) and `.gitattributes`, wildcards and negations
-  standing out (more coming), the language found from the file's type, its name (`PKGBUILD`,
+  standing out, Markdown (highlighted, not rendered: its code blocks in their own language, a
+  YAML or TOML front matter) and diffs and patches (added and removed lines, hunks, headers), the
+  language found from the file's type, its name (`PKGBUILD`,
   Void's `template`, `CMakeLists.txt`, `Cargo.lock`, `.clang-format`, `.gitignore`), its extension or its `#!` line, made from your theme's colours and readable
   on its page; the info pane's first lines are coloured too; any other file shows what it is.
 - **The info pane** beside every view shows the preview and what the file is: size, pixel size,
