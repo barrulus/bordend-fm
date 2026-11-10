@@ -4,6 +4,45 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-10 — SVG renderer: reference capture, stage 0 in progress
+
+Work is on `feat/svg-renderer` from `86aa3d3`, with the author's agreement: local `main`
+does not yet contain the icon-theme renderer or Nix packaging that the brief assumes.
+
+**Captured once:** `nix shell nixpkgs#resvg --command bash scripts/svg-capture-references.sh`,
+resvg 0.49.0, 4,710 installed SVG paths at 16, 48 and 128 px (14,130 PNGs), plus 24 original
+hand-written fixtures covering shapes, paths, strokes, CSS, gradients, uses, transforms,
+compositing, clipping, masks, filters and patterns. No render failed. The first discovery
+attempt stopped before invoking resvg on a broken Candy symlink; discovery now records
+unreadable targets separately. The missing target is Candy's `places/16/folder-library.svg`.
+The corpus includes WhiteSur cursor SVGs as well as Candy, Adwaita and both hicolor roots.
+Third-party renders and their manifest are local and ignored; only original fixtures and
+their PNGs belong in Git. The capture refuses to overwrite an existing corpus.
+
+**Baseline:** total CLI wall time (process startup, reading, parsing, rendering and PNG writing)
+is 4.648366 s at 16 px, 5.663249 s at 48 px, and 9.608956 s at 128 px. The retained `--perf`
+log also gives XML parsing + SVG parsing + rendering totals of 0.617100 s, 0.899150 s and
+1.837350 s respectively (each resvg phase is rounded to 0.01 ms). Both measures are in the
+manifest, as `seconds` and `render_seconds`, to keep later comparisons on matching work.
+Source SHA-256 hashes are recorded. The perf column was extracted from the same capture log;
+resvg was not run again. Non-square fixture PNGs retain their aspect ratio.
+
+**Blocked before integration:** the existing build's `nix develop --command ctest --test-dir
+build --output-on-failure` fails before any renderer changes are compiled: 422/425 cases pass,
+three fail, two skipped, 19.21 s. `column_view_test.cpp:334` cannot resolve the `.md` fixture's
+MIME type; `details_view_test.cpp:151` sorts that ambiguous type differently; the transfer
+fixture at `transfer_test.cpp:249` throws when creating a 1 PiB sparse file. `nix/package.nix`
+already adapts these fixtures in its build copy. They are outside SVG scope. The brief requires
+direct ctest to pass at every stage and says to stop on conflicting requirements; the proposal
+is to apply the existing Nix fixture adaptations in a separate validation copy, keeping the
+application and unrelated source tests unchanged.
+
+**Not complete:** resvg is still linked. Initial API/XML and test scaffolding is unintegrated;
+there is no replacement renderer yet. No corpus comparison, sanitizer validation or SVG fuzz
+run has been claimed, and no stage has passed its gates.
+
+---
+
 ## 2026-11-10 — The Noctalia template ships with Nordend
 
 A user on Noctalia saw no Noctalia colours: `colors.toml` is written by a Noctalia user template
