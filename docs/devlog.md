@@ -4,6 +4,22 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-10 — The Noctalia template ships with Nordend
+
+A user on Noctalia saw no Noctalia colours: `colors.toml` is written by a Noctalia user template
+that only existed in the author's own configuration, so on any other Noctalia Nordend fell back
+to the portal (where it gets nothing under Noctalia, *to be verified*) or its default palette,
+while the README promised the Noctalia theme. The template is now in `data/noctalia/nordend`
+(the author's, unchanged), installed to `share/nordend/noctalia/`, and the README's "On
+Noctalia" says how to enable it (two steps); README and features no longer promise it without.
+
+**Open:** propose `nordend` as a Noctalia community template (one switch for users, with
+`requires_path = "~/.config/nordend"`), with the author's OK. The theme watcher watches
+`~/.config/nordend`: when that folder is missing at start, a `colors.toml` written later is seen
+only at the next start (hence the `mkdir` in the README).
+
+---
+
 ## 2026-11-09 — Nordend 0.5.0
 
 Step 3 (text previews and the engines) closed and released as 0.5.0: 3a (the image helper became

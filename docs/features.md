@@ -334,7 +334,8 @@ README's [What's next](../README.md#whats-next).
 - **File types exactly as GTK sees them:** the freedesktop shared-mime-info database, read by
   name first and by content only when needed (and only for what is on screen). 0 differences from
   `gio` on about 4 750 files.
-- **Live theme:** change the palette in Noctalia and Nordend follows instantly; elsewhere, switch
+- **Live theme:** change the palette in Noctalia and Nordend follows instantly (with the
+  `nordend` template enabled in Noctalia); elsewhere, switch
   the desktop between light and dark or pick another accent colour and Nordend follows too.
 
 ## Looks
@@ -400,8 +401,9 @@ go back to the system.
   programs running, never of another copy) and the GPU (from a surfaceless OpenGL context), one
   "Label: value" line each, ready to paste into a bug report; and the engines found, with
   their programs.
-- Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia's `nordend`
-  template). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
+- Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia from the
+  `nordend` template, installed at `share/nordend/noctalia/nordend`; the README's "On Noctalia"
+  says how to enable it). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
   Plasma): light or dark, and the accent colour for the selection, icons and links, with
   neutral surfaces and text kept readable (WCAG AA contrast, tested for 15 accents). Without a
   portal either, a built-in default palette is used.
