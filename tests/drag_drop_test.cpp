@@ -1,3 +1,4 @@
+#include <GLES3/gl3.h>
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
@@ -320,6 +321,80 @@ struct Fixture {
 };
 
 }  // namespace
+
+TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn cells") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    f.show(f.root, Browser::Mode::grid);
+    auto& grid = f.browser.grid();
+    grid.set_info_visible(false);
+    nordend::theme::Palette palette;
+    palette.primary = nordend::ui::Color::rgb(0xFF0000);     // folder icons
+    palette.on_surface = nordend::ui::Color::rgb(0x00FF00);  // names
+    for (const int size : {384, 512}) {
+        for (const int width : {200, 280}) {
+            CAPTURE(size);
+            CAPTURE(width);
+            grid.set_size_index(Browser::grid_index(size));
+            f.renderer->begin_frame(kWidth, kHeight, 1.0F, {});
+            grid.draw(*f.renderer, {0, 0, static_cast<float>(width), kHeight}, palette, *f.icons,
+                      Browser::Clock::now());
+            f.renderer->end_frame();
+            CHECK(grid.icon_size() == size);  // fitting does not change the saved zoom
+            const float center = static_cast<float>(width) / 2.0F;
+            const float icon_bottom = width == 200 ? 140.0F : 220.0F;
+            const auto icon = grid.hit(center, 60);
+            REQUIRE(icon);
+            CHECK(icon->entry == 0);
+            CHECK(icon->on_item);
+            const auto gutter = grid.hit(30, 60);
+            REQUIRE(gutter);
+            CHECK_FALSE(gutter->on_item);
+            const auto name = grid.hit(center, icon_bottom + 12);
+            REQUIRE(name);
+            CHECK(name->entry == 0);
+            CHECK(name->on_item);
+            const auto gap = grid.hit(center, icon_bottom + 30);
+            REQUIRE(gap);
+            CHECK_FALSE(gap->on_item);
+            const auto next = grid.hit(center, icon_bottom + 80);
+            REQUIRE(next);
+            CHECK(next->entry == 1);
+            CHECK(next->on_item);
+            CHECK_FALSE(grid.hit(static_cast<float>(width), 60));
+
+            std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kWidth) * kHeight * 4);
+            glReadPixels(0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+            int red = 0;
+            int left = width;
+            int right = 0;
+            int top = kHeight;
+            int bottom = 0;
+            for (int y = 0; y < static_cast<int>(icon_bottom + 40); ++y) {
+                for (int x = 0; x < width; ++x) {
+                    const auto at = (static_cast<std::size_t>(kHeight - 1 - y) * kWidth +
+                                     static_cast<std::size_t>(x)) *
+                                    4;
+                    if (pixels[at] > 128 && pixels[at + 1] < 32) {
+                        ++red;
+                        left = std::min(left, x);
+                        right = std::max(right, x);
+                        top = std::min(top, y);
+                        bottom = std::max(bottom, y);
+                    }
+                }
+            }
+            CHECK(red > 0);
+            CHECK(left >= 44);
+            CHECK(right < width - 44);
+            CHECK(top >= 28);
+            CHECK(bottom < icon_bottom);
+            CHECK(glGetError() == GL_NO_ERROR);
+        }
+    }
+}
 
 TEST_CASE("drag: a press on an entry moved a few pixels drags the selection") {
     Fixture f;

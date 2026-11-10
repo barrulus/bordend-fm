@@ -396,18 +396,18 @@ TEST_CASE("grid: Ctrl+plus, Ctrl+minus and Ctrl+0 change the cell size within it
     f.view.open(f.root);
     REQUIRE(f.settle());
     f.press(XKB_KEY_2, {.ctrl = true});
-    const float standard = GridView::kIconSizes.at(GridView::kDefaultSize);
+    const auto standard = nordend::views::kGridIconSizes.at(nordend::views::kUsualGridSize);
     CHECK(f.grid.icon_size() == standard);
     f.press(XKB_KEY_plus, {.ctrl = true});
     CHECK(f.grid.icon_size() > standard);
     for (int i = 0; i < 10; ++i) {
         f.press(XKB_KEY_minus, {.ctrl = true});
     }
-    CHECK(f.grid.icon_size() == GridView::kIconSizes.front());
+    CHECK(f.grid.icon_size() == nordend::views::kGridIconSizes.front());
     for (int i = 0; i < 10; ++i) {
         f.press(XKB_KEY_KP_Add, {.ctrl = true});
     }
-    CHECK(f.grid.icon_size() == GridView::kIconSizes.back());
+    CHECK(f.grid.icon_size() == nordend::views::kGridIconSizes.back());
     f.press(XKB_KEY_0, {.ctrl = true});
     CHECK(f.grid.icon_size() == standard);
     f.press(XKB_KEY_plus);  // without Ctrl: nothing

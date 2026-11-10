@@ -196,7 +196,7 @@ void GridView::go_up() {
 }
 
 void GridView::set_size_index(std::size_t index) {
-    index = std::min(index, kIconSizes.size() - 1);
+    index = std::min(index, kGridIconSizes.size() - 1);
     if (index == size_) {
         return;
     }
@@ -206,7 +206,7 @@ void GridView::set_size_index(std::size_t index) {
 }
 
 void GridView::zoom(std::size_t size) {
-    size = std::min(size, kIconSizes.size() - 1);
+    size = std::min(size, kGridIconSizes.size() - 1);
     if (size == size_) {
         return;
     }
@@ -638,7 +638,7 @@ bool GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             if (!ctrl) {
                 return false;
             }
-            zoom(kDefaultSize);
+            zoom(kUsualGridSize);
             break;
         case XKB_KEY_Escape:
             folder.collapse_selection();
