@@ -4,6 +4,49 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-10 — SVG renderer stage 1: shapes, paint and structure
+
+**Done:** all path commands (including arcs and compact numbers), the basic SVG shapes,
+FreeType strokes and bounded dash splitting, transforms, viewports and symbols, CSS cascade
+and inheritance, SVG named colours and currentColor, linear/radial gradients and reference
+inheritance, and bounded `use` expansion. Geometry, stylesheet matching, paint expansion,
+coordinate conversion and pixel work have explicit limits. Namespace-local attributes and
+numeric entities work; duplicate XML attributes, non-finite numbers and reference cycles fail
+cleanly. No external resources are opened. The existing icon-theme SVG test is unchanged.
+
+**Raster decision:** use FreeType direct AA spans at four times the output resolution, then
+average coverage before painting. Native-resolution analytic coverage undercounted a
+self-intersecting path (alpha 38 versus reference 160); supersampling makes all 16 stage 1
+reference fixtures pass using the approved premultiplied comparison. This is still an open
+quality/performance tradeoff for small icons, not a claim that final acceptance is met.
+
+**Validation:** `nix build --no-link`, release ctest (20.10 s) and address/undefined sanitizer
+ctest (25.17 s) pass. Direct suites use the approved validation copy and package fixture
+adaptations. Both use the package's Mesa software driver. The sanitizer suite nevertheless
+reports pre-existing zero-length memcpy/null-pointer UBSan findings in
+`src/isolate/src/helper_main.cpp:140` and `src/isolate/src/protocol.cpp:190`; these are outside
+SVG scope and remain unchanged. SVG-only sanitizer fuzzing has no findings.
+
+**Local corpus:** no stale sources or missing timings. At 16 px, 2583/4710 pass (54.84%),
+0.583552 s versus 0.617100 s (0.946×); at 48 px, 3350/4710 (71.13%), 1.003512 s versus
+0.899150 s (1.116×); at 128 px, 4097/4710 (86.99%), 2.901506 s versus 1.837350 s (1.579×).
+These are parse+render totals. Group effects, filters, patterns and images are still pending;
+small-size edge differences also account for many failures. The corpus tool now reports
+failed render timings as missing, rather than assigning an artificial 30 seconds.
+
+**Fuzzing:** the first run found a FreeType stroker crash when a final dash's distinct floating
+endpoints collapsed to the same 26.6 coordinate. Degeneracy checks now use converted points,
+and zero-width strokes skip the stroker. The minimized input is an original regression seed
+and unit test. After the fix, a fresh clang 21 ASan/UBSan libFuzzer run completed 12,601,039
+inputs in 1801 seconds, with no crash, timeout, out-of-memory or sanitizer finding. The replay
+of the original crash is clean.
+
+**Next:** stage 2 has a separately tested draft for group opacity, clip paths and masks. Stages
+2 and 3 have not passed their gates. The final 98% quality and 1.5× speed requirements are not
+yet met; thresholds are unchanged.
+
+---
+
 ## 2026-11-10 — SVG renderer stage 0: resvg removed
 
 **Done:** `nordend::svg` now owns SVG icon rendering. The initial implementation tokenizes XML

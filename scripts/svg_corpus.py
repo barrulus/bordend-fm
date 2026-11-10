@@ -50,21 +50,27 @@ def main():
                     item = dict(source=source, seconds=float(seconds), maximum=int(maximum),
                                 fraction=float(fraction), passed=passed == '1', error=run.stderr.strip())
                 except (subprocess.TimeoutExpired, ValueError) as error:
-                    item = dict(source=source, seconds=30.0, maximum=255, fraction=1.0, passed=False, error=str(error))
+                    detail = str(error)
+                    if isinstance(error, ValueError):
+                        detail = f'exit {run.returncode}: {run.stderr.strip() or error}'
+                    item = dict(source=source, seconds=None, maximum=255, fraction=1.0, passed=False, error=detail)
                 item.update(wall_seconds=time.perf_counter() - start,
                             reference_seconds=float(row.get('render_seconds', row['seconds'])),
                             reference_wall_seconds=float(row['seconds']))
                 checked.append(item)
             total = len(checked)
             passed = sum(item['passed'] for item in checked)
-            seconds = sum(item['seconds'] for item in checked)
+            seconds = sum(item['seconds'] for item in checked if item['seconds'] is not None)
+            timing_failures = sum(item['seconds'] is None for item in checked)
             baseline = sum(item['reference_seconds'] for item in checked)
             summary = dict(size=size, checked=total, passed=passed, percent=100 * passed / total if total else 0,
                            seconds=seconds, reference_seconds=baseline,
-                           ratio=seconds / baseline if baseline else None, stale=stale, icons=checked)
+                           ratio=seconds / baseline if baseline and not timing_failures else None,
+                           timing_failures=timing_failures, stale=stale, icons=checked)
             results.append(summary)
             print(f"{size}px: {passed}/{total} ({summary['percent']:.2f}%), {len(stale)} stale; "
-                  f"parse+render {seconds:.6f}s / resvg {baseline:.6f}s ({summary['ratio']}x)")
+                  f"parse+render {seconds:.6f}s / resvg {baseline:.6f}s; "
+                  f"ratio={summary['ratio']}, {timing_failures} missing timings")
             for source in stale:
                 print(f'  STALE {source}')
             for item in sorted(checked, key=lambda x: (x['fraction'], x['maximum']), reverse=True)[:20]:

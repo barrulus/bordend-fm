@@ -1,21 +1,31 @@
 #pragma once
-
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <ft2build.h>
+#include <limits>
 #include <map>
-#include <stdexcept>
+#include <optional>
+#include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+#include FT_FREETYPE_H
+#include FT_OUTLINE_H
+#include FT_STROKER_H
+#include "nordend/picture/image.hpp"
 
 namespace nordend::svg {
-inline constexpr std::size_t kMaxBytes = 8U * 1024U * 1024U;
-inline constexpr std::size_t kMaxNodes = 100000;
-inline constexpr std::size_t kMaxDepth = 256;
+inline constexpr std::size_t kMaxBytes = 8U * 1024U * 1024U, kMaxNodes = 100000, kMaxDepth = 256,
+                             kMaxSegments = 1000000, kMaxExpansion = 10000;
 
 struct Failure {};
 
-inline void require(bool condition) {
-    if (!condition) {
+inline void require(bool value) {
+    if (!value) {
         throw Failure{};
     }
 }
@@ -25,43 +35,143 @@ struct Node {
     std::map<std::string, std::string, std::less<>> attributes;
     std::vector<std::size_t> children;
     std::string text;
+    std::size_t parent = std::numeric_limits<std::size_t>::max();
 
-    [[nodiscard]] std::string_view attr(std::string_view key) const {
-        const auto it = attributes.find(key);
+    std::string_view attr(std::string_view key) const {
+        auto it = attributes.find(key);
         return it == attributes.end() ? std::string_view{} : it->second;
     }
 };
 
-[[nodiscard]] std::vector<Node> xml(std::string_view input);
-}  // namespace nordend::svg
+std::vector<Node> xml(std::string_view input);
+std::string_view trim(std::string_view input);
 
-#include <array>
-#include <ft2build.h>
-#include FT_FREETYPE_H
-#include FT_OUTLINE_H
+struct Numbers {
+    std::string_view input;
+    std::size_t at{};
+    void skip();
+    bool more();
+    double get();
+    bool flag();
+};
 
-#include "nordend/picture/image.hpp"
+double number(std::string_view input, double fallback = 0);
+std::vector<double> numbers(std::string_view input);
+double length(std::string_view input, double extent, double fallback = 0);
 
-namespace nordend::svg {
-[[nodiscard]] double number(std::string_view text, double fallback = 0);
+struct Point {
+    double x{}, y{};
+
+    Point operator+(Point b) const { return {x + b.x, y + b.y}; }
+
+    Point operator-(Point b) const { return {x - b.x, y - b.y}; }
+
+    Point operator*(double s) const { return {x * s, y * s}; }
+};
+
+struct Matrix {
+    double a = 1, b = 0, c = 0, d = 1, e = 0, f = 0;
+
+    Point apply(Point p) const { return {a * p.x + c * p.y + e, b * p.x + d * p.y + f}; }
+
+    Matrix operator*(const Matrix& rhs) const;
+    std::optional<Matrix> inverse() const;
+};
+
+Matrix transform(std::string_view text);
+Matrix viewport(std::string_view viewbox, std::string_view aspect, double width, double height);
 using Colour = std::array<double, 4>;
-[[nodiscard]] Colour colour(std::string_view text);
+Colour colour(std::string_view text, Colour current = {0, 0, 0, 1});
+
+struct Style {
+    std::string_view fill = "black", stroke = "none", fill_rule = "nonzero", clip_rule = "nonzero",
+                     linecap = "butt", linejoin = "miter";
+    std::string_view dasharray = "none", stroke_width = "1", dashoffset = "0";
+    std::string_view clip, mask, filter;
+    Colour color{0, 0, 0, 1}, stop_color{0, 0, 0, 1};
+    double opacity = 1, fill_opacity = 1, stroke_opacity = 1, miterlimit = 4, stop_opacity = 1;
+    bool display = true, visible = true;
+};
+
+struct Rule {
+    std::string_view selector;
+    std::map<std::string_view, std::string_view> declarations;
+    int specificity{};
+};
+
+struct Sheet {
+    std::vector<Rule> rules;
+    std::vector<std::string> storage;
+};
+
+Sheet stylesheet(const std::vector<Node>& nodes);
+Style style(const Node& node, const Style& parent, const Sheet& sheet, std::size_t& work);
+
+struct Segment {
+    char kind{};
+    Point p{}, c1{}, c2{};
+};
+
+struct Path {
+    std::vector<Segment> segments;
+};
+
+struct Box {
+    double x{}, y{}, width{}, height{};
+};
+
+Path geometry(const Node& node, double width, double height, std::size_t& segment_count);
+Box bounds(const Path& path);
+
+struct Stop {
+    double offset{};
+    Colour color{};
+};
+
+struct Paint {
+    Colour solid{};
+    std::vector<Stop> stops;
+    Matrix inverse;
+    Point start{}, end{};
+    double r{}, fr{};
+    bool radial = false;
+    std::string_view spread = "pad";
+    Colour sample(double x, double y) const;
+};
 
 struct Canvas {
-    picture::Image image;  // Premultiplied until the final conversion.
+    picture::Image image;
     std::size_t work{};
     bool exhausted{};
 };
 
+void composite(Canvas& canvas, int x, int y, int count, unsigned coverage, const Paint& paint,
+               double opacity) noexcept;
+void straighten(picture::Image& image);
+
 struct Raster {
     FT_Library library{};
+    FT_Stroker stroker{};
     Raster();
     ~Raster();
     Raster(const Raster&) = delete;
     Raster& operator=(const Raster&) = delete;
-    void rectangle(Canvas& canvas, double x, double y, double width, double height, Colour paint);
+    void draw(Canvas& canvas, const Path& path, const Matrix& matrix, const Paint& paint,
+              double opacity, bool evenodd, const Style* stroke, double width, double height);
 };
 
-void composite(Canvas& canvas, int x, int y, int length, unsigned coverage, Colour paint) noexcept;
-void straighten(picture::Image& image);
+struct Document {
+    std::vector<Node> nodes;
+    Sheet sheet;
+    std::map<std::string_view, std::size_t> ids;
+    std::vector<Style> styles;
+    std::vector<std::optional<Path>> paths;
+    std::size_t segments{}, expansions{}, style_work{}, paint_work{}, visited{}, live_layers{},
+        layer_bytes{};
+    std::set<std::size_t> active;
+    double width{}, height{};
+    explicit Document(std::string_view input);
+    Paint paint(std::string_view value, Colour current, const Box& box, const Matrix& matrix,
+                double w, double h);
+};
 }  // namespace nordend::svg

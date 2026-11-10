@@ -151,8 +151,10 @@ public:
                 nodes_.push_back(
                     Node{.name = local(full_name), .attributes = {}, .children = {}, .text = {}});
                 if (!stack_.empty()) {
+                    nodes_[index].parent = stack_.back();
                     nodes_[stack_.back()].children.push_back(index);
                 }
+                std::set<std::string_view> attribute_names;
                 for (;;) {
                     const bool spaced = whitespace();
                     if (take("/>")) {
@@ -164,7 +166,9 @@ public:
                         break;
                     }
                     require(spaced);
-                    const auto key = local(name());
+                    const auto attribute_name = name();
+                    require(attribute_names.insert(attribute_name).second);
+                    const auto key = local(attribute_name);
                     whitespace();
                     require(take("="));
                     whitespace();
