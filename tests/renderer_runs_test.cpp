@@ -73,3 +73,58 @@ TEST_CASE("renderer: a line in several colours, by the bytes each glyph comes fr
     CHECK(white_right == 0);
     CHECK(red_left == 0);
 }
+
+TEST_CASE("renderer: background alpha does not accumulate or fade foreground content") {
+    const auto gl = offscreen();
+    if (!gl) {
+        return;
+    }
+    ui::FontSystem fonts;
+    ui::Renderer renderer{fonts};
+    const std::array<std::uint8_t, 4> texel{255, 0, 0, 255};
+    ui::Texture texture{1, 1, texel};
+    for (const float opacity : {0.0F, 0.7F, 1.0F}) {
+        CAPTURE(opacity);
+        renderer.begin_frame(kWidth, kHeight, 1.0F, ui::Color::rgb(0xFFFFFF), opacity);
+        renderer.fill_background({0, 0, 80, 40}, ui::Color::rgb(0x00FF00));
+        renderer.push_clip({0, 0, 40, 40});
+        renderer.fill_background({0, 0, 80, 40}, ui::Color::rgb(0x0000FF));
+        renderer.pop_clip();
+        renderer.draw_image(texture, {80, 0, 40, 40});
+        renderer.fill_rect({120, 0, 40, 40}, ui::Color::rgb(0xFF0000));
+        renderer.draw_text("M", 165, 0, 32, ui::Color::rgb(0xFFFFFF));
+        renderer.end_frame();
+        const auto pixel = [](int x) {
+            std::array<std::uint8_t, 4> rgba{};
+            glReadPixels(x, 20, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+            return rgba;
+        };
+        const auto blue = pixel(20);
+        const auto green = pixel(60);
+        const auto clear = pixel(230);
+        for (const auto rgba : {blue, green, clear}) {
+            CHECK(static_cast<float>(rgba[3]) == doctest::Approx(opacity * 255).epsilon(0.005));
+        }
+        CHECK(blue[0] == 0);
+        CHECK(blue[1] == 0);
+        CHECK(blue[2] == blue[3]);
+        CHECK(green[0] == 0);
+        CHECK(green[1] == green[3]);
+        CHECK(green[2] == 0);
+        CHECK(clear[0] == clear[3]);
+        CHECK(clear[1] == clear[3]);
+        CHECK(clear[2] == clear[3]);
+        CHECK(pixel(100) == texel);
+        CHECK(pixel(140) == texel);
+        std::array<std::uint8_t, 40 * 40 * 4> glyph{};
+        glReadPixels(160, 0, 40, 40, GL_RGBA, GL_UNSIGNED_BYTE, glyph.data());
+        int solid_glyph_pixels = 0;
+        for (std::size_t i = 0; i < glyph.size(); i += 4) {
+            if (glyph[i] == 255 && glyph[i + 3] == 255) {
+                ++solid_glyph_pixels;
+            }
+        }
+        CHECK(solid_glyph_pixels > 20);
+        CHECK(glGetError() == GL_NO_ERROR);
+    }
+}

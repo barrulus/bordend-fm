@@ -36,6 +36,11 @@ struct Config {
         TitleBar title_bar{TitleBar::integrated};  // read at start
     };
 
+    struct Appearance {
+        float background_opacity{1.0F};  // background only; foreground content stays solid
+    };
+
+    Appearance appearance;
     Font font;
     Pointer pointer;
     Icon icon;
