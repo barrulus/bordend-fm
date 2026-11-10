@@ -18,7 +18,9 @@
       });
 
       checks = forEachSystem (system: {
-        inherit (self.packages.${system}) nordend;
+        smoke = nixpkgs.legacyPackages.${system}.callPackage ./nix/smoke-test.nix {
+          package = self.packages.${system}.nordend;
+        };
       });
 
       devShells = forEachSystem (
@@ -31,6 +33,7 @@
             inputsFrom = [ self.packages.${system}.nordend ];
             packages = with pkgs; [
               clang-tools
+              doctest
               gdb
               git
               libjpeg_turbo

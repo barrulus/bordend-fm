@@ -152,7 +152,7 @@ From a checkout, with Nix flakes enabled:
 ```sh
 nix build                 # package in ./result, including the preview helper and desktop entry
 nix run . -- ~/Pictures    # run Nordend in your Wayland session
-nix flake check           # build the package and run its unit tests
+nix flake check           # check the installed package and command-line entry points
 ```
 
 The flake provides packages and development shells for `x86_64-linux` and `aarch64-linux`.
@@ -167,12 +167,9 @@ ctest --test-dir build --output-on-failure
 ```
 
 The shell includes the build dependencies, doctest, clang tools, GDB and the optional JPEG
-benchmark dependency. The package runs the tests during its build. On non-NixOS systems,
-running the GUI also requires configuring Nix's access to the host's graphics drivers.
-
-For reproducible test results, use `nix flake check`: the package supplies fonts and software
-rendering, adapts host-dependent test fixtures in its build copy, and runs the allocator test
-in a fresh process. Tests run directly from the development shell use the host environment.
+benchmark dependency. Package builds omit unit tests; development-shell tests use the host
+environment. On non-NixOS systems, running the GUI also requires configuring Nix's access to
+the host's graphics drivers.
 
 ### From source
 
