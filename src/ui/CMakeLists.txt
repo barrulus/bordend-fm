@@ -85,8 +85,7 @@ add_library(nordend_ui
 add_library(nordend::ui ALIAS nordend_ui)
 
 target_include_directories(nordend_ui PUBLIC include PRIVATE src)
-target_include_directories(nordend_ui SYSTEM PRIVATE ${RESVG_INCLUDE_DIR})
-target_link_libraries(nordend_ui PRIVATE ${RESVG_LIBRARY} nordend::picture)
+target_link_libraries(nordend_ui PRIVATE nordend::svg nordend::picture)
 target_link_libraries(nordend_ui
     PUBLIC nordend::core nordend_wayland_protocols PkgConfig::EGL PkgConfig::GLESV2
            PkgConfig::XKBCOMMON

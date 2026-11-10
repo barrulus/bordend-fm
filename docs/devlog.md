@@ -4,6 +4,53 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-10 — SVG renderer stage 0: resvg removed
+
+**Done:** `nordend::svg` now owns SVG icon rendering. The initial implementation tokenizes XML
+with explicit input, node and depth limits and renders solid rectangles through FreeType's
+clipped direct antialiasing spans. It uses premultiplied pixels internally and returns straight
+RGBA. Output is limited to 1024 px; converted coordinates and pixel work are bounded. Failures,
+including allocation errors, return an empty image. No external resources are opened.
+This is deliberately the first piece of stage 1: other geometry and paints are still missing.
+`IconTheme::render` delegates to it; its existing SVG test is unchanged and passes. resvg is
+removed from CMake, the UI library, the Nix package and the README. There is no Rust replacement.
+
+**Tools/tests:** `nordend-svg-render`, `scripts/svg-corpus.sh`, a reference-comparison helper,
+SVG unit tests and `nordend-fuzz-svg` (the original SVG fixtures supply its seeds). The corpus
+script reports missing capture without failing and excludes stale source hashes. Third-party
+icons and renders remain ignored and uncommitted.
+
+**Approved comparison correction:** the author agreed to compare premultiplied RGBA while
+retaining the maximum-channel difference of 64 and the 1% limit for pixels differing by more
+than 24. Straight RGB made nearly transparent antialiased edges fail by 255 for a visible
+contribution of only 1. For example, the stage 1 shapes draft differs by at most 29 in
+premultiplied channels (6/4096 pixels over 24), versus 255 in straight channels. Public output
+and exact-pixel tests remain straight-alpha. The comparison has a regression test for this.
+
+**Validation:** `nix build --no-link` passes without resvg. With the author's approval, direct
+ctest runs in `/tmp/nordend-svg-validation`, a source copy using exactly the existing package's
+MIME, sandbox-probe and sparse-file fixture adjustments. Release ctest passes (20.15 s), as
+does the address/undefined sanitizer suite (14.43 s). The Nix package's `NORDEND_WERROR=OFF`
+setting is needed for an existing ignored-write-return warning in `src/isolate/src/sandbox.cpp`.
+The sanitizer suite also uses the package's software-rendering setup: the first host-driver
+run passed all assertions but reported a 183-byte NVIDIA driver leak; no suppression was added.
+
+**Local corpus, the intentionally incomplete renderer:** 0/4710 pass at each size, no stale
+sources. Parse+render totals: 16 px 0.148186 s (reference 0.617100 s), 48 px 0.303426 s
+(reference 0.899150 s), 128 px 0.162753 s (reference 1.837350 s). These times are not a speed
+claim: most features are not rendered yet. The local JSON lists every mismatch and the script
+prints the worst 20 for each size.
+
+**Fuzzing:** clang 21, libFuzzer with AddressSanitizer and UBSan, 1801 seconds (30 minutes),
+22,872,347 inputs, no crash, timeout, out-of-memory or sanitizer finding. The run's binary
+stayed fixed while the stage 1 tests and code were prepared separately under `/tmp`.
+
+**Next:** integrate and complete stage 1. All 16 stage 1 reference fixtures pass in the draft
+with the approved comparison; coverage supersampling handles self-intersections. Its first
+corpus run still shows mismatches to investigate. Stages 1–3 are not complete.
+
+---
+
 ## 2026-11-10 — SVG renderer: reference capture, stage 0 in progress
 
 Work is on `feat/svg-renderer` from `86aa3d3`, with the author's agreement: local `main`

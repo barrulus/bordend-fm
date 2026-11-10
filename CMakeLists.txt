@@ -76,8 +76,6 @@ pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 pkg_check_modules(SDBUSCPP REQUIRED IMPORTED_TARGET sdbus-c++)  # udisks2 (ROADMAP 7.3)
 pkg_check_modules(TURBOJPEG IMPORTED_TARGET libturbojpeg)  # optional for now: the benchmark
-find_path(RESVG_INCLUDE_DIR resvg.h REQUIRED)
-find_library(RESVG_LIBRARY resvg REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Modules
@@ -89,6 +87,7 @@ add_subdirectory(src/fs)        # directory loading and sorting
 add_subdirectory(src/engines)   # engines' manifests: who shows which type (3a)
 add_subdirectory(src/text)      # text files: the Text type, the loader (3b)
 add_subdirectory(src/picture)   # pictures: Image, turning, scaling, the cache's PNG, the loader
+add_subdirectory(src/svg)       # icon-theme SVG rendering on FreeType
 add_subdirectory(src/formats)   # the families of files read in the helper (image today)
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/preview)   # Quick Look providers: images, text, information
@@ -123,6 +122,10 @@ target_link_libraries(nordend
     PRIVATE nordend::core nordend::ui nordend::theme nordend::views nordend::platform
             nordend::isolate nordend_test_scene
             nordend::warnings)
+
+add_executable(nordend-svg-render src/tools/svg_render.cpp)
+target_include_directories(nordend-svg-render PRIVATE tests)
+target_link_libraries(nordend-svg-render PRIVATE nordend::svg nordend::picture nordend::warnings)
 
 # Development tool: offscreen render of the test scene or a folder list to a PPM file, and the
 # list scrolling benchmark. Not installed.

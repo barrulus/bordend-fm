@@ -256,8 +256,7 @@ theme = "candy-icons"
 
 Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
 Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
-startup. Source builds require resvg's C library and header in addition to the dependencies
-listed above.
+startup. SVG theme icons are rendered in-process using FreeType.
 
 ## Versions
 

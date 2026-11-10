@@ -7,10 +7,10 @@
 #include <fstream>
 #include <limits>
 #include <map>
-#include <resvg.h>
 
 #include "nordend/picture/scale.hpp"
 #include "nordend/picture/wuffs.hpp"
+#include "nordend/svg/svg.hpp"
 
 namespace nordend::ui {
 namespace {
@@ -264,37 +264,7 @@ picture::Image IconTheme::render(const std::filesystem::path& file, int pixels) 
         return picture::scale_to_fit(decoded.image, static_cast<std::uint32_t>(pixels),
                                      static_cast<std::uint32_t>(pixels));
     }
-    resvg_options* options = resvg_options_create();
-    resvg_render_tree* tree = nullptr;
-    const int parsed = resvg_parse_tree_from_data(reinterpret_cast<const char*>(data.data()),
-                                                  data.size(), options, &tree);
-    resvg_options_destroy(options);
-    if (parsed != RESVG_OK) {
-        return {};
-    }
-    const resvg_size size = resvg_get_image_size(tree);
-    const float scale = static_cast<float>(pixels) / std::max(size.width, size.height);
-    picture::Image image;
-    image.width = static_cast<std::uint32_t>(std::max(1.0F, std::round(size.width * scale)));
-    image.height = static_cast<std::uint32_t>(std::max(1.0F, std::round(size.height * scale)));
-    image.rgba.resize(static_cast<std::size_t>(image.width) * image.height * 4);
-    auto transform = resvg_transform_identity();
-    transform.a = scale;
-    transform.d = scale;
-    resvg_render(tree, transform, image.width, image.height,
-                 reinterpret_cast<char*>(image.rgba.data()));
-    resvg_tree_destroy(tree);
-    // resvg returns premultiplied RGBA; Texture accepts straight alpha.
-    for (std::size_t i = 0; i < image.rgba.size(); i += 4) {
-        const unsigned alpha = image.rgba[i + 3];
-        if (alpha > 0) {
-            for (std::size_t c = 0; c < 3; ++c) {
-                image.rgba[i + c] = static_cast<std::uint8_t>(
-                    std::min(255U, (image.rgba[i + c] * 255U + alpha / 2U) / alpha));
-            }
-        }
-    }
-    return image;
+    return svg::render(data, pixels);
 }
 
 }  // namespace nordend::ui
