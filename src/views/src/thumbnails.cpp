@@ -20,10 +20,11 @@ Thumbnails::~Thumbnails() {
 }
 
 const ui::Texture* Thumbnails::get(const std::filesystem::path& file, std::int64_t modified_ns,
-                                   thumbs::Size size) {
+                                   thumbs::Size size, thumbs::Kind kind) {
     std::string key = file.string();
     key += '\n';
     key += thumbs::directory_name(size);
+    key += kind == thumbs::Kind::video ? "-video" : "-image";
     key += '\n';
     key += std::to_string(modified_ns);
     auto [it, added] = slots_.try_emplace(key);
@@ -33,8 +34,8 @@ const ui::Texture* Thumbnails::get(const std::filesystem::path& file, std::int64
         ++in_flight_;
         slot.job = pool_.submit(
             core::Priority::visible,
-            [cache = cache_, file, size](const core::CancelToken& /*token*/) {
-                thumbs::Thumbnail thumbnail = cache->get(file, size);
+            [cache = cache_, file, size, kind](const core::CancelToken& token) {
+                thumbs::Thumbnail thumbnail = cache->get(file, size, kind, token);
                 return std::make_shared<picture::Image>(std::move(thumbnail.image));
             },
             [this, alive = alive_, key](std::shared_ptr<picture::Image> pixels) {

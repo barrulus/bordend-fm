@@ -270,7 +270,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const float preview_left = bounds.x + kPadding;
     if (single == nullptr) {
         icon("folder", palette.primary);
-    } else if (kind == preview::Kind::image) {
+    } else if (kind == preview::Kind::image || mime.name(typed.mime).starts_with("video/")) {
         // A square as wide as the pane (at most half its height), always reserved: nothing
         // moves when the thumbnail arrives.
         const float box = std::min(preview_width, bounds.height * kMaxPreview);
@@ -278,7 +278,9 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         if (thumbnails_ != nullptr) {
             thumbnail = thumbnails_->get(
                 path, single->modified_ns,
-                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))));
+                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))),
+                mime.name(typed.mime).starts_with("video/") ? thumbs::Kind::video
+                                                            : thumbs::Kind::image);
         }
         if (thumbnail != nullptr) {
             const float fit =

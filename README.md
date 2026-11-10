@@ -75,7 +75,9 @@ every shortcut.
   preview (Leica, drones) developed by Nordend itself; EXIF in the info pane
 - **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and TIFF, PGM and PPM with Nordend's own
   readers; thumbnails in the shared freedesktop cache
-- **Isolated reading:** every picture is made in a caged helper process, never in Nordend
+- **Isolated reading:** image and text previews are read in a caged helper process; video
+  thumbnails use a separate FFmpeg process with local input protocols, cancellation and a timeout
+- **Video thumbnails:** cached frames for video files in the grid and information pane
 - **darktable:** sidecars follow their photo everywhere; ratings shown
 - **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
   (fzy), the recently used first
@@ -204,6 +206,10 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 (copy it to `~/.config/nordend/config.toml`; `nordend --check-config` reports any problem). The
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
+
+Video thumbnails require the `ffmpeg` executable at build and run time. Videos open in your
+default player; Quick Look does not play videos. FFmpeg currently runs outside Nordend's
+preview-helper sandbox, with a 15-second timeout and cancellation.
 
 ## Versions
 

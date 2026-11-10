@@ -6,11 +6,14 @@
 #include <string_view>
 
 #include "nordend/core/file.hpp"
+#include "nordend/core/worker_pool.hpp"
 #include "nordend/picture/image.hpp"
 
 namespace nordend::thumbs {
 
 // The sizes of the freedesktop thumbnail spec (0.9): a thumbnail fits in a square of that side.
+enum class Kind : std::uint8_t { image, video };
+
 enum class Size : std::uint8_t { normal, large, x_large, xx_large };
 
 [[nodiscard]] std::uint32_t pixels(Size size) noexcept;  // 128, 256, 512, 1024
@@ -62,15 +65,19 @@ public:
 
     // The thumbnail of file at size: the cached one when valid, else made from the file and
     // stored. Blocking (reads, decodes, writes): call it on a worker.
-    [[nodiscard]] Thumbnail get(const std::filesystem::path& file, Size size) const;
+    [[nodiscard]] Thumbnail get(const std::filesystem::path& file, Size size,
+                                Kind kind = Kind::image, const core::CancelToken& token = {}) const;
 
     // Like get(), but never from the cache, and a remembered failure is tried again.
-    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size) const;
+    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size,
+                                 Kind kind = Kind::image,
+                                 const core::CancelToken& token = {}) const;
 
 private:
-    [[nodiscard]] std::filesystem::path fail_path(const std::filesystem::path& file) const;
-    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size,
-                                 std::int64_t mtime) const;
+    [[nodiscard]] std::filesystem::path fail_path(const std::filesystem::path& file,
+                                                  Kind kind) const;
+    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size, std::int64_t mtime,
+                                 Kind kind, const core::CancelToken& token) const;
 
     std::filesystem::path root_;
     std::string app_;

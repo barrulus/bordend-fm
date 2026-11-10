@@ -332,9 +332,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             const ui::Texture* thumbnail = nullptr;
             const engines::Family* family =
                 entry.is_directory() ? nullptr : engines->find(*mime_, typed.mime);
-            if (thumbnails_ != nullptr && family != nullptr && family->thumbnails) {
+            const bool video =
+                !entry.is_directory() && mime_->name(typed.mime).starts_with("video/");
+            if (thumbnails_ != nullptr && (video || (family != nullptr && family->thumbnails))) {
                 thumbnail =
-                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
+                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size,
+                                     video ? thumbs::Kind::video : thumbs::Kind::image);
             }
             if (thumbnail != nullptr) {
                 // Fitted in the icon's square, proportions kept, centered.
