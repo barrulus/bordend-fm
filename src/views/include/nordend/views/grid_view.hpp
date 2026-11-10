@@ -44,7 +44,8 @@ class GridView {
 public:
     using Clock = ui::Scroller::Clock;
 
-    static constexpr std::array<float, 6> kIconSizes{48.0F, 64.0F, 96.0F, 128.0F, 192.0F, 256.0F};
+    static constexpr std::array<float, 8> kIconSizes{48.0F,  64.0F,  96.0F,  128.0F,
+                                                     192.0F, 256.0F, 384.0F, 512.0F};
     static constexpr std::size_t kDefaultSize = 2;  // 96 px
 
     // thumbnails may be nullptr: icons only.
@@ -141,6 +142,7 @@ private:
     void zoom(std::size_t size);
     void keep_place();
     void layout(float width);
+    [[nodiscard]] float drawn_icon_size() const;
     void reveal_cursor(Folder::Reveal reveal, Clock::time_point now);
     [[nodiscard]] std::size_t rows() const;
     [[nodiscard]] float row_top(std::size_t row) const;  // content coordinates
