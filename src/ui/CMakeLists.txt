@@ -73,6 +73,7 @@ add_library(nordend_ui
     src/renderer.cpp
     src/seat.cpp
     src/icons.cpp
+    src/icon_theme.cpp
     src/offscreen.cpp
     src/scroller.cpp
     src/text.cpp
@@ -84,6 +85,8 @@ add_library(nordend_ui
 add_library(nordend::ui ALIAS nordend_ui)
 
 target_include_directories(nordend_ui PUBLIC include PRIVATE src)
+target_include_directories(nordend_ui SYSTEM PRIVATE ${RESVG_INCLUDE_DIR})
+target_link_libraries(nordend_ui PRIVATE ${RESVG_LIBRARY} nordend::picture)
 target_link_libraries(nordend_ui
     PUBLIC nordend::core nordend_wayland_protocols PkgConfig::EGL PkgConfig::GLESV2
            PkgConfig::XKBCOMMON

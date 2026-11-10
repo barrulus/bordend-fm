@@ -22,6 +22,7 @@ struct Config {
     };
 
     struct Icon {
+        std::string theme{"system"};  // desktop theme, installed name, or "builtin"
         // Nordend's icon in the desktop's accent, written to ~/.local/share/icons (ROADMAP 9.2);
         // false takes it away and leaves the installed one.
         bool follow_accent{true};

@@ -1,5 +1,8 @@
 #include "nordend/ui/icons.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstddef>
 #include <span>
 #include <string>
@@ -22,6 +25,48 @@ namespace nordend::ui {
 namespace {
 
 constexpr std::string_view kFilled = "-filled";
+
+std::string_view theme_name(std::string_view name) {
+    static constexpr std::pair<std::string_view, std::string_view> names[]{
+        {"folder", "folder"},
+        {"folder-symlink", "folder"},
+        {"file", "text-x-generic"},
+        {"photo", "image-x-generic"},
+        {"aperture", "image-x-generic"},
+        {"vector", "image-svg+xml"},
+        {"movie", "video-x-generic"},
+        {"music", "audio-x-generic"},
+        {"file-text", "text-x-generic"},
+        {"file-code", "text-x-script"},
+        {"markdown", "text-markdown"},
+        {"file-type-pdf", "application-pdf"},
+        {"file-zip", "package-x-generic"},
+        {"file-description", "x-office-document"},
+        {"file-spreadsheet", "x-office-spreadsheet"},
+        {"presentation", "x-office-presentation"},
+        {"database", "application-x-sqlite3"},
+        {"typography", "font-x-generic"},
+        {"disc", "media-optical"},
+        {"terminal-2", "utilities-terminal"},
+        {"home", "user-home"},
+        {"trash", "user-trash"},
+        {"trash-filled", "user-trash-full"},
+        {"usb", "drive-removable-media"},
+        {"device-desktop", "computer"},
+        {"server", "network-server"},
+        {"download", "folder-download"},
+        {"mail", "internet-mail"},
+        {"calendar", "x-office-calendar"},
+        {"app-window", "application-x-desktop"},
+        {"plug", "drive-harddisk"},
+    };
+    for (const auto& [tabler, themed] : names) {
+        if (name == tabler) {
+            return themed;
+        }
+    }
+    return {};
+}
 
 }  // namespace
 
@@ -54,8 +99,77 @@ IconSet::Glyph IconSet::glyph(std::string_view name) {
 
 bool IconSet::has(std::string_view name) { return glyph(name).index != 0; }
 
+void IconSet::set_theme(std::string theme) {
+    if (theme == "system") {
+        theme = desktop_icon_theme();
+    }
+    if (theme != selected_theme_) {
+        selected_theme_ = theme;
+        pending_theme_ = std::move(theme);
+    }
+}
+
+bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, float y, float size,
+                          Color color) {
+    if (pending_theme_) {
+        themed_.clear();
+        theme_bytes_ = 0;
+        theme_.reset();
+        if (*pending_theme_ != "builtin") {
+            theme_ = std::make_unique<IconTheme>(*pending_theme_, icon_theme_roots());
+        }
+        pending_theme_.reset();
+    }
+    if (!theme_ || name.empty()) {
+        return false;
+    }
+    const int pixels = std::clamp(static_cast<int>(std::ceil(size * renderer.scale())), 1, 1024);
+    const std::string key = std::string{name} + ':' + std::to_string(pixels);
+    auto it = themed_.find(key);
+    if (it == themed_.end()) {
+        // Bound textures and negative lookups without evicting a texture in the current batch.
+        if (themed_.size() >= 1024 || theme_bytes_ >= 64U * 1024U * 1024U) {
+            return false;
+        }
+        const auto file = theme_->find(name, pixels);
+        picture::Image image;
+        if (!file.empty()) {
+            image = IconTheme::render(file, pixels);
+        }
+        std::unique_ptr<Texture> texture;
+        if (!image.empty()) {
+            texture = std::make_unique<Texture>(image.width, image.height, image.rgba);
+            theme_bytes_ += texture->bytes();
+        }
+        it = themed_.emplace(key, std::move(texture)).first;
+    }
+    if (!it->second) {
+        return false;
+    }
+    const Texture& texture = *it->second;
+    const float fit = size / static_cast<float>(std::max(texture.width(), texture.height()));
+    const float width = static_cast<float>(texture.width()) * fit;
+    const float height = static_cast<float>(texture.height()) * fit;
+    renderer.draw_image(texture,
+                        {x + (size - width) / 2.0F, y + (size - height) / 2.0F, width, height}, {},
+                        color.a);
+    return true;
+}
+
+void IconSet::draw_file(Renderer& renderer, std::string_view mime, std::string_view fallback,
+                        float x, float y, float size, Color color) {
+    std::string name{mime};
+    std::ranges::replace(name, '/', '-');
+    if (!draw_themed(renderer, name, x, y, size, color)) {
+        draw(renderer, fallback, x, y, size, color);
+    }
+}
+
 void IconSet::draw(Renderer& renderer, std::string_view name, float x, float y, float size,
                    Color color) {
+    if (draw_themed(renderer, theme_name(name), x, y, size, color)) {
+        return;
+    }
     if (!outline_) {
         return;
     }

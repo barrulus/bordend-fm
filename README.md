@@ -205,6 +205,19 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
 
+Nordend uses the desktop icon theme by default. To select Candy explicitly, put this in
+`~/.config/nordend/config.toml` (or add the key to an existing `[icon]` section):
+
+```toml
+[icon]
+theme = "candy-icons"
+```
+
+Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
+Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
+startup. Source builds require resvg's C library and header in addition to the dependencies
+listed above.
+
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features
