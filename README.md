@@ -145,6 +145,32 @@ sudo xbps-install -R hostdir/binpkgs nordend
 The package is the latest release, **0.5.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
+### With Nix
+
+From a checkout, with Nix flakes enabled:
+
+```sh
+nix build                 # package in ./result, including the preview helper and desktop entry
+nix run . -- ~/Pictures    # run Nordend in your Wayland session
+nix flake check           # check the installed package and command-line entry points
+```
+
+The flake provides packages and development shells for `x86_64-linux` and `aarch64-linux`.
+For development, enter the shell and use the usual CMake workflow:
+
+```sh
+nix develop
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+./build/nordend
+```
+
+The shell includes the build dependencies, doctest, clang tools, GDB and the optional JPEG
+benchmark dependency. Package builds omit unit tests; development-shell tests use the host
+environment. On non-NixOS systems, running the GUI also requires configuring Nix's access to
+the host's graphics drivers.
+
 ### From source
 
 On Void Linux the packages are these; elsewhere, the development packages of the same libraries

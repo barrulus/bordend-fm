@@ -5,6 +5,10 @@ CLAUDE.md
 # Build output: Release in build/, Debug and sanitizer builds in build-*/
 build*/
 
+# Nix build outputs
+result
+result-*
+
 # Editor / tooling (.clangd and the clang config files are tracked, on purpose)
 .cache/
 compile_commands.json
