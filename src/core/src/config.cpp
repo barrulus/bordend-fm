@@ -189,7 +189,11 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
         } else if (key.str() == "icon") {
             reader.read_section(
                 node, "icon",
-                {{"follow_accent", [&](const toml::node& value, const std::string& path) {
+                {{"theme",
+                  [&](const toml::node& value, const std::string& path) {
+                      reader.read_string(value, path, config.icon.theme);
+                  }},
+                 {"follow_accent", [&](const toml::node& value, const std::string& path) {
                       reader.read_bool(value, path, config.icon.follow_accent);
                   }}});
         } else {

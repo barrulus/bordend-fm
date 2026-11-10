@@ -76,6 +76,8 @@ pkg_check_modules(JXL REQUIRED IMPORTED_TARGET libjxl)
 pkg_check_modules(ZLIB REQUIRED IMPORTED_TARGET zlib)
 pkg_check_modules(SDBUSCPP REQUIRED IMPORTED_TARGET sdbus-c++)  # udisks2 (ROADMAP 7.3)
 pkg_check_modules(TURBOJPEG IMPORTED_TARGET libturbojpeg)  # optional for now: the benchmark
+find_path(RESVG_INCLUDE_DIR resvg.h REQUIRED)
+find_library(RESVG_LIBRARY resvg REQUIRED)
 
 # ---------------------------------------------------------------------------
 # Modules
