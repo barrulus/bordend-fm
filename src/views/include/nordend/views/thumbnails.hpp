@@ -38,7 +38,8 @@ public:
     // The thumbnail of file (absolute) as it was at modified_ns, at size; nullptr while it is
     // being made (now asked for) or when it cannot be made.
     [[nodiscard]] const ui::Texture* get(const std::filesystem::path& file,
-                                         std::int64_t modified_ns, thumbs::Size size);
+                                         std::int64_t modified_ns, thumbs::Size size,
+                                         thumbs::Kind kind = thumbs::Kind::image);
 
     // After each frame: cancels what this frame did not ask for, keeps to the budget.
     void end_frame();

@@ -402,7 +402,8 @@ int main(int argc, char** argv) {
                            .height = remembered.state.window_height,
                            .maximized = remembered.state.maximized,
                            .background = theme.palette().surface,
-                           .force_client_decorations = client_decorations_forced()}};
+                           .force_client_decorations = client_decorations_forced(),
+                           .background_opacity = config.appearance.background_opacity}};
         startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -435,6 +436,7 @@ int main(int argc, char** argv) {
         update_icon();
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
+        icons.set_theme(config.icon.theme);
         ui::Activation activation{display, loop};
         ui::Clipboard clipboard{display, loop};  // before the browser that uses it
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
@@ -444,6 +446,8 @@ int main(int argc, char** argv) {
         // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
         const auto apply_config = [&](const core::Config& fresh) {
+            icons.set_theme(fresh.icon.theme);
+            window.set_background_opacity(fresh.appearance.background_opacity);
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
             follow_accent = fresh.icon.follow_accent;

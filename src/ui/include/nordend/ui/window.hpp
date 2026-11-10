@@ -33,6 +33,7 @@ struct WindowOptions {
     // Ask for client-side decorations even where the compositor offers server-side ones
     // (NORDEND_FORCE_CSD, to try them); the compositor may still answer server-side.
     bool force_client_decorations{false};
+    float background_opacity{1.0F};
 };
 
 // A window edge or corner, grabbed to resize the window.
@@ -95,6 +96,11 @@ public:
     // Color the frame is cleared to before the draw handler runs; redraws.
     void set_background(Color color) {
         background_ = color;
+        request_redraw();
+    }
+
+    void set_background_opacity(float opacity) {
+        background_opacity_ = opacity;
         request_redraw();
     }
 
@@ -181,6 +187,7 @@ private:
     WindowState pending_state_;  // from configure, applied with its ack
     std::string title_;
     Color background_;
+    float background_opacity_;
     DrawHandler draw_handler_;
     std::function<void()> close_handler_;
     std::function<void()> frame_shown_handler_;

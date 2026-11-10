@@ -20,6 +20,8 @@ add_executable(nordend-tests
     file_watcher_test.cpp
     format_test.cpp
     icon_test.cpp
+    icon_theme_test.cpp
+    video_test.cpp
     helpers_test.cpp
     sandbox_test.cpp
     tiff_test.cpp

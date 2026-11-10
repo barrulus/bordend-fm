@@ -24,11 +24,13 @@ ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml
 
 void check_defaults(const Config& config) {
     const Config defaults;
+    CHECK(config.appearance.background_opacity == defaults.appearance.background_opacity);
     CHECK(config.font.family == defaults.font.family);
     CHECK(config.font.monospace == defaults.font.monospace);
     CHECK(config.pointer.double_click_ms == defaults.pointer.double_click_ms);
     CHECK(config.pointer.double_click_distance == defaults.pointer.double_click_distance);
     CHECK(config.icon.follow_accent == defaults.icon.follow_accent);
+    CHECK(config.icon.theme == defaults.icon.theme);
 }
 
 bool contains(const std::string& text, std::string_view part) {
@@ -76,6 +78,13 @@ TEST_CASE("an empty file gives the defaults and no problems") {
     check_defaults(result.config);
 }
 
+TEST_CASE("icon themes follow desktop settings, accept an override and can be disabled") {
+    CHECK(parse("").config.icon.theme == "system");
+    CHECK(parse("[icon]\ntheme = \"builtin\"").config.icon.theme == "builtin");
+    CHECK_FALSE(parse("[icon]\ntheme = 42").problems.empty());
+    CHECK_FALSE(parse("[icon]\ntheme = \"\"").problems.empty());
+}
+
 TEST_CASE("every key is read") {
     const ConfigResult result = parse(R"(
 [font]
@@ -88,9 +97,11 @@ double_click_distance = 0
 
 [icon]
 follow_accent = false
+theme = "candy-icons"
 )");
     CHECK(result.problems.empty());
     CHECK(result.config.font.family == "Inter:weight=medium");
+    CHECK(result.config.icon.theme == "candy-icons");
     CHECK(result.config.font.monospace == "JetBrains Mono");
     CHECK(result.config.pointer.double_click_ms == 250);
     CHECK(result.config.pointer.double_click_distance == 0);
@@ -232,5 +243,19 @@ TEST_CASE("default_config_path follows XDG_CONFIG_HOME, then HOME") {
         CHECK(default_config_path() == "/home/someone/.config/nordend/config.toml");
         const ScopedEnv no_home{"HOME", nullptr};
         CHECK(default_config_path().empty());
+    }
+}
+
+TEST_CASE("background opacity accepts finite numbers from zero to one") {
+    for (const std::string value : {"0", "1", "0.7", "1.0", "0.0"}) {
+        const auto result = parse("[appearance]\nbackground_opacity = " + value);
+        CHECK(result.problems.empty());
+        CHECK(result.config.appearance.background_opacity == doctest::Approx(std::stof(value)));
+    }
+    for (const std::string value : {"-0.1", "1.1", "nan", "inf", "-inf", "true", "\"0.7\""}) {
+        const auto result = parse("[appearance]\nbackground_opacity = " + value);
+        CAPTURE(value);
+        CHECK(result.problems.size() == 1);
+        CHECK(result.config.appearance.background_opacity == 1.0F);
     }
 }

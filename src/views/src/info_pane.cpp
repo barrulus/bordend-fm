@@ -270,7 +270,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const float preview_left = bounds.x + kPadding;
     if (single == nullptr) {
         icon("folder", palette.primary);
-    } else if (kind == preview::Kind::image) {
+    } else if (kind == preview::Kind::image || mime.name(typed.mime).starts_with("video/")) {
         // A square as wide as the pane (at most half its height), always reserved: nothing
         // moves when the thumbnail arrives.
         const float box = std::min(preview_width, bounds.height * kMaxPreview);
@@ -278,7 +278,9 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         if (thumbnails_ != nullptr) {
             thumbnail = thumbnails_->get(
                 path, single->modified_ns,
-                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))));
+                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))),
+                mime.name(typed.mime).starts_with("video/") ? thumbs::Kind::video
+                                                            : thumbs::Kind::image);
         }
         if (thumbnail != nullptr) {
             const float fit =
@@ -291,9 +293,10 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                                  ui::Corners::all(kRadius), 12.0F, palette.shadow.with_alpha(0.5F));
             renderer.draw_image(*thumbnail, rect, ui::Corners::all(kRadius));
         } else {
-            icons.draw(renderer, fs::icon_name(mime, typed),
-                       out.left() + ((out.width() - kIconSize) / 2.0F),
-                       out.y() + ((box - kIconSize) / 2.0F), kIconSize, palette.on_surface_variant);
+            icons.draw_file(renderer, (mime).name(typed.mime), fs::icon_name(mime, typed),
+                            out.left() + ((out.width() - kIconSize) / 2.0F),
+                            out.y() + ((box - kIconSize) / 2.0F), kIconSize,
+                            palette.on_surface_variant);
         }
         out.skip(box + 18.0F);
     } else if (summary != nullptr && summary->text && !summary->text->lines.empty()) {

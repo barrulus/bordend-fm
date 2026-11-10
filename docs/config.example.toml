@@ -1,8 +1,13 @@
 # Nordend configuration: ~/.config/nordend/config.toml ($XDG_CONFIG_HOME/nordend/config.toml).
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting Nordend: nordend --check-config
-# Nordend reads the file again when it changes: the double click and the icon at once, the fonts
-# at the next start.
+# Nordend reads the file again when it changes: appearance, double click and icons at once,
+# fonts at the next start.
+
+[appearance]
+# Background only (0-1); text, icons and thumbnails retain their original opacity.
+# Keep compositor window opacity at 1.0; compositor blur can still be enabled.
+background_opacity = 1.0
 
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
@@ -17,6 +22,10 @@ double_click_ms = 400
 double_click_distance = 4
 
 [icon]
+# "system" follows the desktop icon theme at startup (GTK/KDE/qt6ct settings).
+# An installed theme name, e.g. "candy-icons", selects it explicitly; "builtin" uses Tabler.
+# SVG and PNG icons are supported, with inherited themes and built-in fallbacks.
+theme = "system"
 # Nordend's icon in the desktop's accent colour (Noctalia's colours, GNOME's or Plasma's accent):
 # Nordend writes it to ~/.local/share/icons/hicolor/scalable/apps/nordend.svg, where the dock and
 # the launcher look first. false takes it away and leaves the installed icon.

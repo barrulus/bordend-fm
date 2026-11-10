@@ -80,7 +80,7 @@ bool GridView::on_item(std::size_t index, float x, float y) const {
     }
     const float left = area_.x + kPadding + (static_cast<float>(index % columns_) * cell_width_);
     const float top = area_.y + row_top(index / columns_) - scroller_.offset();
-    const float icon = icon_size();
+    const float icon = drawn_icon_size();
     const ui::Rect picture{left + ((cell_width_ - icon) / 2.0F), top + kIconTop, icon, icon};
     const float width = name_width_[index - item_first_];
     const ui::Rect name{left + ((cell_width_ - width) / 2.0F) - kNameGap,
@@ -154,7 +154,12 @@ bool GridView::loading() const {
     return folder_ && (folder_->model().loading() || folder_->cursor_pending());
 }
 
-float GridView::cell_height() const { return icon_size() + kCellExtraHeight; }
+float GridView::drawn_icon_size() const {
+    return cell_width_ > 0.0F ? std::min(icon_size(), std::max(1.0F, cell_width_ - kCellExtraWidth))
+                              : icon_size();
+}
+
+float GridView::cell_height() const { return drawn_icon_size() + kCellExtraHeight; }
 
 std::size_t GridView::rows() const {
     const std::size_t count = folder_ ? folder_->entries().size() : 0;
@@ -290,7 +295,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const RowRange range = visible_rows(rows(), height, offset - kPadding, area_.height);
 
     renderer.push_clip(area_);
-    const float icon = icon_size();
+    const float icon = drawn_icon_size();
     const std::optional<std::size_t> cursor = folder_->cursor();
     const bool cursor_ring = folder_->single_selection() == nullptr;
     ui::FontSystem& fonts = renderer.fonts();
@@ -332,9 +337,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             const ui::Texture* thumbnail = nullptr;
             const engines::Family* family =
                 entry.is_directory() ? nullptr : engines->find(*mime_, typed.mime);
-            if (thumbnails_ != nullptr && family != nullptr && family->thumbnails) {
+            const bool video =
+                !entry.is_directory() && mime_->name(typed.mime).starts_with("video/");
+            if (thumbnails_ != nullptr && (video || (family != nullptr && family->thumbnails))) {
                 thumbnail =
-                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
+                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size,
+                                     video ? thumbs::Kind::video : thumbs::Kind::image);
             }
             if (thumbnail != nullptr) {
                 // Fitted in the icon's square, proportions kept, centered.
@@ -348,8 +356,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                      y + kIconTop + ((icon - shown_height) / 2.0F), shown_width, shown_height},
                     ui::Corners::all(kThumbnailRadius), cut ? kCutOpacity : 1.0F);
             } else {
-                icons.draw(renderer, fs::icon_name(*mime_, typed),
-                           x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
+                icons.draw_file(renderer, (*mime_).name(typed.mime), fs::icon_name(*mime_, typed),
+                                x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
             }
             if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
                 // One line across the cell, where the name starts.

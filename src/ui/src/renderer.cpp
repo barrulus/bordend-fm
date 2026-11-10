@@ -481,20 +481,34 @@ Renderer::Renderer(FontSystem& fonts) : gl_{std::make_unique<Gl>()}, fonts_{font
 Renderer::~Renderer() = default;
 
 void Renderer::begin_frame(std::int32_t buffer_width, std::int32_t buffer_height, float scale,
-                           Color clear) {
+                           Color clear, float background_opacity) {
     buffer_width_ = buffer_width;
     buffer_height_ = buffer_height;
     scale_ = scale;
+    background_opacity_ = std::clamp(background_opacity, 0.0F, 1.0F);
     boxes_.clear();
     glyphs_.clear();
     clips_.clear();
 
     glViewport(0, 0, buffer_width_, buffer_height_);
     glDisable(GL_SCISSOR_TEST);
-    glClearColor(clear.r, clear.g, clear.b, 1.0F);
+    clear.a *= background_opacity_;
+    clear = clear.premultiplied();
+    glClearColor(clear.r, clear.g, clear.b, clear.a);
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);  // premultiplied alpha
+}
+
+void Renderer::fill_background(const Rect& rect, Color color) {
+    color.a *= background_opacity_;
+    color = color.premultiplied();
+    // A scissored clear replaces the panel, avoiding accumulated alpha from the frame clear.
+    // push_clip flushes previous draws; pop_clip restores the caller's clipping rectangle.
+    push_clip(rect);
+    glClearColor(color.r, color.g, color.b, color.a);
+    glClear(GL_COLOR_BUFFER_BIT);
+    pop_clip();
 }
 
 void Renderer::end_frame() {

@@ -75,7 +75,12 @@ every shortcut.
   preview (Leica, drones) developed by Nordend itself; EXIF in the info pane
 - **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and TIFF, PGM and PPM with Nordend's own
   readers; thumbnails in the shared freedesktop cache
-- **Isolated reading:** every picture is made in a caged helper process, never in Nordend
+- **Isolated reading:** image and text previews are read in a caged helper process; video
+  thumbnails use a separate FFmpeg process with local input protocols, cancellation and a timeout
+- **Video thumbnails:** cached frames for video files in the grid and information pane
+- **Larger thumbnails:** Ctrl+mouse wheel or Ctrl++ / Ctrl+- in the grid, from 48 to 512 px
+- **System icons:** SVG/PNG icons from the desktop's GTK/KDE/qt6ct theme (including Candy),
+  with inherited themes and bundled icons as fallbacks
 - **darktable:** sidecars follow their photo everywhere; ratings shown
 - **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
   (fzy), the recently used first
@@ -145,6 +150,35 @@ sudo xbps-install -R hostdir/binpkgs nordend
 The package is the latest release, **0.5.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
+### With Nix
+
+From a checkout, with Nix flakes enabled:
+
+```sh
+nix build                 # package in ./result, including the preview helper and desktop entry
+nix run . -- ~/Pictures    # run Nordend in your Wayland session
+nix flake check           # build the package and run its unit tests
+```
+
+The flake provides packages and development shells for `x86_64-linux` and `aarch64-linux`.
+For development, enter the shell and use the usual CMake workflow:
+
+```sh
+nix develop
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+ctest --test-dir build --output-on-failure
+./build/nordend
+```
+
+The shell includes the build dependencies, doctest, clang tools, GDB and the optional JPEG
+benchmark dependency. The package runs the tests during its build. On non-NixOS systems,
+running the GUI also requires configuring Nix's access to the host's graphics drivers.
+
+For reproducible test results, use `nix flake check`: the package supplies fonts and software
+rendering, adapts host-dependent test fixtures in its build copy, and runs the allocator test
+in a fresh process. Tests run directly from the development shell use the host environment.
+
 ### From source
 
 On Void Linux the packages are these; elsewhere, the development packages of the same libraries
@@ -204,6 +238,35 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 (copy it to `~/.config/nordend/config.toml`; `nordend --check-config` reports any problem). The
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
+
+For photo and video folders, switch to the grid with **Ctrl+2** and enlarge thumbnails with
+**Ctrl+mouse wheel** or **Ctrl++**; **Ctrl+-** shrinks them and **Ctrl+0** restores the usual size.
+The size is remembered per tab. **Ctrl+I** hides the information pane to give large thumbnails
+more room. Videos open in your default player; Quick Look does not play videos.
+
+Nordend uses the desktop icon theme by default. To select Candy explicitly, put this in
+`~/.config/nordend/config.toml` (or add the key to an existing `[icon]` section):
+
+```toml
+[icon]
+theme = "candy-icons"
+```
+
+Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
+Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
+startup. The Nix package includes FFmpeg and resvg; other source builds need the `ffmpeg`
+executable and resvg's C library and header in addition to the dependencies listed above.
+
+For a transparent background with solid text, icons and thumbnails, add to Nordend's config:
+
+```toml
+[appearance]
+background_opacity = 0.70
+```
+
+This reloads live; `1.0` is fully opaque and `0.0` fully transparent. Keep the compositor's
+**window opacity at `1.0`** (or remove its opacity rule), since that fades the entire window.
+Compositor blur can remain enabled; Nordend supplies transparency but does not apply blur itself.
 
 ## Versions
 
