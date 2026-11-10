@@ -1,8 +1,14 @@
 # Nordend configuration: ~/.config/nordend/config.toml ($XDG_CONFIG_HOME/nordend/config.toml).
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting Nordend: nordend --check-config
-# Nordend reads the file again when it changes: the double click and the icon at once, the fonts
-# at the next start.
+# Nordend reads the file again when it changes: appearance, double click and the icon at once,
+# fonts at the next start.
+
+[appearance]
+# Background only (0-1); text, icons and thumbnails retain their original opacity.
+# Transparency is disabled by default (1.0). Keep compositor window opacity at 1.0.
+# Compositor blur can still be enabled.
+background_opacity = 1.0
 
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").

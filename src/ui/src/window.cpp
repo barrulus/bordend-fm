@@ -58,7 +58,8 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
       width_{options.width},
       height_{options.height},
       title_{options.title},
-      background_{options.background} {
+      background_{options.background},
+      background_opacity_{options.background_opacity} {
     surface_.reset(wl_compositor_create_surface(display_.compositor()));
 
     static constexpr xdg_surface_listener kSurfaceListener{
@@ -172,7 +173,8 @@ void Window::draw() {
     }
 
     eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
-    renderer_->begin_frame(buffer_width_, buffer_height_, static_cast<float>(scale()), background_);
+    renderer_->begin_frame(buffer_width_, buffer_height_, static_cast<float>(scale()), background_,
+                           background_opacity_);
     if (draw_handler_) {
         draw_handler_(*renderer_,
                       Rect{0.0F, 0.0F, static_cast<float>(width_), static_cast<float>(height_)});
