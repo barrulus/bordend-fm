@@ -47,7 +47,7 @@ public:
     Renderer& operator=(Renderer&&) = delete;
 
     void begin_frame(std::int32_t buffer_width, std::int32_t buffer_height, float scale,
-                     Color clear);
+                     Color clear, float background_opacity = 1.0F);
     void end_frame();
 
     [[nodiscard]] float scale() const noexcept { return scale_; }
@@ -60,6 +60,10 @@ public:
     void draw_box(const Rect& rect, const BoxStyle& style);
 
     void fill_rect(const Rect& rect, Color color) { draw_box(rect, {.fill = color}); }
+
+    // Replaces the base background inside rect, respecting clips and background opacity.
+    // Draw before foreground content: overlapping panels must not accumulate alpha.
+    void fill_background(const Rect& rect, Color color);
 
     // Soft shadow of a rounded box; blur is the Gaussian sigma in logical pixels. Offset the
     // rect to move the shadow.
@@ -112,6 +116,7 @@ private:
     std::int32_t buffer_width_{0};
     std::int32_t buffer_height_{0};
     float scale_{1.0F};
+    float background_opacity_{1.0F};
 };
 
 }  // namespace nordend::ui

@@ -210,6 +210,17 @@ For photo folders, switch to the grid with **Ctrl+2** and enlarge thumbnails wit
 The size is remembered per tab. **Ctrl+I** hides the information pane to give large thumbnails
 more room. Grid thumbnails range from 48 to 512 px and fit the available window width.
 
+For a transparent background with solid text, icons and thumbnails, add to Nordend's config:
+
+```toml
+[appearance]
+background_opacity = 0.70
+```
+
+Transparency is disabled by default (`background_opacity = 1.0`). This reloads live; `1.0` is fully opaque and `0.0` fully transparent. Keep the compositor's
+**window opacity at `1.0`** (or remove its opacity rule), since that fades the entire window.
+Compositor blur can remain enabled; Nordend supplies transparency but does not apply blur itself.
+
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features

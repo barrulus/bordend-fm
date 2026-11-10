@@ -252,7 +252,7 @@ void TitleBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     if (bar_.height <= 0.0F) {
         return;
     }
-    renderer.fill_rect(bar_, palette.surface_container_low);
+    renderer.fill_background(bar_, palette.surface_container_low);
     renderer.fill_rect(
         {bar_.x, bar_.bottom() - (1.0F / renderer.scale()), bar_.width, 1.0F / renderer.scale()},
         palette.outline_variant);
