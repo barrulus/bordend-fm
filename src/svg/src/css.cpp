@@ -111,6 +111,7 @@ Style style(const Node& node, const Style& parent, const Sheet& sheet, std::size
     out.filter = {};
     out.stop_color = {0, 0, 0, 1};
     out.stop_opacity = 1;
+    out.mask_type = "luminance";
     std::map<std::string_view, std::pair<int, std::string_view>> props;
     for (const auto& [key, value] : node.attributes) {
         props[key] = {0, value};
@@ -174,6 +175,8 @@ Style style(const Node& node, const Style& parent, const Sheet& sheet, std::size
             out.mask = inherit ? parent.mask : value;
         } else if (key == "filter") {
             out.filter = inherit ? parent.filter : value;
+        } else if (key == "mask-type") {
+            out.mask_type = inherit ? parent.mask_type : value;
         } else if (key == "stop-color") {
             out.stop_color = inherit ? parent.stop_color : colour(value, out.color);
         } else if (key == "stop-opacity") {

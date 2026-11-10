@@ -153,9 +153,9 @@ Paint Document::paint(std::string_view value, Colour current, const Box& box, co
     }
     std::map<std::string_view, std::string_view> attrs;
     std::vector<std::size_t> stop_nodes;
-    std::set<std::size_t> visited;
+    std::set<std::size_t> gradient_chain;
     for (;;) {
-        require(visited.size() < kMaxDepth && visited.insert(index).second);
+        require(gradient_chain.size() < kMaxDepth && gradient_chain.insert(index).second);
         const auto& node = nodes[index];
         paint_work += node.attributes.size() + node.children.size();
         require(paint_work <= kMaxSegments);

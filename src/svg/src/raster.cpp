@@ -356,90 +356,74 @@ void Raster::draw(Canvas& canvas, const Path& source, const Matrix& matrix, cons
         return;
     FT_Stroker_Set(stroker, radius, cap, join,
                    static_cast<FT_Fixed>(std::lround(stroke->miterlimit * 65536)));
-    FT_Stroker_Rewind(stroker);
-    bool active = false;
-    for (std::size_t i = 0; i < path.segments.size(); ++i) {
-        const auto& s = path.segments[i];
-        if (s.kind == 'M') {
-            if (active) {
-                require(FT_Stroker_EndSubPath(stroker) == 0);
-            }
-            bool has_edge = false;
-            FT_Vector previous = convert(s.p);
-            std::size_t last = i;
-            for (std::size_t j = i + 1; j < path.segments.size() && path.segments[j].kind != 'M';
-                 ++j) {
-                last = j;
-                const auto& part = path.segments[j];
-                if (part.kind == 'L' || part.kind == 'C') {
-                    const auto p = convert(part.p);
-                    has_edge = has_edge || p.x != previous.x || p.y != previous.y;
-                    if (part.kind == 'C') {
-                        const auto c1 = convert(part.c1), c2 = convert(part.c2);
-                        has_edge = has_edge || c1.x != previous.x || c1.y != previous.y ||
-                                   c2.x != previous.x || c2.y != previous.y;
-                    }
-                    previous = p;
-                }
-            }
-            if (!has_edge) {
-                active = false;
-                if (stroke->linecap == "round" || stroke->linecap == "square") {
-                    auto p = convert(s.p);
-                    require(FT_Stroker_BeginSubPath(stroker, &p, true) == 0);
-                    ++p.x;
-                    require(FT_Stroker_LineTo(stroker, &p) == 0);
-                    require(FT_Stroker_EndSubPath(stroker) == 0);
-                }
-                i = last;
+    Outline result;
+    for (std::size_t i = 0; i < path.segments.size();) {
+        require(path.segments[i].kind == 'M');
+        std::size_t end = i + 1;
+        while (end < path.segments.size() && path.segments[end].kind != 'M')
+            ++end;
+        bool has_edge = false, closed = false;
+        FT_Vector previous = convert(path.segments[i].p);
+        Outline input;
+        auto point = [&](Point p, Tag tag) { input.point((p - origin) * scale, tag); };
+        point(path.segments[i].p, FT_CURVE_TAG_ON);
+        for (std::size_t j = i + 1; j < end; ++j) {
+            const auto& part = path.segments[j];
+            if (part.kind == 'Z') {
+                closed = true;
                 continue;
             }
-            bool closed = false;
-            for (std::size_t j = i + 1; j < path.segments.size() && path.segments[j].kind != 'M';
-                 ++j) {
-                if (path.segments[j].kind == 'Z') {
-                    closed = true;
-                    break;
-                }
+            const auto p = convert(part.p);
+            has_edge = has_edge || p.x != previous.x || p.y != previous.y;
+            if (part.kind == 'C') {
+                const auto c1 = convert(part.c1), c2 = convert(part.c2);
+                has_edge = has_edge || c1.x != previous.x || c1.y != previous.y ||
+                           c2.x != previous.x || c2.y != previous.y;
+                point(part.c1, FT_CURVE_TAG_CUBIC);
+                point(part.c2, FT_CURVE_TAG_CUBIC);
             }
-            auto p = convert(s.p);
-            require(FT_Stroker_BeginSubPath(stroker, &p, !closed) == 0);
-            active = true;
-        } else if (s.kind == 'L') {
-            auto p = convert(s.p);
-            require(FT_Stroker_LineTo(stroker, &p) == 0);
-        } else if (s.kind == 'C') {
-            auto p = convert(s.p), c1 = convert(s.c1), c2 = convert(s.c2);
-            require(FT_Stroker_CubicTo(stroker, &c1, &c2, &p) == 0);
-        } else if (s.kind == 'Z') {
-            if (active) {
-                require(FT_Stroker_EndSubPath(stroker) == 0);
-            }
-            active = false;
+            point(part.p, FT_CURVE_TAG_ON);
+            previous = p;
         }
+        if (!has_edge && (stroke->linecap == "round" || stroke->linecap == "square")) {
+            input.points.resize(1);
+            input.tags.resize(1);
+            auto p = input.points.front();
+            ++p.x;
+            input.points.push_back(p);
+            input.tags.push_back(FT_CURVE_TAG_ON);
+            closed = false;
+        }
+        input.close();
+        auto source_outline = input.get(false);
+        // ParseOutline checks whether curves actually generated an edge before ending a
+        // subpath. Direct Begin/End calls cannot observe the stroker's internal tolerance.
+        require(FT_Stroker_ParseOutline(stroker, &source_outline, !closed) == 0);
+        FT_UInt points{}, contours{};
+        require(FT_Stroker_GetCounts(stroker, &points, &contours) == 0 &&
+                result.points.size() + points <= 32767 &&
+                result.contours.size() + contours <= 32767);
+        if (points != 0) {
+            Outline stroked;
+            stroked.points.resize(points);
+            stroked.tags.resize(points);
+            stroked.contours.resize(contours);
+            auto out = stroked.get(false);
+            out.n_points = out.n_contours = 0;
+            FT_Stroker_Export(stroker, &out);
+            const auto offset = result.points.size();
+            for (auto p : stroked.points) {
+                Point local{static_cast<double>(p.x) / (64 * scale) + origin.x,
+                            static_cast<double>(p.y) / (64 * scale) + origin.y};
+                result.points.push_back(vector(matrix.apply(local)));
+            }
+            result.tags.insert(result.tags.end(), stroked.tags.begin(), stroked.tags.end());
+            for (auto c : stroked.contours)
+                result.contours.push_back(static_cast<Contour>(offset + static_cast<unsigned>(c)));
+        }
+        i = end;
     }
-    if (active) {
-        require(FT_Stroker_EndSubPath(stroker) == 0);
-    }
-    FT_UInt points{}, contours{};
-    require(FT_Stroker_GetCounts(stroker, &points, &contours) == 0 && points <= 32767 &&
-            contours <= 32767);
-    if (points == 0) {
-        return;
-    }
-    Outline result;
-    result.points.resize(points);
-    result.tags.resize(points);
-    result.contours.resize(contours);
     auto outline = result.get(false);
-    outline.n_points = 0;
-    outline.n_contours = 0;
-    FT_Stroker_Export(stroker, &outline);
-    for (auto& p : result.points) {
-        Point local{static_cast<double>(p.x) / (64 * scale) + origin.x,
-                    static_cast<double>(p.y) / (64 * scale) + origin.y};
-        p = vector(matrix.apply(local));
-    }
     render(library, canvas, outline, paint, opacity);
 }
 }  // namespace nordend::svg

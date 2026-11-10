@@ -216,3 +216,12 @@ TEST_CASE("svg stage1: dash fragments that collapse to one fixed point are safe"
                     "stroke-linecap='round'/>")
                     .empty());
 }
+
+TEST_CASE("svg stage1: the stroker tolerates curves below its internal precision") {
+    constexpr std::string_view source =
+        "<svg viewBox='0 0 64 64'><circle cx='44' cy='12' r='.1' stroke='purple'/></svg>";
+    const auto image = nordend::svg::render(
+        {reinterpret_cast<const std::uint8_t*>(source.data()), source.size()}, 16);
+    REQUIRE(image.width == 16);
+    REQUIRE(image.height == 16);
+}

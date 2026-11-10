@@ -87,7 +87,7 @@ struct Style {
     std::string_view fill = "black", stroke = "none", fill_rule = "nonzero", clip_rule = "nonzero",
                      linecap = "butt", linejoin = "miter";
     std::string_view dasharray = "none", stroke_width = "1", dashoffset = "0";
-    std::string_view clip, mask, filter;
+    std::string_view clip, mask, filter, mask_type = "luminance";
     Colour color{0, 0, 0, 1}, stop_color{0, 0, 0, 1};
     double opacity = 1, fill_opacity = 1, stroke_opacity = 1, miterlimit = 4, stop_opacity = 1;
     bool display = true, visible = true;

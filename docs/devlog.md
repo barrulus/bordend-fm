@@ -4,6 +4,57 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-10 — SVG renderer stage 2: groups, clipping and masks
+
+**Done:** group/use opacity composites an offscreen layer once; opaque groups render directly.
+Clip paths support both coordinate systems, clip-rule, child and clip-path transforms, nested
+clips and `use`. Masks support their region and coordinate systems, nested masks, and luminance
+or alpha interpretation. Luminance uses straight colour and applies alpha once. Shape bounds
+include group descendants and referenced viewports. Layers and reference expansion remain
+bounded. Skipping transparent source pixels avoids unnecessary full-canvas blend arithmetic.
+Four captured layer fixtures and exact-pixel cases pass, including a referenced SVG's bounding
+box (its viewport must only be applied once).
+
+**Stroke hardening:** fuzzing found a tiny circle whose distinct fixed-point controls are still
+below FreeType's internal curve tolerance. Manual `EndSubPath` then dereferenced an empty
+border. Stroke subpaths now go through `FT_Stroker_ParseOutline`, which checks whether any
+edge was actually generated before ending the subpath. The minimized original SVG is a unit
+test and seed. The crash replay is clean, as are all existing stroke references. No FreeType
+code was copied or patched.
+
+**Validation:** `nix build --no-link` passes. The complete direct release run passes all 453
+applicable cases / 140,326 assertions (`--order-by=name`, launched from the repository).
+ASan/UBSan ctest passes in 27.06 s. The previously recorded unrelated isolate memcpy UBSan
+messages remain. An initial draft-copy build used stale object files because preserved source
+timestamps predated the objects; the validation copier now updates changed contents with fresh
+timestamps, and affected objects were rebuilt.
+
+**Approved gate exception:** direct release ctest repeatedly fails the existing allocator-state
+assertion at `tests/memory_test.cpp:52` (about 20 MiB resident after a freed allocation). The
+case passes alone; the full binary passes from the repository directory, while changing only
+test order under ctest does not reliably fix it. A single-thread Mesa experiment also triggered
+an unrelated drag/scroll timeout and was not adopted. The author approved accepting the Nix
+package suite plus the complete direct test run for this stage and documenting the limitation.
+No unrelated source or assertions were changed. Existing package fixture adaptations remain
+confined to the validation copy.
+
+**Local corpus:** no stale sources or missing timings. At 16 px, 2606/4710 pass (55.33%),
+0.588958 s versus 0.617100 s (0.954×); at 48 px, 3372/4710 (71.59%), 1.014378 s versus
+0.899150 s (1.128×); at 128 px, 4165/4710 (88.43%), 2.941364 s versus 1.837350 s (1.601×).
+All times are parse+render totals. Final acceptance is not met.
+
+**Fuzzing:** an initial clean run was interrupted before 30 minutes. A restart found the tiny
+curve crash above. After the fix, clang 21 libFuzzer with ASan/UBSan completed 6,103,254 inputs
+in 1801 seconds, with no crash, sanitizer finding, timeout or out-of-memory failure; reported
+RSS was 625 MiB under the 1 GiB cap. This final run completed as a background job and exited.
+
+**Next:** stage 3 is a separate draft under `/tmp`, with colour matrices, blur, pattern tiles and
+embedded images. Its initial feature tests pass, but the corpus remains far below 98%, mostly
+because of small antialiased edge differences. Unsupported-filter logging, further hardening,
+final corpus analysis and the stage 3 gates are still outstanding. No tolerance was relaxed.
+
+---
+
 ## 2026-11-10 — SVG renderer stage 1: shapes, paint and structure
 
 **Done:** all path commands (including arcs and compact numbers), the basic SVG shapes,
