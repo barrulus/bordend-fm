@@ -1,6 +1,5 @@
 #pragma once
 
-#include <array>
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -24,6 +23,7 @@
 #include "nordend/views/drop_mark.hpp"
 #include "nordend/views/edit_slot.hpp"
 #include "nordend/views/folder.hpp"
+#include "nordend/views/grid_size.hpp"
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/thumbnails.hpp"
 
@@ -44,9 +44,6 @@ class GridView {
 public:
     using Clock = ui::Scroller::Clock;
 
-    static constexpr std::array<float, 6> kIconSizes{48.0F, 64.0F, 96.0F, 128.0F, 192.0F, 256.0F};
-    static constexpr std::size_t kDefaultSize = 2;  // 96 px
-
     // thumbnails may be nullptr: icons only.
     GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
              std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
@@ -65,7 +62,7 @@ public:
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
 
-    // The cells' size (kIconSizes[index]), as the window sets it: no zoom handler call.
+    // The cells' size (kGridIconSizes[index]), as the window sets it: no zoom handler call.
     void set_size_index(std::size_t index);
 
     [[nodiscard]] std::size_t size_index() const noexcept { return size_; }
@@ -119,7 +116,7 @@ public:
     // The folder has loaded and its cursor landed (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
-    [[nodiscard]] float icon_size() const { return kIconSizes.at(size_); }
+    [[nodiscard]] float icon_size() const { return static_cast<float>(kGridIconSizes.at(size_)); }
 
     // Cells per row in the last layout (1 before the first draw).
     [[nodiscard]] std::size_t columns() const noexcept { return columns_; }
@@ -141,6 +138,7 @@ private:
     void zoom(std::size_t size);
     void keep_place();
     void layout(float width);
+    [[nodiscard]] float drawn_icon_size() const;
     void reveal_cursor(Folder::Reveal reveal, Clock::time_point now);
     [[nodiscard]] std::size_t rows() const;
     [[nodiscard]] float row_top(std::size_t row) const;  // content coordinates
@@ -179,7 +177,7 @@ private:
     fs::SortOrder order_;
     const DropMark* drop_{nullptr};
     ui::Scroller scroller_;
-    std::size_t size_{kDefaultSize};
+    std::size_t size_{kUsualGridSize};
     std::function<void(std::size_t)> zoomed_;
     std::size_t columns_{1};
     float cell_width_{0.0F};

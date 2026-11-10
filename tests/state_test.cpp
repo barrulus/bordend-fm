@@ -350,6 +350,14 @@ TEST_CASE("state: the browser's tabs, kept and brought back as they were") {
 }
 
 TEST_CASE("state: the lists' and the grid's size, and what is not one") {
+    for (const int size : {384, 512}) {
+        State large;
+        large.grid_icon = size;
+        const auto restored = parse(format_state(large));
+        CHECK(restored.problems.empty());
+        CHECK(restored.state.grid_icon == size);
+        CHECK(Browser::grid_index(size) != nordend::views::kUsualGridSize);
+    }
     const StateResult good = parse("[view]\nlist_size = \"largest\"\ngrid_icon = 48\n");
     CHECK(good.problems.empty());
     CHECK(good.state.list_size == 4);

@@ -13,6 +13,7 @@
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/sort.hpp"
+#include "nordend/views/grid_size.hpp"
 
 // What Nordend remembers from one start to the next (ROADMAP 7.5a): how the window was left, not
 // preferences (those are config.toml's). Kept in $XDG_STATE_HOME/nordend/state.toml, written by
@@ -34,9 +35,9 @@ struct State {
     bool sort_descending{false};
     std::array<float, 3> details_widths{96.0F, 150.0F, 220.0F};
     // The lists' row size (an index into kListSizes, 1 the usual) and the grid's icon size in
-    // pixels (one of GridView::kIconSizes).
+    // pixels (one of kGridIconSizes).
     std::size_t list_size{1};
-    std::int32_t grid_icon{96};
+    std::int32_t grid_icon{kGridIconSizes[kUsualGridSize]};
     // The window's size when it was last neither maximized, fullscreen nor tiled; logical pixels.
     std::int32_t window_width{960};
     std::int32_t window_height{640};

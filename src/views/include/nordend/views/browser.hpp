@@ -178,7 +178,7 @@ public:
 
     // The tab shown's lists' rows (columns and details) and grid cells: Ctrl+plus/minus/0,
     // Ctrl+wheel (ROADMAP 8.1), each tab its own; a new tab takes the one it comes from. Indexes
-    // into kListSizes and GridView::kIconSizes.
+    // into kListSizes and kGridIconSizes.
     void set_list_size(std::size_t index);
     void set_grid_size(std::size_t index);
     // The index of a grid icon size in pixels (the usual one when it is not one of them).

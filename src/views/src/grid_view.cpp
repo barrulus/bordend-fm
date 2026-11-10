@@ -80,7 +80,7 @@ bool GridView::on_item(std::size_t index, float x, float y) const {
     }
     const float left = area_.x + kPadding + (static_cast<float>(index % columns_) * cell_width_);
     const float top = area_.y + row_top(index / columns_) - scroller_.offset();
-    const float icon = icon_size();
+    const float icon = drawn_icon_size();
     const ui::Rect picture{left + ((cell_width_ - icon) / 2.0F), top + kIconTop, icon, icon};
     const float width = name_width_[index - item_first_];
     const ui::Rect name{left + ((cell_width_ - width) / 2.0F) - kNameGap,
@@ -154,7 +154,12 @@ bool GridView::loading() const {
     return folder_ && (folder_->model().loading() || folder_->cursor_pending());
 }
 
-float GridView::cell_height() const { return icon_size() + kCellExtraHeight; }
+float GridView::drawn_icon_size() const {
+    return cell_width_ > 0.0F ? std::min(icon_size(), std::max(1.0F, cell_width_ - kCellExtraWidth))
+                              : icon_size();
+}
+
+float GridView::cell_height() const { return drawn_icon_size() + kCellExtraHeight; }
 
 std::size_t GridView::rows() const {
     const std::size_t count = folder_ ? folder_->entries().size() : 0;
@@ -191,7 +196,7 @@ void GridView::go_up() {
 }
 
 void GridView::set_size_index(std::size_t index) {
-    index = std::min(index, kIconSizes.size() - 1);
+    index = std::min(index, kGridIconSizes.size() - 1);
     if (index == size_) {
         return;
     }
@@ -201,7 +206,7 @@ void GridView::set_size_index(std::size_t index) {
 }
 
 void GridView::zoom(std::size_t size) {
-    size = std::min(size, kIconSizes.size() - 1);
+    size = std::min(size, kGridIconSizes.size() - 1);
     if (size == size_) {
         return;
     }
@@ -290,7 +295,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     const RowRange range = visible_rows(rows(), height, offset - kPadding, area_.height);
 
     renderer.push_clip(area_);
-    const float icon = icon_size();
+    const float icon = drawn_icon_size();
     const std::optional<std::size_t> cursor = folder_->cursor();
     const bool cursor_ring = folder_->single_selection() == nullptr;
     ui::FontSystem& fonts = renderer.fonts();
@@ -633,7 +638,7 @@ bool GridView::key(const ui::KeyEvent& event, Clock::time_point /*now*/) {
             if (!ctrl) {
                 return false;
             }
-            zoom(kDefaultSize);
+            zoom(kUsualGridSize);
             break;
         case XKB_KEY_Escape:
             folder.collapse_selection();

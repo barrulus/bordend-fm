@@ -22,7 +22,8 @@ README's [What's next](../README.md#whats-next).
   resized by dragging their edge (a double click on the edge resets it), and the row slides
   sideways by itself to keep the focused column in sight.
 - **Grid** (Ctrl+2): large icons and thumbnails. Ctrl+plus, Ctrl+minus or Ctrl+wheel resize the
-  cells from 48 to 256 px, and Ctrl+0 goes back to the usual size.
+  cells from 48 to 512 px, and Ctrl+0 goes back to the usual size. The largest sizes fit the
+  available width when the window is narrow; Ctrl+I hides the information pane for more room.
 - **Details** (Ctrl+3): a table of name, size, date and type. Click a title to sort by it and
   click again to reverse; drag a column's edge to widen it. By size, folders keep their name
   order; by type, unknown types come last. The order you choose is used in the other views too.
