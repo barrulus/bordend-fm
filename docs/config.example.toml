@@ -1,7 +1,8 @@
 # Nordend configuration: ~/.config/nordend/config.toml ($XDG_CONFIG_HOME/nordend/config.toml).
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting Nordend: nordend --check-config
-# Nordend reads the file again when it changes: appearance, double click and the icon at once,
+# Created on first normal launch when no config exists; existing files are never replaced.
+# Nordend reads the file again when it changes: appearance, pointer, icons and keybindings at once,
 # fonts at the next start.
 
 [appearance]
@@ -33,21 +34,88 @@ theme = "system"
 follow_accent = true
 
 [keybindings]
-# One chord per action, replacing all its defaults. An empty string disables it.
-# Omitted actions retain their defaults. Changes reload live; F1 shows the active keys.
-# Modifiers: Ctrl, Shift, Alt, Super. Keys use XKB names (case-insensitive), e.g.
+# Defaults are listed below as commented examples. Leave them commented to keep
+# every built-in alternative; uncomment and edit only the actions you want to change.
+# One chord per action replaces ALL its defaults. An empty string disables it.
+# Changes reload live. F1 (or your show_shortcuts binding) shows active bindings.
+# Modifiers: Ctrl, Shift, Alt, Super. Keys use case-insensitive XKB names:
 # r, F2, Return, space, Left, Tab, plus (write Ctrl+plus, not Ctrl++).
+# Letter names match both cases; Shift must be included when you want that modifier.
+
+# Views and panels
+# columns_view = "Ctrl+1"       # Columns; also Ctrl+keypad 1 by default
+# grid_view = "Ctrl+2"          # Grid; also Ctrl+keypad 2 by default
+# details_view = "Ctrl+3"       # Details; also Ctrl+keypad 3 by default
+# quick_look = "space"          # Preview the focused file
+# toggle_info = "Ctrl+i"        # Show/hide the info pane
+# toggle_sidebar = "Ctrl+b"     # Show/hide the sidebar
+# focus_sidebar = "F6"          # Move focus into/out of the sidebar
+# toggle_hidden = "Ctrl+h"      # Show/hide hidden files
+# add_bookmark = "Ctrl+d"       # Add the folder to the sidebar
+
+# Commands and help
+# command_palette = "Ctrl+k"   # Open the command palette
+# find_files = "Ctrl+f"         # Find files under the folder
+# show_shortcuts = "F1"         # Also ? by default (Shift is ignored)
+# context_menu = "Menu"         # Also F10/Shift+F10 by default (Shift is ignored)
+# open_terminal = "F4"          # Open in a terminal
+
+# Folder history
+# back = "Alt+Left"             # Previous location
+# forward = "Alt+Right"         # Next location
+
+# Selection
+# select_all = "Ctrl+a"         # Select all files
+# toggle_selection = "Ctrl+space" # Select/unselect the focused entry
+
+# Tabs
+# new_tab = "Ctrl+t"
+# close_tab = "Ctrl+w"
+# next_tab = "Ctrl+Tab"
+# previous_tab = "Ctrl+Shift+Tab"
+
+# File operations
+# rename = "F2"                 # Rename the focused file
+# new_folder = "Ctrl+Shift+n"
+# copy = "Ctrl+c"               # Copy selected files
+# cut = "Ctrl+x"                # Cut selected files; Escape cancels the cut
+# paste = "Ctrl+v"              # Paste into the current folder
+# trash = "Delete"              # Also keypad Delete by default
+# erase = "Shift+Delete"        # Permanent deletion; also Shift+keypad Delete
+# undo = "Ctrl+z"
+# redo = "Ctrl+Shift+z"
+
+# Customization examples (replace the corresponding line above):
 # rename = "Ctrl+r"
 # select_all = "Ctrl+g"
 # toggle_selection = "Ctrl+j"
-# erase = ""
-# Supported actions:
-# columns_view, grid_view, details_view, toggle_info, toggle_sidebar, focus_sidebar,
-# quick_look, show_shortcuts, rename, new_folder, copy, cut, paste, trash, erase,
-# undo, redo, context_menu, back, forward, toggle_hidden, add_bookmark, open_terminal,
-# new_tab, close_tab, next_tab, previous_tab, command_palette, find_files,
-# select_all, toggle_selection.
-# Navigation/range-selection keys, numbered tab keys, Quit, and keys inside text
-# editors and dialogs remain fixed. Choose chords that do not conflict with them.
-# Unknown actions, invalid chords or conflicting bindings reject the whole binding
-# set: defaults at startup, previous bindings on reload. Use --check-config to check.
+# erase = ""                   # Disable the permanent-delete shortcut
+
+# Fixed shortcuts (reference only; these are not configurable action names):
+# Ctrl+q                  Quit
+# Alt+1 ... Alt+9         Select a numbered tab
+# Up/Down                Move between entries
+# Left/Right             Move in the grid; parent/open in columns;
+#                        collapse/expand in details
+# Home/End, Page_Up/Page_Down  First/last entry, previous/next page
+# Return                 Open the focused entry
+# Alt+Down               Open in grid/details
+# BackSpace, Alt+Up       Parent folder
+# Shift+movement         Select a range
+# Ctrl+movement          Move focus without changing selection
+# Escape                 Collapse selection to one entry
+# Ctrl+plus / Ctrl+minus  Zoom in/out (Ctrl+equal also zooms in)
+# Ctrl+0                 Reset zoom
+#
+# While renaming: Return accepts, Escape cancels; Ctrl+Left/Right moves by word;
+# Ctrl+z undoes, Ctrl+Shift+z redoes; Ctrl+v pastes text.
+# Sidebar: Up/Down/Home/End chooses a place, Return opens, Escape returns to view.
+# Quick Look: Escape closes; arrows browse files; Home/End and Page_Up/Page_Down
+# scroll text; Ctrl+a selects text, Ctrl+c copies selected text.
+# Name conflict dialog: R replaces, S skips, Return keeps both;
+# A applies the choice to the rest, Escape stops.
+# Permanent-delete confirmation: Return confirms, Escape cancels.
+#
+# Unknown actions, invalid chords or conflicts reject the whole binding set:
+# defaults at startup, previous bindings on reload. Check before using:
+# nordend --config ~/.config/nordend/config.example.toml --check-config

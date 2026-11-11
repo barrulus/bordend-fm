@@ -45,7 +45,8 @@ std::string file_uri(const std::filesystem::path& absolute) {
     return uri;
 }
 
-std::error_code write_file_atomically(const std::filesystem::path& path, std::string_view text) {
+std::error_code write_file_atomically(const std::filesystem::path& path, std::string_view text,
+                                      bool replace) {
     std::error_code error;
     std::filesystem::create_directories(path.parent_path(), error);
     if (error) {
@@ -81,6 +82,14 @@ std::error_code write_file_atomically(const std::filesystem::path& path, std::st
     if (::close(fd) != 0) {
         ::unlink(temporary.c_str());
         return last_error();
+    }
+    if (!replace) {
+        // A hard link publishes the complete file atomically and cannot replace an entry.
+        const int linked = ::link(temporary.c_str(), path.c_str());
+        const std::error_code why =
+            linked == 0 || errno == EEXIST ? std::error_code{} : last_error();
+        ::unlink(temporary.c_str());
+        return why;
     }
     if (::rename(temporary.c_str(), path.c_str()) != 0) {
         const std::error_code why = last_error();

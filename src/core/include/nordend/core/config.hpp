@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 // User settings from config.toml. Every key is optional: a missing key keeps its default, a bad
@@ -51,6 +52,10 @@ struct ConfigResult {
 // $XDG_CONFIG_HOME/nordend/config.toml, else $HOME/.config/nordend/config.toml; empty when
 // neither variable is set.
 [[nodiscard]] std::filesystem::path default_config_path();
+
+// Creates the complete reference at path only if no entry exists. Existing files and
+// symlinks are untouched; no path (no HOME/XDG_CONFIG_HOME) is a no-op.
+[[nodiscard]] std::error_code create_default_config(const std::filesystem::path& path);
 
 // Parses TOML text. source names the file in problem messages.
 [[nodiscard]] ConfigResult parse_config(std::string_view text, std::string_view source);

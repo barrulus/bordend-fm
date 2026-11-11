@@ -1,0 +1,5 @@
+#pragma once
+#include <string_view>
+namespace nordend::core {
+inline constexpr std::string_view kDefaultConfig = R"NORDEND_CONFIG(@NORDEND_DEFAULT_CONFIG@)NORDEND_CONFIG";
+}
