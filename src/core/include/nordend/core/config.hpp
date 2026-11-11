@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -31,6 +32,8 @@ struct Config {
     struct Appearance {
         float background_opacity{1.0F};  // background only; foreground content stays solid
     };
+
+    std::map<std::string, std::string> keybindings;
 
     Appearance appearance;
     Font font;

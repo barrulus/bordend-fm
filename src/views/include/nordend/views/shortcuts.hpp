@@ -2,9 +2,11 @@
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <xkbcommon/xkbcommon.h>
 
 #include "nordend/ui/seat.hpp"
@@ -74,6 +76,12 @@ struct Shortcut {
 
     [[nodiscard]] bool matches(const ui::KeyEvent& event) const;
 };
+
+// Replaces command bindings atomically. Errors leave the current bindings intact.
+// Empty strings disable a binding; an empty map restores defaults.
+[[nodiscard]] std::vector<std::string> configure_shortcuts(
+    const std::map<std::string, std::string>& bindings);
+[[nodiscard]] ui::KeyEvent view_key_event(const ui::KeyEvent& event);
 
 // Every shortcut, in the overlay's order. The browser runs its commands from here and passes a
 // view (or the sidebar) only the chords listed for it, so this list is what works.

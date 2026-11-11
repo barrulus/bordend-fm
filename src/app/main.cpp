@@ -315,7 +315,10 @@ int main(int argc, char** argv) {
     if (config_path.empty()) {
         config_path = core::default_config_path();
     }
-    const core::ConfigResult config_result = core::load_config(config_path);
+    core::ConfigResult config_result = core::load_config(config_path);
+    for (const auto& problem : views::configure_shortcuts(config_result.config.keybindings)) {
+        config_result.problems.push_back(problem);
+    }
     if (check_only) {
         return check_config(config_path, config_result);
     }
@@ -446,6 +449,10 @@ int main(int argc, char** argv) {
         // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
         const auto apply_config = [&](const core::Config& fresh) {
+            for (const auto& problem : views::configure_shortcuts(fresh.keybindings)) {
+                log::warn("config: {}; keeping previous keybindings", problem);
+            }
+            window.request_redraw();
             window.set_background_opacity(fresh.appearance.background_opacity);
             icons.set_theme(fresh.icon.theme);
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},

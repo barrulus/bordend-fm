@@ -166,6 +166,20 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
                 {{"background_opacity", [&](const toml::node& value, const std::string& path) {
                       reader.read_opacity(value, path, config.appearance.background_opacity);
                   }}});
+        } else if (key.str() == "keybindings") {
+            if (const auto* table = node.as_table()) {
+                for (const auto& [name, value] : *table) {
+                    if (const auto* chord = value.as_string()) {
+                        config.keybindings.emplace(name.str(), chord->get());
+                    } else {
+                        reader.report(
+                            value.source(),
+                            std::format("keybindings.{} must be a string; ignored", name.str()));
+                    }
+                }
+            } else {
+                reader.report(node.source(), "keybindings must be a section; ignored");
+            }
         } else if (key.str() == "font") {
             reader.read_section(
                 node, "font",

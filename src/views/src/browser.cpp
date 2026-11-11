@@ -3474,11 +3474,11 @@ bool Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
     // Only what the shortcuts list reaches the view.
     switch (pane().mode) {
         case Mode::columns:
-            return listed(event, scope::kColumns) && pane().columns.key(event, now);
+            return listed(event, scope::kColumns) && pane().columns.key(view_key_event(event), now);
         case Mode::grid:
-            return listed(event, scope::kGrid) && pane().grid.key(event, now);
+            return listed(event, scope::kGrid) && pane().grid.key(view_key_event(event), now);
         case Mode::details:
-            return listed(event, scope::kDetails) && pane().details.key(event, now);
+            return listed(event, scope::kDetails) && pane().details.key(view_key_event(event), now);
     }
     return false;
 }

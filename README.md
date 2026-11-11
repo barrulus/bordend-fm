@@ -261,6 +261,20 @@ Use `theme = "system"` for desktop settings or `theme = "builtin"` for the origi
 Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
 startup. SVG theme icons are rendered in-process using FreeType.
 
+Keyboard commands can be overridden in the same file and reload live:
+
+```toml
+[keybindings]
+rename = "Ctrl+r"
+select_all = "Ctrl+g"
+toggle_selection = "Ctrl+j"
+```
+
+Each entry replaces that action's default keys; `""` disables it. F1 shows the current
+bindings. `nordend --check-config` reports invalid or conflicting bindings. See
+[the example config](docs/config.example.toml) for action names and key syntax.
+Text-editing, navigation and range-selection keys retain their standard behavior.
+
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features

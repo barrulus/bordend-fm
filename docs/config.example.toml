@@ -31,3 +31,23 @@ theme = "system"
 # Nordend writes it to ~/.local/share/icons/hicolor/scalable/apps/nordend.svg, where the dock and
 # the launcher look first. false takes it away and leaves the installed icon.
 follow_accent = true
+
+[keybindings]
+# One chord per action, replacing all its defaults. An empty string disables it.
+# Omitted actions retain their defaults. Changes reload live; F1 shows the active keys.
+# Modifiers: Ctrl, Shift, Alt, Super. Keys use XKB names (case-insensitive), e.g.
+# r, F2, Return, space, Left, Tab, plus (write Ctrl+plus, not Ctrl++).
+# rename = "Ctrl+r"
+# select_all = "Ctrl+g"
+# toggle_selection = "Ctrl+j"
+# erase = ""
+# Supported actions:
+# columns_view, grid_view, details_view, toggle_info, toggle_sidebar, focus_sidebar,
+# quick_look, show_shortcuts, rename, new_folder, copy, cut, paste, trash, erase,
+# undo, redo, context_menu, back, forward, toggle_hidden, add_bookmark, open_terminal,
+# new_tab, close_tab, next_tab, previous_tab, command_palette, find_files,
+# select_all, toggle_selection.
+# Navigation/range-selection keys, numbered tab keys, Quit, and keys inside text
+# editors and dialogs remain fixed. Choose chords that do not conflict with them.
+# Unknown actions, invalid chords or conflicting bindings reject the whole binding
+# set: defaults at startup, previous bindings on reload. Use --check-config to check.
