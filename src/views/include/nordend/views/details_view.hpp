@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -30,16 +31,16 @@
 
 namespace nordend::views {
 
-// One folder as a table: a row per entry with its name, size, date and type, under a header.
+// A folder tree as a table: expandable rows with name, size, date and type under a header.
 // Only the rows inside the viewport are drawn. A click on a column's title sorts by it, a second
 // click reverses the order; dragging the line on a column's left edge makes it wider or narrower
 // (the name takes what is left). The order is the view's: every folder it shows is sorted that
 // way, and keeps it in the other views.
 //
 // Keys: Up/Down move the cursor, Page Up/Down by a screenful, Home/End to the ends; Shift, Ctrl,
-// Ctrl+Space, Ctrl+A and Escape select as in the other views. Right, Enter, Alt+Down or a double
-// click open the folder under the cursor; Left, Backspace and Alt+Up open the parent, with the
-// cursor on where we were.
+// Ctrl+Space, Ctrl+A and Escape select within the active parent folder. Right expands a folder
+// or moves to its first child; Left collapses it or selects its parent. Enter, Alt+Down and
+// double click open a folder; Backspace and Alt+Up open the root folder's parent.
 //
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class DetailsView {
@@ -62,8 +63,10 @@ public:
     // Shows directory, no cursor.
     void open(const std::filesystem::path& directory);
 
-    // The folder shown; nullptr before show() or open().
+    // The active row's parent folder, used for file operations; nullptr before show() or open().
     [[nodiscard]] const std::shared_ptr<Folder>& folder() const noexcept { return folder_; }
+
+    [[nodiscard]] const std::shared_ptr<Folder>& root_folder() const noexcept { return root_; }
 
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
@@ -163,6 +166,23 @@ private:
         std::array<float, 4> width{};
         std::array<bool, 4> shown{true, true, true, true};
     };
+
+    struct TreeRow {
+        std::shared_ptr<Folder> folder;
+        std::size_t entry;
+        std::size_t depth;
+    };
+
+    void rebuild_rows();
+    void append_rows(const std::shared_ptr<Folder>& folder, std::size_t depth);
+    void focus_row(std::size_t row, SelectMode mode, bool press = false);
+    void toggle_row(std::size_t row);
+    void move_row(std::ptrdiff_t delta, SelectMode mode);
+    [[nodiscard]] std::optional<std::size_t> cursor_row() const;
+    [[nodiscard]] bool disclosure_at(std::size_t row, float x) const;
+    std::shared_ptr<Folder> root_;
+    std::map<std::filesystem::path, std::shared_ptr<Folder>> expanded_;
+    std::vector<TreeRow> tree_rows_;
 
     void enter();
     void go_up();

@@ -279,7 +279,8 @@ std::vector<std::string> Browser::tab_titles() const {
     std::vector<std::string> titles;
     titles.reserve(panes_.size());
     for (const std::unique_ptr<Pane>& each : panes_) {
-        const std::shared_ptr<Folder> folder = folder_of(*each);
+        const std::shared_ptr<Folder> folder =
+            each->mode == Mode::details ? each->details.root_folder() : folder_of(*each);
         if (!folder) {
             titles.emplace_back();
         } else if (folder->is_trash()) {
@@ -1753,7 +1754,8 @@ void Browser::note_location() {
     if (pane().mode == Mode::columns && pane().columns.revealing()) {
         return;  // noted once the columns have unfolded
     }
-    const std::shared_ptr<Folder> shown = current_folder();
+    const std::shared_ptr<Folder> shown =
+        pane().mode == Mode::details ? pane().details.root_folder() : current_folder();
     if (!shown) {
         return;
     }
@@ -1951,7 +1953,8 @@ State Browser::state() const {
     if (panes_.size() > 1) {  // one tab: nothing to restore, the start folder is the start's
         for (std::size_t i = 0; i < panes_.size() && i < State::kMaxTabs; ++i) {
             const Pane& each = *panes_[i];
-            const std::shared_ptr<Folder> folder = folder_of(each);
+            const std::shared_ptr<Folder> folder =
+                each.mode == Mode::details ? each.details.root_folder() : folder_of(each);
             if (!folder || folder->is_trash()) {
                 continue;
             }
@@ -2115,8 +2118,9 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     }
     const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - kTitleHeight));
     if (folder) {
+        const auto location = pane().mode == Mode::details ? pane().details.root_folder() : folder;
         breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
-                         *folder);
+                         *location);
         status_bar_.draw(renderer, {view.x, view.bottom() - bar, view.width, bar}, palette, icons,
                          *folder, static_cast<std::size_t>(pane().mode));
     }
