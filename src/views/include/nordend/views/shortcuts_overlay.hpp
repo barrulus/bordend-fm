@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <functional>
 #include <string_view>
 #include <vector>
@@ -11,7 +12,7 @@
 
 namespace nordend::views {
 
-// The groups the overlay shows, column by column: a shortcut in another group would not be shown.
+// The groups shown in the overlay, in reading order.
 [[nodiscard]] std::vector<std::string_view> overlay_groups();
 
 // Every keyboard shortcut (shortcuts()), by group, on a card over the window. F1, "?", the
@@ -51,7 +52,26 @@ private:
     ui::Rect viewport_;
     ui::Rect close_button_;
     ui::Rect track_;
-    bool narrow_{false};
+
+    struct Group {
+        std::string_view name;
+        bool expanded{false};
+        ui::Rect header{};
+    };
+
+    std::array<Group, 8> groups_{{{"General"},
+                                  {"Moving"},
+                                  {"Selecting"},
+                                  {"Files"},
+                                  {"Tabs"},
+                                  {"Sidebar"},
+                                  {"Zoom"},
+                                  {"Quick Look"}}};
+    ui::Rect bounds_;
+    std::size_t focused_group_{0};
+    bool keyboard_focus_{false};
+    void set_expanded(bool expanded);
+    void reveal_group();
 };
 
 }  // namespace nordend::views

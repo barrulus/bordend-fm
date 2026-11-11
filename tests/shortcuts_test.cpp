@@ -281,6 +281,7 @@ TEST_CASE("shortcuts: the overlay opens and closes, and takes every key meanwhil
     f.browser.key(chord(XKB_KEY_F1, {}), now);
     CHECK(f.browser.shortcuts_overlay().is_open());
     f.browser.shortcuts_overlay().layout({0, 0, 640, 480});
+    CHECK(f.browser.key(chord(XKB_KEY_Right, {}), now));
     CHECK(f.browser.key(chord(XKB_KEY_Down, {}), now));
     CHECK(f.browser.shortcuts_overlay().scroll_offset() > 0.0F);
     CHECK(cursor_name_is(*f.folder(), "sub"));
@@ -385,6 +386,7 @@ TEST_CASE("shortcuts: overflow is reachable by wheel, keyboard and scrollbar") {
     nordend::views::ShortcutsOverlay overlay{[] {}};
     overlay.open();
     overlay.layout({0, 0, 640, 480});
+    overlay.key(chord(XKB_KEY_Right, {}));
     REQUIRE(overlay.max_scroll() > 0.0F);
     overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::scroll, .wheel_y = 1.0F});
     CHECK(overlay.scroll_offset() == 48.0F);
@@ -397,7 +399,7 @@ TEST_CASE("shortcuts: overflow is reachable by wheel, keyboard and scrollbar") {
     // Content clicks leave the reference open, while the scrollbar can be dragged to the end.
     overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
                      .x = 100,
-                     .y = 150,
+                     .y = 180,
                      .button = nordend::ui::PointerButton::left});
     CHECK(overlay.is_open());
     overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
@@ -408,6 +410,7 @@ TEST_CASE("shortcuts: overflow is reachable by wheel, keyboard and scrollbar") {
     CHECK(overlay.scroll_offset() == overlay.max_scroll());
     overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::release});
     overlay.layout({0, 0, 1600, 4000});
+    overlay.key(chord(XKB_KEY_Left, {}));
     CHECK(overlay.max_scroll() == 0.0F);
     CHECK(overlay.scroll_offset() == 0.0F);
     overlay.layout({0, 0, 640, 480});
@@ -420,4 +423,36 @@ TEST_CASE("shortcuts: overflow is reachable by wheel, keyboard and scrollbar") {
                      .y = 0,
                      .button = nordend::ui::PointerButton::left});
     CHECK_FALSE(overlay.is_open());
+}
+
+TEST_CASE("shortcuts: groups start collapsed and toggle by mouse and keyboard") {
+    nordend::views::ShortcutsOverlay overlay{[] {}};
+    overlay.open();
+    overlay.layout({0, 0, 1000, 800});
+    CHECK(overlay.max_scroll() == 0.0F);
+    // General is the first header; clicking either its title or row toggles it.
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
+                     .x = 100,
+                     .y = 140,
+                     .button = nordend::ui::PointerButton::left});
+    REQUIRE(overlay.max_scroll() > 0.0F);
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
+                     .x = 500,
+                     .y = 140,
+                     .button = nordend::ui::PointerButton::left});
+    CHECK(overlay.max_scroll() == 0.0F);
+    overlay.key(chord(XKB_KEY_Tab, {}));
+    overlay.key(chord(XKB_KEY_Return, {}));
+    CHECK(overlay.max_scroll() > 0.0F);
+    overlay.key(chord(XKB_KEY_space, {}));
+    CHECK(overlay.max_scroll() == 0.0F);
+    // Shift+Tab wraps to Quick Look; tabbing forward returns to General.
+    overlay.key(chord(XKB_KEY_ISO_Left_Tab, {.shift = true}));
+    overlay.key(chord(XKB_KEY_Right, {}));
+    overlay.key(chord(XKB_KEY_Tab, {}));
+    overlay.key(chord(XKB_KEY_Right, {}));
+    CHECK(overlay.max_scroll() > 0.0F);
+    overlay.key(chord(XKB_KEY_Left, {}));
+    CHECK(overlay.max_scroll() == 0.0F);
+    CHECK(overlay.is_open());
 }

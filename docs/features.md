@@ -69,7 +69,8 @@ README's [What's next](../README.md#whats-next).
 - **The selection follows its files:** cursor and selection are kept by name, so they stay on a
   file that another program renames or that moves in the order.
 - **Every shortcut on one card:** F1 or "?" lists them all, from the same table the code runs on,
-  and a test checks that the card and the behaviour agree. The card adapts to the window width;
+  and a test checks that the card and the behaviour agree. Groups start collapsed; click a heading to expand it, or use Tab and Enter.
+  Keys and descriptions share aligned rows. The card adapts to the window width;
   scroll with the wheel, touchpad, scrollbar, arrow keys, Page Up/Down, or Home/End.
   Escape, the close button, or a click outside dismisses it.
 
