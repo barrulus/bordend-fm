@@ -1,6 +1,9 @@
 #include "nordend/views/shortcuts.hpp"
 
 #include <algorithm>
+#include <deque>
+#include <format>
+#include <optional>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 namespace nordend::views {
@@ -435,6 +438,120 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_c, XKB_KEY_C}},
 };
 
+struct Bindings {
+    std::vector<Shortcut> entries{kShortcuts.begin(), kShortcuts.end()};
+    std::deque<std::string> labels;
+};
+
+Bindings active;
+
+std::optional<std::size_t> binding_index(std::string_view name) {
+    Command command = Command::none;
+    if (name == "columns_view")
+        command = Command::columns_view;
+    if (name == "grid_view")
+        command = Command::grid_view;
+    if (name == "details_view")
+        command = Command::details_view;
+    if (name == "toggle_info")
+        command = Command::toggle_info;
+    if (name == "toggle_sidebar")
+        command = Command::toggle_sidebar;
+    if (name == "focus_sidebar")
+        command = Command::focus_sidebar;
+    if (name == "quick_look")
+        command = Command::quick_look;
+    if (name == "show_shortcuts")
+        command = Command::show_shortcuts;
+    if (name == "rename")
+        command = Command::rename;
+    if (name == "new_folder")
+        command = Command::new_folder;
+    if (name == "copy")
+        command = Command::copy;
+    if (name == "cut")
+        command = Command::cut;
+    if (name == "paste")
+        command = Command::paste;
+    if (name == "trash")
+        command = Command::trash;
+    if (name == "erase")
+        command = Command::erase;
+    if (name == "undo")
+        command = Command::undo;
+    if (name == "redo")
+        command = Command::redo;
+    if (name == "context_menu")
+        command = Command::context_menu;
+    if (name == "back")
+        command = Command::back;
+    if (name == "forward")
+        command = Command::forward;
+    if (name == "toggle_hidden")
+        command = Command::toggle_hidden;
+    if (name == "add_bookmark")
+        command = Command::add_bookmark;
+    if (name == "open_terminal")
+        command = Command::open_terminal;
+    if (name == "new_tab")
+        command = Command::new_tab;
+    if (name == "close_tab")
+        command = Command::close_tab;
+    if (name == "next_tab")
+        command = Command::next_tab;
+    if (name == "previous_tab")
+        command = Command::previous_tab;
+    if (name == "command_palette")
+        command = Command::command_palette;
+    if (name == "find_files")
+        command = Command::find_files;
+    for (std::size_t i = 0; i < kShortcuts.size(); ++i) {
+        const auto& entry = kShortcuts[i];
+        if (command != Command::none && entry.command == command)
+            return i;
+        if (name == "select_all" && entry.action == "Select all")
+            return i;
+        if (name == "toggle_selection" && entry.action == "Select or unselect")
+            return i;
+    }
+    return std::nullopt;
+}
+
+bool parse_chord(std::string_view text, Shortcut& entry) {
+    entry.modifiers = {};
+    entry.any_shift = false;
+    entry.keysyms = {};
+    if (text.empty())
+        return true;
+    while (text.find('+') != std::string_view::npos) {
+        const auto split = text.find('+');
+        const auto part = text.substr(0, split);
+        bool* flag = nullptr;
+        if (part == "Ctrl")
+            flag = &entry.modifiers.ctrl;
+        if (part == "Shift")
+            flag = &entry.modifiers.shift;
+        if (part == "Alt")
+            flag = &entry.modifiers.alt;
+        if (part == "Super")
+            flag = &entry.modifiers.super;
+        if (flag == nullptr || *flag)
+            return false;
+        *flag = true;
+        text.remove_prefix(split + 1);
+    }
+    const auto symbol =
+        xkb_keysym_from_name(std::string{text}.c_str(), XKB_KEYSYM_CASE_INSENSITIVE);
+    if (symbol == XKB_KEY_NoSymbol)
+        return false;
+    entry.keysyms[0] = xkb_keysym_to_lower(symbol);
+    entry.keysyms[1] = xkb_keysym_to_upper(symbol);
+    if (symbol == XKB_KEY_Tab && entry.modifiers.shift) {
+        entry.keysyms[2] = XKB_KEY_ISO_Left_Tab;
+    }
+    return true;
+}
+
 }  // namespace
 
 bool Shortcut::matches(const ui::KeyEvent& event) const {
@@ -446,15 +563,91 @@ bool Shortcut::matches(const ui::KeyEvent& event) const {
            std::ranges::find(keysyms, event.keysym) != keysyms.end();
 }
 
-std::span<const Shortcut> shortcuts() { return kShortcuts; }
+std::vector<std::string> configure_shortcuts(const std::map<std::string, std::string>& bindings) {
+    Bindings next;
+    std::vector<std::string> errors;
+    std::vector<std::size_t> changed;
+    // Split combined help rows when either half has been customized.
+    if (bindings.contains("back") || bindings.contains("forward")) {
+        auto& back = next.entries[*binding_index("back")];
+        back.keys = "Alt+Left";
+        back.action = "Back";
+        next.entries[*binding_index("forward")].keys = "Alt+Right";
+    }
+    if (bindings.contains("next_tab") || bindings.contains("previous_tab")) {
+        auto& tab = next.entries[*binding_index("next_tab")];
+        tab.keys = "Ctrl+Tab";
+        tab.action = "Next tab";
+        next.entries[*binding_index("previous_tab")].keys = "Ctrl+Shift+Tab";
+    }
+    for (const auto& [name, chord] : bindings) {
+        const auto index = binding_index(name);
+        if (!index) {
+            errors.push_back(std::format("keybindings.{}: unknown action", name));
+            continue;
+        }
+        auto& entry = next.entries[*index];
+        if (!parse_chord(chord, entry)) {
+            errors.push_back(std::format("keybindings.{}: invalid chord '{}'", name, chord));
+            continue;
+        }
+        next.labels.push_back(chord);
+        entry.keys = next.labels.back();
+        changed.push_back(*index);
+    }
+    for (const auto index : changed) {
+        const auto& entry = next.entries[index];
+        for (std::size_t other = 0; other < next.entries.size(); ++other) {
+            const auto& existing = next.entries[other];
+            // Editors and dialogs own their input, independently of file commands.
+            constexpr auto context =
+                scope::kViews | scope::kSidebar | scope::kQuickLook | scope::kWindow;
+            if (other == index || ((entry.scope & existing.scope & context) == 0 &&
+                                   (existing.scope & scope::kWindow) == 0))
+                continue;
+            bool collision = false;
+            for (const auto symbol : entry.keysyms) {
+                ui::KeyEvent event;
+                event.keysym = symbol;
+                event.modifiers = entry.modifiers;
+                collision =
+                    collision || (existing.matches(event) && !kShortcuts[index].matches(event));
+            }
+            // Existing text-preview bindings intentionally share file copy/select-all chords.
+            if (collision)
+                errors.push_back(std::format("keybindings: '{}' conflicts with '{}'", entry.keys,
+                                             existing.action));
+        }
+    }
+    if (errors.empty())
+        active = std::move(next);
+    return errors;
+}
+
+ui::KeyEvent view_key_event(const ui::KeyEvent& event) {
+    for (std::size_t i = 0; i < active.entries.size(); ++i) {
+        const auto& entry = active.entries[i];
+        if (entry.command == Command::none && (entry.scope & scope::kViews) != 0 &&
+            entry.matches(event) &&
+            (entry.action == "Select all" || entry.action == "Select or unselect")) {
+            auto translated = event;
+            translated.keysym = kShortcuts[i].keysyms[0];
+            translated.modifiers = kShortcuts[i].modifiers;
+            return translated;
+        }
+    }
+    return event;
+}
+
+std::span<const Shortcut> shortcuts() { return active.entries; }
 
 std::string keys_for(Command command) {
-    const auto* const it = std::ranges::find(kShortcuts, command, &Shortcut::command);
-    return it == kShortcuts.end() ? std::string{} : std::string{it->keys};
+    const auto it = std::ranges::find(active.entries, command, &Shortcut::command);
+    return it == active.entries.end() ? std::string{} : std::string{it->keys};
 }
 
 Command command_for(const ui::KeyEvent& event) {
-    for (const Shortcut& shortcut : kShortcuts) {
+    for (const Shortcut& shortcut : active.entries) {
         if (shortcut.command != Command::none && shortcut.matches(event)) {
             return shortcut.command;
         }
@@ -463,7 +656,7 @@ Command command_for(const ui::KeyEvent& event) {
 }
 
 bool listed(const ui::KeyEvent& event, std::uint16_t where) {
-    return std::ranges::any_of(kShortcuts, [&](const Shortcut& shortcut) {
+    return std::ranges::any_of(active.entries, [&](const Shortcut& shortcut) {
         return (shortcut.scope & where) != 0U && shortcut.matches(event);
     });
 }

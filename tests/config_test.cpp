@@ -259,3 +259,12 @@ TEST_CASE("background opacity accepts finite numbers from zero to one") {
         CHECK(result.config.appearance.background_opacity == 1.0F);
     }
 }
+
+TEST_CASE("config: keybindings accept overrides and disabling") {
+    const auto result = parse("[keybindings]\nrename = 'Ctrl+r'\ntrash = ''\n");
+    CHECK(result.problems.empty());
+    CHECK(result.config.keybindings.at("rename") == "Ctrl+r");
+    CHECK(result.config.keybindings.at("trash").empty());
+    CHECK_FALSE(parse("[keybindings]\nrename = 12\n").problems.empty());
+    CHECK_FALSE(parse("keybindings = true\n").problems.empty());
+}

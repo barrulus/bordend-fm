@@ -314,3 +314,67 @@ TEST_CASE("status bar: the status and the free space") {
     CHECK(bar.loading());
     CHECK(run_until(f.loop, [&] { return !bar.loading(); }));
 }
+
+namespace {
+struct ResetBindings {
+    ~ResetBindings() { (void)nordend::views::configure_shortcuts({}); }
+};
+}  // namespace
+
+TEST_CASE("shortcuts: overrides replace defaults and reject conflicts atomically") {
+    ResetBindings reset;
+    using nordend::views::command_for;
+    using nordend::views::configure_shortcuts;
+    REQUIRE(configure_shortcuts({{"rename", "Ctrl+r"}, {"trash", ""}}).empty());
+    CHECK(command_for(chord(XKB_KEY_r, {.ctrl = true})) == Command::rename);
+    CHECK(command_for(chord(XKB_KEY_R, {.ctrl = true})) == Command::rename);
+    CHECK(command_for(chord(XKB_KEY_F2, {})) == Command::none);
+    CHECK(command_for(chord(XKB_KEY_Delete, {})) == Command::none);
+    CHECK(nordend::views::keys_for(Command::rename) == "Ctrl+r");
+    for (const auto& binding :
+         std::vector<std::pair<std::string, std::string>>{{"rename", "Ctrl+c"},
+                                                          {"rename", "Ctrl+q"},
+                                                          {"rename", "Up"},
+                                                          {"rename", "Ctrl+NoSuchKey"},
+                                                          {"rename", "Ctrl+Ctrl+r"},
+                                                          {"unknown", "F3"}}) {
+        CHECK_FALSE(configure_shortcuts({binding}).empty());
+        CHECK(command_for(chord(XKB_KEY_r, {.ctrl = true})) == Command::rename);
+    }
+    REQUIRE(configure_shortcuts({{"rename", "Ctrl+Shift+n"}, {"new_folder", "F2"}}).empty());
+    CHECK(command_for(chord(XKB_KEY_F2, {})) == Command::new_folder);
+    REQUIRE(configure_shortcuts({}).empty());
+    CHECK(command_for(chord(XKB_KEY_F2, {})) == Command::rename);
+}
+
+TEST_CASE("shortcuts: custom selection and rename work in each view") {
+    ResetBindings reset;
+    REQUIRE(nordend::views::configure_shortcuts(
+                {{"select_all", "Ctrl+g"}, {"toggle_selection", "Ctrl+j"}, {"rename", "Ctrl+r"}})
+                .empty());
+    Fixture f;
+    for (const auto mode : kModes) {
+        f.reset(mode, "a.txt");
+        CHECK_FALSE(f.browser.key(chord(XKB_KEY_a, {.ctrl = true}), Browser::Clock::now()));
+        CHECK(f.browser.key(chord(XKB_KEY_g, {.ctrl = true}), Browser::Clock::now()));
+        CHECK(f.folder()->selected_count() == 3);
+        CHECK(f.browser.key(chord(XKB_KEY_j, {.ctrl = true}), Browser::Clock::now()));
+        CHECK(f.folder()->selected_count() == 2);
+        CHECK(f.browser.key(chord(XKB_KEY_r, {.ctrl = true}), Browser::Clock::now()));
+        CHECK(f.browser.name_editor().active());
+        CHECK(f.browser.key(chord(XKB_KEY_Escape, {}), Browser::Clock::now()));
+        CHECK_FALSE(f.browser.name_editor().active());
+    }
+}
+
+TEST_CASE("shortcuts: tab aliases and combined help rows follow overrides") {
+    ResetBindings reset;
+    using nordend::views::command_for;
+    using nordend::views::configure_shortcuts;
+    REQUIRE(configure_shortcuts({{"previous_tab", "Ctrl+Shift+Tab"}, {"back", "Alt+b"}}).empty());
+    CHECK(command_for(chord(XKB_KEY_ISO_Left_Tab, {.ctrl = true, .shift = true})) ==
+          Command::previous_tab);
+    CHECK(nordend::views::keys_for(Command::back) == "Alt+b");
+    CHECK(nordend::views::keys_for(Command::forward) == "Alt+Right");
+    CHECK(nordend::views::keys_for(Command::next_tab) == "Ctrl+Tab");
+}
