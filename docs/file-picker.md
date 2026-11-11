@@ -11,8 +11,44 @@ Picker windows do not restore or overwrite your file-manager tabs and window sta
 
 ## Enable on NixOS with Umbriel
 
-Build this checkout's package and add it to the existing portal configuration. In a NixOS
-module where `inputs.nordend` refers to this flake:
+Add Nordend to your system flake's inputs (use this checkout's path while developing):
+
+```nix
+inputs.nordend.url = "path:/absolute/path/to/nordend-fm";
+```
+
+Import its NixOS module and enable the application and picker. In a NixOS module where
+`inputs.nordend` refers to this flake (pass `inputs` through `specialArgs`):
+
+```nix
+{ inputs, ... }: {
+  imports = [ inputs.nordend.nixosModules.default ];
+
+  programs.nordend.enable = true;
+  programs.nordend.filePicker.enable = true;
+}
+```
+
+This installs Nordend, enables the portal frontend, registers Nordend's backend and selects
+it for FileChooser requests in Umbriel. D-Bus starts `nordend --portal` on demand; there is
+no separate picker package or service to enable. Enabling only `programs.nordend.enable`
+installs the file manager without changing portal preferences. `programs.nordend.package`
+can override the package used for both the application and backend.
+
+Keep your existing Umbriel and GTK portal packages and
+`xdg.portal.config.umbriel.default = [ "umbriel" "gtk" ];`: the module merges its package
+and FileChooser preference into those settings. Remove any previous FileChooser preference
+for a different backend in that desktop's configuration.
+
+For another desktop, set `programs.nordend.filePicker.desktops = [ "niri" ];` (using the
+lowercase name from `XDG_CURRENT_DESKTOP`), or list several desktops. Use `[ "common" ]`
+for the desktop-independent `portals.conf`. Keep the other backend preferences in
+`xdg.portal.config.<desktop>`: a desktop-specific file takes precedence over common or
+package-provided configurations, so copy their other preferences if necessary.
+
+### Manual NixOS configuration
+
+Without importing the module, the equivalent picker configuration is:
 
 ```nix
 { inputs, pkgs, ... }:

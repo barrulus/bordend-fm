@@ -205,8 +205,17 @@ xdg-mime default nordend.desktop inode/directory
 ### As a file picker
 
 Nordend can handle Open/Save dialogs through the XDG FileChooser portal, alongside Umbriel's
-screenshot and screen-sharing backend. See [file-picker setup](docs/file-picker.md) for NixOS
-and other desktops, or try `nordend --pick ~/Pictures` without changing desktop defaults.
+screenshot and screen-sharing backend. On NixOS, import this flake's module and enable both:
+
+```nix
+imports = [ inputs.nordend.nixosModules.default ];
+programs.nordend.enable = true;
+programs.nordend.filePicker.enable = true;
+```
+
+The picker defaults to Umbriel; keep your existing portal backends and other preferences.
+See [file-picker setup](docs/file-picker.md) for the flake input, other desktops and manual
+installation, or try `nordend --pick ~/Pictures` without changing desktop defaults.
 
 ### On Noctalia
 

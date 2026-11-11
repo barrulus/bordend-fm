@@ -12,12 +12,18 @@
       ];
     in
     {
+      nixosModules = {
+        nordend = import ./nix/module.nix self;
+        default = self.nixosModules.nordend;
+      };
+
       packages = forEachSystem (system: {
         nordend = nixpkgs.legacyPackages.${system}.callPackage ./nix/package.nix { };
         default = self.packages.${system}.nordend;
       });
 
       checks = forEachSystem (system: {
+        nixos-module = import ./nix/module-check.nix { inherit self nixpkgs system; };
         smoke = nixpkgs.legacyPackages.${system}.callPackage ./nix/smoke-test.nix {
           package = self.packages.${system}.nordend;
         };
