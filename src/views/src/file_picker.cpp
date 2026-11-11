@@ -461,7 +461,7 @@ void FilePicker::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     content.height = std::max(0.0F, content.height - height);
     browser_.draw(renderer, content, palette, icons, Browser::Clock::now());
     footer_ = {bounds.x, content.bottom(), bounds.width, height};
-    renderer.fill_rect(footer_, palette.surface_container);
+    renderer.fill_background(footer_, palette.surface_container);
     controls_.fill({});
     float y = footer_.y + 10.0F;
     if (request_.mode != Mode::save_files) {
