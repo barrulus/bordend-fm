@@ -246,6 +246,7 @@ background_opacity = 0.70
 Transparency is disabled by default (`background_opacity = 1.0`). This reloads live; `1.0` is fully opaque and `0.0` fully transparent. Keep the compositor's
 **window opacity at `1.0`** (or remove its opacity rule), since that fades the entire window.
 Compositor blur can remain enabled; Nordend supplies transparency but does not apply blur itself.
+
 Nordend uses the desktop icon theme by default. To select Candy explicitly, put this in
 `~/.config/nordend/config.toml` (or add the key to an existing `[icon]` section):
 

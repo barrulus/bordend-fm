@@ -37,6 +37,8 @@ stdenv.mkDerivation {
       ../src
       # The preview helper embeds these images to warm up codecs before sandboxing.
       ../tests/data/image
+      # The development SVG renderer shares its comparison helper with the tests.
+      ../tests/svg_compare.hpp
       ../third_party
     ];
   };

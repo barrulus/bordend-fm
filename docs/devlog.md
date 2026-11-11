@@ -4,6 +4,28 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-11 — SVG icons prepared against fork main
+
+**Integration:** rebased the icon-theme prerequisite and six SVG commits onto the fork's
+`main` (`da06cd9`) in a separate branch. The fork did not yet contain icon-theme support.
+Retained its merged larger-grid, transparency and Nix smoke-test changes; excluded the older
+combined branch's video-thumbnail and packaging-policy changes. Added the SVG comparison
+header to the Nix source fileset so the development renderer builds when unit tests are off.
+
+**Validation:** renderer, picture decoder, SVG fixtures/tests and fuzz harness are unchanged
+from `841d54f`; its final 1801-second fuzz and corpus evidence still applies to those sources.
+The integrated release suite passes 483 cases / 140,752 assertions. ASan/UBSan passes
+482 cases / 140,717 assertions, using the documented fixture adaptations in a temporary copy,
+Mesa software rendering and fresh processes for both memory tests. The first sanitizer run
+hit `memory_test.cpp:30`: ASan released cached anonymous memory between the two measurements.
+The memory-report case passes separately (14 assertions); it was not omitted or weakened.
+Only the already documented unrelated isolate zero-length memcpy diagnostics remain.
+`nix flake check` passes the x86_64-linux package and installed-entry-point smoke checks;
+aarch64-linux was not built on this host. Integration evidence is retained locally under
+`build-svg-handoff/pr-integration/` in the original checkout.
+
+---
+
 ## 2026-11-11 — SVG hardening: bounded repeated work and safe numeric conversions
 
 **Scope:** audited the required hardening section after stage 3. Existing input, XML,
