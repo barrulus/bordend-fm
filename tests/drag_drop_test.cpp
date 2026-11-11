@@ -828,3 +828,61 @@ TEST_CASE("band: beyond the bottom of the list, it scrolls and selects as it goe
     CHECK_FALSE(f.browser.banding());
     CHECK(folder->selected_count() == 80);
 }
+
+TEST_CASE("details tree: disclosure clicks, child opening and dragging use the child directory") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    f.show(f.root, Browser::Mode::details);
+    f.browser.details().folder()->select_name("photos");
+    f.draw();
+    const auto parent = f.point_of(f.root, "photos");
+    // The disclosure is the gap in the hit area before this folder's icon.
+    std::optional<std::pair<float, float>> arrow;
+    bool in_rows = false;
+    for (float x = 0; x < parent.first; x += 1.0F) {
+        const auto hit = f.hit(x, parent.second);
+        if (hit)
+            in_rows = true;
+        else if (in_rows) {
+            arrow = {x + 2.0F, parent.second};
+            break;
+        }
+    }
+    REQUIRE(arrow);
+    f.pointer(PointerEvent::Kind::press, *arrow);
+    f.pointer(PointerEvent::Kind::motion, {arrow->first + 12.0F, arrow->second});
+    CHECK_FALSE(f.browser.dragging());
+    CHECK_FALSE(f.browser.banding());
+    f.pointer(PointerEvent::Kind::release, *arrow);
+    REQUIRE(f.settle());
+    CHECK(f.browser.details().root_folder()->path() == f.root);
+    const auto child = f.point_of(f.photos, "P2.ORF");
+    const auto hit = f.hit(child.first, child.second);
+    REQUIRE(hit);
+    REQUIRE(hit->entry);
+    CHECK(hit->folder->path() == f.photos);
+    CHECK(hit->folder->entries()[*hit->entry].name == "P2.ORF");
+    fs::path opened;
+    f.browser.set_open_handler(
+        [&](const fs::path& directory, std::vector<nordend::fs::Entry> files) {
+            REQUIRE(files.size() == 1);
+            opened = directory / files.front().name;
+        });
+    f.pointer(PointerEvent::Kind::press, child, 2);
+    f.pointer(PointerEvent::Kind::release, child, 2);
+    CHECK(opened == f.photos / "P2.ORF");
+    f.draw();
+    f.drag(f.photos, "P2.ORF");
+    REQUIRE_FALSE(f.dnd.started.empty());
+    f.browser.key(key(XKB_KEY_Escape), Browser::Clock::now());
+    f.pointer(PointerEvent::Kind::release, child);
+    f.draw();
+    // Collapsing an ancestor clears its selected child and restores the parent's context.
+    f.pointer(PointerEvent::Kind::press, *arrow);
+    f.pointer(PointerEvent::Kind::release, *arrow);
+    f.draw();
+    CHECK(f.browser.details().folder()->path() == f.root);
+    CHECK(f.browser.details().folder()->selected_names() == Names{"photos"});
+}
