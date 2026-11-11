@@ -280,7 +280,9 @@ TEST_CASE("shortcuts: the overlay opens and closes, and takes every key meanwhil
     const auto now = Browser::Clock::now();
     f.browser.key(chord(XKB_KEY_F1, {}), now);
     CHECK(f.browser.shortcuts_overlay().is_open());
+    f.browser.shortcuts_overlay().layout({0, 0, 640, 480});
     CHECK(f.browser.key(chord(XKB_KEY_Down, {}), now));
+    CHECK(f.browser.shortcuts_overlay().scroll_offset() > 0.0F);
     CHECK(cursor_name_is(*f.folder(), "sub"));
     f.browser.key(chord(XKB_KEY_Escape, {}), now);
     CHECK_FALSE(f.browser.shortcuts_overlay().is_open());
@@ -377,4 +379,45 @@ TEST_CASE("shortcuts: tab aliases and combined help rows follow overrides") {
     CHECK(nordend::views::keys_for(Command::back) == "Alt+b");
     CHECK(nordend::views::keys_for(Command::forward) == "Alt+Right");
     CHECK(nordend::views::keys_for(Command::next_tab) == "Ctrl+Tab");
+}
+
+TEST_CASE("shortcuts: overflow is reachable by wheel, keyboard and scrollbar") {
+    nordend::views::ShortcutsOverlay overlay{[] {}};
+    overlay.open();
+    overlay.layout({0, 0, 640, 480});
+    REQUIRE(overlay.max_scroll() > 0.0F);
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::scroll, .wheel_y = 1.0F});
+    CHECK(overlay.scroll_offset() == 48.0F);
+    overlay.key(chord(XKB_KEY_End, {}));
+    CHECK(overlay.scroll_offset() == overlay.max_scroll());
+    overlay.key(chord(XKB_KEY_Page_Up, {}));
+    CHECK(overlay.scroll_offset() < overlay.max_scroll());
+    overlay.key(chord(XKB_KEY_Home, {}));
+    CHECK(overlay.scroll_offset() == 0.0F);
+    // Content clicks leave the reference open, while the scrollbar can be dragged to the end.
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
+                     .x = 100,
+                     .y = 150,
+                     .button = nordend::ui::PointerButton::left});
+    CHECK(overlay.is_open());
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
+                     .x = 576,
+                     .y = 128,
+                     .button = nordend::ui::PointerButton::left});
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::motion, .x = 576, .y = 440});
+    CHECK(overlay.scroll_offset() == overlay.max_scroll());
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::release});
+    overlay.layout({0, 0, 1600, 4000});
+    CHECK(overlay.max_scroll() == 0.0F);
+    CHECK(overlay.scroll_offset() == 0.0F);
+    overlay.layout({0, 0, 640, 480});
+    overlay.key(chord(XKB_KEY_End, {}));
+    overlay.close();
+    overlay.open();
+    CHECK(overlay.scroll_offset() == 0.0F);
+    overlay.pointer({.kind = nordend::ui::PointerEvent::Kind::press,
+                     .x = 0,
+                     .y = 0,
+                     .button = nordend::ui::PointerButton::left});
+    CHECK_FALSE(overlay.is_open());
 }
