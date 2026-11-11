@@ -58,6 +58,7 @@ State changed() {
     s.show_hidden = true;
     s.sidebar_visible = false;
     s.sidebar_width = 260.5F;
+    s.sidebar_size = 4;
     s.info_visible = false;
     s.info_width = 410.0F;
     s.info_expanded = true;
@@ -405,4 +406,16 @@ shown = true
     browser.select_tab(0);
     CHECK(browser.details().list_size() == 3);  // "larger", the window's
     CHECK(browser.grid().icon_size() == 128.0F);
+}
+
+TEST_CASE("state: sidebar zoom defaults and validation are independent of the view") {
+    CHECK(parse("[view]\nlist_size = \"largest\"\n").state.sidebar_size == 1);
+    const auto good = parse("[sidebar]\nlist_size = \"larger\"\n");
+    CHECK(good.problems.empty());
+    CHECK(good.state.sidebar_size == 3);
+    CHECK(good.state.list_size == 1);
+    const auto bad = parse("[sidebar]\nlist_size = \"huge\"\n");
+    CHECK(bad.state.sidebar_size == 1);
+    REQUIRE(bad.problems.size() == 1);
+    CHECK(bad.problems[0].find("sidebar.list_size") != std::string::npos);
 }

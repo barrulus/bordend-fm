@@ -233,7 +233,9 @@ for a bug report).
 
 For photo folders, switch to the grid with **Ctrl+2** and enlarge thumbnails with
 **Ctrl+mouse wheel** or **Ctrl++**; **Ctrl+-** shrinks them and **Ctrl+0** restores the usual size.
-The size is remembered per tab. **Ctrl+I** hides the information pane to give large thumbnails
+The size is remembered per tab. The left sidebar zooms independently: use **Ctrl+mouse wheel**
+over it, or press **F6** to focus it and use **Ctrl++**, **Ctrl+-**, or **Ctrl+0**. Its size is
+remembered across restarts. **Ctrl+I** hides the information pane to give large thumbnails
 more room. Grid thumbnails range from 48 to 512 px and fit the available window width.
 
 For a transparent background with solid text, icons and thumbnails, add to Nordend's config:

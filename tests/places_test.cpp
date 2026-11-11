@@ -276,6 +276,14 @@ TEST_CASE("places: the sidebar opens a place from the keyboard") {
     const auto now = Browser::Clock::now();
     browser.key(key(XKB_KEY_F6), now);
     CHECK(browser.sidebar().focused());
+    const float grid_size = browser.grid().icon_size();
+    REQUIRE(browser.key(key(XKB_KEY_plus, true), now));
+    CHECK(browser.sidebar().list_size() == 2);
+    CHECK(browser.grid().icon_size() == grid_size);
+    CHECK(browser.details().list_size() == 1);
+    CHECK(browser.state().sidebar_size == 2);
+    REQUIRE(browser.key(key(XKB_KEY_0, true), now));
+    CHECK(browser.sidebar().list_size() == 1);
     // Without a draw the sidebar does not know the current place yet: it starts on the first.
     CHECK(browser.sidebar().cursor() == 0U);
     browser.key(key(XKB_KEY_Down), now);
@@ -299,4 +307,32 @@ TEST_CASE("places: the sidebar opens a place from the keyboard") {
     browser.key(key(XKB_KEY_F6), now);
     CHECK(browser.sidebar_visible());
     CHECK(browser.sidebar().focused());
+}
+
+TEST_CASE("places: sidebar zoom handles fractional wheels, limits and reset without places") {
+    nordend::views::Sidebar sidebar{[] {}, [](nordend::ui::CursorShape) {}, [](const Place&) {}};
+    const auto now = Browser::Clock::now();
+    nordend::ui::PointerEvent wheel;
+    wheel.kind = nordend::ui::PointerEvent::Kind::scroll;
+    wheel.modifiers.ctrl = true;
+    wheel.wheel_y = -0.5F;
+    sidebar.pointer(wheel, now);
+    CHECK(sidebar.list_size() == 1);
+    sidebar.pointer(wheel, now);
+    CHECK(sidebar.list_size() == 2);
+    for (int i = 0; i < 10; ++i) {
+        REQUIRE(sidebar.key(key(XKB_KEY_KP_Add, true)));
+    }
+    CHECK(sidebar.list_size() == 4);
+    for (int i = 0; i < 10; ++i) {
+        REQUIRE(sidebar.key(key(XKB_KEY_minus, true)));
+    }
+    CHECK(sidebar.list_size() == 0);
+    REQUIRE(sidebar.key(key(XKB_KEY_KP_0, true)));
+    CHECK(sidebar.list_size() == 1);
+    CHECK_FALSE(sidebar.key(key(XKB_KEY_plus)));
+    wheel.modifiers.ctrl = false;
+    wheel.wheel_y = -1.0F;
+    sidebar.pointer(wheel, now);
+    CHECK(sidebar.list_size() == 1);
 }
