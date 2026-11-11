@@ -177,12 +177,18 @@ struct Document {
     std::vector<Style> styles;
     std::vector<std::optional<Path>> paths;
     std::size_t segments{}, expansions{}, style_work{}, paint_work{}, visited{}, live_layers{},
-        layer_bytes{}, texture_bytes{};
+        layer_bytes{}, texture_bytes{}, resource_bytes{};
     RenderOptions options;
     bool warned{};
     std::set<std::size_t> active;
     double width{}, height{};
     explicit Document(std::string_view input);
+
+    void charge_resource(std::size_t bytes) {
+        require(bytes <= 64U * 1024U * 1024U - resource_bytes);
+        resource_bytes += bytes;
+    }
+
     void warning();
     Paint paint(std::string_view value, Colour current, const Box& box, const Matrix& matrix,
                 double w, double h);

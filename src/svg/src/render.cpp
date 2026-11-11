@@ -289,15 +289,19 @@ struct Engine {
     };
 
     Resource resource(std::size_t index, std::string_view kind) {
-        Resource result{doc.nodes[index], index};
+        // Only attributes and children participate in resource inheritance.
+        // Do not repeatedly copy arbitrary text stored inside a definition.
+        Resource result{{}, index};
         std::set<std::size_t> chain;
         for (;;) {
             require(chain.size() < kMaxDepth && chain.insert(index).second);
             const auto& node = doc.nodes[index];
             doc.paint_work += node.attributes.size() + node.children.size();
             require(doc.paint_work <= kMaxSegments);
-            for (const auto& [k, v] : node.attributes)
+            for (const auto& [k, v] : node.attributes) {
+                doc.charge_resource(k.size() + v.size());
                 result.node.attributes.try_emplace(k, v);
+            }
             if (result.node.children.empty() && !node.children.empty()) {
                 result.node.children = node.children;
                 result.content = index;
@@ -315,6 +319,7 @@ struct Engine {
 
     Paint paint(std::string_view value, Colour current, const Box& bbox, const Matrix& matrix,
                 double w, double h, Canvas& canvas, std::size_t depth) {
+        doc.charge_resource(value.size());
         const auto ref = reference(doc, value);
         if (!ref || doc.nodes[*ref].name != "pattern")
             return doc.paint(value, current, bbox, matrix, w, h);

@@ -64,6 +64,10 @@ public:
         if (!sweep && angle > 0) {
             angle -= 2 * kPi;
         }
+        // Radius correction or a subnormal denominator can overflow the
+        // centre calculation even with finite input. Reject before converting
+        // the subdivision count to an integer.
+        require(std::isfinite(begin) && std::isfinite(angle));
         const int pieces = std::max(1, static_cast<int>(std::ceil(std::abs(angle) / (kPi / 2))));
         const double step = angle / pieces;
         auto point = [&](double t) {

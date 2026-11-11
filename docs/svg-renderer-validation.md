@@ -60,3 +60,62 @@ Missing or changed sources make the review incomplete; they are never silently
 replaced. Neither command invokes resvg. The full corpus still records every alias,
 numeric failure and timing. Keep third-party sources and generated reviews local
 under ignored build directories; only selection identifiers are committed.
+
+## Hardening checks
+
+Hardening applies to every renderer stage. The renderer consumes untrusted bytes
+in-process on the UI thread; these are deterministic resource ceilings, not a
+wall-clock deadline or a whole-process memory limit.
+
+| Resource | Enforced limit |
+| --- | --- |
+| Input and XML | 8 MiB, 100,000 elements, depth 256 |
+| Parsed geometry | 1,000,000 segments across the document |
+| References | Cycle detection, chain depth 256, 10,000 expanded `use` nodes |
+| Stylesheets | 10,000 rules, 100,000 expanded declarations, 10 million style work units |
+| Resource parsing | 64 MiB of cumulative paint, inherited resource-attribute and embedded-image text |
+| Raster geometry | 32,767 outline points, 262,144 coverage edges |
+| Dash expansion | 1 million work units, including zero-entry scans and curve subdivision |
+| Raster and compositing work | 64 × 1024² units, accumulated through layers |
+| Offscreen storage | 16 live layers, 64 MiB combined layer/texture accounting |
+| Dimensions | Output side 1024, padded layer side 2048, pattern tile side 1024 |
+| Embedded images | PNG/JPEG base64 only, at most 1024² decoded pixels |
+| Blur | Device-space sigma clamped to 32, total padding at most 384 |
+
+Style work includes attribute/declaration bytes and selector comparisons, including
+class-list scans. Dash work also contributes to canvas work, including all-zero
+arrays that fall back to solid strokes and the bytes scanned in inherited arrays.
+Resource parsing charges inherited values again when they are consumed; charging
+only their original XML attribute would allow small shapes to repeat large parses.
+Resource inheritance copies attributes and child indices, not unused element text.
+Texture accounting is conservative: bytes
+remain charged after temporary textures are released. The output canvas, parsed
+document, path storage and decoder/raster scratch allocations are outside the
+offscreen-storage total and have their own bounds.
+
+Numeric input must be finite. Generated path coordinates are bounded to 10¹²;
+FreeType input coordinates must fit the renderer's ±32,767 coordinate limit
+before fixed-point conversion. Arc angles are checked after radius/centre
+calculations, and repeated texture coordinates are reduced to the tile range
+before integer conversion. Finite inputs alone do not guarantee finite
+intermediate arithmetic.
+
+The public `render` entry point catches exceptions, including allocation failures
+and exceptions from warning callbacks, and returns an empty image. FreeType
+decomposition callbacks catch failures before returning to C. External references
+are ignored; the renderer has no file or network fetching path, and Wuffs receives
+only decoded data-URI bytes. DTD declarations never expand custom entities.
+
+Keep the adversarial cases in `tests/svg*_test.cpp` alongside the semantic tests:
+input/depth/node/segment limits, reference cycles and expansion, CSS work, dash
+work, raster expansion, layer count and aggregate padded-layer memory, oversized
+embedded images, blur clamping, numeric extremes and callback exceptions. Both
+accepted small inputs and rejected oversized expansions matter. Preserve the
+original regression seeds under `tests/fuzz/svg/`.
+
+For numeric hardening, also enable `-fsanitize=float-cast-overflow` in the fuzz
+build and set `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. A zero process
+exit alone is insufficient when UBSan recovery is enabled: inspect diagnostics.
+The final-source fuzz requirement remains at least 1800 seconds with no finding,
+timeout or OOM. Keep its binary immutable, record source/binary hashes, and verify
+the process has exited before measuring final corpus performance.

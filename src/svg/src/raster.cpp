@@ -380,8 +380,8 @@ void render(FT_Library, Canvas& canvas, FT_Outline& outline, const Paint& paint,
 
 // Flatten only for dash lengths. FreeType expands all stroke widths from curves.
 void flatten(std::vector<Point>& out, Point a, Point b, Point c, Point d, double tolerance,
-             int depth = 0, std::size_t limit = kMaxSegments) {
-    require(out.size() < limit);
+             std::size_t& work, int depth = 0) {
+    require(++work <= kMaxSegments);
     Point chord = d - a;
     const double len = std::hypot(chord.x, chord.y);
     const double error =
@@ -395,15 +395,25 @@ void flatten(std::vector<Point>& out, Point a, Point b, Point c, Point d, double
     }
     Point ab = (a + b) * .5, bc = (b + c) * .5, cd = (c + d) * .5, abc = (ab + bc) * .5,
           bcd = (bc + cd) * .5, mid = (abc + bcd) * .5;
-    flatten(out, a, ab, abc, mid, tolerance, depth + 1, limit);
-    flatten(out, mid, bcd, cd, d, tolerance, depth + 1, limit);
+    flatten(out, a, ab, abc, mid, tolerance, work, depth + 1);
+    flatten(out, mid, bcd, cd, d, tolerance, work, depth + 1);
 }
 
-Path dashed(const Path& path, std::string_view pattern, double offset, double extent,
-            double scale) {
+Path dashed(const Path& path, std::string_view pattern, double offset, double extent, double scale,
+            std::size_t& canvas_work) {
+    // Inherited arrays can be reparsed by many small paths, even if they
+    // contain only whitespace and generate no dash fragments.
+    canvas_work += pattern.size();
+    require(canvas_work <= 64U * 1024U * 1024U);
+    std::size_t work = 0;
+    auto finish = [&]() {
+        canvas_work += work;
+        require(canvas_work <= 64U * 1024U * 1024U);
+    };
     Numbers input{pattern};
     std::vector<double> lengths;
     while (input.more()) {
+        require(++work <= kMaxSegments);
         const auto start = input.at;
         input.get();
         while (
@@ -416,6 +426,7 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
         lengths.push_back(value);
     }
     if (lengths.empty()) {
+        finish();
         return path;
     }
     if (lengths.size() % 2 != 0) {
@@ -428,6 +439,7 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
     }
     require(std::isfinite(total));
     if (total <= 0) {
+        finish();
         return path;
     }
     Path result;
@@ -435,13 +447,13 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
     std::size_t dash = 0;
     double remaining = 0;
     bool open = false;
-    std::size_t work = 0;
     auto append = [&](char kind, Point p) {
         require(++work <= kMaxSegments);
         result.segments.push_back({kind, p, {}, {}});
     };
     auto advance = [&]() {
         for (std::size_t i = 0; i <= lengths.size(); ++i) {
+            require(++work <= kMaxSegments);
             dash = (dash + 1) % lengths.size();
             remaining = lengths[dash];
             if (remaining > 0) {
@@ -496,6 +508,7 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
     };
     std::size_t subpath_begin = 0;
     for (const auto& segment : path.segments) {
+        require(++work <= kMaxSegments);
         if (segment.kind == 'M') {
             subpath_begin = result.segments.size();
             current = start = segment.p;
@@ -504,7 +517,8 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
             line(segment.p);
         } else if (segment.kind == 'C') {
             std::vector<Point> poly;
-            flatten(poly, current, segment.c1, segment.c2, segment.p, .03 / std::max(scale, 1e-9));
+            flatten(poly, current, segment.c1, segment.c2, segment.p, .03 / std::max(scale, 1e-9),
+                    work);
             for (auto p : poly) {
                 line(p);
             }
@@ -541,6 +555,7 @@ Path dashed(const Path& path, std::string_view pattern, double offset, double ex
             }
         }
     }
+    finish();
     return result;
 }
 }  // namespace
@@ -567,6 +582,8 @@ void Raster::draw(Canvas& canvas, const Path& source, const Matrix& world, const
         (!paint.texture && paint.stops.empty() && paint.solid[3] == 0)) {
         return;
     }
+    canvas.work += source.segments.size();
+    require(canvas.work <= 64U * 1024U * 1024U);
     if (!stroke) {
         Outline result;
         for (const auto& s : source.segments) {
@@ -603,10 +620,10 @@ void Raster::draw(Canvas& canvas, const Path& source, const Matrix& world, const
     // Anchor the local coordinates to whole scaled units so unused moves do
     // not shift FreeType's fixed-point rounding phase.
     const Point origin{std::floor(box.x * scale) / scale, std::floor(box.y * scale) / scale};
-    const Path dash =
-        stroke->dasharray != "none"
-            ? dashed(source, stroke->dasharray, length(stroke->dashoffset, extent), extent, scale)
-            : Path{};
+    const Path dash = stroke->dasharray != "none"
+                          ? dashed(source, stroke->dasharray, length(stroke->dashoffset, extent),
+                                   extent, scale, canvas.work)
+                          : Path{};
     const Path& path = stroke->dasharray != "none" ? dash : source;
     auto convert = [&](Point p) { return vector((p - origin) * scale); };
     require(stroke->miterlimit <= 32767);

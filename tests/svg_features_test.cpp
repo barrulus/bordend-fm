@@ -325,3 +325,78 @@ TEST_CASE("svg: an unused move does not collapse a cubic stroke endpoint") {
     CHECK(pixel(with_move, 28, 16)[3] == 255);
     CHECK(alone.rgba == with_move.rgba);
 }
+
+TEST_CASE("svg hardening: CSS matching charges class scans and declaration expansion") {
+    std::string rules = "<style>";
+    for (int i = 0; i < 128; ++i)
+        rules += ".absent{fill:red;}";
+    rules += "</style>";
+    std::string classes;
+    for (int i = 0; i < 512; ++i)
+        classes += "x ";
+    std::string body = rules;
+    for (int i = 0; i < 128; ++i)
+        body += "<g class='" + classes + "'/>";
+    CHECK(svg(body).empty());
+    CHECK_FALSE(svg(rules + "<rect class='absent' width='1' height='1'/>").empty());
+
+    rules = "<style>";
+    for (int i = 0; i < 128; ++i) {
+        rules += "g{";
+        for (int j = 0; j < 128; ++j)
+            rules += "property" + std::to_string(j) + ":value;";
+        rules += "}";
+    }
+    body = rules + "</style>";
+    for (int i = 0; i < 640; ++i)
+        body += "<g/>";
+    CHECK(svg(body).empty());
+}
+
+TEST_CASE("svg hardening: zero dash scans share the expansion budget") {
+    std::string dash;
+    for (int i = 0; i < 8192; ++i)
+        dash += "0 ";
+    dash += "1 1";
+    const auto attrs = "' fill='none' stroke='red' stroke-dasharray='" + dash + "'/>";
+    CHECK_FALSE(svg("<path d='M0 0H1" + attrs).empty());
+    std::string path;
+    for (int i = 0; i < 128; ++i)
+        path += "M0 0H1";
+    CHECK(svg("<path d='" + path + attrs).empty());
+}
+
+TEST_CASE("svg hardening: repeating textures keep extreme translations in range") {
+    for (const std::string offset : {"-1e34", "1e34", "-1e36", "1e36"}) {
+        const auto image =
+            svg("<defs><pattern id='p' patternUnits='userSpaceOnUse' width='3' height='1' "
+                "patternTransform='translate(" +
+                offset +
+                ")'><rect width='3' height='1' "
+                "fill='red'/></pattern></defs><rect width='64' height='64' fill='url(#p)'/>");
+        REQUIRE_FALSE(image.empty());
+        CHECK(pixel(image, 32, 32) == std::array<unsigned, 4>{255, 0, 0, 255});
+    }
+}
+
+TEST_CASE("svg hardening: extreme arcs reject before converting non-finite angles") {
+    CHECK(svg("<path d='M0 0A1e12 1e12 0 0 0 1e-143 0'/>").empty());
+    CHECK(svg("<path d='M0 0A1e12 1e12 0 0 1 0 1e-143'/>").empty());
+    CHECK(svg("<path d='M0 0A1e-300 1e12 0 0 0 2 0'/>").empty());
+}
+
+TEST_CASE("svg hardening: inherited paint and dash text cannot bypass work limits") {
+    const std::string large(1024U * 1024U, 'x');
+    std::string rectangles;
+    for (int i = 0; i < 65; ++i)
+        rectangles += "<rect width='1' height='1'/>";
+    CHECK(svg("<g fill='" + large + "'>" + rectangles + "</g>").empty());
+    CHECK_FALSE(svg("<g fill='" + large + "'><rect width='1' height='1'/></g>").empty());
+
+    std::string paths;
+    for (int i = 0; i < 65; ++i)
+        paths += "<path d='M0 0H1'/>";
+    const std::string whitespace = "0" + std::string(1024U * 1024U, ' ') + "0";
+    CHECK(svg("<g fill='none' stroke='red' stroke-dasharray='" + whitespace + "'>" + paths + "</g>")
+              .empty());
+}

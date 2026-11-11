@@ -4,6 +4,67 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-11 — SVG hardening: bounded repeated work and safe numeric conversions
+
+**Scope:** audited the required hardening section after stage 3. Existing input, XML,
+geometry, reference, layer, image and blur bounds remain in place. No rendering feature,
+reference capture, dependency or acceptance policy changed. The revised stage-3 visual
+policy in `docs/svg-renderer-validation.md` still applies; that document now records the
+resource limits, exception boundaries and sanitizer procedure.
+
+**Work bounds:** CSS's existing 10-million-unit budget now charges attribute/declaration
+bytes and selector/class-list scans, rather than counting rules alone. Dash expansion
+charges zero-entry scans, resets and curve subdivision against its million-unit budget,
+then contributes that work and parsed array bytes to the canvas budget. Repeated inherited
+paint, resource attributes and embedded-image data share a 64 MiB cumulative parsing-byte
+budget. Resource inheritance no longer copies unused element text. These close amplification
+paths where many small shapes could repeatedly process a large inherited value while staying
+under node and raster limits. They are deterministic operation/byte limits, not a wall-clock
+promise or a whole-process memory cap.
+
+**Numbers:** extreme arc radius correction and subnormal centre arithmetic could produce
+NaN before converting the subdivision count to an integer, despite finite input. Angles are
+now checked before that conversion. Pattern wrapping previously subtracted a rounded huge
+quotient; cancellation could leave an out-of-range remainder and an undefined integer cast.
+It now uses a bounded remainder before indexing. Original probes demonstrated both failures;
+no reference renderer was used. Ordinary geometry and FreeType stroke expansion are unchanged.
+
+**Regression coverage:** eight new cases cover CSS amplification, zero-heavy dashes,
+repeated inherited paint/dash text, large pattern translations, both arc-overflow mechanisms,
+the exact 8 MiB input boundary, warning-callback exceptions and padded-layer aggregate memory.
+Four small original fuzz seeds preserve numeric and dash cases. The large resource probes
+are generated in tests, not committed as oversized fixtures. Pre-fix CSS/dash/texture and
+inherited-text regressions failed as expected; the arc probes produced float-cast sanitizer
+diagnostics. Those probes now fail cleanly or retain the expected solid texture.
+
+**Validation:** 60 focused cases / 13,318 assertions pass. Full release passes 484 cases /
+140,505 assertions; ASan/UBSan passes 483 cases / 140,490 assertions (the allocator case has
+no assertions under ASan). Validation uses the approved copy-only fixture adaptations,
+Mesa software rendering and the Nix package's isolation of the allocator-sensitive test.
+Both copied ctest suites and `nix build --no-link` pass. Earlier runs reproduced the known
+allocator-state assertion and an external NVIDIA EGL leak; neither was suppressed in SVG
+code. Only the previously documented unrelated isolate zero-length memcpy UBSan diagnostics
+remain in the final full sanitizer log. Final-source clang/libFuzzer with ASan, UBSan and
+float-cast-overflow checking completed 11,528,247 inputs in 1801 seconds, peak RSS
+843 MiB, exit 0, with no finding, timeout or OOM. UBSan was configured to halt on error.
+Preliminary runs were explicitly stopped during the audit and do not count as final evidence.
+The final process exited and source/binary hashes remained unchanged.
+
+**Compatibility and performance:** diagnostic pass counts at 16/48/128 are 4346/4710 (92.27%),
+4441/4710 (94.29%) and 4525/4710 (96.07%). The filtered subset remains 18/20, 20/20 and 20/20.
+All 14,130 per-image comparison results match completed stage 3, with no stale sources or
+missing timings. All 102 fixed native-review PNGs are byte-identical to the accepted stage-3
+review, retaining its named deviations and the unchanged 818 diagnostic failures. Final,
+uncontended parse/render totals are 0.607327, 0.856290 and 2.088467 s, respectively 0.984,
+0.952 and 1.137 times the preserved baseline; all three performance gates pass. Local logs, immutable binaries,
+hashes and reproduction scripts are under ignored `build-svg-handoff/hardening/`.
+
+**Disposition:** the hardening pass is complete. No known SVG failure remains from this audit;
+this is bounded regression/fuzz evidence, not a proof against all possible hostile inputs.
+The original brief and third-party corpus remain untracked/ignored.
+
+---
+
 ## 2026-11-11 — SVG stage 3: FreeType strokes and native-size acceptance
 
 **Decision:** the author explicitly approved ending the pixel-parity effort after repeated

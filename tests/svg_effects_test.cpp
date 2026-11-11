@@ -231,3 +231,18 @@ TEST_CASE("svg: offscreen curve expansion is bounded before allocating scanline 
     path += "'/>";
     CHECK(svg(path).empty());
 }
+
+TEST_CASE("svg hardening: padded filter layers obey the aggregate memory cap") {
+    const std::string source =
+        "<svg width='1024' height='1024'><defs><filter id='f'>"
+        "<feColorMatrix/><feColorMatrix/><feColorMatrix/><feColorMatrix/>"
+        "<feGaussianBlur stdDeviation='32'/><feGaussianBlur stdDeviation='32'/>"
+        "<feGaussianBlur stdDeviation='32'/><feGaussianBlur stdDeviation='32'/>"
+        "</filter></defs><rect width='1' height='1' filter='url(#f)'/></svg>";
+    // Four later blurs reserve 384 px of padding. Each layer is 12.25 MiB;
+    // the fourth matrix's clip layer exceeds 64 MiB with only six live
+    // layers, before blur work can exhaust the separate canvas work limit.
+    CHECK(nordend::svg::render(
+              {reinterpret_cast<const std::uint8_t*>(source.data()), source.size()}, 1024)
+              .empty());
+}

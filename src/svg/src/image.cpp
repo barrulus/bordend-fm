@@ -5,6 +5,7 @@ namespace nordend::svg {
 std::shared_ptr<picture::Image> embedded(Document& doc, std::string_view href) {
     if (!href.starts_with("data:image/png;base64,") && !href.starts_with("data:image/jpeg;base64,"))
         return {};
+    doc.charge_resource(href.size());
     const bool png = href.starts_with("data:image/png;");
     href.remove_prefix(href.find(',') + 1);
     std::vector<std::uint8_t> data;

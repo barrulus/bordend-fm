@@ -110,3 +110,23 @@ TEST_CASE("svg: reference comparison tolerates transparent edges but catches opa
     CHECK(nordend::test::svg_difference(edge, transparent).passes());
     CHECK_FALSE(nordend::test::svg_difference(opaque, transparent).passes());
 }
+
+TEST_CASE("svg hardening: the input cap includes otherwise ignored content") {
+    const std::string prefix = "<svg width='1' height='1'><!--";
+    const std::string suffix = "--><rect width='1' height='1' fill='red'/></svg>";
+    const auto source =
+        prefix + std::string(8U * 1024U * 1024U - prefix.size() - suffix.size(), 'x') + suffix;
+    CHECK_FALSE(render(source, 1).empty());
+    CHECK(render(source + " ", 1).empty());
+}
+
+TEST_CASE("svg hardening: exceptions from warning callbacks cannot escape render") {
+    const std::string source =
+        "<svg width='1' height='1'><filter id='f'><feOffset/></filter>"
+        "<rect width='1' height='1' filter='url(#f)'/></svg>";
+    CHECK(
+        nordend::svg::render({reinterpret_cast<const std::uint8_t*>(source.data()), source.size()},
+                             1, {[](void*, std::string_view) { throw 1; }, nullptr})
+            .empty());
+    CHECK_FALSE(render("<svg width='1' height='1'/>", 1).empty());
+}

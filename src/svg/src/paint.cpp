@@ -8,8 +8,14 @@ Colour Paint::sample(double x, double y) const {
             return {};
         const int w = static_cast<int>(texture->width), h = static_cast<int>(texture->height);
         if (repeat) {
-            p.x -= std::floor(p.x / w) * w;
-            p.y -= std::floor(p.y / h) * h;
+            // Subtracting a rounded huge quotient can leave a remainder outside
+            // the integer range. fmod bounds it before the pixel-index cast.
+            p.x = std::fmod(p.x, w);
+            p.y = std::fmod(p.y, h);
+            if (p.x < 0)
+                p.x += w;
+            if (p.y < 0)
+                p.y += h;
         } else if (p.x < 0 || p.y < 0 || p.x >= w || p.y >= h)
             return {};
         p.x -= .5;
@@ -203,6 +209,7 @@ Paint Document::paint(std::string_view value, Colour current, const Box& box, co
         paint_work += node.attributes.size() + node.children.size();
         require(paint_work <= kMaxSegments);
         for (const auto& [key, v] : node.attributes) {
+            charge_resource(key.size() + v.size());
             attrs.try_emplace(key, v);
         }
         if (stop_nodes.empty()) {

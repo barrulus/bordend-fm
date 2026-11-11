@@ -4,6 +4,11 @@
 
 namespace nordend::svg {
 namespace {
+void charge(std::size_t& work, std::size_t amount) {
+    require(amount <= 10000000 - work);
+    work += amount;
+}
+
 std::map<std::string_view, std::string_view> declarations(std::string_view text) {
     std::map<std::string_view, std::string_view> result;
     while (!text.empty()) {
@@ -24,15 +29,18 @@ std::map<std::string_view, std::string_view> declarations(std::string_view text)
     return result;
 }
 
-bool matches(std::string_view selector, const Node& node) {
+bool matches(std::string_view selector, const Node& node, std::size_t& work) {
+    charge(work, 1 + selector.size());
     if (selector == "*") {
         return true;
     }
     if (selector.starts_with('#')) {
+        charge(work, node.attr("id").size());
         return selector.substr(1) == node.attr("id");
     }
     if (selector.starts_with('.')) {
         auto classes = node.attr("class");
+        charge(work, classes.size());
         while (!(classes = trim(classes)).empty()) {
             auto end = classes.find_first_of(" \t\r\n");
             if (classes.substr(0, end) == selector.substr(1)) {
@@ -45,6 +53,7 @@ bool matches(std::string_view selector, const Node& node) {
         }
         return false;
     }
+    charge(work, node.name.size());
     return node.name == selector;
 }
 }  // namespace
@@ -114,14 +123,15 @@ Style style(const Node& node, const Style& parent, const Sheet& sheet, std::size
     out.mask_type = "luminance";
     std::map<std::string_view, std::pair<int, std::string_view>> props;
     for (const auto& [key, value] : node.attributes) {
+        charge(work, 1 + key.size() + value.size());
         props[key] = {0, value};
     }
     for (const auto& rule : sheet.rules) {
-        require(++work <= 10000000);
-        if (!matches(rule.selector, node)) {
+        if (!matches(rule.selector, node, work)) {
             continue;
         }
         for (const auto& [key, value] : rule.declarations) {
+            charge(work, 1 + key.size() + value.size());
             if (!props.contains(key) || props[key].first <= rule.specificity) {
                 props[key] = {rule.specificity, value};
             }
