@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs><filter id="f"><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter><mask id="m"><g filter="url(#f)"><rect x="8" y="8" width="48" height="48" fill="black" fill-opacity=".5"/></g></mask></defs><rect width="64" height="64" fill="red" mask="url(#m)"/>
+</svg>

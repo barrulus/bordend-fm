@@ -9,6 +9,9 @@ build*/
 result
 result-*
 
+# Local renders of third-party icon themes; never distribute these.
+tests/data/svg-corpus/
+
 # Editor / tooling (.clangd and the clang config files are tracked, on purpose)
 .cache/
 compile_commands.json

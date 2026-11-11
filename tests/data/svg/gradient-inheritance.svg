@@ -1,0 +1,3 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<defs><linearGradient id="a"><stop stop-color="yellow"/><stop offset="1" stop-color="navy"/></linearGradient><linearGradient id="b" href="#a" gradientUnits="userSpaceOnUse" x1="8" x2="24" spreadMethod="reflect" gradientTransform="rotate(20 32 32)"/></defs><rect width="64" height="64" fill="url(#b) red"/>
+</svg>

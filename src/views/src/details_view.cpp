@@ -387,8 +387,8 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         typed.mime = folder_->mime_of(entry);
 
         const float name_left = layout_.left.at(index(Field::name)) + kCellPadding;
-        icons.draw(renderer, fs::icon_name(*mime_, typed), name_left,
-                   y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon);
+        icons.draw_file(renderer, (*mime_).name(typed.mime), fs::icon_name(*mime_, typed),
+                        name_left, y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon);
         const float name_x = name_left + size_.icon + kIconGap;
         const float name_room = layout_.left.at(index(Field::name)) +
                                 layout_.width.at(index(Field::name)) - kCellPadding - name_x;

@@ -20,6 +20,11 @@ add_executable(nordend-tests
     file_watcher_test.cpp
     format_test.cpp
     icon_test.cpp
+    icon_theme_test.cpp
+    svg_test.cpp
+    svg_features_test.cpp
+    svg_layers_test.cpp
+    svg_effects_test.cpp
     helpers_test.cpp
     sandbox_test.cpp
     tiff_test.cpp
@@ -57,7 +62,7 @@ add_executable(nordend-tests
     undo_test.cpp
     worker_pool_test.cpp
     xcursor_test.cpp)
-target_link_libraries(nordend-tests PRIVATE nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::formats::text nordend::text nordend::thumbs nordend::preview nordend::engines nordend::isolate nordend::platform doctest::doctest nordend::warnings)
+target_link_libraries(nordend-tests PRIVATE nordend::svg nordend::core nordend::theme nordend::fs nordend::views nordend::picture nordend::formats nordend::formats::image nordend::formats::text nordend::text nordend::thumbs nordend::preview nordend::engines nordend::isolate nordend::platform doctest::doctest nordend::warnings)
 
 # The helper protocol's private header, for its tests; the image family's private readers (TIFF,
 # DNG, lossless JPEG), for theirs.

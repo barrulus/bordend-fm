@@ -28,3 +28,7 @@ endforeach()
 add_executable(nordend-fuzz-text fuzz_text.cpp)
 target_link_libraries(nordend-fuzz-text PRIVATE nordend::formats::text nordend::warnings)
 target_link_options(nordend-fuzz-text PRIVATE -fsanitize=fuzzer)
+
+add_executable(nordend-fuzz-svg fuzz_svg.cpp)
+target_link_libraries(nordend-fuzz-svg PRIVATE nordend::svg nordend::warnings)
+target_link_options(nordend-fuzz-svg PRIVATE -fsanitize=fuzzer)

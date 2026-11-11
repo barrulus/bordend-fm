@@ -238,8 +238,14 @@ int main(int argc, char** argv) {
     std::vector<float> band;  // x1, y1, x2, y2
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
+    std::string icon_theme{"builtin"};
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
+        if (option == "--icon-theme" && args.size() >= 3) {
+            icon_theme = args[2];
+            args = args.subspan(2);
+            continue;
+        }
         if (option == "--info-expanded") {  // the info pane with "More details" open
             info_expanded = true;
             args = args.subspan(1);
@@ -321,7 +327,8 @@ int main(int argc, char** argv) {
     if (args.size() != 2 && args.size() != 5 && args.size() != 6) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
-            "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
+            "CACHE] [--icon-theme NAME] [--sort FIELDS] [--info-expanded] [--info-width W] "
+            "[--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--band X1,Y1,X2,Y2] [--fake-disks] [--memory [--trim] "
             "[--default-malloc]]] [--csd STATE] [--desktop LOOK] "
@@ -367,6 +374,7 @@ int main(int argc, char** argv) {
             ui::FontSystem fonts;
             ui::Renderer renderer{fonts};
             ui::IconSet icons{fonts};
+            icons.set_theme(icon_theme);
             core::EventLoop loop;
             core::WorkerPool pool{loop};
             // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.

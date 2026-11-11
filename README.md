@@ -247,6 +247,18 @@ Transparency is disabled by default (`background_opacity = 1.0`). This reloads l
 **window opacity at `1.0`** (or remove its opacity rule), since that fades the entire window.
 Compositor blur can remain enabled; Nordend supplies transparency but does not apply blur itself.
 
+Nordend uses the desktop icon theme by default. To select Candy explicitly, put this in
+`~/.config/nordend/config.toml` (or add the key to an existing `[icon]` section):
+
+```toml
+[icon]
+theme = "candy-icons"
+```
+
+Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
+Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
+startup. SVG theme icons are rendered in-process using FreeType.
+
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features

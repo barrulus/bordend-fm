@@ -1,0 +1,35 @@
+theme	path	purpose
+Adwaita	scalable/devices/audio-headphones.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/audio-headset.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/ebook-reader.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/input-tablet.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/microphone.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/printer-network.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/printer.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/scanner.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/devices/video-display.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/mimetypes/package-x-generic.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/mimetypes/x-office-addressbook.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/mimetypes/x-office-spreadsheet-template.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/mimetypes/x-office-spreadsheet.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/mimetypes/x-package-repository.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/places/user-trash.png	Filtered icon: masks, gradients and blur
+Adwaita	scalable/status/user-trash-full.png	Filtered icon: masks, gradients and blur
+Adwaita	symbolic/legacy/preferences-desktop-appearance-symbolic.png	Filtered icon: masks, gradients and blur
+hicolor-2	scalable/apps/org.gnome.Shotwell.png	Filtered icon: masks, gradients and blur
+hicolor-2	scalable/apps/org.gnome.SimpleScan.png	Filtered icon: masks, gradients and blur
+hicolor-2	scalable/apps/org.inkscape.Inkscape.png	Filtered icon: masks, gradients and blur
+candy-icons	apps/scalable/firefox.png	Complex stroke silhouette
+candy-icons	apps/scalable/firefox-developer.png	Small curved gradient stroke
+candy-icons	apps/scalable/Musescore.png	Coincident cubic controls and small gaps
+candy-icons	apps/scalable/libreoffice-calc.png	Repeated artwork and sharp joins
+candy-icons	apps/scalable/libreoffice-base.png	Thin outlines and transparent overlap
+candy-icons	apps/scalable/blueman.png	Small diagonal strokes
+candy-icons	apps/scalable/Openbroadcaster.png	Filled and stroked curves
+candy-icons	apps/scalable/io.raindrop.png	Thin curved outline
+candy-icons	places/48/cs-desktop.png	Known translucent gradient difference
+candy-icons	apps/scalable/virustotal.png	Public rounding versus reference ceiling
+candy-icons	apps/scalable/itch.png	Embedded image
+candy-icons	apps/scalable/net.retrodeck.retrodeck.png	Embedded image and transformed composition
+hicolor-2	scalable/apps/btop.png	Pattern fill
+hicolor-2	scalable/apps/org.rncbc.qsynth.png	Embedded image
