@@ -48,6 +48,14 @@ std::unique_ptr<Column> ColumnView::make_column(const std::filesystem::path& dir
         std::make_shared<Folder>(loop_, pool_, watcher_, mime_, directory, redraw_, show_hidden_));
 }
 
+void ColumnView::set_entry_filter(fs::Listing::Predicate filter) {
+    entry_filter_ = std::move(filter);
+    for (const auto& slot : columns_) {
+        slot.column->folder().set_entry_filter(entry_filter_);
+    }
+    redraw_();
+}
+
 void ColumnView::set_show_hidden(bool show) {
     show_hidden_ = show;
     for (std::size_t i = 0; i < columns_.size(); ++i) {
@@ -83,6 +91,7 @@ void ColumnView::zoom(std::size_t index) {
 }
 
 std::unique_ptr<Column> ColumnView::make_column(std::shared_ptr<Folder> folder) {
+    folder->set_entry_filter(entry_filter_);
     folder->set_order(order_);
     // The folder reports its cursor changes with its own address.
     folder->set_changed_handler([this, self = folder.get()] { on_cursor_changed(self); });

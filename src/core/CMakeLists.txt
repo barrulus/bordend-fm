@@ -8,6 +8,7 @@ add_library(nordend_core
     src/config.cpp
     src/event_loop.cpp
     src/file.cpp
+    src/file_picker.cpp
     src/file_watcher.cpp
     src/log.cpp
     src/memory.cpp

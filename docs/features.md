@@ -445,3 +445,10 @@ Expanded folders load on demand and follow filesystem changes, sorting and hidde
 settings. Selections (including Shift ranges, Ctrl+A and rubber bands) stay within
 one parent folder. Expansion is retained while switching tabs, but resets when
 navigating or switching views and is not saved across restarts.
+
+## File picker
+
+An optional XDG FileChooser portal backend for OpenFile, SaveFile and SaveFiles: single or
+multiple files and folders, filename entry, glob/MIME filters, application choices, overwrite
+confirmation and cancellation. Picker windows reuse the three views and previews without
+changing the file manager's saved tabs. See [setup and usage](file-picker.md).

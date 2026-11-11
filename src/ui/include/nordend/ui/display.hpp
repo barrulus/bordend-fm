@@ -66,6 +66,12 @@ public:
     // Optional: without it, applications Nordend starts may open without the focus.
     [[nodiscard]] xdg_activation_v1* activation() const noexcept { return activation_.get(); }
 
+    [[nodiscard]] zxdg_importer_v2* importer() const noexcept { return importer_.get(); }
+
+    [[nodiscard]] xdg_wm_dialog_v1* dialog_manager() const noexcept {
+        return dialog_manager_.get();
+    }
+
 private:
     static void on_global(void* data, wl_registry* registry, std::uint32_t name,
                           const char* interface, std::uint32_t version);
@@ -85,6 +91,8 @@ private:
     WlPtr<xdg_activation_v1> activation_;
     WlPtr<wl_data_device_manager> data_device_manager_;
     WlPtr<wl_seat> seat_;
+    WlPtr<zxdg_importer_v2> importer_;
+    WlPtr<xdg_wm_dialog_v1> dialog_manager_;
 };
 
 }  // namespace nordend::ui

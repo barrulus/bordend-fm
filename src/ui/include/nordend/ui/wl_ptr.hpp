@@ -9,6 +9,8 @@
 #include "viewporter-client-protocol.h"
 #include "xdg-activation-v1-client-protocol.h"
 #include "xdg-decoration-unstable-v1-client-protocol.h"
+#include "xdg-dialog-v1-client-protocol.h"
+#include "xdg-foreign-unstable-v2-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 
 namespace nordend::ui {
@@ -31,6 +33,10 @@ void destroy(wl_egl_window* window) noexcept;
 void destroy(xdg_wm_base* wm_base) noexcept;
 void destroy(xdg_surface* surface) noexcept;
 void destroy(xdg_toplevel* toplevel) noexcept;
+void destroy(zxdg_importer_v2* importer) noexcept;
+void destroy(zxdg_imported_v2* imported) noexcept;
+void destroy(xdg_wm_dialog_v1* manager) noexcept;
+void destroy(xdg_dialog_v1* dialog) noexcept;
 void destroy(zxdg_decoration_manager_v1* manager) noexcept;
 void destroy(zxdg_toplevel_decoration_v1* decoration) noexcept;
 void destroy(wp_viewporter* viewporter) noexcept;

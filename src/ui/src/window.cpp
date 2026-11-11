@@ -83,6 +83,23 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
         xdg_toplevel_set_maximized(toplevel_.get());  // before the first commit: opens maximized
     }
 
+    if (options.parent_window.starts_with("wayland:") && display_.importer()) {
+        imported_parent_.reset(zxdg_importer_v2_import_toplevel(display_.importer(),
+                                                                options.parent_window.c_str() + 8));
+        static constexpr zxdg_imported_v2_listener listener{
+            .destroyed =
+                [](void* data, zxdg_imported_v2*) {
+                    static_cast<Window*>(data)->imported_parent_.reset();
+                },
+        };
+        zxdg_imported_v2_add_listener(imported_parent_.get(), &listener, this);
+        zxdg_imported_v2_set_parent_of(imported_parent_.get(), surface_.get());
+    }
+    if (options.modal && display_.dialog_manager()) {
+        dialog_.reset(xdg_wm_dialog_v1_get_xdg_dialog(display_.dialog_manager(), toplevel_.get()));
+        xdg_dialog_v1_set_modal(dialog_.get());
+    }
+
     // Server-side asked for, or client-side when forced; the compositor's configure has the
     // last word, so the window never gets two title bars.
     auto* manager = display_.decoration_manager();

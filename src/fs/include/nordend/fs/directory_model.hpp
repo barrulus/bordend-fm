@@ -73,6 +73,7 @@ public:
     // leaves the listing is notified as removed, what comes back as added. Entries left out are
     // still watched and kept up to date.
     void set_filter(bool show_hidden, std::string keep);
+    void set_predicate(Listing::Predicate predicate);
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 

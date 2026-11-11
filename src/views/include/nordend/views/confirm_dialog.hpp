@@ -28,7 +28,8 @@ public:
 
     // title: "Delete “P1.ORF” permanently?"; detail: the line under it ("Adding up the size…",
     // changed later by set_detail); action: the button that does it ("Delete").
-    void open(std::string title, std::string detail, std::string action, Answer answer);
+    void open(std::string title, std::string detail, std::string action, Answer answer,
+              std::string warning = "Nothing goes to the trash: this cannot be undone.");
 
     void set_detail(std::string detail);
 
@@ -66,6 +67,7 @@ private:
     std::string title_;
     std::string detail_;
     std::string action_;
+    std::string warning_;
     Answer answer_;
     std::array<ui::Rect, kButtons> buttons_{};  // as last drawn
     std::optional<std::size_t> hovered_;

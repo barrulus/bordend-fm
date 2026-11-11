@@ -38,6 +38,14 @@ void destroy(xdg_surface* surface) noexcept { xdg_surface_destroy(surface); }
 
 void destroy(xdg_toplevel* toplevel) noexcept { xdg_toplevel_destroy(toplevel); }
 
+void destroy(zxdg_importer_v2* importer) noexcept { zxdg_importer_v2_destroy(importer); }
+
+void destroy(zxdg_imported_v2* imported) noexcept { zxdg_imported_v2_destroy(imported); }
+
+void destroy(xdg_wm_dialog_v1* manager) noexcept { xdg_wm_dialog_v1_destroy(manager); }
+
+void destroy(xdg_dialog_v1* dialog) noexcept { xdg_dialog_v1_destroy(dialog); }
+
 void destroy(zxdg_decoration_manager_v1* manager) noexcept {
     zxdg_decoration_manager_v1_destroy(manager);
 }

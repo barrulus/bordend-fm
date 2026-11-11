@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -57,6 +58,12 @@ public:
     };
 
     Moved set_filter(bool show_hidden, std::string keep);
+    using Predicate = std::function<bool(const Entry&)>;
+
+    Moved set_predicate(Predicate predicate) {
+        predicate_ = std::move(predicate);
+        return set_filter(show_hidden_, keep_);
+    }
 
     [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
 
@@ -74,12 +81,14 @@ public:
     [[nodiscard]] const std::vector<Entry>& hidden() const noexcept { return hidden_; }
 
 private:
-    [[nodiscard]] bool left_out(const Entry& entry) const noexcept {
-        return !show_hidden_ && entry.hidden() && entry.name != keep_;
+    [[nodiscard]] bool left_out(const Entry& entry) const {
+        return (!show_hidden_ && entry.hidden() && entry.name != keep_) ||
+               (predicate_ && !predicate_(entry));
     }
 
     void merge(std::vector<Entry> chunk);
 
+    Predicate predicate_;
     SortOrder order_;
     std::vector<Entry> entries_;
     std::vector<Entry> hidden_;

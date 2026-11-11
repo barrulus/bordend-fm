@@ -169,6 +169,12 @@ public:
     // selection, so nothing acts on what is not seen, and the cursor moves off them; the hidden
     // folders on the way to the one shown stay.
     void set_show_hidden(bool show);
+    void set_entry_filter(fs::Listing::Predicate filter);
+    [[nodiscard]] bool has_overlay() const {
+        return conflict_.is_open() || confirm_.is_open() || palette_.is_open() ||
+               menu_.is_open() || editor_.active() || shortcuts_.is_open() || quick_look_.is_open();
+    }
+    [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
 
     [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
 
@@ -682,6 +688,7 @@ private:
     ui::Rect view_area_{};                             // where the view was last drawn
     bool info_visible_{true};
     bool sidebar_visible_{true};
+    fs::Listing::Predicate entry_filter_;
     bool show_hidden_{false};
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};

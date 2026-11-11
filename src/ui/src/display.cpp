@@ -120,6 +120,12 @@ void Display::on_global(void* data, wl_registry* registry, std::uint32_t name,
         self.cursor_shape_manager_.reset(
             bind<wp_cursor_shape_manager_v1>(registry, name, wp_cursor_shape_manager_v1_interface,
                                              version, kCursorShapeManagerVersion));
+    } else if (iface == zxdg_importer_v2_interface.name) {
+        self.importer_.reset(
+            bind<zxdg_importer_v2>(registry, name, zxdg_importer_v2_interface, version, 1));
+    } else if (iface == xdg_wm_dialog_v1_interface.name) {
+        self.dialog_manager_.reset(
+            bind<xdg_wm_dialog_v1>(registry, name, xdg_wm_dialog_v1_interface, version, 1));
     } else if (iface == xdg_activation_v1_interface.name) {
         self.activation_.reset(bind<xdg_activation_v1>(registry, name, xdg_activation_v1_interface,
                                                        version, kActivationVersion));
