@@ -221,3 +221,11 @@ install(FILES data/noctalia/nordend DESTINATION share/nordend/noctalia)
 
 # Full reference, also embedded for per-user first-run setup.
 install(FILES docs/config.example.toml DESTINATION share/nordend)
+
+# Optional FileChooser backend; desktops select it in portals.conf.
+configure_file(data/org.freedesktop.impl.portal.desktop.nordend.service.in
+               org.freedesktop.impl.portal.desktop.nordend.service @ONLY)
+install(CODE "configure_file(\"${PROJECT_SOURCE_DIR}/data/org.freedesktop.impl.portal.desktop.nordend.service.in\" \"${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.nordend.service\" @ONLY)")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/org.freedesktop.impl.portal.desktop.nordend.service"
+        DESTINATION share/dbus-1/services)
+install(FILES data/nordend.portal DESTINATION share/xdg-desktop-portal/portals)

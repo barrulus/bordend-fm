@@ -56,6 +56,7 @@ add_executable(nordend-tests
     erase_test.cpp
     erase_view_test.cpp
     file_finder_test.cpp
+    file_picker_test.cpp
     transfer_test.cpp
     trash_test.cpp
     trash_view_test.cpp
@@ -117,3 +118,11 @@ if(NORDEND_SANITIZER)
 endif()
 
 add_test(NAME nordend-tests COMMAND nordend-tests)
+
+add_executable(nordend-portal-tests file_picker_portal_test.cpp)
+target_link_libraries(nordend-portal-tests PRIVATE nordend::platform PkgConfig::SDBUSCPP nordend::warnings)
+find_program(DBUS_RUN_SESSION dbus-run-session)
+if(DBUS_RUN_SESSION)
+    add_test(NAME file-picker-portal COMMAND "${DBUS_RUN_SESSION}" -- $<TARGET_FILE:nordend-portal-tests>)
+    set_tests_properties(file-picker-portal PROPERTIES TIMEOUT 30)
+endif()

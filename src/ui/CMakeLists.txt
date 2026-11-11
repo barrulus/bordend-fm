@@ -29,6 +29,8 @@ function(nordend_wayland_protocol xml)
 endfunction()
 
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml)
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-foreign/xdg-foreign-unstable-v2.xml)
+nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/staging/xdg-dialog/xdg-dialog-v1.xml)
 nordend_wayland_protocol(
     ${WAYLAND_PROTOCOLS_DIR}/unstable/xdg-decoration/xdg-decoration-unstable-v1.xml)
 nordend_wayland_protocol(${WAYLAND_PROTOCOLS_DIR}/stable/viewporter/viewporter.xml)

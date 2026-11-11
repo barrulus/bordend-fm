@@ -26,6 +26,7 @@
 
 #include "nordend/core/config.hpp"
 #include "nordend/core/event_loop.hpp"
+#include "nordend/core/file_picker.hpp"
 #include "nordend/core/file_watcher.hpp"
 #include "nordend/core/log.hpp"
 #include "nordend/core/memory.hpp"
@@ -37,6 +38,7 @@
 #include "nordend/isolate/helpers.hpp"
 #include "nordend/platform/about.hpp"
 #include "nordend/platform/desktop_entry.hpp"
+#include "nordend/platform/file_picker_portal.hpp"
 #include "nordend/platform/opener.hpp"
 #include "nordend/platform/portal.hpp"
 #include "nordend/platform/udisks.hpp"
@@ -53,6 +55,7 @@
 #include "nordend/ui/text.hpp"
 #include "nordend/ui/window.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/file_picker.hpp"
 #include "nordend/views/state.hpp"
 #include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
@@ -196,6 +199,10 @@ const char* button_name(ui::PointerButton button) {
 }
 
 constexpr const char* kUsage =
+    "Picker: nordend --pick|--pick-directory|--save-file [--multiple] [--name NAME] [--title "
+    "TITLE] [DIR]\n"
+    "Selected absolute paths are NUL-separated on stdout; exit 1 cancels.\n"
+    "Portal backend: nordend --portal\n\n"
     "usage: nordend [--config FILE] [--check-config] [--test-scene] [--version] [--about] [DIR]\n"
     "  DIR             the folder to show (default: your home folder)\n"
     "  --config FILE   read FILE instead of ~/.config/nordend/config.toml\n"
@@ -286,8 +293,16 @@ int main(int argc, char** argv) {
     std::filesystem::path start_dir;
     bool check_only = false;
     bool test_scene = false;
+    bool portal_backend = false;
+    bool picker_channel = false;
+    std::optional<core::PickerRequest> picker_request;
+    core::PickerResult picker_result;
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg{argv[i]};
+        if (arg == "--help" || arg == "-h") {
+            std::puts(kUsage);
+            return 0;
+        }
         if (arg == "--version") {
             std::puts("nordend " NORDEND_VERSION);
             return 0;
@@ -295,7 +310,31 @@ int main(int argc, char** argv) {
         if (arg == "--about") {
             return print_about();
         }
-        if (arg == "--check-config") {
+        if (arg == "--portal") {
+            portal_backend = true;
+        } else if (arg == "--picker-channel") {
+            picker_channel = true;
+            try {
+                picker_request = core::read_picker_request(3);
+                close(3);
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "nordend: %s\n", e.what());
+                return 2;
+            }
+        } else if (arg == "--pick" || arg == "--pick-directory" || arg == "--save-file") {
+            if (picker_request) {
+                std::fprintf(stderr, "nordend: choose one picker mode\n");
+                return 2;
+            }
+            picker_request.emplace();
+            picker_request->directory = arg == "--pick-directory";
+            picker_request->mode = arg == "--save-file" ? core::PickerRequest::Mode::save
+                                                        : core::PickerRequest::Mode::open;
+        } else if (arg == "--multiple" && picker_request) {
+            picker_request->multiple = true;
+        } else if ((arg == "--name" || arg == "--title") && picker_request && i + 1 < argc) {
+            (arg == "--name" ? picker_request->name : picker_request->title) = argv[++i];
+        } else if (arg == "--check-config") {
             check_only = true;
         } else if (arg == "--test-scene") {
             test_scene = true;
@@ -312,10 +351,23 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
+    if ((portal_backend && (picker_request || test_scene || check_only || !start_dir.empty())) ||
+        (picker_request && (test_scene || check_only)) ||
+        (picker_request && picker_request->mode != core::PickerRequest::Mode::open &&
+         picker_request->multiple)) {
+        std::fprintf(stderr, "nordend: incompatible picker options\n");
+        return 2;
+    }
+    if (picker_request && !picker_request->folder.empty()) {
+        std::error_code error;
+        if (std::filesystem::is_directory(picker_request->folder, error)) {
+            start_dir = picker_request->folder;
+        }
+    }
     std::error_code config_creation_error;
     if (config_path.empty()) {
         config_path = core::default_config_path();
-        if (!check_only && !test_scene) {
+        if (!check_only && !test_scene && !portal_backend && !picker_request) {
             config_creation_error = core::create_default_config(config_path);
         }
     }
@@ -372,6 +424,10 @@ int main(int argc, char** argv) {
             loop.quit(0);
         });
 
+        if (portal_backend) {
+            return platform::run_file_picker_portal(loop);
+        }
+
         ui::Display display;
         startup.mark("display");
         ui::EglContext egl{display};
@@ -404,17 +460,22 @@ int main(int argc, char** argv) {
         for (const std::string& problem : remembered.problems) {
             log::warn("state: {}", problem);
         }
-        ui::Window window{display,
-                          egl,
-                          fonts,
-                          {.title = "Nordend",
-                           .app_id = "nordend",
-                           .width = remembered.state.window_width,
-                           .height = remembered.state.window_height,
-                           .maximized = remembered.state.maximized,
-                           .background = theme.palette().surface,
-                           .force_client_decorations = client_decorations_forced(),
-                           .background_opacity = config.appearance.background_opacity}};
+        ui::Window window{
+            display,
+            egl,
+            fonts,
+            {.title = picker_request ? (picker_request->title.empty() ? "Select a file — Nordend"
+                                                                      : picker_request->title)
+                                     : "Nordend",
+             .app_id = "nordend",
+             .width = remembered.state.window_width,
+             .height = remembered.state.window_height,
+             .maximized = !picker_request && remembered.state.maximized,
+             .background = theme.palette().surface,
+             .force_client_decorations = client_decorations_forced(),
+             .background_opacity = config.appearance.background_opacity,
+             .parent_window = picker_request ? picker_request->parent_window : "",
+             .modal = picker_request && picker_request->modal}};
         startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -453,6 +514,7 @@ int main(int argc, char** argv) {
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
         // asked for.
         std::unique_ptr<views::Browser> columns;
+        std::unique_ptr<views::FilePicker> picker;
         // config.toml is followed while Nordend runs: the double click changes at once, the
         // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
@@ -461,8 +523,8 @@ int main(int argc, char** argv) {
                 log::warn("config: {}; keeping previous keybindings", problem);
             }
             window.request_redraw();
-            window.set_background_opacity(fresh.appearance.background_opacity);
             icons.set_theme(fresh.icon.theme);
+            window.set_background_opacity(fresh.appearance.background_opacity);
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
             follow_accent = fresh.icon.follow_accent;
@@ -474,6 +536,9 @@ int main(int argc, char** argv) {
         std::int32_t restored_width = remembered.state.window_width;
         std::int32_t restored_height = remembered.state.window_height;
         const auto note_state = [&] {
+            if (picker_request) {
+                return;
+            }
             const ui::WindowState& shown = window.state();
             if (!shown.maximized && !shown.fullscreen && !shown.tiled_left && !shown.tiled_right &&
                 !shown.tiled_top && !shown.tiled_bottom) {
@@ -589,9 +654,19 @@ int main(int argc, char** argv) {
             columns->apply(remembered.state);
             // Without a folder (Super+E) the tabs come back as they were left; with one
             // (xdg-open, "Show in folder") a single tab on it (ROADMAP 9.1d).
-            if (!start_dir.empty() ||
+            if (picker_request || !start_dir.empty() ||
                 !columns->restore_tabs(remembered.state.tabs, remembered.state.shown_tab)) {
                 columns->open(start_folder(start_dir));
+            }
+            if (picker_request) {
+                columns->set_open_with_handlers({}, {});
+                columns->set_terminal_handler({});
+                picker = std::make_unique<views::FilePicker>(
+                    *columns, *picker_request, mime, [&] { window.request_redraw(); },
+                    [&](core::PickerResult result) {
+                        picker_result = std::move(result);
+                        loop.quit(0);
+                    });
             }
             memory_lines = [&columns] { return columns->memory_lines(); };
         }
@@ -654,6 +729,31 @@ int main(int argc, char** argv) {
                 loop.quit(0);
                 return;
             }
+            if (picker) {
+                if (picker->editing_name() && event.modifiers.ctrl &&
+                    (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V) &&
+                    clipboard.available()) {
+                    clipboard.read("text/plain;charset=utf-8",
+                                   [&](std::optional<std::string> text) {
+                                       if (text) {
+                                           picker->paste(*text);
+                                       }
+                                   });
+                } else if (picker->editing_name() && event.modifiers.ctrl &&
+                           (event.keysym == XKB_KEY_c || event.keysym == XKB_KEY_C ||
+                            event.keysym == XKB_KEY_x || event.keysym == XKB_KEY_X) &&
+                           clipboard.available()) {
+                    const auto text =
+                        picker->copy_name(event.keysym == XKB_KEY_x || event.keysym == XKB_KEY_X);
+                    if (!text.empty()) {
+                        clipboard.offer({{"text/plain;charset=utf-8", text}, {"text/plain", text}},
+                                        seat.input_serial());
+                    }
+                } else {
+                    picker->key(event);
+                }
+                return;
+            }
             if (columns) {
                 columns->key(event, views::Browser::Clock::now());
                 return;
@@ -682,6 +782,11 @@ int main(int argc, char** argv) {
                 content_pressed = true;
             } else if (event.kind == Kind::release || event.kind == Kind::leave) {
                 content_pressed = false;
+            }
+            if (picker) {
+                picker->pointer(event);
+                seat.set_cursor(picker->cursor_at(event.x, event.y));
+                return;
             }
             if (columns) {
                 columns->pointer(event, views::Browser::Clock::now());
@@ -760,7 +865,11 @@ int main(int argc, char** argv) {
                 ready_drawn = ready_drawn || ready;
             }
             if (columns) {
-                columns->draw(renderer, content, palette, icons, views::Browser::Clock::now());
+                if (picker) {
+                    picker->draw(renderer, content, palette, icons);
+                } else {
+                    columns->draw(renderer, content, palette, icons, views::Browser::Clock::now());
+                }
                 if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }
@@ -793,7 +902,25 @@ int main(int argc, char** argv) {
             });
         }
         const int code = loop.run();
-        keeper.flush();
+        if (!picker_request) {
+            keeper.flush();
+        }
+        if (picker_request) {
+            if (picker_channel) {
+                core::write_picker_result(4, picker_result);
+                close(4);
+            } else if (picker_result.response == 0) {
+                for (const auto& path : picker_result.paths) {
+                    std::fwrite(path.data(), 1, path.size(), stdout);
+                    std::fputc('\0', stdout);
+                }
+                if (std::fflush(stdout) != 0) {
+                    return 2;
+                }
+            }
+            return code != 0 ? code
+                             : (picker_channel ? 0 : static_cast<int>(picker_result.response));
+        }
         return code;
     } catch (const std::exception& e) {
         log::error("{}", e.what());

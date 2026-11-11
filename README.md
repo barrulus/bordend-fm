@@ -202,6 +202,12 @@ xdg-mime default nordend.desktop inode/directory
 "Mod+E" = { action = "spawn nordend", repeat = false }
 ```
 
+### As a file picker
+
+Nordend can handle Open/Save dialogs through the XDG FileChooser portal, alongside Umbriel's
+screenshot and screen-sharing backend. See [file-picker setup](docs/file-picker.md) for NixOS
+and other desktops, or try `nordend --pick ~/Pictures` without changing desktop defaults.
+
 ### On Noctalia
 
 Nordend takes its colours from `~/.config/nordend/colors.toml`, and Noctalia writes that file
@@ -314,7 +320,7 @@ roughly in this order: **previews, one family at a time**: other common formats 
 AVIF, fonts, archive contents, audio tags).
 After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
 for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations
-and batch renaming; translations, a file chooser for other applications, plugins in Luau (one
+and batch renaming; translations, plugins in Luau (one
 system, each plugin caged; heavy formats such as PDF and video, and local AI search, as separate
 engines).
 

@@ -70,6 +70,7 @@ public:
 
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
+    void set_entry_filter(fs::Listing::Predicate filter);
 
     // Where a drag over the window would drop (the browser's).
     void set_drop_mark(const DropMark* drop) { drop_ = drop; }
@@ -219,6 +220,7 @@ private:
     float pane_edge_{-1.0F};  // x of the info pane's edge as last drawn; < 0 without a pane
 
     std::shared_ptr<Folder> folder_;
+    fs::Listing::Predicate entry_filter_;
     bool show_hidden_{false};
     const DropMark* drop_{nullptr};
     fs::SortOrder order_;

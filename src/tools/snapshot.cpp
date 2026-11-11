@@ -84,6 +84,7 @@
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/views/file_picker.hpp"
 #include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
 
@@ -239,6 +240,7 @@ int main(int argc, char** argv) {
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
     std::string icon_theme{"builtin"};
+    std::optional<std::string> picker_mode;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--icon-theme" && args.size() >= 3) {
@@ -274,7 +276,9 @@ int main(int argc, char** argv) {
         if (args.size() < 3) {
             break;
         }
-        if (option == "--columns") {
+        if (option == "--picker") {
+            picker_mode = args[2];
+        } else if (option == "--columns") {
             columns_dir = args[2];
         } else if (option == "--reveal") {
             reveal = args[2];
@@ -387,6 +391,7 @@ int main(int argc, char** argv) {
             nordend::fs::DirectoryWatcher watcher{loop};
             std::unique_ptr<nordend::platform::Opener> opener;  // "Open With" lists, no launches
             std::unique_ptr<views::Browser> columns;
+            std::unique_ptr<views::FilePicker> picker;
             const ui::Rect window_bounds{0.0F, 0.0F, width, height};
             views::TitleBar title_bar{{.move = [] {},
                                        .resize = [](ui::Edge /*edge*/) {},
@@ -430,8 +435,12 @@ int main(int argc, char** argv) {
                     title_bar.draw(renderer, window_bounds, palette.palette, icons, "Nordend");
                 }
                 if (columns) {
-                    columns->draw(renderer, bounds, palette.palette, icons,
-                                  views::Browser::Clock::now());
+                    if (picker) {
+                        picker->draw(renderer, bounds, palette.palette, icons);
+                    } else {
+                        columns->draw(renderer, bounds, palette.palette, icons,
+                                      views::Browser::Clock::now());
+                    }
                     if (drag_image) {
                         columns->draw_drag_icon(
                             renderer,
@@ -497,6 +506,19 @@ int main(int argc, char** argv) {
                     columns->reveal(columns_dir, reveal);
                 }
                 run_until(loop, [&] { return !columns->loading(); });
+                if (picker_mode) {
+                    core::PickerRequest request;
+                    request.mode = *picker_mode == "save" ? core::PickerRequest::Mode::save
+                                                          : core::PickerRequest::Mode::open;
+                    request.directory = *picker_mode == "directory";
+                    if (request.mode == core::PickerRequest::Mode::save) {
+                        request.name = "Untitled.txt";
+                    }
+                    request.filters = {{"All files", {{0, "*"}}}, {"Text files", {{0, "*.txt"}}}};
+                    request.choices = {{"readonly", "Read only", {}, "false"}};
+                    picker = std::make_unique<views::FilePicker>(
+                        *columns, request, mime, [] {}, [](auto) {});
+                }
                 columns->info_pane().set_expanded(info_expanded);
                 if (info_width > 0.0F) {
                     columns->info_pane().set_width(info_width);
@@ -517,7 +539,11 @@ int main(int argc, char** argv) {
                 frame();  // lays out: keys need the viewport
                 // Each key finds what the one before loaded (Space, then Ctrl+A on the text).
                 for (const ui::KeyEvent& event : parse_keys(keys)) {
-                    columns->key(event, views::Browser::Clock::now());
+                    if (picker) {
+                        picker->key(event);
+                    } else {
+                        columns->key(event, views::Browser::Clock::now());
+                    }
                     run_until(loop, [&] { return !columns->loading(); });
                 }
                 std::string_view fields{sort};

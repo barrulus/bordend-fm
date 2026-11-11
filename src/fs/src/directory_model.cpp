@@ -78,6 +78,17 @@ void DirectoryModel::set_filter(bool show_hidden, std::string keep) {
     notify(change);
 }
 
+void DirectoryModel::set_predicate(Listing::Predicate predicate) {
+    auto moved = listing_.set_predicate(std::move(predicate));
+    if (moved.hidden.empty() && moved.shown.empty()) {
+        return;
+    }
+    ModelChange change;
+    change.removed = std::move(moved.hidden);
+    change.added = std::move(moved.shown);
+    notify(change);
+}
+
 void DirectoryModel::start_load() {
     loading_ = true;
     load_ = load_directory(

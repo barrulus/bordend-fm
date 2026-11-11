@@ -34,6 +34,8 @@ struct WindowOptions {
     // (NORDEND_FORCE_CSD, to try them); the compositor may still answer server-side.
     bool force_client_decorations{false};
     float background_opacity{1.0F};
+    std::string parent_window;  // portal wayland: handle, optional
+    bool modal{false};
 };
 
 // A window edge or corner, grabbed to resize the window.
@@ -202,6 +204,8 @@ private:
     WlPtr<wl_egl_window> egl_window_;
     WlPtr<xdg_surface> xdg_surface_;
     WlPtr<xdg_toplevel> toplevel_;
+    WlPtr<zxdg_imported_v2> imported_parent_;
+    WlPtr<xdg_dialog_v1> dialog_;
     WlPtr<zxdg_toplevel_decoration_v1> decoration_;
     WlPtr<wl_callback> frame_callback_;  // non-null while a frame is in flight
 

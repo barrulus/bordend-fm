@@ -49,6 +49,7 @@ GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryW
 }
 
 void GridView::show(std::shared_ptr<Folder> folder) {
+    if (folder) { folder->set_entry_filter(entry_filter_); }
     folder_ = std::move(folder);
     if (folder_) {
         folder_->set_order(order_);
@@ -141,6 +142,14 @@ void GridView::set_order(const fs::SortOrder& order) {
     if (folder_) {
         folder_->set_order(order_);
     }
+}
+
+void GridView::set_entry_filter(fs::Listing::Predicate filter) {
+    entry_filter_ = std::move(filter);
+    if (folder_) {
+        folder_->set_entry_filter(entry_filter_);
+    }
+    redraw_();
 }
 
 void GridView::set_show_hidden(bool show) {

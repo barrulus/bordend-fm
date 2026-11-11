@@ -155,6 +155,9 @@ Pane& Browser::add_pane(std::size_t at) {
         added.details.set_list_size(from.details.list_size());
         added.grid.set_size_index(from.grid.size_index());
     }
+    added.columns.set_entry_filter(entry_filter_);
+    added.grid.set_entry_filter(entry_filter_);
+    added.details.set_entry_filter(entry_filter_);
     added.columns.set_show_hidden(show_hidden_);
     added.grid.set_show_hidden(show_hidden_);
     added.details.set_show_hidden(show_hidden_);
@@ -1892,6 +1895,15 @@ MenuItem Browser::sort_menu() {
     sort.children.push_back(choice("sort:descending", "Descending", now.descending,
                                    [this] { set_sort(sort_order().key, true); }));
     return sort;
+}
+
+void Browser::set_entry_filter(fs::Listing::Predicate filter) {
+    entry_filter_ = std::move(filter);
+    for (const auto& each : panes_) {
+        each->columns.set_entry_filter(entry_filter_);
+        each->grid.set_entry_filter(entry_filter_);
+        each->details.set_entry_filter(entry_filter_);
+    }
 }
 
 void Browser::set_show_hidden(bool show) {

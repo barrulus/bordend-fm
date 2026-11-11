@@ -95,6 +95,10 @@ public:
     // to the cursor.
     void set_order(const fs::SortOrder& order);
 
+    void set_entry_filter(fs::Listing::Predicate filter) {
+        model_.set_predicate(std::move(filter));
+    }
+
     // The entry under the cursor; nullptr when there is none or it is still pending.
     [[nodiscard]] const fs::Entry* cursor_entry() const;
 

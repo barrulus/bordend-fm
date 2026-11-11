@@ -61,6 +61,7 @@ public:
 
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
+    void set_entry_filter(fs::Listing::Predicate filter);
 
     // The cells' size (kGridIconSizes[index]), as the window sets it: no zoom handler call.
     void set_size_index(std::size_t index);
@@ -173,6 +174,7 @@ private:
     float pane_edge_{-1.0F};  // x of the info pane's edge as last drawn; < 0 without a pane
 
     std::shared_ptr<Folder> folder_;
+    fs::Listing::Predicate entry_filter_;
     bool show_hidden_{false};
     fs::SortOrder order_;
     const DropMark* drop_{nullptr};
