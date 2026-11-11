@@ -430,3 +430,14 @@ command palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, z
 lists) and the first release, 0.1.0. Coming, roughly in this order: other common formats, colour
 labels and ratings, a Quick Look for photographers, a dual pane. See the README's
 [What's next](../README.md#whats-next).
+
+### Expandable folders in details view
+
+In the main window's details view (**Ctrl+3**), click a folder's chevron to show its
+contents inline. **Right** expands the selected folder, then moves into its first
+child; **Left** collapses it or selects its parent row. **Enter** or a double click
+opens the folder as the new location. **Backspace** goes above the tree's root.
+Expanded folders load on demand and follow filesystem changes, sorting and hidden-file
+settings. Selections (including Shift ranges, Ctrl+A and rubber bands) stay within
+one parent folder. Expansion is retained while switching tabs, but resets when
+navigating or switching views and is not saved across restarts.
