@@ -2322,10 +2322,7 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
         return;
     }
     if (shortcuts_.is_open()) {
-        // A click anywhere closes the shortcuts; nothing under them reacts meanwhile.
-        if (event.kind == ui::PointerEvent::Kind::press) {
-            shortcuts_.close();
-        }
+        shortcuts_.pointer(event);
         if (event.kind != ui::PointerEvent::Kind::leave) {
             pointer_x_ = event.x;
             pointer_y_ = event.y;
@@ -3241,6 +3238,8 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
         if (command == Command::show_shortcuts ||
             (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{})) {
             shortcuts_.close();
+        } else {
+            shortcuts_.key(event);
         }
         return true;  // nothing under them reacts meanwhile
     }

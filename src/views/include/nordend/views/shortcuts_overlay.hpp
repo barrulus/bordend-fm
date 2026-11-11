@@ -7,6 +7,7 @@
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
+#include "nordend/ui/seat.hpp"
 
 namespace nordend::views {
 
@@ -14,7 +15,7 @@ namespace nordend::views {
 [[nodiscard]] std::vector<std::string_view> overlay_groups();
 
 // Every keyboard shortcut (shortcuts()), by group, on a card over the window. F1, "?", the
-// status bar's "?" open it; those, Escape or a click close it.
+// status bar's "?" open it; those, Escape, the close button or a click outside close it.
 //
 // Loop thread only.
 class ShortcutsOverlay {
@@ -26,11 +27,31 @@ public:
 
     [[nodiscard]] bool is_open() const noexcept { return open_; }
 
-    void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette) const;
+    void layout(const ui::Rect& bounds);
+    void pointer(const ui::PointerEvent& event);
+    void key(const ui::KeyEvent& event);
+
+    [[nodiscard]] float scroll_offset() const noexcept { return offset_; }
+
+    [[nodiscard]] float max_scroll() const noexcept { return max_scroll_; }
+
+    void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
 
 private:
     std::function<void()> redraw_;
+    void scroll_to(float offset);
+    [[nodiscard]] ui::Rect thumb() const;
     bool open_{false};
+    bool dragging_{false};
+    float drag_y_{0.0F};
+    float offset_{0.0F};
+    float max_scroll_{0.0F};
+    float content_{0.0F};
+    ui::Rect card_;
+    ui::Rect viewport_;
+    ui::Rect close_button_;
+    ui::Rect track_;
+    bool narrow_{false};
 };
 
 }  // namespace nordend::views

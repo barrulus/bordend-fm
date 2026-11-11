@@ -7,40 +7,38 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "nordend/views/shortcuts.hpp"
 
 namespace nordend::views {
 namespace {
 
-constexpr float kMaxCardWidth = 820.0F;
-constexpr float kWideCardWidth = 1200.0F;  // three columns, when the window has room
-constexpr float kMargin = 32.0F;           // around the card, at least
-constexpr float kPadding = 28.0F;          // inside the card
-constexpr float kColumnGap = 40.0F;        // between the columns
+constexpr float kMaxCardWidth = 1120.0F;
+constexpr float kMargin = 32.0F;     // around the card, at least
+constexpr float kPadding = 28.0F;    // inside the card
+constexpr float kColumnGap = 40.0F;  // between the columns
 constexpr float kTitleSize = 16.0F;
-constexpr float kHeadHeight = 44.0F;
+constexpr float kHeadHeight = 64.0F;
 constexpr float kGroupSize = 11.0F;
 constexpr float kGroupHeight = 30.0F;
 constexpr float kGroupGap = 10.0F;  // before every group but a column's first
-constexpr float kRowHeight = 22.0F;
+constexpr float kRowHeight = 44.0F;
 constexpr float kTextSize = 13.0F;
-constexpr float kKeysShare = 0.38F;  // of a column, for the keys
 
-using Column = std::array<std::string_view, 5>;
+using Column = std::array<std::string_view, 8>;
 using Layout = std::array<Column, 3>;
 
-// The groups in each column of the card: two columns, or three in a wide window. Both hold every
-// group.
+// Related groups stay together; narrow windows use one column.
 constexpr Layout kTwoColumns{{
     {"General", "Moving", "Zoom", "Quick Look", ""},
     {"Selecting", "Files", "Sidebar", "Tabs", ""},
     {"", "", "", "", ""},
 }};
-constexpr Layout kThreeColumns{{
-    {"General", "Zoom", "Quick Look", "", ""},
-    {"Moving", "Selecting", "Sidebar", "", ""},
-    {"Files", "Tabs", "", "", ""},
+constexpr Layout kOneColumn{{
+    {"General", "Moving", "Selecting", "Files", "Tabs", "Sidebar", "Zoom", "Quick Look"},
+    {},
+    {},
 }};
 
 std::string upper(std::string_view text) {
@@ -88,6 +86,8 @@ ShortcutsOverlay::ShortcutsOverlay(std::function<void()> redraw) : redraw_{std::
 void ShortcutsOverlay::open() {
     if (!open_) {
         open_ = true;
+        offset_ = 0.0F;
+        dragging_ = false;
         redraw_();
     }
 }
@@ -95,45 +95,135 @@ void ShortcutsOverlay::open() {
 void ShortcutsOverlay::close() {
     if (open_) {
         open_ = false;
+        dragging_ = false;
         redraw_();
     }
 }
 
-void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
-                            const theme::Palette& palette) const {
+void ShortcutsOverlay::layout(const ui::Rect& bounds) {
+    const float width = std::max(0.0F, std::min(kMaxCardWidth, bounds.width - 2.0F * kMargin));
+    narrow_ = width < 900.0F;
+    const Layout& groups = narrow_ ? kOneColumn : kTwoColumns;
+    content_ = 0.0F;
+    for (const Column& column : groups) {
+        content_ = std::max(content_, column_height(column));
+    }
+    const float height = std::max(
+        0.0F, std::min(bounds.height - 2.0F * kMargin, kHeadHeight + content_ + 2.0F * kPadding));
+    card_ = {bounds.x + (bounds.width - width) / 2.0F, bounds.y + (bounds.height - height) / 2.0F,
+             width, height};
+    viewport_ = {card_.x + kPadding, card_.y + kPadding + kHeadHeight,
+                 std::max(0.0F, width - 2.0F * kPadding - 16.0F),
+                 std::max(0.0F, height - 2.0F * kPadding - kHeadHeight)};
+    close_button_ = {card_.right() - kPadding - 32.0F, card_.y + 18.0F, 32.0F, 32.0F};
+    track_ = {viewport_.right() + 8.0F, viewport_.y, 8.0F, viewport_.height};
+    max_scroll_ = std::max(0.0F, content_ - viewport_.height);
+    offset_ = std::clamp(offset_, 0.0F, max_scroll_);
+}
+
+ui::Rect ShortcutsOverlay::thumb() const {
+    const float height =
+        content_ > 0.0F
+            ? std::min(track_.height, std::max(28.0F, track_.height * viewport_.height / content_))
+            : track_.height;
+    const float y = max_scroll_ > 0.0F ? offset_ / max_scroll_ * (track_.height - height) : 0.0F;
+    return {track_.x, track_.y + y, track_.width, height};
+}
+
+void ShortcutsOverlay::scroll_to(float offset) {
+    offset_ = std::clamp(offset, 0.0F, max_scroll_);
+    redraw_();
+}
+
+void ShortcutsOverlay::pointer(const ui::PointerEvent& event) {
     if (!open_) {
         return;
     }
-    renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
-    const bool wide = bounds.width - (2.0F * kMargin) >= kWideCardWidth;
-    const Layout& layout = wide ? kThreeColumns : kTwoColumns;
-    const std::size_t columns = wide ? 3 : 2;
-    const float width =
-        std::min(wide ? kWideCardWidth : kMaxCardWidth, bounds.width - (2.0F * kMargin));
-    float content = 0.0F;
-    for (const Column& column : layout) {
-        content = std::max(content, column_height(column));
+    if (event.kind == ui::PointerEvent::Kind::release) {
+        dragging_ = false;
     }
-    const float height =
-        std::min(bounds.height - (2.0F * kMargin), kHeadHeight + content + (2.0F * kPadding));
-    const ui::Rect card{bounds.x + ((bounds.width - width) / 2.0F),
-                        bounds.y + ((bounds.height - height) / 2.0F), width, height};
+    if (event.kind == ui::PointerEvent::Kind::scroll) {
+        scroll_to(offset_ + (event.wheel_y != 0.0F ? event.wheel_y * 48.0F : event.scroll_y));
+    } else if (event.kind == ui::PointerEvent::Kind::press &&
+               event.button == ui::PointerButton::left) {
+        if (!card_.contains(event.x, event.y) || close_button_.contains(event.x, event.y)) {
+            close();
+        } else if (max_scroll_ > 0.0F && track_.contains(event.x, event.y)) {
+            const auto handle = thumb();
+            if (handle.contains(event.x, event.y)) {
+                dragging_ = true;
+                drag_y_ = event.y - handle.y;
+            } else {
+                scroll_to(offset_ + (event.y < handle.y ? -viewport_.height : viewport_.height));
+            }
+        }
+    } else if (event.kind == ui::PointerEvent::Kind::motion && dragging_) {
+        const float travel = track_.height - thumb().height;
+        if (travel > 0.0F) {
+            scroll_to((event.y - track_.y - drag_y_) / travel * max_scroll_);
+        }
+    }
+}
+
+void ShortcutsOverlay::key(const ui::KeyEvent& event) {
+    if (!open_ || event.modifiers != ui::Modifiers{}) {
+        return;
+    }
+    switch (event.keysym) {
+        case XKB_KEY_Up:
+            scroll_to(offset_ - kRowHeight);
+            break;
+        case XKB_KEY_Down:
+            scroll_to(offset_ + kRowHeight);
+            break;
+        case XKB_KEY_Page_Up:
+            scroll_to(offset_ - viewport_.height);
+            break;
+        case XKB_KEY_Page_Down:
+            scroll_to(offset_ + viewport_.height);
+            break;
+        case XKB_KEY_Home:
+            scroll_to(0.0F);
+            break;
+        case XKB_KEY_End:
+            scroll_to(max_scroll_);
+            break;
+        default:
+            break;
+    }
+}
+
+void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
+                            const theme::Palette& palette) {
+    if (!open_) {
+        return;
+    }
+    layout(bounds);
+    renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
+    const auto& card = card_;
+    const Layout& layout = narrow_ ? kOneColumn : kTwoColumns;
+    const std::size_t columns = narrow_ ? 1 : 2;
     renderer.draw_box(card, {.fill = palette.surface_container_high,
                              .radius = ui::Corners::all(14.0F),
                              .border_width = 1.0F,
                              .border = palette.outline_variant});
     renderer.push_clip(card);
     renderer.draw_text("Keyboard shortcuts", card.x + kPadding, card.y + kPadding, kTitleSize,
+                       palette.on_surface,
+                       std::max(1.0F, close_button_.x - card.x - kPadding - 8.0F));
+    renderer.draw_text("×", close_button_.x + 9.0F, close_button_.y + 4.0F, 20.0F,
                        palette.on_surface);
+    renderer.draw_text("Scroll · ↑ ↓ · PgUp / PgDn · Home / End", card.x + kPadding,
+                       card.y + kPadding + 28.0F, 11.0F, palette.on_surface_variant,
+                       std::max(1.0F, viewport_.width));
+    renderer.push_clip(viewport_);
 
-    const float column_width =
-        (width - (2.0F * kPadding) - (kColumnGap * static_cast<float>(columns - 1))) /
-        static_cast<float>(columns);
-    const float keys_width = column_width * kKeysShare;
+    const float column_width = (viewport_.width - (kColumnGap * static_cast<float>(columns - 1))) /
+                               static_cast<float>(columns);
     for (std::size_t c = 0; c < columns; ++c) {
         const float left =
             card.x + kPadding + (static_cast<float>(c) * (column_width + kColumnGap));
-        float y = card.y + kPadding + kHeadHeight;
+        float y = viewport_.y - offset_;
         bool first = true;
         for (const std::string_view group : layout.at(c)) {
             if (group.empty()) {
@@ -151,12 +241,18 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                     continue;
                 }
                 renderer.draw_text(shortcut.keys, left, y, kTextSize, palette.primary,
-                                   keys_width - 8.0F);
-                renderer.draw_text(shortcut.action, left + keys_width, y, kTextSize,
-                                   palette.on_surface, column_width - keys_width);
+                                   std::max(1.0F, column_width));
+                renderer.draw_text(shortcut.action, left, y + 19.0F, kTextSize, palette.on_surface,
+                                   std::max(1.0F, column_width));
                 y += kRowHeight;
             }
         }
+    }
+    renderer.pop_clip();
+    if (max_scroll_ > 0.0F) {
+        renderer.draw_box(track_,
+                          {.fill = palette.outline_variant, .radius = ui::Corners::all(4.0F)});
+        renderer.draw_box(thumb(), {.fill = palette.primary, .radius = ui::Corners::all(4.0F)});
     }
     renderer.pop_clip();
 }
