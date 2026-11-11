@@ -1,9 +1,6 @@
 #include "nordend/views/shortcuts_overlay.hpp"
 
 #include <algorithm>
-#include <array>
-#include <cctype>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -14,71 +11,30 @@
 namespace nordend::views {
 namespace {
 
-constexpr float kMaxCardWidth = 1120.0F;
-constexpr float kMargin = 32.0F;     // around the card, at least
-constexpr float kPadding = 28.0F;    // inside the card
-constexpr float kColumnGap = 40.0F;  // between the columns
+constexpr float kMaxCardWidth = 960.0F;
+constexpr float kMargin = 32.0F;   // around the card, at least
+constexpr float kPadding = 28.0F;  // inside the card
 constexpr float kTitleSize = 16.0F;
 constexpr float kHeadHeight = 64.0F;
-constexpr float kGroupSize = 11.0F;
-constexpr float kGroupHeight = 30.0F;
-constexpr float kGroupGap = 10.0F;  // before every group but a column's first
-constexpr float kRowHeight = 44.0F;
+constexpr float kGroupSize = 13.0F;
+constexpr float kGroupHeight = 36.0F;
+constexpr float kGroupGap = 4.0F;  // between groups
+constexpr float kRowHeight = 26.0F;
 constexpr float kTextSize = 13.0F;
 
-using Column = std::array<std::string_view, 8>;
-using Layout = std::array<Column, 3>;
-
-// Related groups stay together; narrow windows use one column.
-constexpr Layout kTwoColumns{{
-    {"General", "Moving", "Zoom", "Quick Look", ""},
-    {"Selecting", "Files", "Sidebar", "Tabs", ""},
-    {"", "", "", "", ""},
-}};
-constexpr Layout kOneColumn{{
-    {"General", "Moving", "Selecting", "Files", "Tabs", "Sidebar", "Zoom", "Quick Look"},
-    {},
-    {},
-}};
-
-std::string upper(std::string_view text) {
-    std::string out{text};
-    std::ranges::transform(out, out.begin(),
-                           [](char c) { return static_cast<char>(std::toupper(c)); });
-    return out;
-}
-
-// The height of a column of groups.
-float column_height(const Column& groups) {
-    float height = 0.0F;
-    bool first = true;
-    for (const std::string_view group : groups) {
-        if (group.empty()) {
-            continue;
-        }
-        height += (first ? 0.0F : kGroupGap) + kGroupHeight;
-        first = false;
-        for (const Shortcut& shortcut : shortcuts()) {
-            if (shortcut.group == group && !shortcut.keys.empty()) {
-                height += kRowHeight;
-            }
-        }
-    }
-    return height;
+float rows_height(std::string_view group) {
+    return static_cast<float>(std::ranges::count_if(shortcuts(),
+                                                    [group](const Shortcut& shortcut) {
+                                                        return shortcut.group == group &&
+                                                               !shortcut.keys.empty();
+                                                    })) *
+           kRowHeight;
 }
 
 }  // namespace
 
 std::vector<std::string_view> overlay_groups() {
-    std::vector<std::string_view> groups;
-    for (const Column& column : kTwoColumns) {
-        for (const std::string_view group : column) {
-            if (!group.empty()) {
-                groups.push_back(group);
-            }
-        }
-    }
-    return groups;
+    return {"General", "Moving", "Selecting", "Files", "Tabs", "Sidebar", "Zoom", "Quick Look"};
 }
 
 ShortcutsOverlay::ShortcutsOverlay(std::function<void()> redraw) : redraw_{std::move(redraw)} {}
@@ -88,6 +44,7 @@ void ShortcutsOverlay::open() {
         open_ = true;
         offset_ = 0.0F;
         dragging_ = false;
+        keyboard_focus_ = false;
         redraw_();
     }
 }
@@ -96,20 +53,21 @@ void ShortcutsOverlay::close() {
     if (open_) {
         open_ = false;
         dragging_ = false;
+        keyboard_focus_ = false;
         redraw_();
     }
 }
 
 void ShortcutsOverlay::layout(const ui::Rect& bounds) {
+    bounds_ = bounds;
     const float width = std::max(0.0F, std::min(kMaxCardWidth, bounds.width - 2.0F * kMargin));
-    narrow_ = width < 900.0F;
-    const Layout& groups = narrow_ ? kOneColumn : kTwoColumns;
     content_ = 0.0F;
-    for (const Column& column : groups) {
-        content_ = std::max(content_, column_height(column));
+    for (const auto& group : groups_) {
+        content_ += kGroupHeight + kGroupGap + (group.expanded ? rows_height(group.name) : 0.0F);
     }
-    const float height = std::max(
-        0.0F, std::min(bounds.height - 2.0F * kMargin, kHeadHeight + content_ + 2.0F * kPadding));
+    content_ -= kGroupGap;
+    // Keep the card stable when a group opens or closes.
+    const float height = std::max(0.0F, std::min(bounds.height - 2.0F * kMargin, 720.0F));
     card_ = {bounds.x + (bounds.width - width) / 2.0F, bounds.y + (bounds.height - height) / 2.0F,
              width, height};
     viewport_ = {card_.x + kPadding, card_.y + kPadding + kHeadHeight,
@@ -119,6 +77,11 @@ void ShortcutsOverlay::layout(const ui::Rect& bounds) {
     track_ = {viewport_.right() + 8.0F, viewport_.y, 8.0F, viewport_.height};
     max_scroll_ = std::max(0.0F, content_ - viewport_.height);
     offset_ = std::clamp(offset_, 0.0F, max_scroll_);
+    float y = viewport_.y - offset_;
+    for (auto& group : groups_) {
+        group.header = {viewport_.x, y, viewport_.width, kGroupHeight};
+        y += kGroupHeight + kGroupGap + (group.expanded ? rows_height(group.name) : 0.0F);
+    }
 }
 
 ui::Rect ShortcutsOverlay::thumb() const {
@@ -132,6 +95,7 @@ ui::Rect ShortcutsOverlay::thumb() const {
 
 void ShortcutsOverlay::scroll_to(float offset) {
     offset_ = std::clamp(offset, 0.0F, max_scroll_);
+    layout(bounds_);
     redraw_();
 }
 
@@ -156,6 +120,15 @@ void ShortcutsOverlay::pointer(const ui::PointerEvent& event) {
             } else {
                 scroll_to(offset_ + (event.y < handle.y ? -viewport_.height : viewport_.height));
             }
+        } else if (viewport_.contains(event.x, event.y)) {
+            for (std::size_t i = 0; i < groups_.size(); ++i) {
+                if (groups_[i].header.contains(event.x, event.y)) {
+                    focused_group_ = i;
+                    keyboard_focus_ = false;
+                    set_expanded(!groups_[i].expanded);
+                    break;
+                }
+            }
         }
     } else if (event.kind == ui::PointerEvent::Kind::motion && dragging_) {
         const float travel = track_.height - thumb().height;
@@ -166,10 +139,34 @@ void ShortcutsOverlay::pointer(const ui::PointerEvent& event) {
 }
 
 void ShortcutsOverlay::key(const ui::KeyEvent& event) {
-    if (!open_ || event.modifiers != ui::Modifiers{}) {
+    if (!open_) {
+        return;
+    }
+    if ((event.keysym == XKB_KEY_Tab || event.keysym == XKB_KEY_ISO_Left_Tab) &&
+        (event.modifiers == ui::Modifiers{} || event.modifiers == ui::Modifiers{.shift = true})) {
+        const bool backwards = event.modifiers.shift || event.keysym == XKB_KEY_ISO_Left_Tab;
+        focused_group_ = keyboard_focus_ ? (focused_group_ + (backwards ? groups_.size() - 1 : 1)) %
+                                               groups_.size()
+                                         : (backwards ? groups_.size() - 1 : 0);
+        keyboard_focus_ = true;
+        reveal_group();
+        return;
+    }
+    if (event.modifiers != ui::Modifiers{}) {
         return;
     }
     switch (event.keysym) {
+        case XKB_KEY_Return:
+        case XKB_KEY_KP_Enter:
+        case XKB_KEY_space:
+            keyboard_focus_ = true;
+            set_expanded(!groups_[focused_group_].expanded);
+            break;
+        case XKB_KEY_Left:
+        case XKB_KEY_Right:
+            keyboard_focus_ = true;
+            set_expanded(event.keysym == XKB_KEY_Right);
+            break;
         case XKB_KEY_Up:
             scroll_to(offset_ - kRowHeight);
             break;
@@ -193,6 +190,27 @@ void ShortcutsOverlay::key(const ui::KeyEvent& event) {
     }
 }
 
+void ShortcutsOverlay::set_expanded(bool expanded) {
+    groups_[focused_group_].expanded = expanded;
+    layout(bounds_);
+    reveal_group();
+}
+
+void ShortcutsOverlay::reveal_group() {
+    if (viewport_.empty()) {
+        redraw_();
+        return;
+    }
+    const auto header = groups_[focused_group_].header;
+    if (header.y < viewport_.y) {
+        scroll_to(offset_ + header.y - viewport_.y);
+    } else if (header.bottom() > viewport_.bottom()) {
+        scroll_to(offset_ + header.bottom() - viewport_.bottom());
+    } else {
+        redraw_();
+    }
+}
+
 void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                             const theme::Palette& palette) {
     if (!open_) {
@@ -201,8 +219,6 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     layout(bounds);
     renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
     const auto& card = card_;
-    const Layout& layout = narrow_ ? kOneColumn : kTwoColumns;
-    const std::size_t columns = narrow_ ? 1 : 2;
     renderer.draw_box(card, {.fill = palette.surface_container_high,
                              .radius = ui::Corners::all(14.0F),
                              .border_width = 1.0F,
@@ -213,39 +229,39 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                        std::max(1.0F, close_button_.x - card.x - kPadding - 8.0F));
     renderer.draw_text("×", close_button_.x + 9.0F, close_button_.y + 4.0F, 20.0F,
                        palette.on_surface);
-    renderer.draw_text("Scroll · ↑ ↓ · PgUp / PgDn · Home / End", card.x + kPadding,
-                       card.y + kPadding + 28.0F, 11.0F, palette.on_surface_variant,
-                       std::max(1.0F, viewport_.width));
+    renderer.draw_text("Click a group to expand · Tab to select · Enter to toggle",
+                       card.x + kPadding, card.y + kPadding + 28.0F, 11.0F,
+                       palette.on_surface_variant, std::max(1.0F, viewport_.width));
     renderer.push_clip(viewport_);
 
-    const float column_width = (viewport_.width - (kColumnGap * static_cast<float>(columns - 1))) /
-                               static_cast<float>(columns);
-    for (std::size_t c = 0; c < columns; ++c) {
-        const float left =
-            card.x + kPadding + (static_cast<float>(c) * (column_width + kColumnGap));
-        float y = viewport_.y - offset_;
-        bool first = true;
-        for (const std::string_view group : layout.at(c)) {
-            if (group.empty()) {
+    const float keys_width = std::min(240.0F, viewport_.width * 0.38F);
+    for (std::size_t i = 0; i < groups_.size(); ++i) {
+        const auto& group = groups_[i];
+        const auto& header = group.header;
+        const bool focused = keyboard_focus_ && focused_group_ == i;
+        renderer.draw_box(header, {.fill = palette.surface_container_high,
+                                   .radius = ui::Corners::all(4.0F),
+                                   .border_width = focused ? 1.0F : 0.0F,
+                                   .border = palette.primary});
+        renderer.fill_rect({header.x, header.bottom() - 1.0F, header.width, 1.0F},
+                           palette.outline_variant);
+        renderer.draw_text(group.expanded ? "▾" : "▸", header.x + 4.0F, header.y + 9.0F, kGroupSize,
+                           palette.primary);
+        renderer.draw_text(group.name, header.x + 24.0F, header.y + 9.0F, kGroupSize,
+                           palette.on_surface);
+        if (!group.expanded) {
+            continue;
+        }
+        float y = header.bottom();
+        for (const Shortcut& shortcut : shortcuts()) {
+            if (shortcut.group != group.name || shortcut.keys.empty()) {
                 continue;
             }
-            y += first ? 0.0F : kGroupGap;
-            first = false;
-            renderer.fill_rect({left, y, column_width, 1.0F / renderer.scale()},
-                               palette.outline_variant);
-            renderer.draw_text(upper(group), left, y + 10.0F, kGroupSize,
-                               palette.on_surface_variant);
-            y += kGroupHeight;
-            for (const Shortcut& shortcut : shortcuts()) {
-                if (shortcut.group != group || shortcut.keys.empty()) {
-                    continue;
-                }
-                renderer.draw_text(shortcut.keys, left, y, kTextSize, palette.primary,
-                                   std::max(1.0F, column_width));
-                renderer.draw_text(shortcut.action, left, y + 19.0F, kTextSize, palette.on_surface,
-                                   std::max(1.0F, column_width));
-                y += kRowHeight;
-            }
+            renderer.draw_text(shortcut.keys, header.x + 24.0F, y + 5.0F, kTextSize,
+                               palette.primary, std::max(1.0F, keys_width - 36.0F));
+            renderer.draw_text(shortcut.action, header.x + keys_width, y + 5.0F, kTextSize,
+                               palette.on_surface, std::max(1.0F, viewport_.width - keys_width));
+            y += kRowHeight;
         }
     }
     renderer.pop_clip();
