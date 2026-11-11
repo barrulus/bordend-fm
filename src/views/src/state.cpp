@@ -222,6 +222,7 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     read.flag("view.show_hidden", s.show_hidden);
     read.word("view.list_size", kListSizeWords, s.list_size);
     read.flag("sidebar.visible", s.sidebar_visible);
+    read.word("sidebar.list_size", kListSizeWords, s.sidebar_size);
     read.number("sidebar.width", kSidebarMin, kSidebarMax, s.sidebar_width);
     read.flag("info.visible", s.info_visible);
     read.number("info.width", kInfoMin, kInfoMax, s.info_width);
@@ -409,6 +410,7 @@ std::string format_state(const State& s) {
                "grid_icon = {}\n"
                "\n"
                "[sidebar]\n"
+               "list_size = \"{}\"\n"
                "visible = {}\n"
                "width = {}\n"
                "\n"
@@ -432,10 +434,11 @@ std::string format_state(const State& s) {
                "[palette]\n"
                "recent = [{}]\n",
                word_of(kModes, s.mode), flag(s.show_hidden), word_of(kListSizeWords, s.list_size),
-               s.grid_icon, flag(s.sidebar_visible), s.sidebar_width, flag(s.info_visible),
-               s.info_width, flag(s.info_expanded), word_of(kSortKeys, s.sort_key),
-               flag(s.sort_descending), s.details_widths[0], s.details_widths[1],
-               s.details_widths[2], s.window_width, s.window_height, flag(s.maximized), recent) +
+               s.grid_icon, word_of(kListSizeWords, s.sidebar_size), flag(s.sidebar_visible),
+               s.sidebar_width, flag(s.info_visible), s.info_width, flag(s.info_expanded),
+               word_of(kSortKeys, s.sort_key), flag(s.sort_descending), s.details_widths[0],
+               s.details_widths[1], s.details_widths[2], s.window_width, s.window_height,
+               flag(s.maximized), recent) +
            tabs;
 }
 

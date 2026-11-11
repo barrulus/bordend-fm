@@ -1938,6 +1938,7 @@ State Browser::state() const {
     state.show_hidden = show_hidden_;
     state.sidebar_visible = sidebar_visible_;
     state.sidebar_width = sidebar_.width();
+    state.sidebar_size = sidebar_.list_size();
     state.info_visible = info_visible_;
     state.info_width = info_pane_.width();
     state.info_expanded = info_pane_.expanded();
@@ -2034,6 +2035,7 @@ void Browser::apply(const State& state) {
     }
     set_sidebar_visible(state.sidebar_visible);
     sidebar_.set_width(state.sidebar_width);
+    sidebar_.set_list_size(state.sidebar_size);
     set_info_visible(state.info_visible);
     info_pane_.set_width(state.info_width);
     info_pane_.set_expanded(state.info_expanded);

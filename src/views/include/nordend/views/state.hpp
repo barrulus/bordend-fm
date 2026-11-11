@@ -27,6 +27,7 @@ struct State {
     bool show_hidden{false};
     bool sidebar_visible{true};
     float sidebar_width{200.0F};
+    std::size_t sidebar_size{1};  // independent sidebar zoom, usual by default
     bool info_visible{true};
     float info_width{300.0F};
     bool info_expanded{false};

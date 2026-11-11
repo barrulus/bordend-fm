@@ -262,3 +262,38 @@ TEST_CASE("pointer shapes: sent when they change, the resize arrow first") {
     CHECK(f.sent.size() == left + 1);
     CHECK(f.sent.back() == CursorShape::standard);
 }
+
+TEST_CASE("pointer shapes: sidebar zoom scales eject targets and routes wheel independently") {
+    Fixture f;
+    if (!f.gl) {
+        return;
+    }
+    f.browser.open(f.photos);
+    REQUIRE(f.settle());
+    auto& sidebar = f.browser.sidebar();
+    const auto before = sidebar.eject_icon(f.photos);
+    REQUIRE(before);
+    const auto view_size = f.browser.details().list_size();
+    nordend::ui::PointerEvent wheel;
+    wheel.kind = nordend::ui::PointerEvent::Kind::scroll;
+    wheel.x = before->x + before->width / 2.0F;
+    wheel.y = before->y + before->height / 2.0F;
+    wheel.modifiers.ctrl = true;
+    wheel.wheel_y = -1.0F;
+    f.browser.pointer(wheel, Browser::Clock::now());
+    f.draw();
+    CHECK(sidebar.list_size() == 2);
+    CHECK(f.browser.details().list_size() == view_size);
+    const auto after = sidebar.eject_icon(f.photos);
+    REQUIRE(after);
+    CHECK(after->width > before->width);
+    const float x = after->x + after->width / 2.0F;
+    const float y = after->y + after->height / 2.0F;
+    REQUIRE(sidebar.place_under(x, y));
+    CHECK(sidebar.place_under(x, y)->path == f.photos);
+    CHECK(sidebar.clickable_at(x, y));
+    const auto saved = f.browser.state();
+    sidebar.set_list_size(0);
+    f.browser.apply(saved);
+    CHECK(sidebar.list_size() == 2);
+}

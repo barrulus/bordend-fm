@@ -15,6 +15,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/scroller.hpp"
 #include "nordend/ui/seat.hpp"
+#include "nordend/views/list_size.hpp"
 
 namespace nordend::views {
 
@@ -80,6 +81,11 @@ public:
     // Clamped to [kMinWidth, kMaxWidth].
     void set_width(float width);
 
+    // Independent of the main view; scales rows, labels and icons together.
+    void set_list_size(std::size_t index);
+
+    [[nodiscard]] std::size_t list_size() const noexcept { return list_size_; }
+
     // The pointer at (x, y) is the sidebar's: over it or its edge, or dragging the edge.
     [[nodiscard]] bool claims(float x, float y) const;
 
@@ -121,6 +127,10 @@ private:
         fs::Place::Section section{fs::Place::Section::places};
     };
 
+    [[nodiscard]] float scale() const noexcept {
+        return kListSizes[list_size_].row / kListSizes[kUsualListSize].row;
+    }
+
     void layout();
     [[nodiscard]] std::optional<std::size_t> place_at(float x, float y) const;
     // The place whose eject icon is at a point (a little wider than the icon).
@@ -147,6 +157,8 @@ private:
     bool bookmark_drop_{false};
     bool focused_{false};
     float width_{kWidth};
+    std::size_t list_size_{kUsualListSize};
+    float zoom_wheel_{0.0F};
     ui::Rect bounds_{};  // as last drawn; empty when not drawn
     ui::Scroller scroller_;
 

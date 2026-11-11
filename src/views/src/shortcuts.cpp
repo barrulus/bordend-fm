@@ -371,7 +371,7 @@ constexpr std::array kShortcuts{
     Shortcut{.group = "Zoom",
              .keys = "Ctrl++  Ctrl+−",
              .action = "Larger, smaller (wheel too)",
-             .scope = scope::kViews,
+             .scope = scope::kViews | scope::kSidebar,
              .modifiers = kCtrl,
              .any_shift = true,
              .keysyms = {XKB_KEY_plus, XKB_KEY_equal, XKB_KEY_KP_Add, XKB_KEY_minus,
@@ -379,7 +379,7 @@ constexpr std::array kShortcuts{
     Shortcut{.group = "Zoom",
              .keys = "Ctrl+0",
              .action = "Usual size",
-             .scope = scope::kViews,
+             .scope = scope::kViews | scope::kSidebar,
              .modifiers = kCtrl,
              .keysyms = {XKB_KEY_0, XKB_KEY_KP_0}},
 

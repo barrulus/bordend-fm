@@ -97,19 +97,19 @@ void Sidebar::set_places(std::vector<fs::Place> places) {
 
 void Sidebar::layout() {
     rows_.clear();
-    float y = kTop;
+    float y = (kTop * scale());
     for (std::size_t i = 0; i < places_.size(); ++i) {
         if (i == 0 || places_[i].section != places_[i - 1].section) {
             if (i > 0) {
-                y += kSectionGap;
+                y += (kSectionGap * scale());
             }
             rows_.push_back({.top = y, .place = std::nullopt, .section = places_[i].section});
-            y += kSectionHeight;
+            y += (kSectionHeight * scale());
         }
         rows_.push_back({.top = y, .place = i, .section = places_[i].section});
-        y += kRowHeight;
+        y += (kRowHeight * scale());
     }
-    content_height_ = y + kTop;
+    content_height_ = y + (kTop * scale());
 }
 
 float Sidebar::width_in(float window_width) const {
@@ -123,6 +123,22 @@ void Sidebar::set_width(float width) {
         width_ = width;
         redraw_();
     }
+}
+
+void Sidebar::set_list_size(std::size_t index) {
+    index = std::min(index, kListSizes.size() - 1);
+    if (index == list_size_) {
+        return;
+    }
+    const float old_scale = scale();
+    const float offset = scroller_.offset();
+    list_size_ = index;
+    layout();
+    scroller_.set_extent(content_height_, bounds_.height);
+    scroller_.jump_to(offset * scale() / old_scale);
+    eject_rects_.clear();
+    update_hover();
+    redraw_();
 }
 
 void Sidebar::set_focused(bool focused) {
@@ -153,11 +169,12 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     eject_rects_.assign(places_.size(), ui::Rect{});
     for (const Row& row : rows_) {
         const float y = bounds.y + row.top - offset;
-        if (y + kRowHeight < bounds.y || y > bounds.bottom()) {
+        if (y + (kRowHeight * scale()) < bounds.y || y > bounds.bottom()) {
             continue;
         }
         if (!row.place) {
-            renderer.draw_text(title_of(row.section), bounds.x + kIconLeft, y + 14.0F, kSectionSize,
+            renderer.draw_text(title_of(row.section), bounds.x + (kIconLeft * scale()),
+                               y + 14.0F * scale(), (kSectionSize * scale()),
                                palette.on_surface_variant);
             continue;
         }
@@ -184,33 +201,36 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
         if (fill) {
             const bool drop = drop_target_ == place.path;
-            renderer.draw_box(
-                {bounds.x + kInset, y + 1.0F, bounds.width - (2.0F * kInset), kRowHeight - 2.0F},
-                {.fill = *fill,
-                 .radius = ui::Corners::all(8.0F),
-                 .border_width = drop ? 1.5F : 0.0F,
-                 .border = palette.primary});
+            renderer.draw_box({bounds.x + kInset, y + 1.0F, bounds.width - (2.0F * kInset),
+                               (kRowHeight * scale()) - 2.0F},
+                              {.fill = *fill,
+                               .radius = ui::Corners::all(8.0F),
+                               .border_width = drop ? 1.5F : 0.0F,
+                               .border = palette.primary});
         }
-        icons.draw(renderer, place.icon, bounds.x + kIconLeft,
-                   y + ((kRowHeight - kIconSize) / 2.0F), kIconSize, icon);
-        float text_room = bounds.width - kTextLeft - kInset - 4.0F;
+        icons.draw(renderer, place.icon, bounds.x + (kIconLeft * scale()),
+                   y + (((kRowHeight * scale()) - (kIconSize * scale())) / 2.0F),
+                   (kIconSize * scale()), icon);
+        float text_room = bounds.width - (kTextLeft * scale()) - kInset - 4.0F;
         if (place.disk.ejectable) {
-            const ui::Rect eject{bounds.right() - kInset - 6.0F - kEjectSize,
-                                 y + ((kRowHeight - kEjectSize) / 2.0F), kEjectSize, kEjectSize};
+            const ui::Rect eject{bounds.right() - kInset - 6.0F - (kEjectSize * scale()),
+                                 y + (((kRowHeight * scale()) - (kEjectSize * scale())) / 2.0F),
+                                 (kEjectSize * scale()), (kEjectSize * scale())};
             eject_rects_[i] = eject;
-            icons.draw(renderer, "player-eject", eject.x, eject.y, kEjectSize,
+            icons.draw(renderer, "player-eject", eject.x, eject.y, (kEjectSize * scale()),
                        hovered_eject_ == i ? icon : text.with_alpha(0.7F));
-            text_room -= kEjectSize + 8.0F;
+            text_room -= (kEjectSize * scale()) + 8.0F;
         }
-        renderer.draw_text(place.label, bounds.x + kTextLeft, y + 8.0F, kTextSize, text,
-                           std::max(1.0F, text_room), ui::Ellipsis::middle);
+        renderer.draw_text(place.label, bounds.x + (kTextLeft * scale()), y + 8.0F * scale(),
+                           (kTextSize * scale()), text, std::max(1.0F, text_room),
+                           ui::Ellipsis::middle);
     }
     if (bookmark_drop_) {
         // After the last bookmark, or where the first one would go: after the places.
-        float line = kTop;
+        float line = (kTop * scale());
         for (const Row& row : rows_) {
             if (row.place && row.section != fs::Place::Section::devices) {
-                line = row.top + kRowHeight;
+                line = row.top + (kRowHeight * scale());
             }
         }
         renderer.draw_box({bounds.x + kInset, bounds.y + line - offset - 1.0F,
@@ -244,12 +264,12 @@ bool Sidebar::in_bookmark_zone(float x, float y) const {
         return false;
     }
     const float content_y = y - bounds_.y + scroller_.offset();
-    if (content_y >= content_height_ - kTop) {
+    if (content_y >= content_height_ - (kTop * scale())) {
         return true;  // below the last place
     }
-    return std::ranges::any_of(rows_, [content_y](const Row& row) {
+    return std::ranges::any_of(rows_, [this, content_y](const Row& row) {
         return !row.place && row.section == fs::Place::Section::bookmarks && content_y >= row.top &&
-               content_y < row.top + kSectionHeight;
+               content_y < row.top + (kSectionHeight * scale());
     });
 }
 
@@ -278,7 +298,7 @@ std::optional<std::size_t> Sidebar::place_at(float x, float y) const {
     }
     const float content_y = y - bounds_.y + scroller_.offset();
     for (const Row& row : rows_) {
-        if (row.place && content_y >= row.top && content_y < row.top + kRowHeight) {
+        if (row.place && content_y >= row.top && content_y < row.top + (kRowHeight * scale())) {
             return row.place;
         }
     }
@@ -359,6 +379,19 @@ void Sidebar::pointer(const ui::PointerEvent& event, Clock::time_point now) {
             update_hover();
             break;
         case Kind::scroll:
+            if (event.modifiers.ctrl && event.wheel_y != 0.0F) {
+                zoom_wheel_ += event.wheel_y;
+                while (zoom_wheel_ <= -1.0F) {
+                    zoom_wheel_ += 1.0F;
+                    set_list_size(list_size_ + 1);
+                }
+                while (zoom_wheel_ >= 1.0F) {
+                    zoom_wheel_ -= 1.0F;
+                    set_list_size(list_size_ > 0 ? list_size_ - 1 : 0);
+                }
+                break;
+            }
+            zoom_wheel_ = 0.0F;
             if (event.wheel_y != 0.0F) {
                 scroller_.wheel(event.wheel_y, now);
             } else if (event.scroll_y != 0.0F) {
@@ -414,6 +447,25 @@ void Sidebar::pointer(const ui::PointerEvent& event, Clock::time_point now) {
 }
 
 bool Sidebar::key(const ui::KeyEvent& event) {
+    if (event.modifiers.ctrl && !event.modifiers.alt && !event.modifiers.super) {
+        switch (event.keysym) {
+            case XKB_KEY_plus:
+            case XKB_KEY_equal:
+            case XKB_KEY_KP_Add:
+                set_list_size(list_size_ + 1);
+                return true;
+            case XKB_KEY_minus:
+            case XKB_KEY_KP_Subtract:
+                set_list_size(list_size_ > 0 ? list_size_ - 1 : 0);
+                return true;
+            case XKB_KEY_0:
+            case XKB_KEY_KP_0:
+                set_list_size(kUsualListSize);
+                return true;
+            default:
+                break;
+        }
+    }
     if (places_.empty()) {
         if (event.keysym == XKB_KEY_Escape) {
             set_focused(false);
@@ -451,9 +503,11 @@ bool Sidebar::key(const ui::KeyEvent& event) {
         if (row.place == cursor_) {
             const float from = scroller_.destination();
             if (row.top < from) {
-                scroller_.glide_to(row.top - kTop, Clock::now());
-            } else if (row.top + kRowHeight > from + bounds_.height) {
-                scroller_.glide_to(row.top + kRowHeight + kTop - bounds_.height, Clock::now());
+                scroller_.glide_to(row.top - (kTop * scale()), Clock::now());
+            } else if (row.top + (kRowHeight * scale()) > from + bounds_.height) {
+                scroller_.glide_to(
+                    row.top + (kRowHeight * scale()) + (kTop * scale()) - bounds_.height,
+                    Clock::now());
             }
             break;
         }
