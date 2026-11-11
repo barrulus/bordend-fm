@@ -24,6 +24,7 @@ add_executable(nordend-tests
     svg_test.cpp
     svg_features_test.cpp
     svg_layers_test.cpp
+    svg_effects_test.cpp
     helpers_test.cpp
     sandbox_test.cpp
     tiff_test.cpp

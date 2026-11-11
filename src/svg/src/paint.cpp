@@ -2,6 +2,36 @@
 
 namespace nordend::svg {
 Colour Paint::sample(double x, double y) const {
+    if (texture) {
+        Point p = inverse.apply({x, y});
+        if (!std::isfinite(p.x) || !std::isfinite(p.y))
+            return {};
+        const int w = static_cast<int>(texture->width), h = static_cast<int>(texture->height);
+        if (repeat) {
+            p.x -= std::floor(p.x / w) * w;
+            p.y -= std::floor(p.y / h) * h;
+        } else if (p.x < 0 || p.y < 0 || p.x >= w || p.y >= h)
+            return {};
+        p.x -= .5;
+        p.y -= .5;
+        const int ix = static_cast<int>(std::floor(p.x)), iy = static_cast<int>(std::floor(p.y));
+        const double fx = p.x - ix, fy = p.y - iy;
+        Colour out{};
+        for (int dy = 0; dy < 2; ++dy)
+            for (int dx = 0; dx < 2; ++dx) {
+                const int px = repeat ? ((ix + dx) % w + w) % w : std::clamp(ix + dx, 0, w - 1);
+                const int py = repeat ? ((iy + dy) % h + h) % h : std::clamp(iy + dy, 0, h - 1);
+                const auto at =
+                    (static_cast<std::size_t>(py) * texture->width + static_cast<unsigned>(px)) * 4;
+                const double factor = (dx ? fx : 1 - fx) * (dy ? fy : 1 - fy) / 255;
+                for (std::size_t c = 0; c < 4; ++c)
+                    out[c] += texture->rgba[at + c] * factor;
+            }
+        if (out[3] > 0)
+            for (std::size_t c = 0; c < 3; ++c)
+                out[c] /= out[3];
+        return out;
+    }
     if (stops.empty()) {
         return solid;
     }
@@ -92,15 +122,28 @@ void composite(Canvas& canvas, int x, int y, int count, unsigned coverage, const
         return;
     }
     const double cov = opacity * coverage / 255;
+    if (!paint.texture && paint.stops.empty()) {
+        const double alpha = paint.solid[3] * cov, inverse = 1 - alpha;
+        const Colour source{paint.solid[0] * alpha * 255, paint.solid[1] * alpha * 255,
+                            paint.solid[2] * alpha * 255, alpha * 255};
+        for (; x < end; ++x) {
+            const auto at =
+                (static_cast<std::size_t>(y) * canvas.image.width + static_cast<unsigned>(x)) * 4;
+            for (std::size_t c = 0; c < 4; ++c)
+                canvas.image.rgba[at + c] =
+                    channel(source[c] + canvas.image.rgba[at + c] * inverse);
+        }
+        return;
+    }
     for (; x < end; ++x) {
-        auto color = paint.sample(x + .5, y + .5);
+        auto color = paint.sample(x + canvas.x + .5, y + canvas.y + .5);
         double alpha = color[3] * cov;
         const auto at =
             (static_cast<std::size_t>(y) * canvas.image.width + static_cast<unsigned>(x)) * 4;
         for (std::size_t c = 0; c < 4; ++c) {
             double source = c == 3 ? alpha : color[c] * alpha;
-            canvas.image.rgba[at + c] = static_cast<std::uint8_t>(std::clamp(
-                std::lround(source * 255 + canvas.image.rgba[at + c] * (1 - alpha)), 0L, 255L));
+            canvas.image.rgba[at + c] =
+                channel(source * 255 + canvas.image.rgba[at + c] * (1 - alpha));
         }
     }
 }

@@ -225,3 +225,103 @@ TEST_CASE("svg stage1: the stroker tolerates curves below its internal precision
     REQUIRE(image.width == 16);
     REQUIRE(image.height == 16);
 }
+
+TEST_CASE("svg: subpixel horizontal strokes preserve their coverage") {
+    const auto image = svg("<path d='M0 .5H64' fill='none' stroke='red' stroke-width='.5'/>");
+    CHECK(pixel(image, 32, 0) == std::array<unsigned, 4>{255, 0, 0, 128});
+    CHECK(pixel(image, 32, 1)[3] == 0);
+}
+
+TEST_CASE("svg: coincident cubic controls retain the endpoint tangent") {
+    const auto image =
+        svg("<path d='M16 16C16 16 16 48 48 48' fill='none' "
+            "stroke='red' stroke-width='8'/>");
+    // The first nonzero derivative points down. The butt cap is horizontal,
+    // with no paint above y=16, and the left side starts at x=12.
+    CHECK(pixel(image, 13, 16)[3] == 255);
+    CHECK(pixel(image, 18, 15)[3] == 0);
+}
+
+TEST_CASE("svg: zero length segments do not remove thin stroke caps") {
+    for (const std::string cap : {"round", "square"}) {
+        const auto attrs =
+            "' fill='none' stroke='red' stroke-width='.5' stroke-linecap='" + cap + "'/>";
+        const auto simple = svg("<path d='M10.25 10.5H20.75" + attrs);
+        const auto repeated = svg("<path d='M10.25 10.5h0H20.75h0" + attrs);
+        CHECK(simple.rgba == repeated.rgba);
+        const auto mixed = svg("<path d='M10.5 10.5h0 M30 30H40" + attrs);
+        CHECK(pixel(mixed, 10, 10)[3] > 0);
+        const auto move = svg("<path d='M10.5 10.5 M30 30H40" + attrs);
+        CHECK(pixel(move, 10, 10)[3] == 0);
+    }
+}
+
+TEST_CASE("svg: wide strokes cover the inside of tight curves") {
+    const auto image =
+        svg("<circle cx='32' cy='32' r='2' fill='none' "
+            "stroke='red' stroke-width='12'/>");
+    CHECK(pixel(image, 32, 32)[3] == 255);
+    CHECK(pixel(image, 31, 31)[3] == 255);
+    CHECK(pixel(image, 40, 32)[3] == 0);
+}
+
+TEST_CASE("svg: thin strokes paint their coverage union once") {
+    const auto attrs = "' fill='none' stroke='red' stroke-opacity='.5'/>";
+    const auto line = svg("<path d='M2 8.5H14" + std::string(attrs));
+    for (const std::string path :
+         {"M2 8.5H8.5H14", "M2 8.5H14M2 8.5H14", "M2 8.5H14H2", "M2 8.5H10M6 8.5H14"}) {
+        CAPTURE(path);
+        CHECK(svg("<path d='" + path + attrs).rgba == line.rgba);
+    }
+    CHECK(pixel(line, 8, 8)[3] == 128);
+    const auto opaque = svg("<path d='M2 8.5H8.5H14' fill='none' stroke='red'/>");
+    CHECK(pixel(opaque, 8, 8)[3] == 255);
+    const auto crossing =
+        svg("<path d='M2 8.5H14M8.5 2V14' fill='none' stroke='red' "
+            "stroke-opacity='.5'/>");
+    CHECK(pixel(crossing, 8, 8)[3] == 128);
+    const auto vertical = svg("<path d='M8.5 2V14" + std::string(attrs));
+    CHECK(svg("<path d='M8.5 2V8.5V14M8.5 14V2" + std::string(attrs)).rgba == vertical.rgba);
+    const std::string gradient =
+        "<defs><linearGradient id='g' gradientUnits='userSpaceOnUse' x2='64'>"
+        "<stop stop-color='red'/><stop offset='1' stop-color='blue'/></linearGradient></defs>";
+    const auto gradient_style = "' fill='none' stroke='url(#g)' stroke-opacity='.5'/>";
+    CHECK(svg(gradient + "<path d='M2 8.5H14" + gradient_style).rgba ==
+          svg(gradient + "<path d='M2 8.5H8.5H14M2 8.5H14" + gradient_style).rgba);
+}
+
+TEST_CASE("svg: dense overlapping strokes have bounded expansion") {
+    std::string path;
+    for (int i = 0; i < 8192; ++i)
+        path += "M" + std::to_string(10.0 + i / 16384.0) + " 10.5H11";
+    CHECK(svg("<path d='" + path + "' fill='none' stroke='red'/>").empty());
+}
+
+TEST_CASE("svg: a thin diagonal stroke covers its normal-width rectangle") {
+    const auto stroke = svg("<path d='M2.5 2.5L13.5 13.5' fill='none' stroke='red'/>");
+    // Width 1 gives normal offsets (+/-1/sqrt(8), -/+1/sqrt(8)).
+    const auto rectangle =
+        svg("<path d='M2.146446609 2.853553391L2.853553391 2.146446609"
+            "L13.853553391 13.146446609L13.146446609 13.853553391Z' "
+            "fill='red'/>");
+    // Fixed-point cap coordinates can shift samples between the two end
+    // pixels. The area and the interior normal-width footprint must agree.
+    auto area = [](const auto& image) {
+        unsigned total = 0;
+        for (std::size_t i = 3; i < image.rgba.size(); i += 4)
+            total += image.rgba[i];
+        return total;
+    };
+    CHECK(area(stroke) == area(rectangle));
+    CHECK(pixel(stroke, 8, 9) == pixel(rectangle, 8, 9));
+}
+
+TEST_CASE("svg: an unused move does not collapse a cubic stroke endpoint") {
+    const std::string curve = "M20.908 48.421C31.005 27.126 27.797 15.946 27.797 15.946";
+    const std::string style = "' fill='none' stroke='red' stroke-width='3'/>";
+    const auto alone = svg("<path d='" + curve + style);
+    const auto with_move = svg("<path d='M1 1 " + curve + style);
+    CHECK(pixel(alone, 28, 16)[3] == 255);
+    CHECK(pixel(with_move, 28, 16)[3] == 255);
+    CHECK(alone.rgba == with_move.rgba);
+}

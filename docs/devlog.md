@@ -4,6 +4,224 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-11 — SVG stage 3: FreeType strokes and native-size acceptance
+
+**Decision:** the author explicitly approved ending the pixel-parity effort after repeated
+iterations failed to clear the original acceptance gates. `docs/svg-renderer-validation.md`
+records the replacement policy: semantic/geometric tests, a fixed native-size review,
+performance, full builds/tests and sanitizer fuzzing. The 98% corpus and all-filtered pixel
+pass requirements are retired; the captured references and numeric comparator are unchanged
+and remain diagnostic. This supersedes the acceptance conclusions in the earlier entries.
+
+**Implementation:** FreeType now expands every stroke width. Removed the experimental custom
+stroker and separate thin-stroke coverage/union path, reducing `raster.cpp` from 1106 to 699
+lines. The existing bounded coverage sampler remains. Anchored FreeType's local coordinates
+to whole scaled units so an unused move cannot shift its fixed-point rounding phase; move-only
+subpaths do not paint caps. The bounds regression now exercises the backend's output-point
+limit instead of the removed rectangle-union work limit. Geometric tests for split/retraced
+strokes, gradients, caps, tight curves and cubic endpoint coverage remain and pass. A diagonal
+stroke now has the same sampled area and interior footprint as its normal-width rectangle.
+
+**Features preserved:** colour matrices, Gaussian blur, patterns, embedded PNG/JPEG through
+Wuffs, offscreen effects and once-per-file unsupported-filter warnings remain intact. No new
+dependency, copied third-party implementation, resvg invocation or reference recapture.
+
+**Native review:** `tests/data/svg-review.tsv` fixes 34 entries before rendering, including all
+20 filtered sources and 14 named examples of complex strokes, prior problems, embedded images,
+patterns and aspect-ratio sizing. `scripts/svg_review.py` verifies source hashes and requires
+every selected capture; missing captures fail rather than shrinking the set. All 102 pairs
+were inspected at native 16/48/128 on light and dark backgrounds and accepted under the new
+policy. No missing components, broken masks, displaced images, missing patterns or unusable
+silhouettes were found. Named deviations: Desktop's 16 px wave detail is denser/darker;
+Firefox/LibreOffice have fine edge and stroke-weight changes; Virustotal retains public rounding
+versus reference ceiling. Source-dark symbolic artwork has low contrast on dark backgrounds in
+both versions. Exact reference sampling differences remain unresolved, not reclassified as
+pixel passes. Local review, per-entry assessment and renderer/selection hashes are preserved in
+`build-svg-handoff/freetype-reset/review/`.
+
+**Validation:** 52 focused cases / 13,286 assertions pass. Full release passes 476 cases /
+140,085 assertions (two skipped; 9.42 s); ASan/UBSan passes 475 cases / 140,070 assertions
+(three skipped; 14.06 s), using the approved copy-only fixture adaptations. Only the previously
+documented unrelated isolate zero-length `memcpy` diagnostics remain. `nix build --no-link`
+passes. Final-source clang/libFuzzer ASan/UBSan completes 12,389,269 inputs in 1801 seconds,
+peak RSS 644 MiB, exit 0, with no finding, timeout or OOM. The fuzzer has exited and source/binary
+hashes remain unchanged. Uncontended parse/render totals are 0.603146, 0.854762 and 2.088420 s
+at 16/48/128, respectively 0.977, 0.951 and 1.137 times the preserved baseline; all performance
+gates pass. No stale sources or missing timings, and final per-image metrics match the frozen
+native review exactly.
+
+**Diagnostic corpus:** 4346/4710 (92.27%), 4441/4710 (94.29%) and 4525/4710 (96.07%) at
+16/48/128. The filtered subset has 18/20 numeric passes at 16 and 20/20 at 48/128; Shotwell
+(max 33, four pixels over 24) and SimpleScan (max 34, three pixels) fail at 16. All twenty
+were accepted in the native-size review. Every one of the 818 numeric failures remains listed
+in the ignored `remaining-failures.tsv/json`, including the 1/11/7 dimension-contract differences.
+No claim of pixel parity is made. Detailed validation, filtered results, assessments and source/
+binary hashes are under `build-svg-handoff/freetype-reset/`.
+
+**Disposition:** stage 3 is complete under the explicitly approved revised acceptance policy.
+The fixed native review, semantic tests, performance, full builds/tests and final-source fuzzing
+all pass. The original user brief and local third-party material remain outside the commit.
+
+---
+
+## 2026-11-10 — SVG stroke invariants repaired; small-size compatibility still open
+
+**Scope:** implemented the two concrete defects from the compatibility audit without changing
+references, thresholds or public sizing. Existing stage-3 work is preserved. No resvg invocation,
+third-party implementation or new dependency was used.
+
+**Thin strokes:** each flattened segment contributes rectangular coverage fragments within its
+neighbouring pixels. Those fragments form a union before the paint is composited once. This
+retains the existing centreline approximation while eliminating split seams and repeated opacity
+for overlapping/retraced geometry. The pixel-aligned split-line probe now has alpha 255 instead
+of 192; overlapping and crossing half-opacity subpaths have alpha 128 instead of 192. Tests
+also cover reverse traversal, partial overlap, vertical strokes and gradient paint. Fragment
+storage is capped at 262,144; sorting and union work consume the shared 64M work budget. An
+original dense-overlap test verifies clean failure rather than unbounded union work.
+
+**Wide strokes:** the apparent full-path assembly failure was actually a spurious inflection
+root near a cubic endpoint with coincident controls. Changing the bounds origin changed floating
+point cancellation, introducing a tiny subdivision whose normals collapsed. For a cubic with
+an endpoint derivative of zero, the curvature numerator has constant sign on the open interval;
+the implementation now uses that fact instead of solving the unstable polynomial. Coefficients
+also use differences of consecutive controls. An original regression previously changed alpha
+from 255 to 48 merely by adding an unused move; both versions now agree throughout the image.
+Musescore's audited missing pixel is restored, and its 128 px reference maximum falls from 255
+to 23. All six aliases now pass at that size.
+
+**Compatibility:** final results are 4420/4710 (93.84%) at 16 px, 4515/4710 (95.86%) at
+48 px and 4630/4710 (98.30%) at 128 px. Against the preceding validated renderer, gains/losses
+are 1/50, 4/0 and 11/0. The 50 regressions represent 17 distinct artworks; manual comparison
+confirms changed small-icon outline coverage. These are not silently accepted exceptions.
+An isolated thin-only build reproduces all 51 changed 16 px results pixel-for-pixel. At 48 px,
+two gains come from each fix; all eleven 128 px gains require the cubic correction.
+All 17 filtered Adwaita icons still pass; hicolor Shotwell retains its 16 px failure (max 33,
+four pixels over 24). The other filtered comparisons pass. Desktop's broad 16 px mismatch
+remains unresolved (max 109, 55/256 pixels over 24). The hairline model remains an approximation:
+an independent analytic circle-area diagnostic does not show uniformly improved error. Fixing
+the demonstrated compositing invariants does not establish exact curved-stroke coverage.
+An exact polygon/pixel intersection probe isolates a further pre-existing limitation: a width-1
+45-degree butt stroke with length `11*sqrt(2)` should cover 15.5563 pixel areas, but both the old
+and new hairline models cover 11.0039 (29.26% short). Its major-axis integration omits the
+normal-width geometry. This is a concrete next correctness target, not evidence that it explains
+all current corpus failures or that correcting it will improve reference agreement.
+
+**Validation:** 51 focused cases / 13,280 assertions pass. Full release ctest passes
+(475 cases / 140,079 assertions, two skipped; 9.44 s), as does ASan/UBSan ctest
+(474 cases / 140,064 assertions, three skipped; 14.20 s), using the approved copy-only fixture
+adaptations. Only the previously documented unrelated isolate zero-length `memcpy` diagnostics
+appear. `nix build --no-link` passes. The final-source clang/libFuzzer ASan/UBSan run completes
+9,891,075 inputs in 1801 seconds, peak RSS 684 MiB, exit 0, with no finding, timeout or OOM.
+The fuzzer has exited and the recorded source/binary hashes still match. Final corpus timing
+with builds and fuzzing stopped is 0.554203, 0.805818 and 2.065165 s at 16/48/128, respectively
+0.898, 0.896 and 1.124 times the preserved baseline; all performance gates pass. No stale
+sources or missing timings, and every final per-image metric matches the candidate report.
+
+**Disposition:** stage 3 remains incomplete and uncommitted. Reaching the unchanged 98% gate
+requires 196 more passes at 16 px and 101 at 48 px, plus the filtered Shotwell comparison.
+Ignored evidence lives in `build-svg-handoff/stroke-union/`, including source/binary hashes,
+geometric probes, before/after reviews, all remaining failures and explicit filtered results.
+The next unresolved problem is the small-size stroke/coverage model, not the two repaired
+invariants. No claim is made that the remaining reference target is impossible.
+
+---
+
+## 2026-11-10 — SVG compatibility audit: distinguish correctness from raster agreement
+
+**Scope:** bounded capture/invariant audit after the author asked whether the reference process
+makes the target impossible. No production renderer, numeric threshold or reference changed;
+resvg was not invoked. Diagnostic scripts and local derivative images remain ignored under
+`build-svg-handoff/compatibility-audit/`, with the full conclusion in `report.txt`.
+
+**Capture:** all 14,130 PNG chunk CRCs validate, all 4,710 SVG source hashes match, all recorded
+capture statuses are zero, and identical source hashes have byte-identical PNGs at each size.
+There are 1,911 distinct artworks. The log has 57 missing-font warnings across 15 corpus sources;
+text is out of scope, and these warnings do not establish the cause of non-text differences.
+Every dimension failure was verified directly from source dimensions as public rounding versus
+reference ceiling: 1/11/7 failures at 16/48/128. These are unavoidable under the current contract,
+but too few by themselves to prevent 98%.
+
+**Demonstrated renderer defects:** original pixel-aligned width-1 line probes show that adding
+a redundant split at a half-pixel lowers alpha from 255 to 192; retracing a translucent stroke
+within the same path raises alpha from 128 to 192. Thin segments are individually composited
+instead of forming one painted stroke union. A separate Musescore probe reproduces alpha 0
+at (95,83) for the full stroke, versus 255 for the relevant isolated cubic. All 256 geometric
+sample points within that pixel lie within the cubic's stroke radius, independently supporting
+coverage. The exact full-path assembly mechanism remains to diagnose. These are not grounds
+for relaxing a reference tolerance. The latter artwork has six failing aliases at 128 px.
+
+**Reference sensitivity:** area-averaging existing 48 px captures down to 16 passes the same
+pixel gate against the existing 16 px captures for 3299/4708 dimension-compatible images
+(70.07%); using 128 px captures gives 1664/4696 (35.43%). This is an auxiliary diagnostic,
+not an acceptance score: rasterization, filtering and compositing need not commute with
+reduction. It explains why increasing geometric precision is not a reliable compatibility fix.
+Desktop's reference 128-to-16 reduction differs from its captured 16 px image by maximum 104
+and 86/256 pixels over 24. Its broad low-resolution mismatch remains unresolved.
+
+**Disposition:** `classified-failures.json` retains all 531 failing size/source pairs: 19 proven
+dimension conflicts, six aliases with demonstrated wide-stroke coverage loss, and 506 unresolved
+differences. No unresolved row is declared harmless or blamed on the oracle. At 48 px, eight
+distinct failing artworks account for 122 failed source paths; aliases remain in the gate.
+`semantic-review.html` and `scale-review.html` show the probes and representative comparisons.
+
+**Decision:** impossibility is not established, nor is an exact pixel oracle a correctness proof.
+The next bounded task is to fix stroke union/coverage semantics and full-path coverage loss with
+geometric invariants, then rerun the unchanged corpus. Avoid further tolerance sweeps first.
+Any later acceptance change should be explicit and tied to named, reviewed exceptions;
+there is not yet evidence for a responsibly calibrated replacement numeric threshold.
+Stage 3 remains incomplete. The prior production-source validation is unchanged.
+
+---
+
+## 2026-11-10 — SVG stage 3: stroke corrections and validation, acceptance still open
+
+**Implemented:** integrated the preserved original stroke-expansion prototype with independent
+corrections. Cubics with coincident endpoint controls use the first nonzero tangent rather than
+the chord. Thin strokes retain caps when zero-length segments precede or follow a real segment;
+mixed degenerate subpaths retain round/square dots, and move-only contours do not paint. Folded
+inner offsets use bounded swept-segment unions: a radius-2 circle with a width-12 stroke no
+longer has a transparent centre. Three original regression cases cover these behaviours.
+FreeType remains responsible for outline decomposition; its unused stroker allocation is gone.
+Existing stage-3 filter, pattern, embedded-image and warning work is preserved.
+
+**Independent assessment:** the preserved prototype baseline reproduced exactly. Correcting the
+endpoint tangent reduces Firefox's 16 px mismatch from 19 pixels over 24 to four. Tighter offset
+fitting and more precise round caps did not consistently improve agreement with the captured
+approximations, so those experiments were not retained. Thin-path coverage accumulation and
+paint/endpoint quantization did not resolve the desktop icon's broad translucent-stroke colour
+mismatch; its exact mechanism remains unresolved. The inner-offset defect was found through
+an original geometric test, not reference tuning. No thresholds, corpus entries or sizing
+contracts changed, and resvg was not run.
+
+**Final corpus:** 4469/4710 (94.88%) at 16 px, 4511/4710 (95.77%) at 48 px, and
+4619/4710 (98.07%) at 128 px. Parse+render totals are 0.528890, 0.760394 and 1.912007 s,
+respectively 0.857, 0.846 and 1.041 times the captured baseline. No stale sources or missing
+timings. Against the retained repository rasterizer, gains/losses are 35/1, 38/6 and 135/43.
+The candidate therefore still has regressions, including small gaps at tight bends. All 17
+filtered Adwaita icons pass at every size. Hicolor Shotwell still fails at 16 px (maximum 33,
+four pixels over 24); all 20 filtered icons pass at 48 and 128 px.
+
+**Validation:** focused SVG tests pass (46 cases / 13,240 assertions). Full release ctest passes
+(472 cases / 140,056 assertions, two skipped; 9.94 s), as does ASan/UBSan ctest (471 cases /
+140,041 assertions, three skipped; 14.23 s), using the approved copy-only package fixture
+adaptations and Mesa software driver. The only sanitizer diagnostics in the full suite are the
+previously documented unrelated null zero-length memcpy calls in isolate helper/protocol code.
+`nix build --no-link` passes. The final-source clang/libFuzzer ASan/UBSan run completes
+10,833,628 inputs in 1801 seconds, peak RSS 570 MiB, exit 0, with no finding, timeout or OOM.
+The fuzzer has exited. Final timing used an immutable executable after builds and fuzzing ended.
+
+**Still open:** stage 3 is not complete and is not committed. Reaching 98% needs 147 additional
+passes at 16 px and 105 at 48 px, plus Shotwell's filtered-subset failure. Local ignored evidence
+is in `build-svg-handoff/agent-evidence/`: `final-corpus.json`, complete per-source
+`remaining-failures.tsv`, `filtered-icons.json`, `regressions.json`, `review.html`, source/binary
+hashes and validation logs. Failure lists distinguish sizing mismatches (1/11/7 by size) from
+unresolved rendering mechanisms; they do not claim every exact cause has been established.
+The review includes improvements and regressions at native size and enlarged. Original
+handoff evidence and before-source snapshots are preserved. No third-party icons or renders
+are staged or committed.
+
+---
+
 ## 2026-11-10 — SVG renderer stage 2: groups, clipping and masks
 
 **Done:** group/use opacity composites an offscreen layer once; opaque groups render directly.

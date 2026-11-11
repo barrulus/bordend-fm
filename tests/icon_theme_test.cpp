@@ -110,3 +110,19 @@ TEST_CASE("icon theme: PNG icons retain their pixels") {
     CHECK(image.width == 2);
     CHECK(image.height == 1);
 }
+
+TEST_CASE("icon theme: unsupported SVG filters report fallback without losing the image") {
+    TempDir dir;
+    const auto file =
+        dir.write("unsupported.svg",
+                  "<svg width='8' height='8'><defs><filter id='f'><feOffset/></filter></defs><rect "
+                  "width='8' height='8' fill='red' filter='url(#f)'/></svg>");
+    bool unsupported = false;
+    const auto image = IconTheme::render(file, 8, &unsupported);
+    REQUIRE_FALSE(image.empty());
+    CHECK(unsupported);
+    CHECK(image.rgba[0] == 255);
+    CHECK(image.rgba[3] == 255);
+    CHECK_FALSE(IconTheme::render(dir.write("supported.svg", kSvg), 8, &unsupported).empty());
+    CHECK_FALSE(unsupported);
+}

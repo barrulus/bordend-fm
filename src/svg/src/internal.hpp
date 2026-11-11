@@ -7,12 +7,15 @@
 #include <ft2build.h>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <span>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "nordend/svg/svg.hpp"
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
 #include FT_STROKER_H
@@ -23,6 +26,10 @@ inline constexpr std::size_t kMaxBytes = 8U * 1024U * 1024U, kMaxNodes = 100000,
                              kMaxSegments = 1000000, kMaxExpansion = 10000;
 
 struct Failure {};
+
+inline std::uint8_t channel(double value) {
+    return static_cast<std::uint8_t>(std::clamp(value, 0.0, 255.0) + .5);
+}
 
 inline void require(bool value) {
     if (!value) {
@@ -87,7 +94,7 @@ struct Style {
     std::string_view fill = "black", stroke = "none", fill_rule = "nonzero", clip_rule = "nonzero",
                      linecap = "butt", linejoin = "miter";
     std::string_view dasharray = "none", stroke_width = "1", dashoffset = "0";
-    std::string_view clip, mask, filter, mask_type = "luminance";
+    std::string_view clip, mask, filter, mask_type = "luminance", filter_space = "linearRGB";
     Colour color{0, 0, 0, 1}, stop_color{0, 0, 0, 1};
     double opacity = 1, fill_opacity = 1, stroke_opacity = 1, miterlimit = 4, stop_opacity = 1;
     bool display = true, visible = true;
@@ -130,6 +137,8 @@ struct Stop {
 
 struct Paint {
     Colour solid{};
+    std::shared_ptr<picture::Image> texture;
+    bool repeat = false;
     std::vector<Stop> stops;
     Matrix inverse;
     Point start{}, end{};
@@ -141,6 +150,7 @@ struct Paint {
 
 struct Canvas {
     picture::Image image;
+    int x{}, y{};
     std::size_t work{};
     bool exhausted{};
 };
@@ -167,11 +177,18 @@ struct Document {
     std::vector<Style> styles;
     std::vector<std::optional<Path>> paths;
     std::size_t segments{}, expansions{}, style_work{}, paint_work{}, visited{}, live_layers{},
-        layer_bytes{};
+        layer_bytes{}, texture_bytes{};
+    RenderOptions options;
+    bool warned{};
     std::set<std::size_t> active;
     double width{}, height{};
     explicit Document(std::string_view input);
+    void warning();
     Paint paint(std::string_view value, Colour current, const Box& box, const Matrix& matrix,
                 double w, double h);
 };
+
+std::shared_ptr<picture::Image> embedded(Document& doc, std::string_view href);
+void colour_matrix(const Canvas& input, Canvas& output, const Node& node, bool linear);
+void blur(const Canvas& input, Canvas& output, Canvas& scratch, double sx, double sy, bool linear);
 }  // namespace nordend::svg

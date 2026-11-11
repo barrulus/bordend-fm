@@ -175,6 +175,8 @@ Style style(const Node& node, const Style& parent, const Sheet& sheet, std::size
             out.mask = inherit ? parent.mask : value;
         } else if (key == "filter") {
             out.filter = inherit ? parent.filter : value;
+        } else if (key == "color-interpolation-filters") {
+            out.filter_space = inherit ? parent.filter_space : value;
         } else if (key == "mask-type") {
             out.mask_type = inherit ? parent.mask_type : value;
         } else if (key == "stop-color") {

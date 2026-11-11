@@ -42,9 +42,17 @@ int main(int argc, char** argv) {
         }
         const auto data = read(argv[1]);
         const auto start = std::chrono::steady_clock::now();
-        const auto image = nordend::svg::render(data, pixels);
+        bool unsupported_filter = false;
+        const auto image = nordend::svg::render(
+            data, pixels,
+            {[](void* context, std::string_view) { *static_cast<bool*>(context) = true; },
+             &unsupported_filter});
         const double seconds =
             std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        if (unsupported_filter)
+            std::cerr << "unsupported filter primitive: rendered unfiltered\n";
+        if (image.empty())
+            std::cerr << "SVG parse or render limit failure\n";
         nordend::test::SvgDifference difference;
         if (!image.empty()) {
             const auto png = nordend::picture::encode_png(image);
