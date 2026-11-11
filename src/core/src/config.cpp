@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "config_template.hpp"
 #include "nordend/core/file.hpp"
 
 namespace nordend::core {
@@ -230,6 +231,18 @@ std::filesystem::path default_config_path() {
         return std::filesystem::path{home} / ".config" / "nordend" / "config.toml";
     }
     return {};
+}
+
+std::error_code create_default_config(const std::filesystem::path& path) {
+    if (path.empty()) {
+        return {};
+    }
+    std::error_code error;
+    const auto status = std::filesystem::symlink_status(path, error);
+    if (status.type() != std::filesystem::file_type::not_found) {
+        return error;
+    }
+    return write_file_atomically(path, kDefaultConfig, false);
 }
 
 ConfigResult parse_config(std::string_view text, std::string_view source) {

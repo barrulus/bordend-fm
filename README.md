@@ -261,6 +261,14 @@ Use `theme = "system"` for desktop settings or `theme = "builtin"` for the origi
 Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
 startup. SVG theme icons are rendered in-process using FreeType.
 
+On first normal launch, Nordend creates a complete `config.toml` at
+`$XDG_CONFIG_HOME/nordend/config.toml` (or `~/.config/nordend/config.toml`). It includes
+all settings and a commented list of default shortcuts. Existing files, including
+symlinks, are never replaced. `--check-config`, `--test-scene`, and explicit `--config`
+paths do not create a config. If creation fails, Nordend reports it and continues.
+The same reference is installed at `share/nordend/config.example.toml` under the
+installation prefix; upgrades update that reference without changing your settings.
+
 Keyboard commands can be overridden in the same file and reload live:
 
 ```toml

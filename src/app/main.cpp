@@ -312,8 +312,12 @@ int main(int argc, char** argv) {
             return 2;
         }
     }
+    std::error_code config_creation_error;
     if (config_path.empty()) {
         config_path = core::default_config_path();
+        if (!check_only && !test_scene) {
+            config_creation_error = core::create_default_config(config_path);
+        }
     }
     core::ConfigResult config_result = core::load_config(config_path);
     for (const auto& problem : views::configure_shortcuts(config_result.config.keybindings)) {
@@ -325,6 +329,10 @@ int main(int argc, char** argv) {
 
     log::init_from_env();
     log::info("nordend {}", NORDEND_VERSION);
+    if (config_creation_error) {
+        log::warn("config: cannot create {}: {}; continuing with defaults", config_path.string(),
+                  config_creation_error.message());
+    }
     if (config_result.from_file) {
         log::info("config: {}", config_path.string());
     } else {

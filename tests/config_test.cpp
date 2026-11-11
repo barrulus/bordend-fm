@@ -8,6 +8,7 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/core/file.hpp"
 #include "temp_dir.hpp"
 
 using nordend::core::Config;
@@ -267,4 +268,44 @@ TEST_CASE("config: keybindings accept overrides and disabling") {
     CHECK(result.config.keybindings.at("trash").empty());
     CHECK_FALSE(parse("[keybindings]\nrename = 12\n").problems.empty());
     CHECK_FALSE(parse("keybindings = true\n").problems.empty());
+}
+
+TEST_CASE("first run creates the full reference and preserves existing configs") {
+    TempDir dir;
+    const auto path = dir.path / "nested" / "nordend" / "config.toml";
+    REQUIRE_FALSE(nordend::core::create_default_config(path));
+    const auto created = nordend::core::read_text_file(path);
+    CHECK(created.text == nordend::core::read_text_file(NORDEND_EXAMPLE_CONFIG).text);
+    const auto loaded = load_config(path);
+    CHECK(loaded.from_file);
+    CHECK(loaded.problems.empty());
+    check_defaults(loaded.config);
+
+    for (const std::string content : {"", "[font]\nfamily = 'Custom'\n", "invalid ["}) {
+        REQUIRE_FALSE(nordend::core::write_file_atomically(path, content));
+        REQUIRE_FALSE(nordend::core::create_default_config(path));
+        CHECK(nordend::core::read_text_file(path).text == content);
+        // Exercise the publication race: another process has already created the target.
+        REQUIRE_FALSE(nordend::core::write_file_atomically(path, "replacement", false));
+        CHECK(nordend::core::read_text_file(path).text == content);
+    }
+    CHECK_FALSE(nordend::core::create_default_config({}));
+}
+
+TEST_CASE("first run preserves symlinks and reports creation failures") {
+    TempDir dir;
+    const auto target = dir.write("settings.toml", "# user settings\n");
+    const auto link = dir.path / "config.toml";
+    std::filesystem::create_symlink(target, link);
+    CHECK_FALSE(nordend::core::create_default_config(link));
+    CHECK(std::filesystem::is_symlink(link));
+    CHECK(nordend::core::read_text_file(target).text == "# user settings\n");
+
+    const auto missing = dir.path / "missing.toml";
+    const auto dangling = dir.path / "dangling.toml";
+    std::filesystem::create_symlink(missing, dangling);
+    CHECK_FALSE(nordend::core::create_default_config(dangling));
+    CHECK(std::filesystem::is_symlink(dangling));
+    CHECK_FALSE(std::filesystem::exists(missing));
+    CHECK(nordend::core::create_default_config(target / "config.toml"));
 }

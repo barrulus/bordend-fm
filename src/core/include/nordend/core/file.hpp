@@ -18,8 +18,10 @@ struct TextFile {
 
 // Replaces path's content with text, all or nothing: written to a hidden file beside it, synced,
 // then renamed over it. Its folder is made when missing. Returns what failed.
+// With replace=false, publish without overwriting any existing entry (including symlinks);
+// an existing entry is success.
 [[nodiscard]] std::error_code write_file_atomically(const std::filesystem::path& path,
-                                                    std::string_view text);
+                                                    std::string_view text, bool replace = true);
 
 // The file:// URI of an absolute path, escaped exactly as GLib's g_filename_to_uri does (other
 // programs compare these strings: thumbnails by their MD5, bookmarks, the clipboard).
