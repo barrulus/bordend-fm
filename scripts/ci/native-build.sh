@@ -34,9 +34,9 @@ case "$format" in
         DEBFULLNAME='Nordend fork maintainers' DEBEMAIL='barrulus@users.noreply.github.com' \
             dch --newversion "$version+git$snapshot-1" --distribution unstable 'Build exact CI source snapshot.'
         mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+        cp -a debian /output/recipe
         DEB_BUILD_OPTIONS="parallel=${CI_JOBS:-2}" dpkg-buildpackage -b -us -uc
         cp /build/*.deb /build/*.changes /build/*.buildinfo /output/packages/
-        cp -a debian /output/recipe
         ;;
     rpm)
         mkdir -p /build/rpm/{SOURCES,SPECS}
@@ -44,12 +44,14 @@ case "$format" in
         tar -xzf /input/source.tar.gz -C /build
         cp /build/nordend-checkout/packaging/rpm/nordend.spec /build/rpm/SPECS/
         spec=/build/rpm/SPECS/nordend.spec
+        sed -i -e "s/^Version:.*/Version:        $version/" \
+            -e "s/^Release:.*/Release:        1.$snapshot%{?dist}/" "$spec"
         # Use the same recipe for dependency resolution and building.
-        mapfile -t dependencies < <(rpmspec -q --buildrequires "$spec")
+        rpmspec -q --buildrequires "$spec" > /build/dependencies
+        mapfile -t dependencies < /build/dependencies
         dnf install -y "${dependencies[@]}"
         rpmbuild -ba --define '_topdir /build/rpm' \
-            --define "_smp_mflags -j${CI_JOBS:-2}" \
-            --define "snapshot_release 1.$snapshot" "$spec"
+            --define "_smp_mflags -j${CI_JOBS:-2}" "$spec"
         find /build/rpm/RPMS /build/rpm/SRPMS -name '*.rpm' -exec cp '{}' /output/packages/ \;
         cp "$spec" /output/nordend.spec
         ;;

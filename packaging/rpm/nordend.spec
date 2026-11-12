@@ -1,6 +1,6 @@
 Name:           nordend
 Version:        0.5.0
-Release:        %{?snapshot_release}%{!?snapshot_release:1}%{?dist}
+Release:        1%{?dist}
 Summary:        Native Wayland file manager
 License:        MIT AND (MIT OR Apache-2.0)
 URL:            https://github.com/barrulus/bordend-fm
@@ -38,7 +38,7 @@ custom actions and an optional desktop file chooser portal.
 %autosetup -n nordend-checkout
 
 %build
-%cmake -G Ninja -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
+%cmake -G Ninja -DBUILD_SHARED_LIBS=OFF -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
 %cmake_build --target nordend nordend-preview
 
 %install

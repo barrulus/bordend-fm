@@ -194,7 +194,9 @@ void Seat::on_capabilities(void* data, wl_seat* seat, std::uint32_t capabilities
             .axis_value120 = &Seat::on_pointer_axis_value120,
             // Not sent below their version (v9, v11); we bind v8.
             .axis_relative_direction = nullptr,
+#ifdef WL_POINTER_WARP_SINCE_VERSION
             .warp = nullptr,
+#endif
         };
         self.pointer_.reset(wl_seat_get_pointer(seat));
         wl_pointer_add_listener(self.pointer_.get(), &kPointerListener, &self);
