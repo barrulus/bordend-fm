@@ -4,6 +4,31 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-12 — Grid thumbnails up to 512 px (PR #2 by barrulus)
+
+The first outside contribution merged: barrulus's #2 adds 384 and 512 px to the grid's sizes
+(Ctrl+plus, Ctrl+wheel, kept per tab in `state.toml`). The thumbnails come from the
+freedesktop cache size that covers the cell in physical pixels: x-large (512) at scale 1,
+xx-large (1024) at scale 2, so they stay sharp. In a window too narrow for the cell, the cell
+fits the width and the hit areas follow what is drawn. Folders and files without a thumbnail
+stay at most 256 px, centred (asked in review: at 512 they looked clumsy). The grid's sizes are
+defined once (`grid_size.hpp`), as the lists' are.
+
+**Reviewed:** built and tested on its own and merged with current `main` (with
+`_GLIBCXX_ASSERTIONS` and the other hardening): Release, ASan/UBSan and TSan green, clang-tidy
+clean, snapshots at 256 and 512 px, scale 1 and 2. Asked in review and done: icons capped, the
+README paragraph left out, `value_or` after `REQUIRE` and the test's positions from the layout
+constants (seven of them now public in `GridView`).
+
+**Measured** (10 OM-1 ORFs, `nordend-thumb --make`, mean): large (256) 49 ms and 84 KiB,
+x-large (512) 57 ms and 303 KiB, xx-large (1024) 92 ms and 1078 KiB a thumbnail. The larger
+caches cost disk only when chosen: about 1 MB a photo at 512 px on a HiDPI screen.
+
+**Tested by the author** (2026-11-12, the first version, from the PR's build): sizes to 512,
+sharp thumbnails, narrow window, hit areas, Ctrl+I, the size kept after a restart.
+
+---
+
 ## 2026-11-12 — The standard library checks its indexes (quality step, Q2)
 
 `NORDEND_HARDENING` now also defines `_GLIBCXX_ASSERTIONS`, in every build: an index past the
