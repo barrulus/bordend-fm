@@ -1,0 +1,13 @@
+#!/usr/bin/make -f
+%:
+	dh $@ --buildsystem=cmake+ninja
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
+
+# Build only the installed application and helper, not developer benchmarks.
+override_dh_auto_build:
+	cmake --build obj-* --parallel $(or $(filter-out parallel=,$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))),2) --target nordend nordend-preview
+
+override_dh_auto_test:
+	# The complete unit suite runs in the separate Nix CI job.

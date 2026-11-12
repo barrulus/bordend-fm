@@ -59,3 +59,41 @@ jobs:
             ${{ runner.temp }}/void-package.log
           retention-days: 14
           if-no-files-found: error
+
+  native:
+    name: ${{ matrix.distro }} package and clean install
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - format: deb
+            distro: Debian 13
+          - format: rpm
+            distro: Fedora 44
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build exact checkout and test in a fresh distro container
+        env:
+          CI_JOBS: 2
+          PACKAGE_FORMAT: ${{ matrix.format }}
+          PACKAGE_OUTPUT: ${{ runner.temp }}/native-package
+        run: |
+          set -o pipefail
+          bash scripts/ci/native.sh "$PACKAGE_FORMAT" "$PACKAGE_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/native-package.log"
+      - name: Save packages, recipes, source identity and build log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ matrix.format }}-x86_64-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/native-package/packages/
+            ${{ runner.temp }}/native-package/recipe/
+            ${{ runner.temp }}/native-package/nordend.spec
+            ${{ runner.temp }}/native-package/input/
+            ${{ runner.temp }}/native-package.log
+          retention-days: 14
+          if-no-files-found: error

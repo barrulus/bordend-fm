@@ -465,11 +465,12 @@ existing configuration.
 ### CI and package checks
 
 Pull requests run the full Nix test suite, NixOS module checks, installed-package checks,
-and a Void XBPS build/install check against the PR checkout. Both installed packages must
+and native Void XBPS, Debian 13 DEB and Fedora 44 RPM build/install checks against the PR
+checkout. All installed packages must
 render a window under headless Weston. Initial coverage is x86_64 Linux/glibc; ARM, musl,
 and other distribution packages are not yet covered by this workflow.
 
-See [CI and packaging](docs/ci-packaging.md) for local commands, downloadable Void snapshots,
+See [CI and packaging](docs/ci-packaging.md) for local commands, downloadable Void/DEB/RPM snapshots,
 required branch checks, pinned build tools, and the distinction between development snapshots
 and release packages.
 

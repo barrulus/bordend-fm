@@ -2,6 +2,7 @@
 set -euo pipefail
 prefix=${1:?usage: check-installed.sh PREFIX VERSION}
 version=${2:?usage: check-installed.sh PREFIX VERSION}
+test -s "${3:-$prefix/share/licenses/nordend/LICENSE}"
 app="$prefix/bin/nordend"
 "$app" --version | grep -Fx "nordend $version"
 "$app" --help | grep -F -- '--pick'
@@ -12,7 +13,6 @@ for file in \
     share/applications/nordend.desktop \
     share/icons/hicolor/scalable/apps/nordend.svg \
     share/nordend/noctalia/nordend \
-    share/licenses/nordend/LICENSE \
     share/xdg-desktop-portal/portals/nordend.portal \
     share/dbus-1/services/org.freedesktop.impl.portal.desktop.nordend.service; do
     test -s "$prefix/$file"
