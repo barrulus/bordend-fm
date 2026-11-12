@@ -37,6 +37,7 @@
 #include "nordend/fs/places.hpp"
 #include "nordend/isolate/helpers.hpp"
 #include "nordend/platform/about.hpp"
+#include "nordend/platform/action_handoff.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/file_picker_portal.hpp"
 #include "nordend/platform/opener.hpp"
@@ -372,8 +373,14 @@ int main(int argc, char** argv) {
         }
     }
     core::ConfigResult config_result = core::load_config(config_path);
-    for (const auto& problem : views::configure_shortcuts(config_result.config.keybindings)) {
+    auto configured_actions = config_result.config.actions;
+    const auto binding_problems =
+        views::configure_shortcuts(config_result.config.keybindings, configured_actions);
+    for (const auto& problem : binding_problems) {
         config_result.problems.push_back(problem);
+    }
+    if (!binding_problems.empty()) {
+        configured_actions.clear();
     }
     if (check_only) {
         return check_config(config_path, config_result);
@@ -518,9 +525,18 @@ int main(int argc, char** argv) {
         // config.toml is followed while Nordend runs: the double click changes at once, the
         // fonts at the next start (`config` keeps the ones in use).
         std::unique_ptr<core::FileWatcher> config_watcher;
-        const auto apply_config = [&](const core::Config& fresh) {
-            for (const auto& problem : views::configure_shortcuts(fresh.keybindings)) {
-                log::warn("config: {}; keeping previous keybindings", problem);
+        const auto apply_config = [&](const core::ConfigResult& loaded) {
+            const auto& fresh = loaded.config;
+            if (loaded.actions_valid) {
+                const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
+                for (const auto& problem : problems) {
+                    log::warn("config: {}; keeping previous actions and keybindings", problem);
+                }
+                if (problems.empty() && columns) {
+                    columns->set_actions(fresh.actions);
+                }
+            } else {
+                log::warn("config: keeping previous actions and keybindings");
             }
             window.request_redraw();
             icons.set_theme(fresh.icon.theme);
@@ -553,6 +569,7 @@ int main(int argc, char** argv) {
         };
         // Files open with their default applications (ROADMAP 6.1).
         std::unique_ptr<platform::Opener> opener;
+        std::unique_ptr<platform::ActionHandoff> action_handoff;
         if (!test_scene) {
             const std::shared_ptr<const fs::MimeDatabase> mime = fs::MimeDatabase::load();
             columns = std::make_unique<views::Browser>(
@@ -568,6 +585,23 @@ int main(int argc, char** argv) {
                 [&](std::function<void(std::string)> done) {
                     activation.request(display.seat(), seat.input_serial(), window.surface(),
                                        std::move(done));
+                });
+            columns->set_actions(configured_actions);
+            action_handoff = std::make_unique<platform::ActionHandoff>(
+                loop, platform::Environment::from_environment(),
+                [&](std::string message, bool error) {
+                    columns->show_message(std::move(message), error);
+                },
+                [&](std::function<void(std::string)> done) {
+                    activation.request(display.seat(), seat.input_serial(), window.surface(),
+                                       std::move(done));
+                });
+            columns->set_action_handoff(
+                [&](const core::Action& action, const core::ActionContext& context) {
+                    action_handoff->run(action, context);
+                },
+                [&](const core::Action& action, const core::ActionContext& context) {
+                    return action_handoff->available(action, context);
                 });
             columns->set_open_handler(
                 [&](const std::filesystem::path& directory, std::vector<fs::Entry> files) {
@@ -661,6 +695,7 @@ int main(int argc, char** argv) {
             if (picker_request) {
                 columns->set_open_with_handlers({}, {});
                 columns->set_terminal_handler({});
+                columns->set_action_handoff({}, {});
                 picker = std::make_unique<views::FilePicker>(
                     *columns, *picker_request, mime, [&] { window.request_redraw(); },
                     [&](core::PickerResult result) {
@@ -898,7 +933,7 @@ int main(int argc, char** argv) {
                     return;
                 }
                 log::info("config: reloaded {}", config_path.string());
-                apply_config(fresh.config);
+                apply_config(fresh);
             });
         }
         const int code = loop.run();

@@ -1,4 +1,6 @@
 add_executable(nordend-tests
+    actions_test.cpp
+    archives_test.cpp
     main.cpp
     about_test.cpp
     app_icon_test.cpp

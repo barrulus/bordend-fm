@@ -74,6 +74,41 @@ README's [What's next](../README.md#whats-next).
   scroll with the wheel, touchpad, scrollbar, arrow keys, Page Up/Down, or Home/End.
   Escape, the close button, or a click outside dismisses it.
 
+## Actions and external programs
+
+- **Copy Location** in the context menu and command palette copies selected absolute paths as
+  text, one per line. On empty space it copies the current folder. Bind `copy_location` in
+  `[keybindings]` to give it a shortcut.
+- **Extract Here / Extract To…** automatically choose an installed archive program: File Roller
+  when available, otherwise unzip for ZIP, gzip for single gzip files, tar for tar archives,
+  and 7zz/7z as a fallback. Compressed tar is unpacked fully, including when only 7z is installed.
+  Each selected archive must have a suitable backend; missing backends dim the menu action.
+- **CLI extraction** uses a fresh folder named after the archive; a single compressed file becomes
+  its decompressed filename. Existing output is kept and the new output gets a numbered name.
+  Extract To… opens Nordend's folder picker. Sources are always retained. Nordend reports success
+  only after the tool finishes; failures retain partial output in an `(extracting)` folder.
+  Keep Nordend open until extraction finishes: closing it may leave that folder unfinished.
+  CLI backends do not prompt for passwords; use Open With for encrypted archives. File Roller,
+  when selected, owns its own destination, password and conflict dialogs.
+- **Custom actions** in `[[actions]]` tables in `config.toml`: a label, argument array, optional
+  MIME filters, and a selection rule. They appear under Actions on right click and directly in
+  Ctrl+K; bind `"action:<id>"` to a shortcut, also shown in F1. All three views use the same
+  action definitions and matching rules. Mixed selections must match in full.
+- **Literal arguments:** `{file}`, `{files}` and `{directory}` pass paths as arguments, including
+  spaces and punctuation. Shell scripts are explicit, with paths passed as positional arguments.
+  A menu or palette captures its target paths, so changing selection or tabs cannot redirect it.
+- **Live configuration:** action definitions and shortcuts update together; invalid definitions
+  keep the previous set on reload. `nordend --check-config` validates both. The bundled archive
+  actions can be overridden or disabled by ID; Copy Location remains a native operation.
+- **Handoff:** external programs run independently, and the status bar reports launch and exit
+  failures. Directory watching picks up their output. External changes do not enter Nordend's
+  undo history. General-purpose supervised jobs, multi-step macros and an action editor are
+  future work; the built-in CLI extraction workflow tracks its own completion.
+
+See [the example configuration](config.example.toml) for image editing, upscaling, shell scripts
+and archive overrides. External actions are unavailable in file-picker mode; actions are not
+available in the trash.
+
 ## Photos first
 
 - **Thumbnails in a fraction of a second.** Nordend reads the previews that cameras already store

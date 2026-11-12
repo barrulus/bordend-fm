@@ -456,3 +456,60 @@ TEST_CASE("shortcuts: groups start collapsed and toggle by mouse and keyboard") 
     CHECK(overlay.max_scroll() == 0.0F);
     CHECK(overlay.is_open());
 }
+
+TEST_CASE("actions: shortcuts validate registry IDs and preserve bindings after errors") {
+    ResetBindings reset;
+    using nordend::views::action_for;
+    using nordend::views::configure_shortcuts;
+    const std::vector<nordend::core::Action> actions{
+        {.id = "inspect", .label = "Inspect", .argv = {"inspector", "{file}"}, .mime = {}}};
+    REQUIRE(configure_shortcuts(
+                {{"action:inspect", "Ctrl+Alt+i"}, {"copy_location", "Ctrl+Shift+c"}}, actions)
+                .empty());
+    CHECK(action_for(chord(XKB_KEY_i, {.ctrl = true, .alt = true})) == "inspect");
+    CHECK(action_for(chord(XKB_KEY_C, {.ctrl = true, .shift = true})) == "copy_location");
+    CHECK(nordend::views::keys_for_action("inspect") == "Ctrl+Alt+i");
+    for (const auto& binding :
+         std::vector<std::pair<std::string, std::string>>{{"action:missing", "F3"},
+                                                          {"action:inspect", "Ctrl+c"},
+                                                          {"action:inspect", "Up"},
+                                                          {"action:inspect", "Ctrl+q"}}) {
+        CHECK_FALSE(configure_shortcuts({binding}, actions).empty());
+        CHECK(action_for(chord(XKB_KEY_i, {.ctrl = true, .alt = true})) == "inspect");
+    }
+    CHECK_FALSE(
+        configure_shortcuts({{"copy_location", "F3"}, {"action:copy_location", "F5"}}, actions)
+            .empty());
+    REQUIRE(configure_shortcuts({}).empty());
+    CHECK(action_for(chord(XKB_KEY_i, {.ctrl = true, .alt = true})).empty());
+}
+
+TEST_CASE("actions: external shortcuts use the same targets in all views and respect editors") {
+    ResetBindings reset;
+    const std::vector<nordend::core::Action> actions{
+        {.id = "inspect", .label = "Inspect", .argv = {"inspector", "{file}"}, .mime = {}}};
+    REQUIRE(
+        nordend::views::configure_shortcuts({{"action:inspect", "Ctrl+Alt+i"}}, actions).empty());
+    Fixture f;
+    f.browser.set_actions(actions);
+    std::vector<std::string> calls;
+    f.browser.set_action_handoff(
+        [&](const auto&, const auto& context) {
+            REQUIRE(context.targets.size() == 1);
+            calls.push_back(context.targets.front().path.string());
+        },
+        [](const auto&, const auto&) { return true; });
+    for (const auto mode : kModes) {
+        f.reset(mode, "a.txt");
+        const auto event = chord(XKB_KEY_i, {.ctrl = true, .alt = true});
+        CHECK(f.browser.key(event, Browser::Clock::now()));
+        REQUIRE_FALSE(calls.empty());
+        CHECK(calls.back() == (f.root / "a.txt").string());
+        const auto count = calls.size();
+        f.browser.key(chord(XKB_KEY_F2, {}), Browser::Clock::now());
+        REQUIRE(f.browser.name_editor().active());
+        f.browser.key(event, Browser::Clock::now());
+        CHECK(calls.size() == count);
+        f.browser.key(chord(XKB_KEY_Escape, {}), Browser::Clock::now());
+    }
+}

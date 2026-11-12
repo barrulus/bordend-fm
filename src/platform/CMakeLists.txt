@@ -1,4 +1,6 @@
 add_library(nordend_platform
+    src/action_handoff.cpp
+    src/archives.cpp
     src/about.cpp
     src/applications.cpp
     src/bus_loop.cpp

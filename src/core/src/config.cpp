@@ -159,9 +159,103 @@ private:
     std::vector<Problem> problems_;
 };
 
-void read_document(const toml::table& root, Reader& reader, Config& config) {
+bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& actions) {
+    const auto* array = node.as_array();
+    if (array == nullptr) {
+        reader.report(node.source(), "actions must be an array of tables ([[actions]])");
+        return false;
+    }
+    bool valid = true;
+    for (const auto& entry : *array) {
+        const auto fail = [&](std::string_view message) {
+            reader.report(entry.source(), std::format("actions: {}; action set ignored", message));
+            valid = false;
+        };
+        const auto* table = entry.as_table();
+        if (table == nullptr) {
+            fail("each action must be a table");
+            continue;
+        }
+        Action action;
+        if (const auto id = (*table)["id"].value<std::string>()) {
+            const auto defaults = action_registry();
+            const auto preset = std::ranges::find(defaults, *id, &Action::id);
+            if (preset != defaults.end() && preset->kind != Action::Kind::copy_location) {
+                action = *preset;
+            }
+        }
+        for (const auto& [key, value] : *table) {
+            const auto name = key.str();
+            if (name == "id" || name == "label" || name == "selection" || name == "execution") {
+                const auto text = value.value<std::string>();
+                if (!text) {
+                    fail(std::format("{} must be a string", name));
+                } else if (name == "id") {
+                    action.id = *text;
+                } else if (name == "label") {
+                    action.label = *text;
+                } else if (name == "execution") {
+                    if (*text != "handoff") {
+                        fail("only execution = 'handoff' is currently supported");
+                    }
+                } else if (*text == "one") {
+                    action.selection = Action::Selection::one;
+                } else if (*text == "many") {
+                    action.selection = Action::Selection::many;
+                } else if (*text == "background") {
+                    action.selection = Action::Selection::background;
+                } else if (*text == "any") {
+                    action.selection = Action::Selection::any;
+                } else {
+                    fail("selection must be one, many, background or any");
+                }
+            } else if (name == "argv" || name == "mime") {
+                auto& output = name == "argv" ? action.argv : action.mime;
+                output.clear();
+                if (name == "argv") {
+                    action.kind = Action::Kind::external;
+                }
+                if (const auto* values = value.as_array()) {
+                    for (const auto& item : *values) {
+                        if (const auto text = item.value<std::string>()) {
+                            output.push_back(*text);
+                        } else {
+                            fail(std::format("{} must contain only strings", name));
+                        }
+                    }
+                } else {
+                    fail(std::format("{} must be an array", name));
+                }
+            } else if (name == "enabled") {
+                if (const auto enabled = value.value<bool>()) {
+                    action.enabled = *enabled;
+                } else {
+                    fail("enabled must be a boolean");
+                }
+            } else {
+                fail(std::format("unknown key '{}'", name));
+            }
+        }
+        if (const auto problem = action_problem(action)) {
+            fail(*problem);
+        }
+        if (std::ranges::find(actions, action.id, &Action::id) != actions.end()) {
+            fail(std::format("duplicate id '{}'", action.id));
+        }
+        actions.push_back(std::move(action));
+    }
+    if (!valid) {
+        actions.clear();
+    }
+    return valid;
+}
+
+void read_document(const toml::table& root, Reader& reader, ConfigResult& result) {
+    Config& config = result.config;
     for (const auto& [key, node] : root) {
-        if (key.str() == "appearance") {
+        if (key.str() == "actions") {
+            result.actions_valid = read_actions(node, reader, config.actions);
+        } else if (key.str() == "appearance") {
             reader.read_section(
                 node, "appearance",
                 {{"background_opacity", [&](const toml::node& value, const std::string& path) {
@@ -252,7 +346,7 @@ ConfigResult parse_config(std::string_view text, std::string_view source) {
     try {
         root = toml::parse(text, source);
         result.from_file = true;
-        read_document(root, reader, result.config);
+        read_document(root, reader, result);
     } catch (const toml::parse_error& e) {
         reader.report(e.source(), std::format("{}; the whole file is ignored, using defaults",
                                               e.description()));

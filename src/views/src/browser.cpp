@@ -1554,6 +1554,9 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         count == 1);
     add("trash", "Move to Trash", keys_for(Command::trash), [this] { trash(); });
     add("erase", "Delete Permanently…", keys_for(Command::erase), [this] { erase(); });
+    for (auto& item : action_items(action_context(folder))) {
+        items.push_back(std::move(item));
+    }
     items.push_back(sort_menu());
     return items;
 }
@@ -1639,6 +1642,9 @@ std::vector<MenuItem> Browser::folder_menu() {
             terminal.action = [this, path = shown->path()] { terminal_(path); };
             items.push_back(std::move(terminal));
         }
+    }
+    for (auto& item : action_items(action_context(current_folder(), true))) {
+        items.push_back(std::move(item));
     }
     items.push_back(sort_menu());
     return items;
@@ -3293,6 +3299,12 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
         const bool handled = view_key(event, now);
         quick_look_.follow(current_folder());
         return handled;
+    }
+    if (!sidebar_.focused()) {
+        if (const auto id = action_for(event); !id.empty()) {
+            run_action(id);
+            return true;
+        }
     }
     // What is not listed for the sidebar is nothing there (Space: Quick Look shows the view's
     // entries; F2: the sidebar's places are not renamed).

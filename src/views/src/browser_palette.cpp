@@ -157,6 +157,19 @@ std::vector<PaletteItem> Browser::palette_items() {
         command(Command::add_bookmark, "add_bookmark", "Add to Sidebar");
     }
 
+    // The same registry entries and captured targets as the context menu.
+    for (auto& item : action_items(action_context(folder))) {
+        if (item.submenu) {
+            for (auto& child : item.children) {
+                if (child.enabled) {
+                    add(child.id, child.label, child.keys, std::move(child.action));
+                }
+            }
+        } else if (item.enabled) {
+            add(item.id, item.label, item.keys, std::move(item.action));
+        }
+    }
+
     // Views.
     if (pane().mode != Mode::columns) {
         command(Command::columns_view, "columns_view", "Show Columns");

@@ -563,8 +563,26 @@ bool Shortcut::matches(const ui::KeyEvent& event) const {
            std::ranges::find(keysyms, event.keysym) != keysyms.end();
 }
 
-std::vector<std::string> configure_shortcuts(const std::map<std::string, std::string>& bindings) {
+std::vector<std::string> configure_shortcuts(const std::map<std::string, std::string>& bindings,
+                                             std::span<const core::Action> custom) {
     Bindings next;
+    for (const auto& action : core::action_registry(custom)) {
+        const bool bundled = action.id == "copy_location" || action.id == "extract_here" ||
+                             action.id == "extract_to";
+        if (!bindings.contains("action:" + action.id) &&
+            !(bundled && bindings.contains(action.id))) {
+            continue;
+        }
+        next.labels.push_back(action.id);
+        const std::string_view id = next.labels.back();
+        next.labels.push_back(action.label);
+        Shortcut entry;
+        entry.group = "Files";
+        entry.action = next.labels.back();
+        entry.scope = scope::kViews;
+        entry.action_id = id;
+        next.entries.push_back(entry);
+    }
     std::vector<std::string> errors;
     std::vector<std::size_t> changed;
     // Split combined help rows when either half has been customized.
@@ -581,9 +599,24 @@ std::vector<std::string> configure_shortcuts(const std::map<std::string, std::st
         next.entries[*binding_index("previous_tab")].keys = "Ctrl+Shift+Tab";
     }
     for (const auto& [name, chord] : bindings) {
-        const auto index = binding_index(name);
+        auto index = binding_index(name);
+        const std::string_view id = std::string_view{name}.starts_with("action:")
+                                        ? std::string_view{name}.substr(7)
+                                        : std::string_view{name};
+        if (!index) {
+            for (std::size_t i = kShortcuts.size(); i < next.entries.size(); ++i) {
+                if (next.entries[i].action_id == id) {
+                    index = i;
+                    break;
+                }
+            }
+        }
         if (!index) {
             errors.push_back(std::format("keybindings.{}: unknown action", name));
+            continue;
+        }
+        if (std::ranges::find(changed, *index) != changed.end()) {
+            errors.push_back(std::format("keybindings.{}: action bound twice", name));
             continue;
         }
         auto& entry = next.entries[*index];
@@ -610,8 +643,9 @@ std::vector<std::string> configure_shortcuts(const std::map<std::string, std::st
                 ui::KeyEvent event;
                 event.keysym = symbol;
                 event.modifiers = entry.modifiers;
-                collision =
-                    collision || (existing.matches(event) && !kShortcuts[index].matches(event));
+                collision = collision ||
+                            (existing.matches(event) &&
+                             (index >= kShortcuts.size() || !kShortcuts[index].matches(event)));
             }
             // Existing text-preview bindings intentionally share file copy/select-all chords.
             if (collision)
@@ -625,7 +659,7 @@ std::vector<std::string> configure_shortcuts(const std::map<std::string, std::st
 }
 
 ui::KeyEvent view_key_event(const ui::KeyEvent& event) {
-    for (std::size_t i = 0; i < active.entries.size(); ++i) {
+    for (std::size_t i = 0; i < kShortcuts.size(); ++i) {
         const auto& entry = active.entries[i];
         if (entry.command == Command::none && (entry.scope & scope::kViews) != 0 &&
             entry.matches(event) &&
@@ -653,6 +687,20 @@ Command command_for(const ui::KeyEvent& event) {
         }
     }
     return Command::none;
+}
+
+std::string action_for(const ui::KeyEvent& event) {
+    for (const auto& entry : active.entries) {
+        if (!entry.action_id.empty() && entry.matches(event)) {
+            return std::string{entry.action_id};
+        }
+    }
+    return {};
+}
+
+std::string keys_for_action(std::string_view id) {
+    const auto found = std::ranges::find(active.entries, id, &Shortcut::action_id);
+    return found == active.entries.end() ? std::string{} : std::string{found->keys};
 }
 
 bool listed(const ui::KeyEvent& event, std::uint16_t where) {

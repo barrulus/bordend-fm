@@ -1,0 +1,267 @@
+#include "nordend/platform/archives.hpp"
+
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <vector>
+
+#include <doctest/doctest.h>
+
+#include "nordend/core/event_loop.hpp"
+#include "nordend/platform/action_handoff.hpp"
+#include "temp_dir.hpp"
+
+namespace {
+namespace fs = std::filesystem;
+using namespace std::chrono_literals;
+using nordend::core::ActionContext;
+using nordend::platform::ActionHandoff;
+using nordend::platform::ArchiveBackend;
+
+std::string read(const fs::path& path) {
+    std::ifstream input{path, std::ios::binary};
+    return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
+}
+
+struct Fixture {
+    nordend::test::TempDir dir;
+    nordend::core::EventLoop loop;
+    nordend::platform::Environment environment;
+    fs::path bin = dir.path / "bin";
+    fs::path destination = dir.path / "destination";
+    std::vector<std::string> errors;
+    std::vector<std::string> messages;
+
+    Fixture() {
+        fs::create_directory(bin);
+        fs::create_directory(destination);
+        environment.path = bin.string();
+    }
+
+    bool install(const std::string& program) {
+        const auto real = nordend::platform::find_program(
+            program, nordend::platform::Environment::from_environment().path);
+        if (!real) {
+            MESSAGE(program << " is not installed; integration test skipped");
+            return false;
+        }
+        fs::create_symlink(*real, bin / program);
+        return true;
+    }
+
+    auto report() {
+        return [this](std::string message, bool error) {
+            (error ? errors : messages).push_back(std::move(message));
+        };
+    }
+
+    fs::path archive(const std::string& fixture, const std::string& name) {
+        const auto out = dir.path / name;
+        fs::copy_file(fs::path{NORDEND_TEST_DATA} / "archives" / fixture, out);
+        return out;
+    }
+
+    bool wait(unsigned count = 1) {
+        bool done = false;
+        const auto poll = loop.add_timer(1ms, 1ms, [&] {
+            unsigned completed = 0;
+            for (const auto& message : messages) {
+                if (message.starts_with("Extracted to "))
+                    ++completed;
+            }
+            if (!errors.empty() || completed >= count) {
+                done = true;
+                loop.quit(0);
+            }
+        });
+        const auto timeout = loop.add_timer(5s, 0ms, [&] { loop.quit(1); });
+        loop.run();
+        loop.remove(poll);
+        loop.remove(timeout);
+        return done;
+    }
+};
+}  // namespace
+
+TEST_CASE("archives: format selection only offers installed capable programs") {
+    Fixture f;
+    const auto program = f.dir.write("fake", "program");
+    fs::permissions(program, fs::perms::owner_all);
+    const auto add = [&](const std::string& name) { fs::create_symlink(program, f.bin / name); };
+    const nordend::core::ActionTarget zip{f.dir.path / "a.zip", "application/zip"};
+    const nordend::core::ActionTarget gz{f.dir.path / "a.gz", "application/gzip"};
+    const nordend::core::ActionTarget tgz{f.dir.path / "a.tar.gz", "application/gzip"};
+    CHECK_FALSE(nordend::platform::archive_backend(zip, f.environment));
+    add("gzip");
+    CHECK(nordend::platform::archive_backend(gz, f.environment)->kind ==
+          ArchiveBackend::Kind::gzip);
+    CHECK_FALSE(nordend::platform::archive_backend(tgz, f.environment));
+    CHECK_FALSE(nordend::platform::archive_backend(zip, f.environment));
+    add("7z");
+    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+          ArchiveBackend::Kind::seven_zip);
+    CHECK(nordend::platform::archive_backend(tgz, f.environment)->tar_layer);
+    add("unzip");
+    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+          ArchiveBackend::Kind::unzip);
+    add("tar");
+    CHECK(nordend::platform::archive_backend(tgz, f.environment)->kind ==
+          ArchiveBackend::Kind::tar);
+    add("file-roller");
+    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+          ArchiveBackend::Kind::file_roller);
+}
+
+TEST_CASE("archives: unzip handles literal wildcards and never overwrites destination folders") {
+    Fixture f;
+    if (!f.install("unzip"))
+        return;
+    const auto archive = f.archive("sample.zip", "a*[1]? 'quoted'.zip");
+    const auto name = nordend::platform::archive_output_name(archive);
+    fs::create_directory(f.dir.path / name);
+    std::ofstream{f.dir.path / name / "keep"} << "existing";
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    const ActionContext context{.directory = f.dir.path, .targets = {{archive, "application/zip"}}};
+    REQUIRE(handoff.available(nordend::core::action_registry()[1], context));
+    handoff.run(nordend::core::action_registry()[1], context);
+    REQUIRE(f.wait());
+    CHECK(f.errors.empty());
+    CHECK(read(f.dir.path / name / "keep") == "existing");
+    CHECK(read(f.dir.path / (name + " 2") / "folder/message.txt") == "archive payload\n");
+    CHECK(fs::exists(archive));
+}
+
+TEST_CASE("archives: gzip keeps its source and uses the selected destination") {
+    Fixture f;
+    if (!f.install("gzip"))
+        return;
+    const auto archive = f.archive("message.txt.gz", "message.txt.gz");
+    ActionHandoff::DirectoryChosen choose;
+    ActionHandoff handoff{
+        f.loop, f.environment, f.report(), {}, [&](const fs::path& initial, auto done) {
+            CHECK(initial == f.dir.path);
+            choose = std::move(done);
+        }};
+    ActionContext context{.directory = f.dir.path, .targets = {{archive, "application/gzip"}}};
+    handoff.run(nordend::core::action_registry()[2], context);
+    REQUIRE(choose);
+    context.targets.clear();  // changing tabs/selection does not redirect a pending extraction
+    choose(f.destination);
+    REQUIRE(f.wait());
+    CHECK(f.errors.empty());
+    CHECK(read(f.destination / "message.txt") == "archive payload\n");
+    CHECK(fs::exists(archive));
+    CHECK_FALSE(fs::exists(f.dir.path / "message.txt"));
+    CHECK_FALSE(fs::exists(f.destination / "message.txt (extracting)"));
+}
+
+TEST_CASE("archives: destination cancellation creates nothing") {
+    Fixture f;
+    if (!f.install("gzip"))
+        return;
+    const auto archive = f.archive("message.txt.gz", "message.txt.gz");
+    ActionHandoff handoff{
+        f.loop, f.environment, f.report(), {}, [](const auto&, auto done) { done(std::nullopt); }};
+    handoff.run(nordend::core::action_registry()[2],
+                {.directory = f.dir.path, .targets = {{archive, "application/gzip"}}});
+    CHECK(f.messages.empty());
+    CHECK(f.errors.empty());
+    CHECK(fs::is_empty(f.destination));
+    CHECK_FALSE(fs::exists(f.dir.path / "message.txt (extracting)"));
+}
+
+TEST_CASE("archives: tar unpacks both gzip and tar layers") {
+    Fixture f;
+    if (!f.install("tar") || !f.install("gzip"))
+        return;
+    const auto archive = f.archive("sample.tar.gz", "sample.tar.gz");
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    handoff.run(nordend::core::action_registry()[1],
+                {.directory = f.dir.path, .targets = {{archive, "application/x-compressed-tar"}}});
+    REQUIRE(f.wait());
+    for (const auto& error : f.errors)
+        INFO(error);
+    CHECK(f.errors.empty());
+    CHECK(read(f.dir.path / "sample/folder/message.txt") == "archive payload\n");
+    CHECK(fs::exists(archive));
+}
+
+TEST_CASE("archives: 7z extracts 7z and both layers of compressed tar without tar installed") {
+    Fixture f;
+    if (!f.install("7z"))
+        return;
+    const auto seven = f.archive("sample.7z", "seven.7z");
+    const auto tar = f.archive("sample.tar.gz", "tarball.tar.gz");
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    handoff.run(nordend::core::action_registry()[1],
+                {.directory = f.dir.path,
+                 .targets = {{seven, "application/x-7z-compressed"},
+                             {tar, "application/x-compressed-tar"}}});
+    REQUIRE(f.wait(2));
+    for (const auto& error : f.errors)
+        INFO(error);
+    CHECK(f.errors.empty());
+    CHECK(read(f.dir.path / "seven/folder/message.txt") == "archive payload\n");
+    CHECK(read(f.dir.path / "tarball/folder/message.txt") == "archive payload\n");
+    CHECK_FALSE(fs::exists(f.dir.path / "tarball (extracting)"));
+}
+
+TEST_CASE("archives: corrupt and encrypted archives report errors without publishing success") {
+    Fixture f;
+    if (!f.install("gzip") || !f.install("7z"))
+        return;
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    const auto corrupt = f.dir.write("broken.gz", "not a gzip file");
+    handoff.run(nordend::core::action_registry()[1],
+                {.directory = f.dir.path, .targets = {{corrupt, "application/gzip"}}});
+    REQUIRE(f.wait());
+    REQUIRE_FALSE(f.errors.empty());
+    CHECK_FALSE(fs::exists(f.dir.path / "broken"));
+    CHECK(fs::exists(corrupt));
+    f.errors.clear();
+    const auto encrypted = f.archive("encrypted.7z", "secret.7z");
+    handoff.run(nordend::core::action_registry()[1],
+                {.directory = f.dir.path, .targets = {{encrypted, "application/x-7z-compressed"}}});
+    REQUIRE(f.wait());
+    CHECK_FALSE(f.errors.empty());
+    CHECK_FALSE(fs::exists(f.dir.path / "secret"));
+    CHECK(fs::exists(encrypted));
+}
+
+TEST_CASE("archives: File Roller remains a supported handoff with literal selected paths") {
+    Fixture f;
+    const auto shell = nordend::platform::find_program(
+        "sh", nordend::platform::Environment::from_environment().path);
+    REQUIRE(shell);
+    const auto program = f.bin / "file-roller";
+    std::ofstream{program} << "#!" << shell->string()
+                           << "\nprintf '%s\\0' \"$@\" > called\nexit 7\n";
+    fs::permissions(program, fs::perms::owner_all);
+    const auto zip = f.archive("sample.zip", "a*[x] space.zip");
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    handoff.run(nordend::core::action_registry()[2],
+                {.directory = f.dir.path, .targets = {{zip, "application/zip"}}});
+    REQUIRE(f.wait());
+    CHECK(read(f.dir.path / "called") == std::string{"--extract"} + '\0' + zip.string() + '\0');
+    CHECK_FALSE(fs::exists(f.dir.path / "a*[x] space (extracting)"));
+    REQUIRE(f.errors.size() == 1);
+    CHECK(f.errors.front().find("status 7") != std::string::npos);
+}
+
+TEST_CASE("archives: unsupported mixed selections do not start partial batches") {
+    Fixture f;
+    if (!f.install("gzip"))
+        return;
+    const auto gzip = f.archive("message.txt.gz", "message.txt.gz");
+    const auto zip = f.archive("sample.zip", "sample.zip");
+    ActionHandoff handoff{f.loop, f.environment, f.report()};
+    const ActionContext context{.directory = f.dir.path,
+                                .targets = {{gzip, "application/gzip"}, {zip, "application/zip"}}};
+    CHECK_FALSE(handoff.available(nordend::core::action_registry()[1], context));
+    handoff.run(nordend::core::action_registry()[1], context);
+    CHECK(f.errors.size() == 1);
+    CHECK(f.messages.empty());
+    CHECK_FALSE(fs::exists(f.dir.path / "message.txt (extracting)"));
+}

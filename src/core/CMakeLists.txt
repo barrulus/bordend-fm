@@ -5,6 +5,7 @@ file(READ "${PROJECT_SOURCE_DIR}/docs/config.example.toml" NORDEND_DEFAULT_CONFI
 configure_file(config_template.hpp.in generated/config_template.hpp @ONLY)
 
 add_library(nordend_core
+    src/actions.cpp
     src/config.cpp
     src/event_loop.cpp
     src/file.cpp

@@ -17,8 +17,9 @@ namespace nordend::platform {
 //
 // A child runs in a session of its own, with the default signal mask and dispositions (Nordend
 // blocks SIGINT and SIGTERM for its signalfd), stdin, stdout and stderr on /dev/null and no other
-// inherited descriptor. Its pidfd sits in the event loop: when the child exits it is reaped there
-// and on_exit learns how. Closing Nordend leaves the children running.
+// inherited descriptor (unless streams are explicitly redirected). Its pidfd sits in the event
+// loop: when the child exits it is reaped there and on_exit learns how. Closing Nordend leaves the
+// children running.
 //
 // Loop thread only.
 class Launcher {
@@ -40,12 +41,15 @@ public:
     Launcher(Launcher&&) = delete;
     Launcher& operator=(Launcher&&) = delete;
 
+    // Optional stream descriptors (>= 3) are duplicated into the child; ownership stays with
+    // the caller. -1 redirects to /dev/null.
     // Starts argv (argv[0] looked up in the PATH) in directory (empty: Nordend's), with env added
     // to Nordend's environment ("NAME=value", replacing a variable of the same name). An error
     // when the program cannot be started (not found, not executable); on_exit is then not called.
     std::error_code spawn(const std::vector<std::string>& argv,
                           const std::filesystem::path& directory, std::span<const std::string> env,
-                          std::function<void(Exit)> on_exit);
+                          std::function<void(Exit)> on_exit, int stdout_fd = -1, int stderr_fd = -1,
+                          int stdin_fd = -1);
 
     // Children started and not yet reaped (tests).
     [[nodiscard]] std::size_t running() const noexcept { return children_.size(); }

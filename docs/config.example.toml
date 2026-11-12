@@ -119,3 +119,68 @@ follow_accent = true
 # Unknown actions, invalid chords or conflicts reject the whole binding set:
 # defaults at startup, previous bindings on reload. Check before using:
 # nordend --config ~/.config/nordend/config.example.toml --check-config
+
+# Registry actions also accept bindings: copy_location, extract_here, extract_to,
+# and "action:<id>" for any configured action. They have no default shortcut.
+# copy_location = "Ctrl+Shift+c"
+# "action:upscale" = "Ctrl+Alt+u"
+# Actions: external programs offered under Actions in the right-click menu and directly in
+# Ctrl+K. This is an argument array, not a shell command. Changes reload live together with
+# their keybindings; invalid action definitions/bindings retain the previous set on reload.
+# Uncomment each whole example to use it. Configure its binding in [keybindings] above.
+#
+# [[actions]]
+# id = "upscale"
+# label = "Upscale Image"
+# argv = ["upscaler", "{file}"]
+# mime = ["image/*"]
+# selection = "one"
+# execution = "handoff"
+#
+# [[actions]]
+# id = "image-edit"
+# label = "Edit Image"
+# argv = ["switcheroo", "{file}"]
+# mime = ["image/*"]
+#
+# Defaults: selection = "one", execution = "handoff", enabled = true, no MIME filter.
+# Selection: "one" = exactly one item, "many" = one or more, "background" = no items,
+# "any" = any number including none. Folders match "inode/directory". All selected items
+# must match a MIME filter (exact type or type/*); no selected files are silently omitted.
+# Placeholders must be whole arguments, after the program:
+#   {file}: one absolute selected path (requires selection = "one")
+#   {files}: separate absolute arguments (requires selection = "one" or "many")
+#   {directory}: the current folder, also used as the process's working directory
+# No globbing, tilde/environment expansion or shell interpretation is done.
+# To run a script, pass its absolute path, or explicitly invoke a shell with paths in "$@":
+# argv = ["sh", "-c", 'my-script "$@"', "nordend-action", "{files}"]
+# A handoff runs independently: the external application owns dialogs, progress and conflicts.
+# Launch/exit failures appear in the status bar. Nordend watches the resulting file changes;
+# external operations are not added to Undo. Jobs and multi-step macros are not yet supported.
+# Missing programs are dimmed in the context menu and omitted from the palette.
+#
+# Built-in Copy Location copies selected paths as text (one per line), or the current folder
+# on empty space. It cannot be replaced. Actions are not offered in the trash; external actions
+# are also unavailable in file-picker mode.
+# Extract Here and Extract To… automatically detect installed programs on PATH:
+#   file-roller, otherwise unzip (ZIP), gzip (single .gz), tar (tar / compressed tar),
+#   then 7zz or 7z for formats they support. gzip alone does not unpack .tar.gz contents.
+#   7z can unpack compressed tar in two passes when tar is unavailable.
+# File Roller owns its dialogs. CLI backends use Nordend's folder picker for Extract To….
+# CLI archives extract into a new archive-named folder; single compressed files become files.
+# Existing output gets a numbered sibling instead of being overwritten; originals are retained.
+# Keep Nordend open until CLI extraction finishes. Failed/interrupted output stays in a visible
+# '(extracting)' folder. CLI password prompts are not supported; use Open With for encryption.
+# All archive programs are optional; none is installed automatically.
+# Override a preset by ID; unspecified fields retain the preset's defaults. Setting argv opts
+# out of automatic backend selection and makes the preset an ordinary external handoff:
+# (To restore automatic selection, remove argv or remove the override.)
+# [[actions]]
+# id = "extract_here"
+# label = "Extract Here"
+# argv = ["/absolute/path/to/my-extractor", "{files}"]
+#
+# Or disable either preset:
+# [[actions]]
+# id = "extract_to"
+# enabled = false
