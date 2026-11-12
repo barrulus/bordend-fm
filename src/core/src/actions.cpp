@@ -74,6 +74,9 @@ std::optional<std::string> action_problem(const Action& action) {
     if (action.destination != Action::Destination::none && action.kind != Action::Kind::external) {
         return "destination is only supported for external actions";
     }
+    if (action.notify_on_completion && action.kind != Action::Kind::external) {
+        return "notify_on_completion is only supported for external actions";
+    }
     if (!action.destination_name.empty() && action.destination != Action::Destination::file) {
         return "destination_name requires destination = 'file'";
     }

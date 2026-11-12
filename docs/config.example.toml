@@ -172,6 +172,7 @@ follow_accent = true
 # placement = "menu"
 # destination = "file"
 # destination_name = "Archive.zip"
+# notify_on_completion = true
 #
 # If your application already supplies a dialog, omit destination and destination_name.
 # For example, with File Roller installed, use this argv instead:
@@ -205,6 +206,7 @@ follow_accent = true
 # selection = "one"
 # destination = "file"
 # destination_name = "resized.png"
+# notify_on_completion = true
 #
 # 7. Choose a destination folder for one or more files/folders. Requires GNU cp.
 # cp performs this copy independently, so it is not part of Nordend's Undo history.
@@ -214,6 +216,7 @@ follow_accent = true
 # argv = ["cp", "--archive", "--", "{files}", "{destination}"]
 # selection = "many"
 # destination = "directory"
+# notify_on_completion = true
 #
 # Defaults: selection = "one", execution = "handoff", enabled = true, no MIME filter.
 # No MIME filter allows all types, but does NOT enable multi-select: set selection = "many".
@@ -243,6 +246,14 @@ follow_accent = true
 # is done. Do not add shell quotes around {file} or {files}; the array already preserves
 # argument boundaries, including filenames with spaces and newlines.
 # A handoff runs independently: the external application owns dialogs, progress and conflicts.
+# notify_on_completion = true adds a desktop notification and status message when an external
+# command exits: success for exit code 0, failure for other codes or signals. Default: false.
+# Nordend sends the notification itself; notify-send and wrapper scripts are not required.
+# Cancelling a destination picker or failing to start a command does not send a completion
+# notification. Launch failures still appear in the status bar. Keep Nordend open to receive
+# completion notifications. This follows the launched process: commands which hand work to
+# another process or an already-running GUI may exit before that work has finished.
+# A desktop notification service must be running; without one, the status message still works.
 # Launch/exit failures appear in the status bar. Nordend watches the resulting file changes;
 # external operations are not added to Undo. Jobs and multi-step macros are not yet supported.
 # Missing programs are dimmed in the context menu and omitted from the palette. Programs

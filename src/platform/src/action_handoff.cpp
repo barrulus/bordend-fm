@@ -39,13 +39,15 @@ bool valid_destination(const std::filesystem::path& path, bool directory) {
 
 ActionHandoff::ActionHandoff(core::EventLoop& loop, Environment environment, Report report,
                              Activate activate, ChooseDirectory choose,
-                             ChooseDestination destination_picker)
+                             ChooseDestination destination_picker, Notify notify)
     : launcher_{loop},
       environment_{std::move(environment)},
       report_{std::move(report)},
       activate_{std::move(activate)},
       choose_{std::move(choose)},
-      destination_picker_{std::move(destination_picker)} {}
+      destination_picker_{std::move(destination_picker)},
+      notifications_{loop},
+      notify_{std::move(notify)} {}
 
 ActionHandoff::~ActionHandoff() { *alive_ = false; }
 
@@ -107,7 +109,8 @@ void ActionHandoff::launch(const core::Action& action, const core::ActionContext
     }
     args.front() = std::filesystem::absolute(*program).string();
     const auto start = [this, alive = alive_, args = std::move(args), directory = context.directory,
-                        label = action.label](std::string token) {
+                        label = action.label,
+                        notify = action.notify_on_completion](std::string token) {
         if (!*alive) {
             return;
         }
@@ -116,13 +119,28 @@ void ActionHandoff::launch(const core::Action& action, const core::ActionContext
             env.push_back("XDG_ACTIVATION_TOKEN=" + token);
         }
         const auto error = launcher_.spawn(
-            args, directory, env, [this, alive, label](const Launcher::Exit& result) {
-                if (*alive && (result.status != 0 || result.signal != 0)) {
-                    report_(result.signal != 0 ? std::format("{}: program stopped by signal {}",
-                                                             label, result.signal)
-                                               : std::format("{}: program exited with status {}",
-                                                             label, result.status),
-                            true);
+            args, directory, env, [this, alive, label, notify](const Launcher::Exit& result) {
+                if (!*alive) {
+                    return;
+                }
+                const bool failed = result.status != 0 || result.signal != 0;
+                const auto message =
+                    result.signal != 0
+                        ? std::format("Program stopped by signal {}", result.signal)
+                        : (result.status != 0
+                               ? std::format("Program exited with status {}", result.status)
+                               : std::string{"Completed successfully"});
+                if (failed || notify) {
+                    report_(std::format("{}: {}", label, message), failed);
+                }
+                if (notify) {
+                    const auto title =
+                        std::format("{}: {}", failed ? "Failed" : "Completed", label);
+                    if (notify_) {
+                        notify_(title, message, failed);
+                    } else {
+                        notifications_.send(title, message, failed);
+                    }
                 }
             });
         report_(error ? std::format("Could not start {}: {}", label, error.message())

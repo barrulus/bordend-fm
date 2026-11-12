@@ -375,3 +375,140 @@ TEST_CASE("actions: cancellation invalid destinations and destroyed handoffs do 
     CHECK(reports == previous);
     CHECK_FALSE(std::filesystem::exists(dir.path / "launched"));
 }
+
+TEST_CASE("actions: completion notification config is opt in and external only") {
+    CHECK_FALSE(Action{}.notify_on_completion);
+    for (const bool enabled : {false, true}) {
+        const auto result = nordend::core::parse_config(
+            "[[actions]]\nid='compress'\nlabel='Compress'\nargv=['7z']\nnotify_on_completion=" +
+                std::string{enabled ? "true" : "false"},
+            "notify.toml");
+        REQUIRE(result.actions_valid);
+        REQUIRE(result.config.actions.size() == 1);
+        CHECK(result.config.actions[0].notify_on_completion == enabled);
+    }
+    for (const auto* value : {"'true'", "1", "[]"}) {
+        const auto result = nordend::core::parse_config(
+            "[[actions]]\nid='compress'\nlabel='Compress'\nargv=['7z']\nnotify_on_completion=" +
+                std::string{value},
+            "notify.toml");
+        CHECK_FALSE(result.actions_valid);
+    }
+    CHECK_FALSE(nordend::core::parse_config(
+                    "[[actions]]\nid='extract_to'\nnotify_on_completion=true", "notify.toml")
+                    .actions_valid);
+    CHECK(nordend::core::parse_config(
+              "[[actions]]\nid='extract_to'\nargv=['tool','{files}']\nnotify_on_completion=true",
+              "notify.toml")
+              .actions_valid);
+}
+
+TEST_CASE("actions: completion notifications follow exit status and signals") {
+    nordend::test::TempDir dir;
+    nordend::core::EventLoop loop;
+    Action action{.id = "complete",
+                  .label = "Compress <test> & files",
+                  .argv = {"sh", "-c", "printf complete > output; exit 0"},
+                  .mime = {},
+                  .selection = Action::Selection::background,
+                  .notify_on_completion = true};
+    bool failed = false;
+    std::string expected = "Completed successfully";
+    SUBCASE("success") {}
+    SUBCASE("nonzero exit") {
+        action.argv.back() = "exit 7";
+        failed = true;
+        expected = "Program exited with status 7";
+    }
+    SUBCASE("terminated by signal") {
+        action.argv.back() = "kill -TERM $$";
+        failed = true;
+        expected = "Program stopped by signal 15";
+    }
+    SUBCASE("disabled keeps existing error reporting without notification") {
+        action.notify_on_completion = false;
+        action.argv.back() = "exit 7";
+        failed = true;
+        expected = "Program exited with status 7";
+    }
+    std::vector<std::pair<std::string, bool>> reports;
+    std::vector<std::string> notifications;
+    nordend::platform::ActionHandoff handoff{
+        loop,
+        nordend::platform::Environment::from_environment(),
+        [&](std::string text, bool error) {
+            reports.emplace_back(std::move(text), error);
+            if (error && !action.notify_on_completion)
+                loop.quit(0);
+        },
+        {},
+        {},
+        {},
+        [&](const std::string& title, const std::string& body, bool error) {
+            notifications.push_back(title);
+            CHECK(body == expected);
+            CHECK(error == failed);
+            if (!failed)
+                CHECK(std::filesystem::exists(dir.path / "output"));
+            loop.quit(0);
+        }};
+    handoff.run(action, {.directory = dir.path, .targets = {}});
+    CHECK(notifications.empty());
+    const auto timeout = loop.add_timer(5s, 0ms, [&] { loop.quit(1); });
+    REQUIRE(loop.run() == 0);
+    loop.remove(timeout);
+    REQUIRE(reports.size() == 2);
+    CHECK(reports.back().first == action.label + ": " + expected);
+    CHECK(reports.back().second == failed);
+    if (action.notify_on_completion) {
+        REQUIRE(notifications.size() == 1);
+        CHECK(notifications.front() ==
+              std::string{failed ? "Failed: " : "Completed: "} + action.label);
+    } else
+        CHECK(notifications.empty());
+}
+
+TEST_CASE("actions: cancelled picker and launch failures do not notify completion") {
+    nordend::test::TempDir dir;
+    nordend::core::EventLoop loop;
+    using Handoff = nordend::platform::ActionHandoff;
+    Handoff::DirectoryChosen pending;
+    unsigned notifications = 0;
+    unsigned errors = 0;
+    Handoff handoff{loop,
+                    nordend::platform::Environment::from_environment(),
+                    [&](std::string, bool error) {
+                        if (error)
+                            ++errors;
+                    },
+                    {},
+                    {},
+                    [&](const auto&, auto chosen) { pending = chosen; },
+                    [&](const auto&, const auto&, bool) { ++notifications; }};
+    Action action{.id = "compress",
+                  .label = "Compress",
+                  .argv = {"sh", "-c", "exit 0", "test", "{destination}"},
+                  .mime = {},
+                  .selection = Action::Selection::background,
+                  .destination = Action::Destination::file,
+                  .notify_on_completion = true};
+    SUBCASE("cancel") {
+        handoff.run(action, {.directory = dir.path, .targets = {}});
+        REQUIRE(pending);
+        pending(std::nullopt);
+        CHECK(errors == 0);
+    }
+    SUBCASE("missing executable") {
+        action.argv.front() = "nordend-nonexistent-program";
+        handoff.run(action, {.directory = dir.path, .targets = {}});
+        CHECK_FALSE(pending);
+        CHECK(errors == 1);
+    }
+    SUBCASE("spawn error") {
+        action.destination = Action::Destination::none;
+        action.argv = {"sh", "-c", "exit 0"};
+        handoff.run(action, {.directory = dir.path / "missing", .targets = {}});
+        CHECK(errors == 1);
+    }
+    CHECK(notifications == 0);
+}
