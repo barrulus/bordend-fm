@@ -24,6 +24,8 @@ case "$format" in
         license=/usr/share/licenses/nordend/LICENSE
         ;;
     arch)
+        # The minimal image skips documentation; verify the complete package payload.
+        sed -i 's@usr/share/doc/\*@@g' /etc/pacman.conf
         pacman -Syu --noconfirm
         pacman -U --noconfirm /packages/nordend-[0-9]*-x86_64.pkg.tar.zst
         pacman -Qkk nordend

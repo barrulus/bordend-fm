@@ -42,8 +42,15 @@ custom actions and an optional desktop file chooser portal.
 %autosetup -n nordend-checkout
 
 %build
+%if 0%{?suse_version}
+%define __builder ninja
+%endif
 %cmake -G Ninja -DBUILD_SHARED_LIBS=OFF -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
+%if 0%{?suse_version}
+%cmake_build nordend nordend-preview
+%else
 %cmake_build --target nordend nordend-preview
+%endif
 
 %install
 %cmake_install

@@ -86,7 +86,7 @@ case "$format" in
         cp /build/arch/*.pkg.tar.zst /output/packages/
         mkdir -p /output/recipe
         cp /build/arch/PKGBUILD /output/recipe/
-        cp /build/arch.SRCINFO /output/recipe/.SRCINFO
+        cp /build/arch.SRCINFO /output/recipe/SRCINFO
         ;;
 esac
 cp /input/source.json /output/source.json
