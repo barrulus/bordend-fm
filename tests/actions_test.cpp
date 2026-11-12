@@ -197,3 +197,181 @@ TEST_CASE("actions: pending activation cannot use a destroyed handoff") {
     pending("token");
     CHECK(reports == 0);
 }
+
+TEST_CASE("actions: destination picker config and literal argument expansion") {
+    const auto result = nordend::core::parse_config(R"(
+[[actions]]
+id = "compress"
+label = "Compress to ZIP…"
+argv = ["7z", "a", "-tzip", "{destination}", "--", "{files}"]
+selection = "many"
+destination = "file"
+destination_name = "Archive.zip"
+[[actions]]
+id = "copy-to"
+label = "Copy To…"
+argv = ["cp", "--", "{files}", "{destination}"]
+selection = "many"
+destination = "directory"
+)",
+                                                    "picker-actions.toml");
+    REQUIRE(result.problems.empty());
+    REQUIRE(result.config.actions.size() == 2);
+    const auto& save = result.config.actions[0];
+    CHECK(save.destination == Action::Destination::file);
+    CHECK(save.destination_name == "Archive.zip");
+    CHECK(result.config.actions[1].destination == Action::Destination::directory);
+    ActionContext context{.directory = "/tmp",
+                          .targets = {{"/tmp/a b", "text/plain"}, {"/tmp/@list", "text/plain"}}};
+    CHECK(action_matches(save, context));
+    CHECK(action_arguments(save, context).empty());  // no program launch before a choice
+    const std::string chosen = "/tmp/quote'\n$(touch BAD).zip";
+    CHECK(action_arguments(save, context, chosen) ==
+          std::vector<std::string>{"7z", "a", "-tzip", chosen, "--", "/tmp/a b", "/tmp/@list"});
+    for (const auto* fields : {
+             "argv=['tool','{destination}']",
+             "argv=['tool']\ndestination='file'",
+             "argv=['tool','{destination}']\ndestination='open'",
+             "argv=['tool','{destination}']\ndestination=true",
+             "argv=['tool','{destination}']\ndestination='none'",
+             "argv=['tool','--output={destination}']\ndestination='file'",
+             "argv=['{destination}']\ndestination='file'",
+             "argv=['tool']\ndestination_name='out.zip'",
+             "argv=['tool','{destination}']\ndestination='directory'\ndestination_name='out.zip'",
+             "argv=['tool','{destination}']\ndestination='file'\ndestination_name='../out.zip'",
+             "argv=['tool','{destination}']\ndestination='file'\ndestination_name='..'",
+             "argv=['tool','{destination}']\ndestination='file'\ndestination_name=123",
+         }) {
+        CAPTURE(std::string{fields});
+        const auto invalid = nordend::core::parse_config(
+            "[[actions]]\nid='bad'\nlabel='Bad'\n" + std::string{fields}, "actions.toml");
+        CHECK_FALSE(invalid.actions_valid);
+        CHECK_FALSE(invalid.problems.empty());
+    }
+    CHECK_FALSE(nordend::core::parse_config(
+                    "[[actions]]\nid='extract_here'\ndestination='directory'", "actions.toml")
+                    .actions_valid);
+}
+
+TEST_CASE("actions: chosen destinations launch once with captured selection and cwd") {
+    nordend::test::TempDir dir;
+    nordend::core::EventLoop loop;
+    using Handoff = nordend::platform::ActionHandoff;
+    Handoff::DirectoryChosen pending;
+    nordend::core::PickerRequest request;
+    std::vector<std::string> errors;
+    Handoff handoff{loop,
+                    nordend::platform::Environment::from_environment(),
+                    [&](std::string text, bool error) {
+                        if (error) {
+                            errors.push_back(std::move(text));
+                            loop.quit(0);
+                        }
+                    },
+                    {},
+                    {},
+                    [&](const auto& picker, auto chosen) {
+                        request = picker;
+                        pending = chosen;
+                    }};
+    Action action{.id = "record",
+                  .label = "Save Output",
+                  .argv = {"sh", "-c", "printf '%s\\0' \"$PWD\" \"$@\" > arguments; exit 7",
+                           "nordend-test", "{destination}", "{files}"},
+                  .mime = {},
+                  .selection = Action::Selection::many,
+                  .destination = Action::Destination::file,
+                  .destination_name = "Archive.zip"};
+    ActionContext context{
+        .directory = dir.path,
+        .targets = {{dir.path / "one file", "text/plain"}, {dir.path / "two files", "text/plain"}}};
+    SUBCASE("save file") {}
+    SUBCASE("choose directory") {
+        action.destination = Action::Destination::directory;
+        action.destination_name.clear();
+    }
+    handoff.run(action, context);
+    REQUIRE(pending);
+    CHECK_FALSE(std::filesystem::exists(dir.path / "arguments"));
+    CHECK(request.folder == dir.path.string());
+    CHECK(request.title == "Save Output");
+    CHECK(request.name == action.destination_name);
+    const bool directory = action.destination == Action::Destination::directory;
+    CHECK(request.directory == directory);
+    CHECK(request.mode == (directory ? nordend::core::PickerRequest::Mode::open
+                                     : nordend::core::PickerRequest::Mode::save));
+    const auto destination = dir.path / "chosen '\n$(touch BAD)";
+    if (directory)
+        std::filesystem::create_directory(destination);
+    const auto original = context;
+    context.directory = "/";
+    context.targets.clear();  // navigation while the picker is open cannot change the action
+    pending(destination);
+    const auto timeout = loop.add_timer(5s, 0ms, [&] { loop.quit(1); });
+    REQUIRE(loop.run() == 0);
+    loop.remove(timeout);
+    REQUIRE(errors.size() == 1);
+    CHECK(errors.front().find("status 7") != std::string::npos);
+    std::ifstream input{dir.path / "arguments", std::ios::binary};
+    const std::string bytes{std::istreambuf_iterator<char>{input},
+                            std::istreambuf_iterator<char>{}};
+    CHECK(bytes == dir.path.string() + '\0' + destination.string() + '\0' +
+                       original.targets[0].path.string() + '\0' +
+                       original.targets[1].path.string() + '\0');
+    CHECK_FALSE(std::filesystem::exists(dir.path / "BAD"));
+    if (!directory)
+        CHECK_FALSE(std::filesystem::exists(destination));  // picker creates no output
+}
+
+TEST_CASE("actions: cancellation invalid destinations and destroyed handoffs do not launch") {
+    nordend::test::TempDir dir;
+    nordend::core::EventLoop loop;
+    using Handoff = nordend::platform::ActionHandoff;
+    Handoff::DirectoryChosen pending;
+    unsigned reports = 0;
+    Action action{.id = "record",
+                  .label = "Record",
+                  .argv = {"sh", "-c", "touch launched", "nordend-test", "{destination}"},
+                  .mime = {},
+                  .selection = Action::Selection::background,
+                  .destination = Action::Destination::file};
+    {
+        Handoff handoff{loop,
+                        nordend::platform::Environment::from_environment(),
+                        [&](std::string, bool) { ++reports; },
+                        {},
+                        {},
+                        [&](const auto&, auto chosen) { pending = chosen; }};
+        handoff.run(action, {.directory = dir.path, .targets = {}});
+        REQUIRE(pending);
+        SUBCASE("cancel") {
+            pending(std::nullopt);
+            CHECK(reports == 0);
+        }
+        SUBCASE("relative path") {
+            pending("relative.zip");
+            CHECK(reports == 1);
+        }
+        SUBCASE("missing parent") {
+            pending(dir.path / "missing" / "out.zip");
+            CHECK(reports == 1);
+        }
+        SUBCASE("wrong type") {
+            pending(dir.path);
+            CHECK(reports == 1);
+        }
+        SUBCASE("missing application") {
+            pending = {};
+            action.argv[0] = "nordend-nonexistent-program";
+            handoff.run(action, {.directory = dir.path, .targets = {}});
+            CHECK_FALSE(pending);
+            CHECK(reports == 1);
+        }
+        SUBCASE("destroy while choosing") {}
+    }
+    const auto previous = reports;
+    if (pending)
+        pending(dir.path / "later.zip");
+    CHECK(reports == previous);
+    CHECK_FALSE(std::filesystem::exists(dir.path / "launched"));
+}

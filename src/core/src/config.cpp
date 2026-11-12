@@ -188,7 +188,7 @@ bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& a
         for (const auto& [key, value] : *table) {
             const auto name = key.str();
             if (name == "id" || name == "label" || name == "selection" || name == "execution" ||
-                name == "placement") {
+                name == "placement" || name == "destination" || name == "destination_name") {
                 const auto text = value.value<std::string>();
                 if (!text) {
                     fail(std::format("{} must be a string", name));
@@ -196,6 +196,18 @@ bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& a
                     action.id = *text;
                 } else if (name == "label") {
                     action.label = *text;
+                } else if (name == "destination_name") {
+                    action.destination_name = *text;
+                } else if (name == "destination") {
+                    if (*text == "none") {
+                        action.destination = Action::Destination::none;
+                    } else if (*text == "file") {
+                        action.destination = Action::Destination::file;
+                    } else if (*text == "directory") {
+                        action.destination = Action::Destination::directory;
+                    } else {
+                        fail("destination must be none, file or directory");
+                    }
                 } else if (name == "placement") {
                     if (*text == "actions") {
                         action.placement = Action::Placement::actions;

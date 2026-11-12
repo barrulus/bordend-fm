@@ -124,50 +124,130 @@ follow_accent = true
 # Registry actions also accept bindings: copy_location, extract_here, extract_to,
 # and "action:<id>" for any configured action. They have no default shortcut.
 # copy_location = "Ctrl+Shift+c"
-# "action:upscale" = "Ctrl+Alt+u"
-# Actions: external programs offered under Actions in the right-click menu and directly in
-# Ctrl+K. This is an argument array, not a shell command. Changes reload live together with
-# their keybindings; invalid action definitions/bindings retain the previous set on reload.
-# Set placement = "menu" to show an action directly above the Actions submenu. Custom actions
-# default to placement = "actions"; menu actions follow the order of their config entries.
-# Uncomment each whole example to use it. Configure its binding in [keybindings] above.
+# Uncomment bindings only after enabling the corresponding action below.
+# "action:compress" = "Ctrl+Alt+z"
+# "action:file-goblin" = "Ctrl+Alt+g"
+# Unknown actions, invalid chords or conflicting bindings reject the whole binding
+# set: defaults at startup, previous bindings on reload. Use --check-config to check.
+
+# Custom actions are opt-in: the commented examples below do not enable themselves, and
+# updating Nordend does not replace an existing config. Install the programs you want to use,
+# then uncomment a complete [[actions]] block. These examples call programs directly.
+# Give each action a unique id (letters, digits, _ or -); label is its visible menu text.
+# Check with nordend --check-config. Valid changes reload live together with keybindings.
+# Invalid definitions/bindings retain the previous set on reload.
 #
+# Actions appear under Actions in the right-click menu and directly in Ctrl+K when applicable.
+# placement = "menu" puts an action directly above the Actions submenu; the default is
+# placement = "actions". A [context_menu] layout below can instead arrange them into a tree.
+# Custom menu actions follow config order. Add optional shortcuts in [keybindings] above;
+# do not create a second [keybindings] section inside or after an action block.
+#
+# 1. A quick demo: select one or more files/folders and consult the goblin.
+# Requires notify-send (usually provided by libnotify). No MIME filter: mixed types are OK.
 # [[actions]]
-# id = "upscale"
-# label = "Upscale Image"
-# argv = ["upscaler", "{file}"]
-# mime = ["image/*"]
-# selection = "one"
-# execution = "handoff"
+# id = "file-goblin"
+# label = "Consult the File Goblin"
+# argv = ["notify-send", "The File Goblin has spoken", "A fine selection. Strong filenames. Subtle bytes. 9/10."]
+# selection = "many"
 #
+# 2. Only show this for exactly one image. Requires the Switcheroo image converter.
+# Replace the executable with your preferred image application if needed.
 # [[actions]]
 # id = "image-edit"
 # label = "Edit Image"
 # argv = ["switcheroo", "{file}"]
 # mime = ["image/*"]
+# selection = "one"
 #
+# 3. Compress one or more files/folders with 7-Zip, directly from the parent menu.
+# Requires 7z (use "7zz" instead if that is your installed executable). Nordend's save picker
+# asks for the ZIP filename and destination, then passes the result directly to 7-Zip.
+# -spd makes wildcard characters in selected filenames literal. No wrapper script is needed.
 # [[actions]]
 # id = "compress"
-# label = "Compress…"
-# argv = ["file-roller", "--default-dir", "{directory}", "--add", "{files}"]
+# label = "Compress to ZIP…"
+# argv = ["7z", "a", "-tzip", "-spd", "{destination}", "--", "{files}"]
 # selection = "many"
 # placement = "menu"
+# destination = "file"
+# destination_name = "Archive.zip"
+#
+# If your application already supplies a dialog, omit destination and destination_name.
+# For example, with File Roller installed, use this argv instead:
+# argv = ["file-roller", "--default-dir", "{directory}", "--add", "{files}"]
+# File Roller's dialog chooses the name, destination and archive format.
+#
+# 4. Show the current folder in a notification when nothing is selected.
+# Requires notify-send. Change selection to "any" to offer it with or without a selection.
+# [[actions]]
+# id = "folder-info"
+# label = "Show Current Folder"
+# argv = ["notify-send", "Current folder", "{directory}"]
+# selection = "background"
+#
+# 5. Open a selected folder in the desktop's default file manager.
+# Requires xdg-open (xdg-utils). This is offered for one folder, not for ordinary files.
+# [[actions]]
+# id = "open-folder"
+# label = "Open Folder in Default Manager"
+# argv = ["xdg-open", "{file}"]
+# mime = ["inode/directory"]
+# selection = "one"
+#
+# 6. Resize one image to a new file. Requires ImageMagick's magick executable.
+# Nordend asks where to save it; ImageMagick determines the format from the chosen extension.
+# [[actions]]
+# id = "resize-image"
+# label = "Resize Image to Half Size…"
+# argv = ["magick", "{file}", "-resize", "50%", "{destination}"]
+# mime = ["image/*"]
+# selection = "one"
+# destination = "file"
+# destination_name = "resized.png"
+#
+# 7. Choose a destination folder for one or more files/folders. Requires GNU cp.
+# cp performs this copy independently, so it is not part of Nordend's Undo history.
+# [[actions]]
+# id = "copy-to"
+# label = "Copy To…"
+# argv = ["cp", "--archive", "--", "{files}", "{destination}"]
+# selection = "many"
+# destination = "directory"
 #
 # Defaults: selection = "one", execution = "handoff", enabled = true, no MIME filter.
+# No MIME filter allows all types, but does NOT enable multi-select: set selection = "many".
 # Selection: "one" = exactly one item, "many" = one or more, "background" = no items,
-# "any" = any number including none. Folders match "inode/directory". All selected items
-# must match a MIME filter (exact type or type/*); no selected files are silently omitted.
+# "any" = any number including none. Use "any" with a command needing no selected paths,
+# or with {directory}; {file} and {files} are not allowed with "any" or "background".
+# MIME filters accept exact types ("application/zip", "text/plain", "inode/directory") or
+# type/* patterns ("image/*"). Every selected item must match at least one listed type.
+# For a ZIP-only custom action, add mime = ["application/zip"]; a mixed ZIP/text selection
+# then hides it. The built-in extract actions already filter for supported archive types.
+# MIME matching uses Nordend's detected type; it is not a filename-extension pattern.
 # Placeholders must be whole arguments, after the program:
 #   {file}: one absolute selected path (requires selection = "one")
 #   {files}: separate absolute arguments (requires selection = "one" or "many")
 #   {directory}: the current folder, also used as the process's working directory
-# No globbing, tilde/environment expansion or shell interpretation is done.
-# To run a script, pass its absolute path, or explicitly invoke a shell with paths in "$@":
-# argv = ["sh", "-c", 'my-script "$@"', "nordend-action", "{files}"]
+#   {destination}: an absolute path chosen by Nordend before starting the command
+# destination = "file" asks for a save filename; "directory" asks for an existing folder.
+# destination_name suggests a filename for "file" only (a literal name, without directories).
+# The picker starts in the current folder and uses the action's label as its window title.
+# Cancelling does not run the command. The selection stays as it was when the action started.
+# Omit destination (or use "none") for commands that do not need a picker. A destination
+# picker and {destination} must be configured together. These options apply to external actions.
+# Nordend does not create or modify the chosen path: the program owns output and conflicts.
+# The save picker confirms existing files; 7z a updates an existing archive, whereas programs
+# such as cp or magick may replace output. Choose a new filename to create a separate result.
+# argv is an argument array: no globbing, tilde/environment expansion or shell interpretation
+# is done. Do not add shell quotes around {file} or {files}; the array already preserves
+# argument boundaries, including filenames with spaces and newlines.
 # A handoff runs independently: the external application owns dialogs, progress and conflicts.
 # Launch/exit failures appear in the status bar. Nordend watches the resulting file changes;
 # external operations are not added to Undo. Jobs and multi-step macros are not yet supported.
-# Missing programs are dimmed in the context menu and omitted from the palette.
+# Missing programs are dimmed in the context menu and omitted from the palette. Programs
+# are found on PATH, or you can supply an absolute executable path as the first argument.
+# Add enabled = false to a block to disable it without deleting it.
 #
 # Built-in Copy Location copies selected paths as text (one per line), or the current folder
 # on empty space. It cannot be replaced. Actions are not offered in the trash; external actions
@@ -198,7 +278,8 @@ follow_accent = true
 
 # Context-menu layout (optional). Each list replaces that context's default menu.
 # References use menu IDs, including "action:<id>" for built-in or custom actions.
-# Define your actions above; every referenced action ID must exist.
+# Enable the compress, file-goblin, folder-info and image-edit examples above before
+# enabling this layout, or remove their references. Every referenced action ID must exist.
 # Groups have a label and nested items; nest as many levels as needed. Entries appear in
 # list order. Inapplicable actions and empty groups disappear; missing programs stay dimmed.
 # { remaining = true } inserts everything you haven't placed explicitly, in its default
@@ -215,12 +296,22 @@ follow_accent = true
 #   { id = "open_with" },
 #   { id = "action:compress" },
 #   { label = "My Actions", items = [
-#     { label = "Scripts", items = [ { id = "action:upscale" } ] },
+#     { label = "Information", items = [
+#       { id = "action:file-goblin" },
+#       { id = "action:folder-info" },
+#     ] },
 #     { label = "External", items = [ { id = "action:image-edit" } ] },
+#   ] },
+#   { label = "Archives", items = [
+#     { id = "action:extract_here" },
+#     { id = "action:extract_to" },
 #   ] },
 #   { separator = true },
 #   { remaining = true },
 # ]
+#
+# Archives appears only when extraction applies; it disappears for non-archive selections.
+# Moving actions into groups does not change their MIME or selection rules.
 #
 # items is the common layout. Override individual contexts with entry, background, trash,
 # or sidebar arrays using exactly the same syntax. Missing overrides use items, or the

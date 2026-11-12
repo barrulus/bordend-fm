@@ -14,14 +14,38 @@
 #include "nordend/fs/operations.hpp"
 
 namespace nordend::platform {
+namespace {
+
+bool valid_destination(const std::filesystem::path& path, bool directory) {
+    if (!path.is_absolute() || path.native().find('\0') != std::string::npos) {
+        return false;
+    }
+    std::error_code error;
+    if (directory) {
+        return std::filesystem::is_directory(path, error);
+    }
+    if (path.filename().empty() || path.filename() == "." || path.filename() == ".." ||
+        !std::filesystem::is_directory(path.parent_path(), error)) {
+        return false;
+    }
+    const auto status = std::filesystem::symlink_status(path, error);
+    if (error && error != std::errc::no_such_file_or_directory) {
+        return false;
+    }
+    return !std::filesystem::exists(status) || std::filesystem::is_regular_file(path, error);
+}
+
+}  // namespace
 
 ActionHandoff::ActionHandoff(core::EventLoop& loop, Environment environment, Report report,
-                             Activate activate, ChooseDirectory choose)
+                             Activate activate, ChooseDirectory choose,
+                             ChooseDestination destination_picker)
     : launcher_{loop},
       environment_{std::move(environment)},
       report_{std::move(report)},
       activate_{std::move(activate)},
-      choose_{std::move(choose)} {}
+      choose_{std::move(choose)},
+      destination_picker_{std::move(destination_picker)} {}
 
 ActionHandoff::~ActionHandoff() { *alive_ = false; }
 
@@ -37,7 +61,42 @@ void ActionHandoff::run(const core::Action& action, const core::ActionContext& c
         run_archive(action, context);
         return;
     }
-    auto args = core::action_arguments(action, context);
+    if (action.destination != core::Action::Destination::none) {
+        if (action.argv.empty() || !available(action.argv.front())) {
+            report_("The action program is not installed or executable", true);
+            return;
+        }
+        core::PickerRequest request;
+        request.directory = action.destination == core::Action::Destination::directory;
+        request.mode =
+            request.directory ? core::PickerRequest::Mode::open : core::PickerRequest::Mode::save;
+        request.folder = context.directory.string();
+        request.name = action.destination_name;
+        request.title = action.label;
+        const auto chosen = [this, alive = alive_, action, context, directory = request.directory](
+                                std::optional<std::filesystem::path> path) {
+            if (!*alive || !path) {
+                return;
+            }
+            if (!valid_destination(*path, directory)) {
+                report_("The selected destination is no longer valid", true);
+                return;
+            }
+            launch(action, context, *path);
+        };
+        if (destination_picker_) {
+            destination_picker_(request, chosen);
+        } else {
+            choose_path(request, chosen);
+        }
+        return;
+    }
+    launch(action, context);
+}
+
+void ActionHandoff::launch(const core::Action& action, const core::ActionContext& context,
+                           const std::filesystem::path& destination) {
+    auto args = core::action_arguments(action, context, destination);
     if (args.empty()) {
         return;
     }
@@ -205,6 +264,14 @@ void ActionHandoff::run_archive(const core::Action& action, const core::ActionCo
 
 void ActionHandoff::choose_destination(const std::filesystem::path& initial,
                                        DirectoryChosen chosen) {
+    core::PickerRequest request;
+    request.directory = true;
+    request.folder = initial.string();
+    request.title = "Extract To…";
+    choose_path(request, std::move(chosen));
+}
+
+void ActionHandoff::choose_path(const core::PickerRequest& request, DirectoryChosen chosen) {
     auto output = channel();
     std::error_code lookup_error;
     const auto program = std::filesystem::read_symlink("/proc/self/exe", lookup_error);
@@ -213,16 +280,23 @@ void ActionHandoff::choose_destination(const std::filesystem::path& initial,
         chosen(std::nullopt);
         return;
     }
-    const auto start = [this, alive = alive_, output, program, initial, chosen](std::string token) {
+    const auto start = [this, alive = alive_, output, program, request, chosen](std::string token) {
         if (!*alive)
             return;
         std::vector<std::string> env;
         if (!token.empty())
             env.push_back("XDG_ACTIVATION_TOKEN=" + token);
+        std::vector<std::string> args{program.string(),
+                                      request.directory ? "--pick-directory" : "--save-file",
+                                      "--title", request.title};
+        if (!request.directory && !request.name.empty()) {
+            args.insert(args.end(), {"--name", request.name});
+        }
+        args.push_back(request.folder);
         const auto error = launcher_.spawn(
-            {program.string(), "--pick-directory", "--title", "Extract To…", initial.string()},
-            initial, env,
-            [this, alive, output, chosen](const Launcher::Exit& result) {
+            args, request.folder, env,
+            [this, alive, output, chosen,
+             directory = request.directory](const Launcher::Exit& result) {
                 if (!*alive)
                     return;
                 if (result.status == 1 && result.signal == 0) {
@@ -234,15 +308,12 @@ void ActionHandoff::choose_destination(const std::filesystem::path& initial,
                 if (result.status == 0 && result.signal == 0 && size > 1 &&
                     bytes[static_cast<std::size_t>(size) - 1] == '\0') {
                     const std::string path{bytes.data(), static_cast<std::size_t>(size) - 1};
-                    std::error_code check;
-                    if (!path.empty() && path.front() == '/' &&
-                        path.find('\0') == std::string::npos &&
-                        std::filesystem::is_directory(path, check)) {
+                    if (valid_destination(path, directory)) {
                         chosen(std::filesystem::path{path});
                         return;
                     }
                 }
-                report_("The destination picker could not select a folder", true);
+                report_("The destination picker could not select a valid path", true);
                 chosen(std::nullopt);
             },
             output->fd);

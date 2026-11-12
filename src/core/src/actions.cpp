@@ -71,7 +71,24 @@ std::optional<std::string> action_problem(const Action& action) {
         (action.argv.empty() || action.argv.front().empty())) {
         return "argv must start with a program";
     }
-    constexpr std::array<std::string_view, 3> fields{"{file}", "{files}", "{directory}"};
+    if (action.destination != Action::Destination::none && action.kind != Action::Kind::external) {
+        return "destination is only supported for external actions";
+    }
+    if (!action.destination_name.empty() && action.destination != Action::Destination::file) {
+        return "destination_name requires destination = 'file'";
+    }
+    if (action.destination_name.find('/') != std::string::npos ||
+        action.destination_name.find('\0') != std::string::npos || action.destination_name == "." ||
+        action.destination_name == "..") {
+        return "destination_name must be a filename, not a path";
+    }
+    const bool has_destination =
+        std::ranges::find(action.argv, "{destination}") != action.argv.end();
+    if (has_destination != (action.destination != Action::Destination::none)) {
+        return "{destination} and a destination picker must be configured together";
+    }
+    constexpr std::array<std::string_view, 4> fields{"{file}", "{files}", "{directory}",
+                                                     "{destination}"};
     for (std::size_t i = 0; i < action.argv.size(); ++i) {
         const auto& arg = action.argv[i];
         if (arg.find('\0') != std::string::npos) {
@@ -130,8 +147,10 @@ bool action_matches(const Action& action, const ActionContext& context) {
                                [&](const auto& target) { return matches_type(target.mime); });
 }
 
-std::vector<std::string> action_arguments(const Action& action, const ActionContext& context) {
-    if (!action_matches(action, context)) {
+std::vector<std::string> action_arguments(const Action& action, const ActionContext& context,
+                                          const std::filesystem::path& destination) {
+    if (!action_matches(action, context) ||
+        (action.destination != Action::Destination::none && destination.empty())) {
         return {};
     }
     std::vector<std::string> args;
@@ -147,6 +166,8 @@ std::vector<std::string> action_arguments(const Action& action, const ActionCont
             args.push_back(context.targets.front().path.string());
         } else if (arg == "{directory}") {
             args.push_back(context.directory.string());
+        } else if (arg == "{destination}") {
+            args.push_back(destination.string());
         } else {
             args.push_back(arg);
         }

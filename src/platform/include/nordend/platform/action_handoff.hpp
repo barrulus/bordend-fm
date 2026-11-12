@@ -5,22 +5,26 @@
 #include <string>
 
 #include "nordend/core/actions.hpp"
+#include "nordend/core/file_picker.hpp"
 #include "nordend/platform/archives.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/launcher.hpp"
 
 namespace nordend::platform {
 
-// External applications own their dialogs and work. Built-in CLI archive actions instead
-// track extraction and publish completed output without replacing existing files.
+// External applications own their work, with an optional Nordend destination picker before
+// handoff. Built-in CLI archive actions track extraction and publish completed output
+// without replacing existing files.
 class ActionHandoff {
 public:
     using Report = std::function<void(std::string, bool)>;
     using Activate = std::function<void(std::function<void(std::string)>)>;
     using DirectoryChosen = std::function<void(std::optional<std::filesystem::path>)>;
     using ChooseDirectory = std::function<void(const std::filesystem::path&, DirectoryChosen)>;
+    using ChooseDestination = std::function<void(const core::PickerRequest&, DirectoryChosen)>;
     ActionHandoff(core::EventLoop& loop, Environment environment, Report report,
-                  Activate activate = {}, ChooseDirectory choose = {});
+                  Activate activate = {}, ChooseDirectory choose = {},
+                  ChooseDestination destination_picker = {});
     ~ActionHandoff();
     [[nodiscard]] bool available(const std::string& program) const;
     [[nodiscard]] bool available(const core::Action& action,
@@ -29,8 +33,11 @@ public:
 
 private:
     struct Extraction;
+    void launch(const core::Action& action, const core::ActionContext& context,
+                const std::filesystem::path& destination = {});
     void run_archive(const core::Action& action, const core::ActionContext& context);
     void choose_destination(const std::filesystem::path& initial, DirectoryChosen chosen);
+    void choose_path(const core::PickerRequest& request, DirectoryChosen chosen);
     void extract(const core::ActionTarget& target, const ArchiveBackend& backend,
                  const std::filesystem::path& destination);
     void extract_step(std::shared_ptr<Extraction> extraction, bool second_pass = false);
@@ -39,6 +46,7 @@ private:
     Report report_;
     Activate activate_;
     ChooseDirectory choose_;
+    ChooseDestination destination_picker_;
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
 };
 
