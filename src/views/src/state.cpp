@@ -24,7 +24,6 @@ constexpr std::array kListSizeWords{
     std::pair{"small", std::size_t{0}}, std::pair{"usual", std::size_t{1}},
     std::pair{"large", std::size_t{2}}, std::pair{"larger", std::size_t{3}},
     std::pair{"largest", std::size_t{4}}};
-constexpr std::array kGridIcons{48, 64, 96, 128, 192, 256};  // GridView::kIconSizes
 constexpr std::array kSortKeys{
     std::pair{"name", fs::SortKey::name}, std::pair{"size", fs::SortKey::size},
     std::pair{"modified", fs::SortKey::modified}, std::pair{"type", fs::SortKey::type}};
@@ -38,6 +37,17 @@ constexpr float kColumnMin = 48.0F;
 constexpr float kColumnMax = 800.0F;
 constexpr std::int64_t kWindowMin = 320;
 constexpr std::int64_t kWindowMax = 16384;
+
+std::string grid_size_choices() {
+    std::string choices;
+    for (const auto size : kGridIconSizes) {
+        if (!choices.empty()) {
+            choices += ", ";
+        }
+        choices += std::to_string(size);
+    }
+    return choices;
+}
 
 class Reader {
 public:
@@ -227,13 +237,13 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     result.problems = read.take();
     if (const toml::node* grid = root.at_path("view.grid_icon").node()) {
         const std::optional<std::int64_t> pixels = grid->value<std::int64_t>();
-        if (pixels && std::ranges::find(kGridIcons, *pixels) != kGridIcons.end()) {
+        if (pixels && std::ranges::find(kGridIconSizes, *pixels) != kGridIconSizes.end()) {
             s.grid_icon = static_cast<std::int32_t>(*pixels);
         } else {
             const toml::source_position where = grid->source().begin;
-            result.problems.push_back(std::format(
-                "{}:{}:{}: 'view.grid_icon' must be 48, 64, 96, 128, 192 or 256; using the default",
-                source, where.line, where.column));
+            result.problems.push_back(
+                std::format("{}:{}:{}: 'view.grid_icon' must be one of {}; using the default",
+                            source, where.line, where.column, grid_size_choices()));
         }
     }
 
@@ -323,8 +333,10 @@ StateResult parse_state(std::string_view text, std::string_view source) {
                 }
                 if (const toml::node* grid = table->get("grid_icon")) {
                     const std::optional<std::int64_t> pixels = grid->value<std::int64_t>();
-                    if (!pixels || std::ranges::find(kGridIcons, *pixels) == kGridIcons.end()) {
-                        problem(*grid, "'grid_icon' must be 48, 64, 96, 128, 192 or 256");
+                    if (!pixels ||
+                        std::ranges::find(kGridIconSizes, *pixels) == kGridIconSizes.end()) {
+                        problem(*grid,
+                                std::format("'grid_icon' must be one of {}", grid_size_choices()));
                         continue;
                     }
                     tab.grid_icon = static_cast<std::int32_t>(*pixels);

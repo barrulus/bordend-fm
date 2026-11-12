@@ -1835,10 +1835,9 @@ void Browser::set_list_size(std::size_t index) {
 void Browser::set_grid_size(std::size_t index) { pane().grid.set_size_index(index); }
 
 std::size_t Browser::grid_index(std::int32_t pixels) {
-    const auto* found = std::ranges::find(GridView::kIconSizes, static_cast<float>(pixels));
-    return found == GridView::kIconSizes.end()
-               ? GridView::kDefaultSize
-               : static_cast<std::size_t>(found - GridView::kIconSizes.begin());
+    const auto* found = std::ranges::find(kGridIconSizes, pixels);
+    return found == kGridIconSizes.end() ? kUsualGridSize
+                                         : static_cast<std::size_t>(found - kGridIconSizes.begin());
 }
 
 void Browser::set_sort(fs::SortKey key, bool descending) {
