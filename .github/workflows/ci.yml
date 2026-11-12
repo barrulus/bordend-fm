@@ -1,0 +1,57 @@
+name: Build, test and package
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nix:
+    name: Nix build, tests and installed package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
+      - name: Run all x86_64-linux flake checks
+        run: nix flake check --print-build-logs
+      - name: Build the installable package
+        run: nix build --print-build-logs
+
+  void:
+    name: Void glibc package and clean install
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build exact checkout and test in a fresh Void container
+        env:
+          CI_JOBS: 2
+          PACKAGE_OUTPUT: ${{ runner.temp }}/void-package
+        run: |
+          set -o pipefail
+          bash scripts/ci/void.sh "$PACKAGE_OUTPUT" 2>&1 | tee "$RUNNER_TEMP/void-package.log"
+      - name: Save package, source identity and build log
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: void-x86_64-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/void-package/packages/
+            ${{ runner.temp }}/void-package/template
+            ${{ runner.temp }}/void-package/source.json
+            ${{ runner.temp }}/void-package.log
+          retention-days: 14
+          if-no-files-found: error

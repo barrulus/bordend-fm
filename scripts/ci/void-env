@@ -1,0 +1,3 @@
+# Pinned build infrastructure; Void's binary package repository remains rolling.
+VOID_IMAGE=ghcr.io/void-linux/void-glibc-full@sha256:e98f8cdde9e6ca85f8542fad5cdd06032a05dca3bf2b81757949bb24d67afa37
+VOID_PACKAGES_REV=28e270cbed6afb290d71934ff403f04f9410da33
