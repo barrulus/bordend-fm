@@ -170,10 +170,27 @@ public:
     // folders on the way to the one shown stay.
     void set_show_hidden(bool show);
     void set_entry_filter(fs::Listing::Predicate filter);
-    [[nodiscard]] bool has_overlay() const {
-        return conflict_.is_open() || confirm_.is_open() || palette_.is_open() ||
-               menu_.is_open() || editor_.active() || shortcuts_.is_open() || quick_look_.is_open();
+    // Live filename substring filter, combined with the picker's type restrictions.
+    void set_name_filter(std::string text);
+
+    [[nodiscard]] const std::string& name_filter() const { return filter_field_.text(); }
+
+    [[nodiscard]] bool filtering() const { return filter_focused_; }
+
+    void blur_filter() {
+        filter_focused_ = false;
+        redraw_();
     }
+
+    [[nodiscard]] const ui::Rect& filter_bounds() const { return filter_bounds_; }
+
+    [[nodiscard]] const ui::Rect& new_folder_bounds() const { return new_folder_bounds_; }
+
+    [[nodiscard]] bool has_overlay() const {
+        return conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
+               editor_.active() || shortcuts_.is_open() || quick_look_.is_open();
+    }
+
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
 
     [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
@@ -629,7 +646,7 @@ private:
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // Who gets the pointer: the view, the sidebar or the breadcrumb above the view.
-    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar, tabs };
+    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar, tabs, toolbar };
 
     void send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now);
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -705,6 +722,14 @@ private:
     bool info_visible_{true};
     bool sidebar_visible_{true};
     fs::Listing::Predicate entry_filter_;
+    fs::Listing::Predicate picker_filter_;
+    ui::TextField filter_field_;
+    bool filter_focused_{false};
+    ui::Rect toolbar_bounds_{}, filter_bounds_{}, clear_filter_bounds_{}, new_folder_bounds_{};
+    void apply_filters();
+    void toolbar_pointer(const ui::PointerEvent& event);
+    void draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
+                      const theme::Palette& palette);
     bool show_hidden_{false};
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};

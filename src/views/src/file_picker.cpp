@@ -52,8 +52,11 @@ PickerSelection picker_selection(const core::PickerRequest& request,
     }
     std::vector<std::filesystem::path> paths;
     if (request.mode == Mode::save) {
+        if (typed.empty()) {
+            return fail("Enter a filename to save.");
+        }
         if (!valid_name(typed)) {
-            return fail("Enter a filename without slashes.");
+            return fail("Use a filename other than “.” or “..”, without slashes.");
         }
         paths.push_back(folder / typed);
     } else if (request.mode == Mode::save_files) {
@@ -85,7 +88,7 @@ PickerSelection picker_selection(const core::PickerRequest& request,
             return fail("Select a file first.");
         }
         if (!request.multiple && paths.size() != 1) {
-            return fail("Select just one item.");
+            return fail(request.directory ? "Select just one folder." : "Select just one file.");
         }
     }
     for (auto path : paths) {
@@ -94,15 +97,29 @@ PickerSelection picker_selection(const core::PickerRequest& request,
         const auto status = std::filesystem::status(path, ec);
         const bool exists = std::filesystem::exists(status);
         if (ec && ec != std::errc::no_such_file_or_directory) {
-            return fail(ec.message());
+            return fail("Cannot access “" + path.string() + "”: " + ec.message() + ".");
         }
         if (request.mode == Mode::open) {
             if (!exists) {
-                return fail("The selected item no longer exists.");
+                const auto link = std::filesystem::symlink_status(path, ec);
+                if (std::filesystem::is_symlink(link)) {
+                    return fail("“" + path.filename().string() + "” is a broken symbolic link.");
+                }
+                const std::string kind = request.directory ? "Folder" : "File";
+                if (!typed.empty()) {
+                    return fail(kind + " “" + typed + "” does not exist." +
+                                (request.directory
+                                     ? " Use New Folder to create it first."
+                                     : " Check the name or choose an existing file."));
+                }
+                return fail("The selected " + std::string{request.directory ? "folder" : "file"} +
+                            " “" + path.filename().string() +
+                            "” no longer exists. Choose another.");
             }
             if (request.directory != std::filesystem::is_directory(status)) {
-                return fail(request.directory ? "Select a folder."
-                                              : "Select a file, or open the folder to browse it.");
+                return fail("“" + path.filename().string() + "” " +
+                            (request.directory ? "is not a folder. Choose a folder."
+                                               : "is a folder. Open it to choose a file."));
             }
         } else {
             if (!std::filesystem::is_directory(path.parent_path(), ec)) {
@@ -203,6 +220,7 @@ void FilePicker::finish(std::vector<std::string> paths) {
 }
 
 void FilePicker::accept() {
+    sync_selection();
     const auto folder = browser_.picker_folder();
     if (!folder || folder->model().loading()) {
         return;
@@ -253,6 +271,7 @@ void FilePicker::sync_selection() {
         return;
     }
     last_selection_ = std::move(selection);
+    error_.clear();
     if (request_.mode == Mode::open) {
         name_.set_text({});
     }
@@ -287,6 +306,7 @@ std::string FilePicker::copy_name(bool cut) {
     auto text = name_.text().substr(first, last - first);
     if (cut && first != last) {
         name_.insert({});
+        error_.clear();
         redraw_();
     }
     return text;
@@ -295,6 +315,7 @@ std::string FilePicker::copy_name(bool cut) {
 void FilePicker::paste(std::string_view text) {
     const auto end = text.find_first_of("\r\n");
     name_.insert(text.substr(0, end));
+    error_.clear();
     redraw_();
 }
 
@@ -348,6 +369,19 @@ bool FilePicker::key(const ui::KeyEvent& event) {
     if (confirm_.key(event) || menu_.key(event)) {
         return true;
     }
+    const auto command = command_for(event);
+    if (!browser_.has_overlay() &&
+        (command == Command::filter_names || command == Command::new_folder)) {
+        focus_ = 0;
+        return browser_.key(event, Browser::Clock::now());
+    }
+    // The browser's live filter owns text editing and Escape while it has focus.
+    if (focus_ == 0 && browser_.filtering() && !browser_.has_overlay()) {
+        if (event.keysym != XKB_KEY_Tab && event.keysym != XKB_KEY_ISO_Left_Tab) {
+            return browser_.key(event, Browser::Clock::now());
+        }
+        browser_.blur_filter();
+    }
     if (event.keysym == XKB_KEY_Escape) {
         if (browser_.has_overlay()) {
             browser_.key(event, Browser::Clock::now());
@@ -388,7 +422,9 @@ bool FilePicker::key(const ui::KeyEvent& event) {
         return true;
     }
     if (focus_ == 1) {
-        name_.key(event);
+        if (name_.key(event)) {
+            error_.clear();
+        }
         redraw_();
         return true;
     }
@@ -419,6 +455,7 @@ void FilePicker::pointer(const ui::PointerEvent& event) {
             focus_ = 0;
             browser_pressed_ = true;
         } else {
+            browser_.blur_filter();
             browser_.pointer({.kind = Kind::leave}, Browser::Clock::now());
             for (std::size_t i = 1; i < controls_.size(); ++i) {
                 if (!controls_[i].contains(event.x, event.y)) {
@@ -465,8 +502,7 @@ void FilePicker::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     controls_.fill({});
     float y = footer_.y + 10.0F;
     if (request_.mode != Mode::save_files) {
-        renderer.draw_text(request_.mode == Mode::save ? "Name" : "File", bounds.x + 12, y + 7, 13,
-                           palette.on_surface);
+        renderer.draw_text(name_label(), bounds.x + 12, y + 7, 13, palette.on_surface);
         controls_[1] = {bounds.x + 64, y, std::max(1.0F, bounds.width - 76), 32};
         name_.draw(renderer, controls_[1], 14,
                    {.background = palette.surface,

@@ -125,6 +125,8 @@ struct Fixture {
             }
             return !browser.loading();
         }));
+        browser.blur_filter();
+        browser.set_name_filter({});
         browser.name_editor().cancel();
         REQUIRE_FALSE(browser.name_editor().active());
         browser.quick_look().close();

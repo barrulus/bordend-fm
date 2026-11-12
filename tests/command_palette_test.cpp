@@ -350,6 +350,7 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::next_tab, "next_tab"},
         {Command::previous_tab, "previous_tab"},
         {Command::find_files, "find_files"},
+        {Command::filter_names, "filter_names"},
     };
     for (const nordend::views::Shortcut& shortcut : nordend::views::shortcuts()) {
         if (not_in_palette.contains(shortcut.command)) {

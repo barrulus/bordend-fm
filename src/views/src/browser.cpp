@@ -566,6 +566,10 @@ void Browser::paste_text() {
                          }
                          if (palette_.is_open()) {
                              palette_.paste(*text);
+                         } else if (filter_focused_) {
+                             filter_field_.insert(
+                                 std::string_view{*text}.substr(0, text->find_first_of("\r\n")));
+                             apply_filters();
                          } else {
                              editor_.paste(*text);
                          }
@@ -1373,8 +1377,13 @@ void Browser::start_rename() {
 
 void Browser::new_folder() {
     std::shared_ptr<Folder> folder = current_folder();
-    if (!folder) {
+    if (!folder || folder->is_trash()) {
         return;
+    }
+    // Keep the new folder visible so its name can be edited immediately.
+    filter_focused_ = false;
+    if (!name_filter().empty()) {
+        set_name_filter({});
     }
     ++operations_;
     pool_.submit(
@@ -1904,7 +1913,25 @@ MenuItem Browser::sort_menu() {
 }
 
 void Browser::set_entry_filter(fs::Listing::Predicate filter) {
-    entry_filter_ = std::move(filter);
+    picker_filter_ = std::move(filter);
+    apply_filters();
+}
+
+void Browser::set_name_filter(std::string text) {
+    filter_field_.set_text(std::move(text));
+    apply_filters();
+}
+
+void Browser::apply_filters() {
+    const auto fold = [](unsigned char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; };
+    entry_filter_ = [filter = picker_filter_, text = filter_field_.text(),
+                     fold](const fs::Entry& entry) {
+        return (!filter || filter(entry)) &&
+               (text.empty() || std::search(entry.name.begin(), entry.name.end(), text.begin(),
+                                            text.end(), [fold](unsigned char a, unsigned char b) {
+                                                return fold(a) == fold(b);
+                                            }) != entry.name.end());
+    };
     for (const auto& each : panes_) {
         each->columns.set_entry_filter(entry_filter_);
         each->grid.set_entry_filter(entry_filter_);
@@ -2109,6 +2136,62 @@ void Browser::set_mode(Mode mode) {
     redraw_();
 }
 
+void Browser::draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
+                           const theme::Palette& palette) {
+    toolbar_bounds_ = bounds;
+    filter_bounds_ = clear_filter_bounds_ = new_folder_bounds_ = {};
+    if (bounds.height < 40 || bounds.width < 180) {
+        return;
+    }
+    renderer.fill_background(bounds, palette.surface_container);
+    const float button_width = 104;
+    const float field_width = std::max(1.0F, bounds.width - button_width - 76);
+    renderer.draw_text("Filter", bounds.x + 10, bounds.y + 14, 13, palette.on_surface);
+    filter_bounds_ = {bounds.x + 54, bounds.y + 6, field_width, 32};
+    if (!name_filter().empty() && field_width > 100) {
+        filter_bounds_.width -= 68;
+    }
+    filter_field_.draw(
+        renderer, filter_bounds_, 14,
+        {.background = palette.surface,
+         .border = filter_focused_ ? palette.primary : palette.outline_variant,
+         .text = palette.on_surface,
+         .selection = palette.primary_container,
+         .caret = filter_focused_ ? palette.primary : palette.primary.with_alpha(0)});
+    if (name_filter().empty() && !filter_focused_) {
+        renderer.draw_text("Filter names…", filter_bounds_.x + 6, filter_bounds_.y + 8, 13,
+                           palette.on_surface_variant, filter_bounds_.width - 12);
+    }
+    const auto button = [&](const ui::Rect& rect, const char* label) {
+        renderer.draw_box(
+            rect, {.fill = palette.surface_container_highest, .radius = ui::Corners::all(6)});
+        renderer.draw_text(label, rect.x + 10, rect.y + 8, 13, palette.on_surface, rect.width - 20);
+    };
+    if (!name_filter().empty() && field_width > 100) {
+        // The clear button has its own space, outside the editable text.
+        clear_filter_bounds_ = {filter_bounds_.right() + 4, filter_bounds_.y, 64, 32};
+        button(clear_filter_bounds_, "Clear");
+    }
+    new_folder_bounds_ = {bounds.right() - button_width - 10, bounds.y + 6, button_width, 32};
+    button(new_folder_bounds_, "New Folder");
+}
+
+void Browser::toolbar_pointer(const ui::PointerEvent& event) {
+    if (event.kind != ui::PointerEvent::Kind::press || event.button != ui::PointerButton::left) {
+        return;
+    }
+    if (filter_bounds_.contains(event.x, event.y)) {
+        filter_focused_ = true;
+        filter_field_.click(event.x, event.modifiers.shift);
+    } else if (clear_filter_bounds_.contains(event.x, event.y)) {
+        set_name_filter({});
+        filter_focused_ = true;
+    } else if (new_folder_bounds_.contains(event.x, event.y)) {
+        new_folder();
+    }
+    redraw_();
+}
+
 void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now) {
     const float sidebar_width = sidebar_visible_ ? sidebar_.width_in(bounds.width) : 0.0F;
@@ -2153,8 +2236,10 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
     }
     editor_.slot().rect.reset();  // the view places it again if it shows the name
-    view_area_ = {view.x, view.y + kTitleHeight, view.width,
-                  std::max(0.0F, view.height - kTitleHeight - bar)};
+    const float toolbar_height = std::min(44.0F, std::max(0.0F, view.height - kTitleHeight - bar));
+    draw_toolbar(renderer, {view.x, view.y + kTitleHeight, view.width, toolbar_height}, palette);
+    view_area_ = {view.x, view.y + kTitleHeight + toolbar_height, view.width,
+                  std::max(0.0F, view.height - kTitleHeight - toolbar_height - bar)};
     draw_view(renderer, view_area_, palette, icons, now);
     draw_band(renderer, palette);
     editor_.draw(renderer, palette);
@@ -2282,6 +2367,12 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (editor_.active() && editor_.field().bounds().contains(x, y)) {
         return Shape::text;
     }
+    if (filter_bounds_.contains(x, y)) {
+        return Shape::text;
+    }
+    if (clear_filter_bounds_.contains(x, y) || new_folder_bounds_.contains(x, y)) {
+        return Shape::pointer;
+    }
     if (sidebar_drawn_ && sidebar_.claims(x, y)) {
         return hand(sidebar_.clickable_at(x, y));
     }
@@ -2394,6 +2485,8 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
             target = Target::tabs;
         } else if (breadcrumb_.claims(event.x, event.y)) {
             target = Target::breadcrumb;
+        } else if (toolbar_bounds_.contains(event.x, event.y)) {
+            target = Target::toolbar;
         } else if (status_bar_.claims(event.x, event.y)) {
             target = Target::status_bar;
         }
@@ -2404,6 +2497,10 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
     }
     if (event.kind == Kind::press) {
         button_held_ = true;
+        if (pointer_target_ != Target::toolbar) {
+            filter_focused_ = false;
+            redraw_();
+        }
         if (pointer_target_ != Target::sidebar && sidebar_.focused()) {
             sidebar_.set_focused(false);  // a click elsewhere takes the keyboard back
         }
@@ -2641,6 +2738,9 @@ void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::
             break;
         case Target::tabs:
             tab_bar_.pointer(event);
+            break;
+        case Target::toolbar:
+            toolbar_pointer(event);
             break;
     }
 }
@@ -3242,6 +3342,37 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
         }
         return editor_.key(event);  // every key is the name's meanwhile
     }
+    if (filter_focused_ && !shortcuts_.is_open() && !quick_look_.is_open()) {
+        if (command_for(event) == Command::new_folder) {
+            new_folder();
+        } else if (event.keysym == XKB_KEY_Escape) {
+            set_name_filter({});
+            blur_filter();
+        } else if (event.keysym == XKB_KEY_Return || event.keysym == XKB_KEY_KP_Enter ||
+                   event.keysym == XKB_KEY_Tab || event.keysym == XKB_KEY_ISO_Left_Tab) {
+            blur_filter();
+        } else if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+                   (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V)) {
+            paste_text();
+        } else if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+                   (event.keysym == XKB_KEY_c || event.keysym == XKB_KEY_C ||
+                    event.keysym == XKB_KEY_x || event.keysym == XKB_KEY_X)) {
+            const auto [first, last] = filter_field_.selection();
+            copy_text(filter_field_.text().substr(first, last - first));
+            if (event.keysym == XKB_KEY_x || event.keysym == XKB_KEY_X) {
+                filter_field_.insert({});
+                apply_filters();
+            }
+        } else {
+            const auto previous = name_filter();
+            filter_field_.key(event);
+            if (name_filter() != previous) {
+                apply_filters();
+            }
+        }
+        redraw_();
+        return true;
+    }
     const Command command = command_for(event);
     if (event.keysym == XKB_KEY_Escape && event.modifiers == ui::Modifiers{} &&
         !cut_marks_.names.empty() && !shortcuts_.is_open() && !quick_look_.is_open() &&
@@ -3338,6 +3469,13 @@ void Browser::run(Command command, Clock::time_point now) {
         }
     }
     switch (command) {
+        case Command::filter_names:
+            quick_look_.close();
+            sidebar_.set_focused(false);
+            filter_focused_ = true;
+            filter_field_.select_all();
+            redraw_();
+            break;
         case Command::none:
             break;
         case Command::columns_view:

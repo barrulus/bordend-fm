@@ -42,7 +42,17 @@ public:
 
     [[nodiscard]] const std::string& error() const { return error_; }
 
-    void set_name(std::string name) { name_.set_text(std::move(name)); }
+    void set_name(std::string name) {
+        name_.set_text(std::move(name));
+        error_.clear();
+        redraw_();
+    }
+
+    [[nodiscard]] const char* name_label() const {
+        return request_.mode == core::PickerRequest::Mode::save ? "Name"
+               : request_.directory                             ? "Folder"
+                                                                : "File";
+    }
 
     void set_filter(std::uint32_t index);
 

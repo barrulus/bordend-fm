@@ -42,10 +42,10 @@ struct Fixture {
         browser.open(temp.path);
     }
 
-    bool settle() {
+    bool settle(std::function<bool()> ready = {}) {
         bool done = false;
         const auto poll = loop.add_timer(1ms, 1ms, [&] {
-            if (!browser.loading()) {
+            if (!browser.loading() && (!ready || ready())) {
                 done = true;
                 loop.quit();
             }
@@ -271,4 +271,114 @@ TEST_CASE("picker: choosing a filename in save mode replaces the initial suggest
     REQUIRE(f.result);
     CHECK(f.result->paths == std::vector<std::string>{(f.temp.path / "one.txt").string()});
     CHECK_FALSE(fs::exists(f.temp.path / "Untitled.txt"));
+}
+
+TEST_CASE("picker: missing typed paths have useful errors and folder labels") {
+    Fixture f;
+    core::PickerRequest request;
+    request.directory = true;
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    CHECK(std::string{picker->name_label()} == "Folder");
+    picker->set_name("not-created");
+    picker->accept();
+    CHECK(picker->error().find("does not exist") != std::string::npos);
+    CHECK(picker->error().find("New Folder") != std::string::npos);
+    CHECK_FALSE(f.result);
+    CHECK_FALSE(fs::exists(f.temp.path / "not-created"));
+    picker->set_name("one.txt");
+    CHECK(picker->error().empty());
+    picker->accept();
+    CHECK(picker->error().find("not a folder") != std::string::npos);
+    const auto removed = views::picker_selection(request, f.temp.path, {"removed"}, "");
+    CHECK(removed.error.find("no longer exists") != std::string::npos);
+    fs::create_symlink(f.temp.path / "missing", f.temp.path / "broken");
+    CHECK(views::picker_selection(request, f.temp.path, {}, "broken")
+              .error.find("broken symbolic link") != std::string::npos);
+    request.directory = false;
+    CHECK(views::picker_selection(request, f.temp.path, {}, "absent.txt")
+              .error.find("existing file") != std::string::npos);
+    CHECK(views::picker_selection(request, f.temp.path, {}, "folder").error.find("is a folder") !=
+          std::string::npos);
+    request.mode = Mode::save;
+    CHECK(views::picker_selection(request, f.temp.path, {}, "").error ==
+          "Enter a filename to save.");
+}
+
+TEST_CASE("browser: live name filtering composes with picker filters across all views") {
+    Fixture f;
+    core::PickerRequest request;
+    request.filters = {{"Text", {{0, "*.txt"}}}, {"All", {{0, "*"}}}};
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    for (const auto mode : {views::Browser::Mode::columns, views::Browser::Mode::grid,
+                            views::Browser::Mode::details}) {
+        f.browser.set_mode(mode);
+        f.browser.open(f.temp.path);
+        REQUIRE(f.settle());
+        auto folder = f.browser.picker_folder();
+        folder->select_name("one.txt");
+        f.browser.set_name_filter("TWO");
+        CHECK(folder->entries().empty());
+        CHECK(folder->selected_names().empty());
+        CHECK_FALSE(folder->cursor_entry());
+        picker->set_filter(1);
+        REQUIRE(folder->entries().size() == 1);
+        CHECK(folder->entries()[0].name == "two.png");
+        // Files arriving through the watcher obey the same filter.
+        std::ofstream{f.temp.path / "two-new.txt"} << "new";
+        REQUIRE(f.settle([&] { return folder->entries().size() == 2; }));
+        CHECK(folder->entries().size() == 2);
+        f.browser.set_name_filter("");
+        CHECK(folder->entries().size() == 4);
+        fs::remove(f.temp.path / "two-new.txt");
+        REQUIRE(f.settle([&] { return folder->entries().size() == 3; }));
+        picker->set_filter(0);
+    }
+}
+
+TEST_CASE("picker: filter keyboard input and Escape do not accept or cancel the dialog") {
+    Fixture f;
+    auto picker = f.picker({});
+    REQUIRE(f.settle());
+    picker->key({.keysym = XKB_KEY_F, .text = {}, .modifiers = {.ctrl = true, .shift = true}});
+    REQUIRE(f.browser.filtering());
+    picker->key({.keysym = XKB_KEY_o, .text = "o"});
+    picker->key({.keysym = XKB_KEY_n, .text = "n"});
+    picker->key({.keysym = XKB_KEY_e, .text = "e"});
+    CHECK(f.browser.name_filter() == "one");
+    REQUIRE(f.browser.picker_folder()->entries().size() == 1);
+    picker->key({.keysym = XKB_KEY_Return, .text = {}});
+    CHECK_FALSE(f.browser.filtering());
+    CHECK_FALSE(f.result);
+    picker->key({.keysym = XKB_KEY_F, .text = {}, .modifiers = {.ctrl = true, .shift = true}});
+    picker->key({.keysym = XKB_KEY_Escape, .text = {}});
+    CHECK(f.browser.name_filter().empty());
+    CHECK_FALSE(f.result);
+    CHECK(f.browser.picker_folder()->entries().size() == 3);
+}
+
+TEST_CASE("picker: New Folder clears the name filter and starts renaming in all views") {
+    for (const auto mode : {views::Browser::Mode::columns, views::Browser::Mode::grid,
+                            views::Browser::Mode::details}) {
+        Fixture f;
+        core::PickerRequest request;
+        request.directory = true;
+        auto picker = f.picker(request);
+        f.browser.set_mode(mode);
+        REQUIRE(f.settle());
+        picker->set_name("not-created");
+        picker->accept();
+        REQUIRE_FALSE(picker->error().empty());
+        f.browser.set_name_filter("nothing-matches");
+        f.browser.new_folder();
+        REQUIRE(f.settle());
+        CHECK(f.browser.name_filter().empty());
+        CHECK(fs::is_directory(f.temp.path / "New Folder"));
+        CHECK(f.browser.name_editor().active());
+        picker->key({.keysym = XKB_KEY_Return, .text = {}});
+        picker->accept();
+        REQUIRE(f.result);
+        CHECK(f.result->paths == std::vector<std::string>{(f.temp.path / "New Folder").string()});
+    }
 }

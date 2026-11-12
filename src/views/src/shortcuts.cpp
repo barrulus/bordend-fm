@@ -91,6 +91,13 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_k, XKB_KEY_K},
              .command = Command::command_palette},
     Shortcut{.group = "General",
+             .keys = "Ctrl+Shift+F",
+             .action = "Filter names in the view",
+             .scope = scope::kViews | scope::kSidebar,
+             .modifiers = kCtrlShift,
+             .keysyms = {XKB_KEY_f, XKB_KEY_F},
+             .command = Command::filter_names},
+    Shortcut{.group = "General",
              .keys = "Ctrl+F",
              .action = "Find files in the folder",
              .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
@@ -503,6 +510,8 @@ std::optional<std::size_t> binding_index(std::string_view name) {
         command = Command::previous_tab;
     if (name == "command_palette")
         command = Command::command_palette;
+    if (name == "filter_names")
+        command = Command::filter_names;
     if (name == "find_files")
         command = Command::find_files;
     for (std::size_t i = 0; i < kShortcuts.size(); ++i) {

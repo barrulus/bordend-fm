@@ -179,13 +179,16 @@ TEST_CASE("pointer shapes: a hand on every kind of button, an arrow elsewhere") 
     CHECK(f.find(CursorShape::standard, [&](float x, float y) { return sidebar.claims(x, y); }));
     // "More details", in the view, once the file's details are read (on a worker).
     const auto in_view = [&](float x, float y) {
-        return !status.claims(x, y) && !path.claims(x, y) && !sidebar.claims(x, y);
+        return !status.claims(x, y) && !path.claims(x, y) && !sidebar.claims(x, y) &&
+               !f.browser.new_folder_bounds().contains(x, y);
     };
     CHECK(run_until(f.loop, [&] {
         f.draw();
         return f.find(CursorShape::pointer, in_view).has_value();
     }));
-    CHECK_FALSE(f.find(CursorShape::text));  // no field open
+    CHECK_FALSE(f.find(CursorShape::text, [&](float x, float y) {
+        return !f.browser.filter_bounds().contains(x, y);
+    }));  // only the always-visible name filter
 }
 
 TEST_CASE("pointer shapes: the text cursor over a name being edited") {
@@ -296,4 +299,45 @@ TEST_CASE("pointer shapes: sidebar zoom scales eject targets and routes wheel in
     sidebar.set_list_size(0);
     f.browser.apply(saved);
     CHECK(sidebar.list_size() == 2);
+}
+
+TEST_CASE("toolbar: filter and New Folder buttons work in each view") {
+    for (const auto mode : {Browser::Mode::columns, Browser::Mode::grid, Browser::Mode::details}) {
+        Fixture f;
+        if (!f.gl) {
+            return;
+        }
+        f.browser.set_mode(mode);
+        f.browser.open(f.photos);
+        REQUIRE(f.settle());
+        const auto click = [&](const nordend::ui::Rect& rect) {
+            const float x = rect.x + rect.width / 2;
+            const float y = rect.y + rect.height / 2;
+            f.browser.pointer({.kind = PointerEvent::Kind::press,
+                               .x = x,
+                               .y = y,
+                               .button = nordend::ui::PointerButton::left},
+                              Browser::Clock::now());
+            f.browser.pointer({.kind = PointerEvent::Kind::release,
+                               .x = x,
+                               .y = y,
+                               .button = nordend::ui::PointerButton::left},
+                              Browser::Clock::now());
+        };
+        auto field = f.browser.filter_bounds();
+        CHECK(f.browser.cursor_at(field.x + 4, field.y + 4) == CursorShape::text);
+        click(field);
+        REQUIRE(f.browser.filtering());
+        f.browser.key({.keysym = XKB_KEY_b, .text = "b"}, Browser::Clock::now());
+        REQUIRE(f.settle());
+        REQUIRE(f.browser.picker_folder()->entries().size() == 1);
+        CHECK(f.browser.picker_folder()->entries()[0].name == "b.txt");
+        const auto button = f.browser.new_folder_bounds();
+        CHECK(f.browser.cursor_at(button.x + 4, button.y + 4) == CursorShape::pointer);
+        click(button);
+        REQUIRE(f.settle());
+        CHECK(fs::is_directory(f.photos / "New Folder"));
+        CHECK(f.browser.name_filter().empty());
+        CHECK(f.browser.name_editor().active());
+    }
 }

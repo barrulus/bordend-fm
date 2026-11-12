@@ -262,6 +262,7 @@ std::vector<PaletteItem> Browser::palette_items() {
 
     // Nordend.
     if (folder && !in_trash) {
+        command(Command::filter_names, "filter_names", "Filter Names…");
         command(Command::find_files, "find_files", "Find Files…");
     }
     command(Command::show_shortcuts, "show_shortcuts", "Keyboard Shortcuts");
