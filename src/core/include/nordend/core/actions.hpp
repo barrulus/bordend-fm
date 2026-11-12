@@ -12,6 +12,7 @@ struct Action {
     enum class Kind { external, copy_location, extract_here, extract_to };
     enum class Selection { one, many, background, any };
     enum class Placement { actions, menu };
+    enum class Destination { none, file, directory };
     std::string id;
     std::string label;
     std::vector<std::string> argv;
@@ -20,6 +21,8 @@ struct Action {
     Kind kind{Kind::external};
     bool enabled{true};
     Placement placement{Placement::actions};
+    Destination destination{Destination::none};
+    std::string destination_name{};  // suggested filename for the save picker
 };
 
 struct ActionTarget {
@@ -39,7 +42,8 @@ struct ActionContext {
 [[nodiscard]] std::optional<std::string> action_problem(const Action& action);
 [[nodiscard]] bool action_matches(const Action& action, const ActionContext& context);
 // Only whole arguments are expanded. {files} becomes several arguments, never shell text.
-[[nodiscard]] std::vector<std::string> action_arguments(const Action& action,
-                                                        const ActionContext& context);
+[[nodiscard]] std::vector<std::string> action_arguments(
+    const Action& action, const ActionContext& context,
+    const std::filesystem::path& destination = {});
 
 }  // namespace nordend::core
