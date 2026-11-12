@@ -49,7 +49,7 @@ bash /source/scripts/ci/check-installed.sh /usr "$version" "$license"
 case "$format" in
     deb) apt-get install -y --no-install-recommends weston libgl1-mesa-dri dbus fonts-dejavu-core ;;
     rpm) dnf install -y weston mesa-dri-drivers dbus-daemon dejavu-sans-fonts ;;
-    tumbleweed) zypper --non-interactive install --no-recommends weston Mesa-dri dbus-1 dbus-1-tools dejavu-fonts ;;
+    tumbleweed) zypper --non-interactive install --no-recommends weston Mesa-dri dbus-1-daemon dejavu-fonts ;;
     arch) pacman -S --noconfirm --needed weston mesa dbus ttf-dejavu ;;
 esac
 bash /source/scripts/ci/check-wayland.sh /usr
