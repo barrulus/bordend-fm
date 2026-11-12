@@ -2,7 +2,8 @@
 
 The fork's [workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main`,
 and manual dispatch. It currently validates **x86_64 Linux with glibc**. The flake still
-exposes aarch64 packages, but this workflow does not claim to build or run them. Debian 13, Fedora 44, Arch Linux and openSUSE Tumbleweed are also built as native packages. Void musl, older Debian/Ubuntu
+exposes aarch64 packages, but this workflow does not claim to build or run them. Debian 13,
+Fedora 44, Arch Linux and openSUSE Tumbleweed are also built as native packages. Void musl, older Debian/Ubuntu
 releases, other RPM distributions and signed/stable releases are outside the validated scope.
 
 ## Nix

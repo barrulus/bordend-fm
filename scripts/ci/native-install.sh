@@ -19,7 +19,7 @@ case "$format" in
     tumbleweed)
         zypper --non-interactive refresh
         zypper --non-interactive dup --no-recommends
-        zypper --non-interactive --no-gpg-checks install --no-recommends /packages/nordend-[0-9]*.x86_64.rpm
+        zypper --non-interactive install --no-recommends --allow-unsigned-rpm /packages/nordend-[0-9]*.x86_64.rpm
         rpm --verify nordend
         license=/usr/share/licenses/nordend/LICENSE
         ;;

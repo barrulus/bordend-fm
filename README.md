@@ -505,7 +505,8 @@ existing configuration.
 
 Pull requests run the full Nix test suite, NixOS module checks, installed-package checks,
 and native Void XBPS, Debian 13 DEB and Fedora 44 RPM build/install checks against the PR
-checkout. Arch and openSUSE Tumbleweed are also built and installed in fresh containers. All installed packages must
+checkout. Arch and openSUSE Tumbleweed are also built and installed in fresh containers.
+All installed packages must
 render a window under headless Weston. Initial coverage is x86_64 Linux/glibc; ARM, musl,
 and other distribution packages are not yet covered by this workflow.
 
