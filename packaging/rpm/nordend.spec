@@ -9,6 +9,8 @@ Source0:        nordend-source.tar.gz
 BuildRequires:  gcc-c++
 BuildRequires:  cmake
 %if 0%{?suse_version}
+# openSUSE packages the GLES 3 headers separately from pkgconfig(glesv2).
+BuildRequires:  Mesa-libGLESv3-devel
 BuildRequires:  ninja
 %else
 BuildRequires:  ninja-build
