@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Prepare stable release assets from the three tested artifacts of one CI run."""
+import argparse
+import hashlib
+import json
+from pathlib import Path
+import re
+import shutil
+import tarfile
+
+
+def only(directory, pattern):
+    matches = list(directory.glob(pattern))
+    if len(matches) != 1 or not matches[0].is_file():
+        raise ValueError(f'Expected exactly one {pattern} in {directory}')
+    return matches[0]
+
+
+def prepare(artifacts, output, commit, repository, run_id, readme):
+    if not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('Expected a full Git commit SHA')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository) or not run_id.isdigit():
+        raise ValueError('Invalid repository or workflow run ID')
+    if output.exists() and any(output.iterdir()):
+        raise ValueError('Output directory must be empty')
+    roots = {
+        'void': artifacts / f'void-x86_64-{commit}' / 'void-package',
+        'deb': artifacts / f'deb-x86_64-{commit}' / 'native-package',
+        'rpm': artifacts / f'rpm-x86_64-{commit}' / 'native-package',
+    }
+    identities = [json.loads((root / ('source.json' if kind == 'void' else 'input/source.json')).read_text())
+                  for kind, root in roots.items()]
+    identity = identities[0]
+    if any(item != identity for item in identities) or identity['commit'] != commit:
+        raise ValueError('Package artifacts do not all match the expected source revision')
+    sources = [roots[kind] / 'input/source.tar.gz' for kind in ('deb', 'rpm')]
+    if any(hashlib.sha256(source.read_bytes()).hexdigest() != identity['sha256'] for source in sources):
+        raise ValueError('Source archive checksum mismatch')
+    deb = only(roots['deb'] / 'packages', 'nordend_*_amd64.deb')
+    rpm = only(roots['rpm'] / 'packages', 'nordend-[0-9]*.x86_64.rpm')
+    void = only(roots['void'] / 'packages', 'nordend-*.x86_64.xbps')
+    index = roots['void'] / 'packages/x86_64-repodata'
+    if not index.is_file() or index.stat().st_size == 0:
+        raise ValueError('Void repository index is missing')
+    instructions = readme.read_text().split('<!-- development-downloads:start -->', 1)[1].split(
+        '<!-- development-downloads:end -->', 1)[0].strip()
+    output.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(deb, output / 'nordend-debian13-amd64.deb')
+    shutil.copyfile(rpm, output / 'nordend-fedora44-x86_64.rpm')
+    with tarfile.open(output / 'nordend-void-glibc-x86_64.tar.gz', 'w:gz') as archive:
+        for source in (void, index):
+            archive.add(source, arcname=f'nordend-void-x86_64/packages/{source.name}')
+        archive.add(roots['void'] / 'source.json', arcname='nordend-void-x86_64/source.json')
+    shutil.copyfile(sources[0], output / 'nordend-source.tar.gz')
+    (output / 'source.json').write_text(json.dumps(identity, indent=2) + '\n')
+    (output / 'SHA256SUMS').write_text(''.join(
+        f'{hashlib.sha256(asset.read_bytes()).hexdigest()}  {asset.name}\n'
+        for asset in sorted(output.iterdir())))
+    (output / 'release-notes.md').write_text(
+        f"Built from [`{commit[:12]}`](https://github.com/{repository}/commit/{commit}). "
+        f"Application version: {identity['version']}.\n\n"
+        f"[Successful build and checks](https://github.com/{repository}/actions/runs/{run_id}). "
+        'The `development` tag and these assets move together as newer main builds pass CI. '
+        'Save `source.json` to retain the exact source identity.\n\n' + instructions + '\n')
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('artifacts', type=Path)
+    parser.add_argument('output', type=Path)
+    parser.add_argument('--commit', required=True)
+    parser.add_argument('--repository', required=True)
+    parser.add_argument('--run-id', required=True)
+    parser.add_argument('--readme', type=Path, default=Path('README.md'))
+    args = parser.parse_args()
+    prepare(args.artifacts, args.output, args.commit, args.repository, args.run_id, args.readme)
