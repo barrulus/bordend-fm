@@ -251,6 +251,9 @@ engines).
 
 ## Development
 
+Contributions are welcome: bug reports, fixes, and features after a short discussion in an issue.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Nordend is copiloted by **Claude Opus** (Anthropic), which assists with code writing, code analysis,
 bug hunting, testing and documentation. Design decisions, testing on real hardware and every release
 are the author's. Step numbers in code comments ("ROADMAP 6.3") refer to the internal roadmap.
