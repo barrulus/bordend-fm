@@ -41,6 +41,7 @@
 #include "nordend/views/info_pane.hpp"
 #include "nordend/views/name_editor.hpp"
 #include "nordend/views/pane.hpp"
+#include "nordend/views/properties_dialog.hpp"
 #include "nordend/views/quick_look.hpp"
 #include "nordend/views/shortcuts.hpp"
 #include "nordend/views/shortcuts_overlay.hpp"
@@ -188,7 +189,8 @@ public:
 
     [[nodiscard]] bool has_overlay() const {
         return conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
-               editor_.active() || shortcuts_.is_open() || quick_look_.is_open();
+               editor_.active() || shortcuts_.is_open() || quick_look_.is_open() ||
+               properties_.is_open();
     }
 
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
@@ -502,6 +504,10 @@ public:
 
     [[nodiscard]] ConfirmDialog& confirm_dialog() noexcept { return confirm_; }
 
+    void show_properties();
+
+    [[nodiscard]] PropertiesDialog& properties_dialog() noexcept { return properties_; }
+
     // In the trash folder: puts the selection (or the entry under the cursor) back where it was,
     // with its darktable sidecars, and the cursor on the entry after it.
     void restore();
@@ -706,6 +712,7 @@ private:
     NameEditor editor_;
     ConflictDialog conflict_;
     ConfirmDialog confirm_;
+    PropertiesDialog properties_;
     ContextMenu menu_;
     CommandPalette palette_;
     std::vector<std::string> palette_recent_;

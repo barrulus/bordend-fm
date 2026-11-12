@@ -67,6 +67,12 @@ void DirectoryModel::set_order(SortOrder order) {
     notify(reset_change());
 }
 
+void DirectoryModel::refresh_entry(const std::string& name) {
+    dirty_.insert(name);
+    if (!loading_)
+        schedule_refresh();
+}
+
 void DirectoryModel::set_filter(bool show_hidden, std::string keep) {
     Listing::Moved moved = listing_.set_filter(show_hidden, std::move(keep));
     if (moved.hidden.empty() && moved.shown.empty()) {

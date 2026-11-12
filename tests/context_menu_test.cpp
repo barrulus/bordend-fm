@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -14,15 +15,15 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
 #include "nordend/core/config.hpp"
+#include "nordend/core/event_loop.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/operations.hpp"
 #include "nordend/fs/places.hpp"
-#include "nordend/views/browser.hpp"
 #include "nordend/ui/offscreen.hpp"
+#include "nordend/views/browser.hpp"
 #include "temp_dir.hpp"
 
 using nordend::core::EventLoop;
@@ -249,8 +250,9 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({"a.txt"});
     CHECK(f.press(key(XKB_KEY_Menu)));
     REQUIRE(f.menu().is_open());
-    CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase", "action:copy_location", "sort"});
+    CHECK(ids(f.menu().items()) == Names{"open", "open_with", "copy", "cut", "-paste", "rename",
+                                         "trash", "erase", "properties", "action:copy_location",
+                                         "sort"});
     CHECK(f.menu().items()[2].keys == "Ctrl+C");  // from the shortcuts table
     CHECK(f.menu().items()[6].keys == "Delete");
     CHECK(f.press(key(XKB_KEY_Escape)));
@@ -259,14 +261,15 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     // Several: no Rename. A folder: Open With and a terminal too.
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
-    CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase", "action:copy_location", "sort"});
+    CHECK(ids(f.menu().items()) == Names{"open", "open_with", "copy", "cut", "-paste", "-rename",
+                                         "trash", "erase", "-properties", "action:copy_location",
+                                         "sort"});
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_tab", "open_terminal",
                                          "add_bookmark", "copy", "cut", "-paste", "rename", "trash",
-                                         "erase", "action:copy_location", "sort"});
+                                         "erase", "properties", "action:copy_location", "sort"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -274,8 +277,9 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.browser.status_bar().message() == "Ctrl+V copies “sub” where you want them");
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));
-    CHECK(ids(f.menu().items()) ==
-          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal", "action:copy_location", "sort"});
+    CHECK(ids(f.menu().items()) == Names{"new_folder", "new_file", "paste", "add_bookmark",
+                                         "open_terminal", "action:copy_location", "sort",
+                                         "properties"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
 }
@@ -309,7 +313,7 @@ TEST_CASE("context menu: Sort By sorts every view, and the folders they open lat
     // The menu: a submenu with a dot on the order in use, on empty space and on an entry.
     f.select({});
     f.browser.open_menu(100, 100, false);
-    const MenuItem& sort = f.menu().items().back();
+    const MenuItem& sort = *std::ranges::find(f.menu().items(), "sort", &MenuItem::id);
     REQUIRE(sort.id == "sort");
     CHECK(sort.submenu);
     CHECK(ids(sort.children) == Names{"sort:name", "sort:size", "sort:modified", "sort:type",
@@ -910,4 +914,172 @@ TEST_CASE("context menu: pointer navigates nested panels and switches sibling gr
     pointer(620, 340, true);
     CHECK(ran == 1);
     CHECK_FALSE(menu.is_open());
+}
+
+TEST_CASE("properties: context menu and shortcut open a modal for files and the current folder") {
+    Fixture f;
+    f.select({"a.txt"});
+    f.browser.open_menu(100, 100, true);
+    f.choose("properties");
+    auto& properties = f.browser.properties_dialog();
+    REQUIRE(properties.is_open());
+    REQUIRE(f.settle());
+    CHECK(properties.path() == f.photos / "a.txt");
+    CHECK_FALSE(properties.can_edit_icon());
+    CHECK(f.browser.has_overlay());
+    f.press(key(XKB_KEY_Delete));
+    CHECK(fs::exists(f.photos / "a.txt"));
+    f.press(key(XKB_KEY_Escape));
+    CHECK_FALSE(properties.is_open());
+    f.select({});
+    f.press(key(XKB_KEY_Return, {.alt = true}));
+    REQUIRE(f.settle());
+    CHECK(properties.path() == f.photos);
+    CHECK(properties.can_edit_icon());
+    properties.close();
+    f.select({"a.txt", "b.txt"});
+    f.press(key(XKB_KEY_Return, {.alt = true}));
+    CHECK_FALSE(properties.is_open());
+}
+
+TEST_CASE(
+    "properties: staging, cancel, apply and reset preserve metadata and refresh the selected "
+    "folder") {
+    Fixture f;
+    f.select({"sub"});
+    auto& properties = f.browser.properties_dialog();
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    properties.choose_icon("folder-music");
+    CHECK(properties.dirty());
+    CHECK_FALSE(fs::exists(f.photos / "sub/.directory"));
+    properties.close();
+    CHECK_FALSE(fs::exists(f.photos / "sub/.directory"));
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    properties.pick_icon();
+    REQUIRE(properties.picking());
+    f.press(key(XKB_KEY_Escape));
+    CHECK_FALSE(properties.picking());
+    CHECK(properties.is_open());
+    properties.choose_icon("folder-music");
+    // An external program changed another setting while Properties was open.
+    std::ofstream{f.photos / "sub/.directory"} << "[Settings]\nView=3\n";
+    properties.apply();
+    REQUIRE(run_until(f.loop, [&] {
+        const auto* entry = f.folder()->cursor_entry();
+        return !properties.is_open() && entry && entry->folder_icon == "folder-music";
+    }));
+    CHECK(f.folder()->cursor_entry()->name == "sub");
+    CHECK(read_file(f.photos / "sub/.directory").find("View=3") != std::string::npos);
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    properties.choose_icon("");
+    properties.apply();
+    REQUIRE(run_until(f.loop, [&] {
+        const auto* entry = f.folder()->cursor_entry();
+        return !properties.is_open() && entry && entry->folder_icon.empty();
+    }));
+    CHECK(read_file(f.photos / "sub/.directory").find("Icon=") == std::string::npos);
+    CHECK(read_file(f.photos / "sub/.directory").find("View=3") != std::string::npos);
+}
+
+TEST_CASE("properties: failed saves stay open and do not recreate a removed folder") {
+    Fixture f;
+    f.select({"sub"});
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    auto& properties = f.browser.properties_dialog();
+    properties.choose_icon("/no/such/icon.png");
+    properties.apply();
+    REQUIRE(run_until(f.loop, [&] { return !properties.saving(); }));
+    CHECK(properties.is_open());
+    CHECK_FALSE(properties.error().empty());
+    CHECK_FALSE(fs::exists(f.photos / "sub/.directory"));
+    properties.choose_icon("folder-music");
+    fs::remove(f.photos / "sub");
+    properties.apply();
+    REQUIRE(run_until(f.loop, [&] { return !properties.saving(); }));
+    CHECK(properties.is_open());
+    CHECK_FALSE(properties.error().empty());
+    CHECK_FALSE(fs::exists(f.photos / "sub"));
+}
+
+TEST_CASE("properties: obsolete metadata load cannot replace a newly opened item's properties") {
+    Fixture f;
+    auto& properties = f.browser.properties_dialog();
+    properties.open(f.photos / "sub/", [] {});
+    REQUIRE(f.settle());
+    CHECK(properties.can_edit_icon());
+    properties.open(f.photos / "sub", [] {});
+    properties.open(f.photos / "a.txt", [] {});
+    REQUIRE(f.settle());
+    CHECK(properties.path() == f.photos / "a.txt");
+    CHECK_FALSE(properties.can_edit_icon());
+    properties.open(f.photos / "sub", [] {});
+    properties.close();
+    REQUIRE(f.settle());
+    CHECK_FALSE(properties.is_open());
+}
+
+TEST_CASE("properties: keyboard search selects a themed icon and custom artwork stays staged") {
+    std::unique_ptr<nordend::ui::Offscreen> gl;
+    try {
+        gl = std::make_unique<nordend::ui::Offscreen>(800, 640);
+    } catch (const std::runtime_error& error) {
+        MESSAGE("no offscreen OpenGL: " << error.what());
+        return;
+    }
+    Fixture f;
+    const char* data_home = std::getenv("XDG_DATA_HOME");
+    REQUIRE(data_home != nullptr);
+    const auto theme = fs::path{data_home} / "icons/nordend-properties-test";
+    fs::create_directories(theme / "48");
+    std::ofstream{theme / "index.theme"} << "[Icon Theme]\nDirectories=48\n[48]\nSize=48\n";
+    const std::string svg =
+        "<svg width='32' height='32'><rect width='32' height='32' fill='red'/></svg>";
+    std::ofstream{theme / "48/folder-red.svg"} << svg;
+    std::ofstream{theme / "48/folder-blue.svg"} << svg;
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    nordend::ui::IconSet icons{fonts};
+    icons.set_theme("nordend-properties-test");
+    f.select({"sub"});
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    auto& properties = f.browser.properties_dialog();
+    const auto draw = [&] {
+        renderer.begin_frame(800, 640, 1, nordend::ui::Color::rgb(0));
+        properties.draw(renderer, {0, 0, 800, 640}, nordend::theme::Palette{}, icons);
+        renderer.end_frame();
+    };
+    draw();
+    f.press(key(XKB_KEY_Return));
+    REQUIRE(properties.picking());
+    draw();
+    REQUIRE(f.settle());
+    nordend::ui::KeyEvent query;
+    query.text = "blue";
+    f.press(query);
+    draw();
+    f.press(key(XKB_KEY_Tab));
+    f.press(key(XKB_KEY_Return));
+    CHECK_FALSE(properties.picking());
+    CHECK(properties.icon() == "folder-blue");
+    CHECK_FALSE(fs::exists(f.photos / "sub/.directory"));
+    f.press(key(XKB_KEY_Return));  // Apply is focused after choosing.
+    REQUIRE(run_until(f.loop, [&] { return !properties.is_open(); }));
+    CHECK(read_file(f.photos / "sub/.directory").find("Icon=folder-blue") != std::string::npos);
+    f.browser.show_properties();
+    REQUIRE(f.settle());
+    properties.pick_icon();
+    draw();
+    f.press(key(XKB_KEY_Tab));
+    f.press(key(XKB_KEY_Tab));  // custom path
+    f.press(key(XKB_KEY_a, {.ctrl = true}));
+    properties.paste((theme / "48/folder-red.svg").string());
+    f.press(key(XKB_KEY_Return));
+    CHECK(properties.icon() == (theme / "48/folder-red.svg").string());
+    f.press(key(XKB_KEY_Escape));
+    CHECK(read_file(f.photos / "sub/.directory").find("Icon=folder-blue") != std::string::npos);
 }

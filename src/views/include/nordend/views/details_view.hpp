@@ -68,6 +68,8 @@ public:
 
     [[nodiscard]] const std::shared_ptr<Folder>& root_folder() const noexcept { return root_; }
 
+    void refresh_entry(const std::filesystem::path& path);
+
     // Dotfiles listed or left out (hidden at first), in the folder shown and the ones it opens.
     void set_show_hidden(bool show);
     void set_entry_filter(fs::Listing::Predicate filter);

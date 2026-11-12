@@ -294,7 +294,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             icons.draw_file(renderer, (mime).name(typed.mime), fs::icon_name(mime, typed),
                             out.left() + ((out.width() - kIconSize) / 2.0F),
                             out.y() + ((box - kIconSize) / 2.0F), kIconSize,
-                            palette.on_surface_variant);
+                            palette.on_surface_variant, typed.folder_icon);
         }
         out.skip(box + 18.0F);
     } else if (summary != nullptr && summary->text && !summary->text->lines.empty()) {
@@ -319,8 +319,11 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         }
         out.skip(height + 18.0F);
     } else {
-        icon(fs::icon_name(mime, typed),
-             single->is_directory() ? palette.primary : palette.on_surface_variant);
+        icons.draw_file(renderer, mime.name(typed.mime), fs::icon_name(mime, typed),
+                        out.left() + ((out.width() - kIconSize) / 2.0F), out.y(), kIconSize,
+                        single->is_directory() ? palette.primary : palette.on_surface_variant,
+                        typed.folder_icon);
+        out.skip(kIconSize + 18.0F);
     }
 
     // Name and type.

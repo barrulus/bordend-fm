@@ -363,7 +363,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                     ui::Corners::all(kThumbnailRadius), cut ? kCutOpacity : 1.0F);
             } else {
                 icons.draw_file(renderer, (*mime_).name(typed.mime), fs::icon_name(*mime_, typed),
-                                x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
+                                x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon,
+                                typed.folder_icon);
             }
             if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
                 // One line across the cell, where the name starts.

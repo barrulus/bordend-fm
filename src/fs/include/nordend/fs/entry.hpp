@@ -20,6 +20,8 @@ struct Entry {
     // Set by the loader when the kind or the name alone decides it (no file read); otherwise
     // kUnknownMime, and MimeDatabase::detect() looks at the content when the type is needed.
     MimeId mime{kUnknownMime};
+    // Resolved on the directory worker: theme name or absolute local icon path.
+    std::string folder_icon{};
 
     [[nodiscard]] bool hidden() const noexcept { return !name.empty() && name.front() == '.'; }
 

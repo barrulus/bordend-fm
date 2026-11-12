@@ -49,6 +49,7 @@ enum class Command : std::uint8_t {
     undo,
     redo,
     context_menu,
+    properties,
     back,
     forward,
     toggle_hidden,

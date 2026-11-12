@@ -10,9 +10,11 @@
 #include <doctest/doctest.h>
 
 #include "nordend/ui/color.hpp"
+#include "nordend/ui/icons.hpp"
 #include "nordend/ui/offscreen.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
+#include "temp_dir.hpp"
 
 namespace ui = nordend::ui;
 
@@ -164,4 +166,40 @@ TEST_CASE("renderer: adjacent translucent panels meet at fractional pixel bounda
             CHECK(rgba[x < boundary ? 2 : 1] == 0);
         }
     }
+}
+
+TEST_CASE("folder icons: rendered override, missing or broken artwork, and builtin fallback") {
+    const auto gl = offscreen(32, 32);
+    if (!gl)
+        return;
+    nordend::test::TempDir dir;
+    const auto custom = dir.write("custom.svg",
+                                  "<svg width='32' height='32'>"
+                                  "<rect width='32' height='32' fill='red'/></svg>");
+    const auto broken = dir.write("broken.svg", "not svg");
+    ui::FontSystem fonts;
+    ui::Renderer renderer{fonts};
+    ui::IconSet icons{fonts};
+    icons.set_theme("nordend-nonexistent-test-theme");
+    const auto draw = [&](std::string_view preferred) {
+        renderer.begin_frame(32, 32, 1.0F, ui::Color::rgb(0x000000));
+        icons.draw_file(renderer, "inode/directory", "folder", 0, 0, 32, ui::Color::rgb(0xFFFFFF),
+                        preferred);
+        renderer.end_frame();
+        std::array<std::uint8_t, 32 * 32 * 4> pixels{};
+        glReadPixels(0, 0, 32, 32, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        return pixels;
+    };
+    const auto normal = draw({});
+    const auto override = draw(custom.string());
+    CHECK(override != normal);
+    const auto middle = (16 * 32 + 16) * 4;
+    CHECK(override[middle] == 255);
+    CHECK(override[middle + 1] == 0);
+    CHECK(draw(broken.string()) == normal);
+    CHECK(draw((dir.path / "missing.svg").string()) == normal);
+    CHECK(draw("nordend-nonexistent-folder-icon") == normal);
+    icons.set_theme("builtin");
+    const auto builtin = draw({});
+    CHECK(draw(custom.string()) == builtin);
 }

@@ -111,6 +111,34 @@ TEST_CASE("icon theme: PNG icons retain their pixels") {
     CHECK(image.height == 1);
 }
 
+TEST_CASE("icon theme: absolute custom icons and unavailable overrides") {
+    TempDir dir;
+    const IconTheme theme{"missing", {dir.path}};
+    const auto svg = dir.write("custom.svg", kSvg);
+    CHECK(theme.find(svg.string(), 48) == svg);
+    CHECK(theme.find((dir.path / "absent.svg").string(), 48).empty());
+    CHECK(theme.find(dir.write("other.txt", kSvg).string(), 48).empty());
+    fs::create_directory(dir.path / "directory.svg");
+    CHECK(theme.find((dir.path / "directory.svg").string(), 48).empty());
+    CHECK(theme.find("https://example.org/icon.svg", 48).empty());
+}
+
+TEST_CASE("icon theme: folder catalogue deduplicates sizes and excludes broken icons") {
+    TempDir dir;
+    write(dir.path, "theme/index.theme",
+          "[Icon Theme]\nDirectories=16,48\n[16]\nSize=16\n[48]\nSize=48\n");
+    write(dir.path, "theme/16/folder-music.svg", kSvg);
+    write(dir.path, "theme/48/folder-music.svg", kSvg);
+    write(dir.path, "theme/48/folder-red.png", "png");
+    write(dir.path, "theme/48/user-home.svg", kSvg);
+    write(dir.path, "theme/48/folder-red-symbolic.svg", kSvg);
+    write(dir.path, "theme/48/application.svg", kSvg);
+    fs::create_symlink("missing", dir.path / "theme/48/folder-broken.svg");
+    const IconTheme theme{"theme", {dir.path}};
+    CHECK(theme.folder_icons() ==
+          std::vector<std::string>{"folder-music", "folder-red", "user-home"});
+}
+
 TEST_CASE("icon theme: unsupported SVG filters report fallback without losing the image") {
     TempDir dir;
     const auto file =

@@ -544,7 +544,9 @@ int main(int argc, char** argv) {
                     } else {
                         columns->key(event, views::Browser::Clock::now());
                     }
+                    frame();  // lays out newly opened dialogs and starts their visible work
                     run_until(loop, [&] { return !columns->loading(); });
+                    frame();
                 }
                 std::string_view fields{sort};
                 while (!fields.empty()) {

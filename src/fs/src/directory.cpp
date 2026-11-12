@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <utility>
 
+#include "nordend/fs/folder_icon.hpp"
+
 namespace nordend::fs {
 namespace {
 
@@ -81,6 +83,7 @@ ReadResult read_directory(const std::filesystem::path& path, const core::CancelT
         return result;
     }
     const int dir_fd = dirfd(dir.get());
+    const FolderIcons icons;
     std::size_t chunk_size = std::max<std::size_t>(options.first_chunk, 1);
     std::vector<Entry> chunk;
     chunk.reserve(chunk_size);
@@ -107,6 +110,10 @@ ReadResult read_directory(const std::filesystem::path& path, const core::CancelT
         }
         if (options.mime) {
             entry.mime = mime_without_content(*options.mime, entry);
+        }
+        // Avoid probing zero-sized autofs placeholders (which could mount other homes).
+        if (entry.is_directory() && entry.size != 0) {
+            entry.folder_icon = icons.for_folder(path / entry.name);
         }
         chunk.push_back(std::move(entry));
         if (chunk.size() == chunk_size) {
@@ -135,6 +142,7 @@ std::vector<std::optional<Entry>> read_entries(const std::filesystem::path& path
     if (dir_fd < 0) {
         return result;
     }
+    const FolderIcons icons;
     for (std::size_t i = 0; i < names.size(); ++i) {
         Entry entry{.name = names[i]};
         if (!stat_entry(dir_fd, entry)) {
@@ -142,6 +150,9 @@ std::vector<std::optional<Entry>> read_entries(const std::filesystem::path& path
         }
         if (options.mime) {
             entry.mime = mime_without_content(*options.mime, entry);
+        }
+        if (entry.is_directory() && entry.size != 0) {
+            entry.folder_icon = icons.for_folder(path / entry.name);
         }
         result[i] = std::move(entry);
     }

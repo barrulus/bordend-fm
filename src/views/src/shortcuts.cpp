@@ -119,6 +119,13 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_Menu, XKB_KEY_F10},
              .command = Command::context_menu},
     Shortcut{.group = "General",
+             .keys = "Alt+Enter",
+             .action = "Properties",
+             .scope = scope::kViews,
+             .modifiers = {.alt = true},
+             .keysyms = {XKB_KEY_Return, XKB_KEY_KP_Enter},
+             .command = Command::properties},
+    Shortcut{.group = "General",
              .keys = "Ctrl+Q",
              .action = "Quit",
              .scope = scope::kWindow,
@@ -490,6 +497,8 @@ std::optional<std::size_t> binding_index(std::string_view name) {
         command = Command::redo;
     if (name == "context_menu")
         command = Command::context_menu;
+    if (name == "properties")
+        command = Command::properties;
     if (name == "back")
         command = Command::back;
     if (name == "forward")

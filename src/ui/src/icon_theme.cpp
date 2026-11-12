@@ -201,6 +201,14 @@ void IconTheme::add_theme(const std::string& name) {
 }
 
 std::filesystem::path IconTheme::find(std::string_view icon, int pixels) const {
+    if (icon.starts_with('/')) {
+        const std::filesystem::path path{icon};
+        std::error_code error;
+        if ((path.extension() == ".svg" || path.extension() == ".png") &&
+            std::filesystem::is_regular_file(path, error))
+            return path;
+        return {};
+    }
     if (!safe_name(icon)) {
         return {};
     }
@@ -273,6 +281,35 @@ picture::Image IconTheme::render(const std::filesystem::path& file, int pixels,
                                 *static_cast<bool*>(context) = true;
                         },
                         unsupported_svg_filter});
+}
+
+std::vector<std::string> IconTheme::folder_icons() const {
+    std::vector<std::string> names;
+    const auto scan = [&names](const std::filesystem::path& directory) {
+        std::error_code error;
+        for (std::filesystem::directory_iterator it{directory, error};
+             !error && it != std::filesystem::directory_iterator{}; it.increment(error)) {
+            const auto& path = it->path();
+            if (path.extension() != ".svg" && path.extension() != ".png")
+                continue;
+            const auto name = path.stem().string();
+            std::error_code file_error;
+            if ((name == "folder" || name.starts_with("folder-") || name == "user-home" ||
+                 name == "user-desktop") &&
+                !name.ends_with("-symbolic") && it->is_regular_file(file_error))
+                names.push_back(name);
+        }
+    };
+    for (const auto& theme : themes_)
+        for (const auto& directory : theme.directories)
+            for (const auto& root : roots_)
+                scan(root / theme.name / directory.name);
+    for (const auto& root : roots_)
+        scan(root);
+    std::ranges::sort(names);
+    const auto duplicates = std::ranges::unique(names);
+    names.erase(duplicates.begin(), duplicates.end());
+    return names;
 }
 
 }  // namespace nordend::ui

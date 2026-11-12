@@ -88,6 +88,13 @@ void DetailsView::show(std::shared_ptr<Folder> folder) {
     redraw_();
 }
 
+void DetailsView::refresh_entry(const std::filesystem::path& path) {
+    if (root_ && root_->path() == path.parent_path())
+        root_->refresh_entry(path.filename().string());
+    if (const auto it = expanded_.find(path.parent_path()); it != expanded_.end())
+        it->second->refresh_entry(path.filename().string());
+}
+
 void DetailsView::append_rows(const std::shared_ptr<Folder>& folder, std::size_t depth) {
     for (std::size_t i = 0; i < folder->entries().size(); ++i) {
         tree_rows_.push_back({folder, i, depth});
@@ -540,7 +547,8 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         }
         const float name_left = arrow_left + size_.icon;
         icons.draw_file(renderer, (*mime_).name(typed.mime), fs::icon_name(*mime_, typed),
-                        name_left, y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon);
+                        name_left, y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon,
+                        typed.folder_icon);
         const float name_x = name_left + size_.icon + kIconGap;
         const float name_room = layout_.left.at(index(Field::name)) +
                                 layout_.width.at(index(Field::name)) - kCellPadding - name_x;
