@@ -11,6 +11,7 @@ namespace nordend::core {
 struct Action {
     enum class Kind { external, copy_location, extract_here, extract_to };
     enum class Selection { one, many, background, any };
+    enum class Placement { actions, menu };
     std::string id;
     std::string label;
     std::vector<std::string> argv;
@@ -18,6 +19,7 @@ struct Action {
     Selection selection{Selection::one};
     Kind kind{Kind::external};
     bool enabled{true};
+    Placement placement{Placement::actions};
 };
 
 struct ActionTarget {

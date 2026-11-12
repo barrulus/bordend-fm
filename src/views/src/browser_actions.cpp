@@ -5,6 +5,19 @@
 
 namespace nordend::views {
 
+void Browser::set_context_menu(core::MenuLayout layout) {
+    menu_layout_ = std::move(layout);
+    menu_.close();
+    redraw_();
+}
+
+std::vector<MenuItem> Browser::configured_menu(
+    std::vector<MenuItem> items,
+    const std::optional<std::vector<core::MenuNode>>& specific) const {
+    const auto& layout = specific ? specific : menu_layout_.items;
+    return layout ? arrange_menu(items, *layout) : std::move(items);
+}
+
 void Browser::set_actions(std::span<const core::Action> custom) {
     actions_ = core::action_registry(custom);
     menu_.close();
@@ -62,8 +75,7 @@ std::vector<MenuItem> Browser::action_items(const core::ActionContext& context) 
             item.label += " (not installed)";
         }
         item.action = [this, action, context] { invoke_action(action, context); };
-        if (action.id == "copy_location" || action.id == "extract_here" ||
-            action.id == "extract_to") {
+        if (action.placement == core::Action::Placement::menu) {
             items.push_back(std::move(item));
         } else {
             custom.children.push_back(std::move(item));

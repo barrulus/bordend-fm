@@ -75,6 +75,7 @@ execution = "handoff"
     const auto result = nordend::core::parse_config(valid, "actions.toml");
     REQUIRE(result.problems.empty());
     REQUIRE(result.config.actions.size() == 1);
+    CHECK(result.config.actions.front().placement == Action::Placement::actions);
     CHECK(result.config.keybindings.at("action:upscale") == "Ctrl+Alt+u");
     for (const auto* invalid :
          {"actions = 1", "[[actions]]\nid = 'incomplete'",
@@ -83,6 +84,8 @@ execution = "handoff"
           "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool','{file}']\nselection='many'",
           "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool','{files}']\nselection='background'",
           "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool']\nexecution='job'",
+          "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool']\nplacement='toolbar'",
+          "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool']\nplacement=true",
           "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool']\nconfirm=true",
           "[[actions]]\nid='copy_location'\nlabel='Bad'\nargv=['tool']",
           "[[actions]]\nid='bad'\nlabel='Bad'\nargv=['tool',7]",
@@ -103,10 +106,39 @@ execution = "handoff"
     CHECK(registry[2].label == "Extract To…");
     CHECK(registry[2].argv == std::vector<std::string>{"other-archiver", "{files}"});
     CHECK(registry[2].selection == Action::Selection::many);
+    CHECK(registry[2].placement == Action::Placement::menu);
     const auto duplicate = nordend::core::parse_config(
         valid + "\n[[actions]]\nid='upscale'\nlabel='Again'\nargv=['tool']", "actions.toml");
     CHECK_FALSE(duplicate.actions_valid);
     CHECK(duplicate.config.actions.empty());
+}
+
+TEST_CASE("actions: config supports menu placement and explicit submenu placement") {
+    const auto result = nordend::core::parse_config(R"(
+[[actions]]
+id = "compress"
+label = "Compress…"
+argv = ["file-roller", "--add", "{files}"]
+selection = "many"
+placement = "menu"
+[[actions]]
+id = "goblin"
+label = "Consult the File Goblin"
+argv = ["notify-send", "Quack"]
+placement = "actions"
+[[actions]]
+id = "extract_here"
+placement = "actions"
+)",
+                                                    "actions.toml");
+    REQUIRE(result.problems.empty());
+    REQUIRE(result.config.actions.size() == 3);
+    CHECK(result.config.actions[0].placement == Action::Placement::menu);
+    CHECK(result.config.actions[1].placement == Action::Placement::actions);
+    const auto registry = action_registry(result.config.actions);
+    CHECK(registry[0].placement == Action::Placement::menu);
+    CHECK(registry[1].placement == Action::Placement::actions);
+    CHECK(registry[2].placement == Action::Placement::menu);
 }
 
 TEST_CASE("actions: handoff passes arguments and cwd literally and reports failures") {

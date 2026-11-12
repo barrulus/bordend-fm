@@ -527,16 +527,17 @@ int main(int argc, char** argv) {
         std::unique_ptr<core::FileWatcher> config_watcher;
         const auto apply_config = [&](const core::ConfigResult& loaded) {
             const auto& fresh = loaded.config;
-            if (loaded.actions_valid) {
+            if (loaded.actions_valid && loaded.context_menu_valid) {
                 const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
                 for (const auto& problem : problems) {
-                    log::warn("config: {}; keeping previous actions and keybindings", problem);
+                    log::warn("config: {}; keeping previous actions, keybindings and menus", problem);
                 }
                 if (problems.empty() && columns) {
                     columns->set_actions(fresh.actions);
+                    columns->set_context_menu(fresh.context_menu);
                 }
             } else {
-                log::warn("config: keeping previous actions and keybindings");
+                log::warn("config: keeping previous actions, keybindings and menus");
             }
             window.request_redraw();
             icons.set_theme(fresh.icon.theme);
@@ -587,6 +588,7 @@ int main(int argc, char** argv) {
                                        std::move(done));
                 });
             columns->set_actions(configured_actions);
+            columns->set_context_menu(config.context_menu);
             action_handoff = std::make_unique<platform::ActionHandoff>(
                 loop, platform::Environment::from_environment(),
                 [&](std::string message, bool error) {

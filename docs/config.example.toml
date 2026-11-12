@@ -128,6 +128,8 @@ follow_accent = true
 # Actions: external programs offered under Actions in the right-click menu and directly in
 # Ctrl+K. This is an argument array, not a shell command. Changes reload live together with
 # their keybindings; invalid action definitions/bindings retain the previous set on reload.
+# Set placement = "menu" to show an action directly above the Actions submenu. Custom actions
+# default to placement = "actions"; menu actions follow the order of their config entries.
 # Uncomment each whole example to use it. Configure its binding in [keybindings] above.
 #
 # [[actions]]
@@ -143,6 +145,13 @@ follow_accent = true
 # label = "Edit Image"
 # argv = ["switcheroo", "{file}"]
 # mime = ["image/*"]
+#
+# [[actions]]
+# id = "compress"
+# label = "Compress…"
+# argv = ["file-roller", "--default-dir", "{directory}", "--add", "{files}"]
+# selection = "many"
+# placement = "menu"
 #
 # Defaults: selection = "one", execution = "handoff", enabled = true, no MIME filter.
 # Selection: "one" = exactly one item, "many" = one or more, "background" = no items,
@@ -173,6 +182,7 @@ follow_accent = true
 # Keep Nordend open until CLI extraction finishes. Failed/interrupted output stays in a visible
 # '(extracting)' folder. CLI password prompts are not supported; use Open With for encryption.
 # All archive programs are optional; none is installed automatically.
+# Presets default to placement = "menu"; use "actions" to move extraction into the submenu.
 # Override a preset by ID; unspecified fields retain the preset's defaults. Setting argv opts
 # out of automatic backend selection and makes the preset an ordinary external handoff:
 # (To restore automatic selection, remove argv or remove the override.)
@@ -185,3 +195,46 @@ follow_accent = true
 # [[actions]]
 # id = "extract_to"
 # enabled = false
+
+# Context-menu layout (optional). Each list replaces that context's default menu.
+# References use menu IDs, including "action:<id>" for built-in or custom actions.
+# Define your actions above; every referenced action ID must exist.
+# Groups have a label and nested items; nest as many levels as needed. Entries appear in
+# list order. Inapplicable actions and empty groups disappear; missing programs stay dimmed.
+# { remaining = true } inserts everything you haven't placed explicitly, in its default
+# grouping. Use it at most once per layout, at any depth. Omit it to hide unlisted items.
+# { separator = true } inserts a dividing line (leading/trailing/empty lines are omitted).
+# Add label = "…" to an id entry to rename it, and separator = true for a line above it.
+# Dynamic groups such as open_with and new_file keep loading their contents when nested.
+# These layouts override action placement for the context menu; Ctrl+K and shortcuts remain
+# available independently. Invalid layouts retain the previous menus/actions/keys on reload.
+#
+# [context_menu]
+# items = [
+#   { id = "open" },
+#   { id = "open_with" },
+#   { id = "action:compress" },
+#   { label = "My Actions", items = [
+#     { label = "Scripts", items = [ { id = "action:upscale" } ] },
+#     { label = "External", items = [ { id = "action:image-edit" } ] },
+#   ] },
+#   { separator = true },
+#   { remaining = true },
+# ]
+#
+# items is the common layout. Override individual contexts with entry, background, trash,
+# or sidebar arrays using exactly the same syntax. Missing overrides use items, or the
+# built-in layout if items is absent. An empty array hides that context menu completely.
+# background = [
+#   { label = "Create", items = [ { id = "new_folder" }, { id = "new_file" } ] },
+#   { remaining = true },
+# ]
+#
+# Built-in IDs (only shown where applicable):
+# open, open_with, open_tab, open_terminal, add_bookmark, copy, cut, paste, rename, trash,
+# erase, restore, empty_trash, new_folder, new_file, empty_file, sort, sort:name, sort:size,
+# sort:modified, sort:type, sort:ascending, sort:descending, actions,
+# action:copy_location, action:extract_here, action:extract_to,
+# mount, unmount, eject, remove_bookmark.
+# open_with and new_file include their dynamically discovered applications/templates;
+# sort and actions include their remaining children. Each ID may appear once per layout.

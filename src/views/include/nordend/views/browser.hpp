@@ -283,6 +283,7 @@ public:
     }
 
     void set_actions(std::span<const core::Action> custom);
+    void set_context_menu(core::MenuLayout layout);
 
     // Where "New File" takes its templates from: fs::templates_dir() unless set (tests).
     void set_templates_dir(std::filesystem::path directory) {
@@ -655,6 +656,9 @@ private:
     // The names a command acts on: the selection, else the cursor's entry.
     [[nodiscard]] static std::vector<std::string> targets(const Folder& folder);
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
+    [[nodiscard]] std::vector<MenuItem> configured_menu(
+        std::vector<MenuItem> items,
+        const std::optional<std::vector<core::MenuNode>>& specific) const;
     [[nodiscard]] std::vector<MenuItem> folder_menu();
     [[nodiscard]] core::ActionContext action_context(const std::shared_ptr<Folder>& folder,
                                                      bool background = false) const;
@@ -747,6 +751,7 @@ private:
     // False once destroyed: renames and new folders still on their way find out here.
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
     std::vector<core::Action> actions_{core::action_registry()};
+    core::MenuLayout menu_layout_;
     ActionHandoff action_handoff_;
     std::function<bool(const core::Action&, const core::ActionContext&)> action_available_;
     std::size_t operations_{0};  // new folders and renames on workers

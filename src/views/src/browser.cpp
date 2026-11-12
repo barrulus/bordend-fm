@@ -862,7 +862,7 @@ void Browser::place_menu(const fs::Place& place, float x, float y) {
             eject.action = [this, place] { eject_place(place); };
             items.push_back(std::move(eject));
         }
-        menu_.open(x, y, std::move(items), false);
+        menu_.open(x, y, configured_menu(std::move(items), menu_layout_.sidebar), false);
         return;
     }
     if (place.section == fs::Place::Section::bookmarks) {
@@ -874,7 +874,7 @@ void Browser::place_menu(const fs::Place& place, float x, float y) {
         remove.action = [this, path = place.path] { remove_from_sidebar(path); };
         std::vector<MenuItem> items;
         items.push_back(std::move(remove));
-        menu_.open(x, y, std::move(items), false);
+        menu_.open(x, y, configured_menu(std::move(items), menu_layout_.sidebar), false);
         return;
     }
     if (!fs::is_trash(place.path)) {
@@ -889,7 +889,7 @@ void Browser::place_menu(const fs::Place& place, float x, float y) {
     empty.action = [this] { empty_trash(); };
     std::vector<MenuItem> items;
     items.push_back(std::move(empty));
-    menu_.open(x, y, std::move(items), false);
+    menu_.open(x, y, configured_menu(std::move(items), menu_layout_.sidebar), false);
 }
 
 void Browser::set_places(std::vector<fs::Place> places) {
@@ -1500,9 +1500,9 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         }
         fs::Entry typed = *cursor;
         typed.mime = folder->mime_of(*cursor);
-        ++menu_loads_;
         menu_loaders_.emplace_back([this, directory = folder->path(), typed = std::move(typed),
                                     files = std::move(files)]() mutable {
+            ++menu_loads_;
             choices_(directory, std::move(typed),
                      [this, alive = alive_, generation = menu_generation_, directory,
                       files = std::move(files)](const std::vector<AppChoice>& apps) {
@@ -1593,8 +1593,8 @@ std::vector<MenuItem> Browser::folder_menu() {
     make_file.submenu = true;
     make_file.children.push_back(empty_file());
     items.push_back(std::move(make_file));
-    ++menu_loads_;
     menu_loaders_.emplace_back([this, empty_file] {
+        ++menu_loads_;
         pool_.submit(
             core::Priority::visible,
             [sources = place_sources_, fixed = templates_dir_](const core::CancelToken& /*token*/) {
@@ -1682,6 +1682,10 @@ void Browser::open_menu(float x, float y, bool keyboard) {
         empty.action = [this] { empty_trash(); };
         items.push_back(std::move(empty));
     }
+    const auto& layout = folder->is_trash() ? menu_layout_.trash
+                         : !targets(*folder).empty() ? menu_layout_.entry
+                                                    : menu_layout_.background;
+    items = configured_menu(std::move(items), layout);
     if (items.empty()) {
         menu_loaders_.clear();
         return;

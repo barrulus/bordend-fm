@@ -8,6 +8,7 @@
 #include <functional>
 #include <initializer_list>
 #include <string>
+#include <unordered_set>
 #include <toml++/toml.hpp>
 #include <utility>
 #include <vector>
@@ -186,7 +187,8 @@ bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& a
         }
         for (const auto& [key, value] : *table) {
             const auto name = key.str();
-            if (name == "id" || name == "label" || name == "selection" || name == "execution") {
+            if (name == "id" || name == "label" || name == "selection" || name == "execution" ||
+                name == "placement") {
                 const auto text = value.value<std::string>();
                 if (!text) {
                     fail(std::format("{} must be a string", name));
@@ -194,6 +196,14 @@ bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& a
                     action.id = *text;
                 } else if (name == "label") {
                     action.label = *text;
+                } else if (name == "placement") {
+                    if (*text == "actions") {
+                        action.placement = Action::Placement::actions;
+                    } else if (*text == "menu") {
+                        action.placement = Action::Placement::menu;
+                    } else {
+                        fail("placement must be actions or menu");
+                    }
                 } else if (name == "execution") {
                     if (*text != "handoff") {
                         fail("only execution = 'handoff' is currently supported");
@@ -305,11 +315,144 @@ void read_document(const toml::table& root, Reader& reader, ConfigResult& result
                  {"follow_accent", [&](const toml::node& value, const std::string& path) {
                       reader.read_bool(value, path, config.icon.follow_accent);
                   }}});
+        } else if (key.str() == "context_menu") {
+            // Read after actions so references are independent of TOML order.
         } else {
             reader.report(key.source(),
                           std::format("unknown section or key '{}'; ignored", key.str()));
         }
     }
+}
+
+bool read_menu_layout(const toml::node& source, Reader& reader, const std::vector<Action>& actions,
+                      MenuLayout& layout) {
+    bool valid = true;
+    const auto fail = [&](const toml::node& node, std::string message) {
+        reader.report(node.source(), "context_menu: " + message + "; layout ignored");
+        valid = false;
+    };
+    const auto* table = source.as_table();
+    if (!table) {
+        fail(source, "must be a table");
+        return false;
+    }
+    std::unordered_set<std::string> known{"open",
+                                          "open_with",
+                                          "open_tab",
+                                          "open_terminal",
+                                          "add_bookmark",
+                                          "copy",
+                                          "cut",
+                                          "paste",
+                                          "rename",
+                                          "trash",
+                                          "erase",
+                                          "restore",
+                                          "empty_trash",
+                                          "new_folder",
+                                          "new_file",
+                                          "empty_file",
+                                          "sort",
+                                          "sort:name",
+                                          "sort:size",
+                                          "sort:modified",
+                                          "sort:type",
+                                          "sort:ascending",
+                                          "sort:descending",
+                                          "actions",
+                                          "mount",
+                                          "unmount",
+                                          "eject",
+                                          "remove_bookmark"};
+    for (const auto& action : action_registry(actions)) {
+        known.insert("action:" + action.id);
+    }
+    for (const auto& [key, value] : *table) {
+        std::optional<std::vector<MenuNode>>* output = nullptr;
+        if (key.str() == "items")
+            output = &layout.items;
+        else if (key.str() == "entry")
+            output = &layout.entry;
+        else if (key.str() == "background")
+            output = &layout.background;
+        else if (key.str() == "trash")
+            output = &layout.trash;
+        else if (key.str() == "sidebar")
+            output = &layout.sidebar;
+        else {
+            fail(value, std::format("unknown layout '{}'", key.str()));
+            continue;
+        }
+        std::unordered_set<std::string> used;
+        bool remaining = false;
+        const auto read = [&](const auto& self, const toml::node& node,
+                              std::vector<MenuNode>& nodes) -> void {
+            const auto* array = node.as_array();
+            if (!array) {
+                fail(node, "items must be an array of tables");
+                return;
+            }
+            for (const auto& entry : *array) {
+                const auto* fields = entry.as_table();
+                if (!fields) {
+                    fail(entry, "each item must be a table");
+                    continue;
+                }
+                MenuNode item;
+                bool has_items = false;
+                for (const auto& [name, field] : *fields) {
+                    if (name.str() == "id" || name.str() == "label") {
+                        const auto text = field.value<std::string>();
+                        if (!text || text->empty() || text->find('\0') != std::string::npos) {
+                            fail(field, std::format("{} must be a nonempty string", name.str()));
+                        } else if (name.str() == "id") {
+                            item.id = *text;
+                        } else {
+                            item.label = *text;
+                        }
+                    } else if (name.str() == "items") {
+                        has_items = true;
+                        self(self, field, item.items);
+                    } else if (name.str() == "separator" || name.str() == "remaining") {
+                        if (const auto flag = field.value_exact<bool>()) {
+                            (name.str() == "separator" ? item.separator : item.remaining) = *flag;
+                        } else {
+                            fail(field, std::format("{} must be a boolean", name.str()));
+                        }
+                    } else {
+                        fail(field, std::format("unknown item key '{}'", name.str()));
+                    }
+                }
+                if (!item.id.empty()) {
+                    if (has_items || item.remaining) {
+                        fail(entry, "id cannot be combined with items or remaining");
+                    }
+                    if (!known.contains(item.id)) {
+                        fail(entry, "unknown item id '" + item.id + "'");
+                    }
+                    if (!used.insert(item.id).second) {
+                        fail(entry, "duplicate item id '" + item.id + "'");
+                    }
+                } else if (item.remaining) {
+                    if (has_items || !item.label.empty() || remaining) {
+                        fail(entry, "remaining must stand alone and occur only once per layout");
+                    }
+                    remaining = true;
+                } else if (has_items) {
+                    if (item.label.empty())
+                        fail(entry, "a group requires a label");
+                } else if (!item.label.empty() || !item.separator) {
+                    fail(entry, "expected an id, a labeled group with items, or a separator");
+                }
+                nodes.push_back(std::move(item));
+            }
+        };
+        output->emplace();
+        read(read, value, **output);
+    }
+    if (!valid)
+        layout = {};
+    return valid;
 }
 
 }  // namespace
@@ -347,7 +490,13 @@ ConfigResult parse_config(std::string_view text, std::string_view source) {
         root = toml::parse(text, source);
         result.from_file = true;
         read_document(root, reader, result);
+        if (const auto* menu = root.get("context_menu")) {
+            result.context_menu_valid =
+                read_menu_layout(*menu, reader, result.config.actions, result.config.context_menu);
+        }
     } catch (const toml::parse_error& e) {
+        result.actions_valid = false;
+        result.context_menu_valid = false;
         reader.report(e.source(), std::format("{}; the whole file is ignored, using defaults",
                                               e.description()));
     }

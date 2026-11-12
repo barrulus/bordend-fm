@@ -27,19 +27,22 @@ std::vector<Action> action_registry(std::span<const Action> custom) {
                                  .argv = {},
                                  .mime = {},
                                  .selection = Action::Selection::any,
-                                 .kind = Action::Kind::copy_location},
+                                 .kind = Action::Kind::copy_location,
+                                 .placement = Action::Placement::menu},
                                 {.id = "extract_here",
                                  .label = "Extract Here",
                                  .argv = {},
                                  .mime = archives,
                                  .selection = Action::Selection::many,
-                                 .kind = Action::Kind::extract_here},
+                                 .kind = Action::Kind::extract_here,
+                                 .placement = Action::Placement::menu},
                                 {.id = "extract_to",
                                  .label = "Extract To…",
                                  .argv = {},
                                  .mime = archives,
                                  .selection = Action::Selection::many,
-                                 .kind = Action::Kind::extract_to}};
+                                 .kind = Action::Kind::extract_to,
+                                 .placement = Action::Placement::menu}};
     for (const auto& action : custom) {
         const auto found = std::ranges::find(actions, action.id, &Action::id);
         if (found == actions.end()) {

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "nordend/core/actions.hpp"
+#include "nordend/core/menu_layout.hpp"
 
 // User settings from config.toml. Every key is optional: a missing key keeps its default, a bad
 // value (wrong type, out of range) is reported and keeps its default, an unknown key is reported
@@ -38,6 +39,7 @@ struct Config {
 
     std::map<std::string, std::string> keybindings;
     std::vector<Action> actions;
+    MenuLayout context_menu;
 
     Appearance appearance;
     Font font;
@@ -49,6 +51,7 @@ struct ConfigResult {
     Config config;
     bool from_file{false};     // the file existed and parsed; false means pure defaults
     bool actions_valid{true};  // invalid action sets are rejected together, including on reload
+    bool context_menu_valid{true};
     // One line per problem, ready to print: "<file>:<line>:<column>: <what>".
     std::vector<std::string> problems;
 };
