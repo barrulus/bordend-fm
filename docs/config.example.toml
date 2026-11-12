@@ -287,8 +287,95 @@ follow_accent = true
 # id = "extract_to"
 # enabled = false
 
-# Context-menu layout (optional). Each list replaces that context's default menu.
+# Default context-menu layouts, written out for editing.
+# Nordend builds these menus automatically when [context_menu] is absent. Leave the
+# reference commented to follow future defaults, or uncomment [context_menu] and the
+# complete arrays you want to customize. Use only one [context_menu] table per file.
+# These arrays preserve the current default order, separators and built-in submenus.
+# Availability still depends on the selection, folder, device and installed programs;
+# listing an ID does not force an inapplicable item to appear or an unavailable item to run.
+# No common "items" array is set by default: entry, background, trash and sidebar each
+# have their own menu. A missing override uses items if present, otherwise its built-in menu.
+#
+# [context_menu]
+#
+# Files/folders: right-click an entry or the current selection.
+# open_tab and add_bookmark apply to folders; open_terminal needs a folder and terminal.
+# Open With keeps its dynamically discovered applications. Paste may be disabled when
+# the clipboard is empty; Rename is disabled for a multiple selection.
+# entry = [
+#   { id = "open" },
+#   { id = "open_with" },
+#   { id = "open_tab" },
+#   { id = "open_terminal" },
+#   { id = "add_bookmark" },
+#   { id = "copy", separator = true },
+#   { id = "cut" },
+#   { id = "paste" },
+#   { id = "rename", separator = true },
+#   { id = "trash" },
+#   { id = "erase" },
+#   { id = "action:copy_location" },
+#   { id = "action:extract_here" },
+#   { id = "action:extract_to" },
+#   { remaining = true },
+#   { id = "actions" },
+#   { id = "sort", separator = true },
+# ]
+#
+# Empty space in an ordinary folder, with no entry targeted.
+# New File keeps Empty File and the dynamically discovered templates.
+# background = [
+#   { id = "new_folder" },
+#   { id = "new_file" },
+#   { id = "paste", separator = true },
+#   { id = "add_bookmark", separator = true },
+#   { id = "open_terminal" },
+#   { id = "action:copy_location" },
+#   { remaining = true },
+#   { id = "actions" },
+#   { id = "sort", separator = true },
+# ]
+#
+# Trash entries show Restore and Delete Permanently; empty space shows Empty Trash.
+# These are alternative contexts, so all three never appear together.
+# trash = [
+#   { id = "restore" },
+#   { id = "erase", separator = true },
+#   { id = "empty_trash" },
+# ]
+#
+# Sidebar: devices show Mount/Unmount and, when supported, Eject; bookmarks show
+# Remove from Sidebar; Trash shows Empty Trash. Other places have no context menu.
+# Mount/Unmount are enabled according to the device's mounted state.
+# sidebar = [
+#   { id = "mount" },
+#   { id = "unmount" },
+#   { id = "eject", separator = true },
+#   { id = "remove_bookmark" },
+#   { id = "empty_trash" },
+# ]
+#
+# Default submenu contents (retained when you reference the parent ID above):
+#   open_with  Open With: dynamically discovered applications for the selection.
+#   new_file   New File: empty_file (Empty File), then a separator and template entries.
+#   actions    Actions: applicable custom actions with placement = "actions", in config order.
+#   sort       Sort By: sort:name (Name), sort:size (Size), sort:modified (Modified),
+#              sort:type (Type), a separator, sort:ascending (Ascending),
+#              sort:descending (Descending). The current key and direction are checked.
+# Actions disappears when empty. The default registry puts Copy Location, Extract Here
+# and Extract To at the top level; extraction only appears for applicable archive selections.
+# { remaining = true } above keeps other applicable top-level actions (placement = "menu")
+# before Actions, including the Compress example. The actions reference keeps submenu actions.
+# Explicit action references take precedence over their placement setting.
+# To move a submenu child, reference its ID in a new group; it is removed from its old group.
+# Keep open_with/new_file as parent references to retain their dynamically loaded contents.
+
+# Custom context-menu layout (alternative to the default layouts above).
 # References use menu IDs, including "action:<id>" for built-in or custom actions.
+# Use this alternative instead of the default arrays, or adapt selected groups into them.
+# Specific entry/background/trash/sidebar arrays override items, so remove those overrides
+# if you want this common items layout to apply to every context.
 # Enable the compress, file-goblin, folder-info and image-edit examples above before
 # enabling this layout, or remove their references. Every referenced action ID must exist.
 # Groups have a label and nested items; nest as many levels as needed. Entries appear in
