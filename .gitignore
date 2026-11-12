@@ -20,3 +20,6 @@ compile_commands.json
 # 2026-11-01; earlier versions stay in the history)
 docs/DESIGN.md
 docs/ROADMAP.md
+
+# Python packaging/CI helpers
+__pycache__/

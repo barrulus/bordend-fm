@@ -11,7 +11,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Let main finish publishing before another main run can replace its assets.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   nix:
@@ -27,6 +28,8 @@ jobs:
         run: |
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck --command \
             bash -c 'actionlint .github/workflows/ci.yml && shellcheck -x scripts/ci/*.sh'
+      - name: Test development download preparation and publishing
+        run: python3 -m unittest discover -s scripts/ci/tests -v
       - name: Run all x86_64-linux flake checks
         run: nix flake check --print-build-logs
       - name: Build the installable package
@@ -97,3 +100,51 @@ jobs:
             ${{ runner.temp }}/native-package.log
           retention-days: 14
           if-no-files-found: error
+
+  downloads:
+    name: Prepare development downloads
+    needs: [nix, void, native]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: '*-x86_64-${{ github.sha }}'
+          path: ${{ runner.temp }}/package-artifacts
+      - name: Prepare checked packages and instructions
+        run: |
+          python3 scripts/ci/prepare-downloads.py "$RUNNER_TEMP/package-artifacts" "$RUNNER_TEMP/downloads" \
+            --commit "$GITHUB_SHA" --repository "$GITHUB_REPOSITORY" --run-id "$GITHUB_RUN_ID"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: development-downloads-${{ github.sha }}
+          path: ${{ runner.temp }}/downloads/
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    name: Publish development downloads
+    needs: downloads
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: development-downloads-${{ github.sha }}
+          path: ${{ runner.temp }}/downloads
+      - name: Update rolling development prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash scripts/ci/publish-downloads.sh "$RUNNER_TEMP/downloads" "$GITHUB_SHA"

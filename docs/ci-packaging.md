@@ -3,7 +3,7 @@
 The fork's [workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main`,
 and manual dispatch. It currently validates **x86_64 Linux with glibc**. The flake still
 exposes aarch64 packages, but this workflow does not claim to build or run them. Debian 13 and Fedora 44 are also built as native packages. Void musl, older Debian/Ubuntu
-releases, other RPM distributions and release publishing are outside the validated scope.
+releases, other RPM distributions and signed/stable releases are outside the validated scope.
 
 ## Nix
 
@@ -87,7 +87,7 @@ The script:
    then installs the compositor/test fixtures and performs the headless Wayland launch.
 
 To share a Void build, download its artifact ZIP from a successful GitHub Actions run and
-send the ZIP. The recipient should extract it and keep the entire `packages/` directory
+send the ZIP. The recipient should extract it, enter `void-package/`, and keep the entire `packages/` directory
 together, including the repository index.
 
 The artifact contains the `.xbps` and repository index in `packages/`, the effective
@@ -143,7 +143,8 @@ the native build and installed package. No privileged container is needed.
 
 The artifacts contain binary packages (plus Debian build metadata or Fedora source/debug
 RPMs), the effective recipe, the exact source archive and `source.json`, and the build log.
-Download and unpack the matching artifact from the workflow run. On the matching distro:
+Download and unpack the matching artifact from the workflow run, then enter its
+`native-package/` directory. On the matching distro:
 
 ```sh
 # Debian 13: choose the main package, not the optional debug-symbol package.
@@ -160,11 +161,39 @@ commit timestamp increases. Container images are pinned in
 updates, so builds are not claimed to be bit-for-bit reproducible. Run `native.sh` rather
 than invoking `native-build.sh` or `native-install.sh` on the host.
 
+## Automatic development downloads
+
+The README has stable links to the `development` prerelease and fixed asset names. Once all
+checks succeed, `prepare-downloads.py` checks that all three package artifacts identify the
+same source commit and checksum. It selects only the main DEB/RPM, bundles the Void package
+with its repository index, and adds the source archive, `source.json` and `SHA256SUMS`.
+Release install instructions are copied from the marked README section, so they stay in sync.
+Preparation runs on PRs too; the prepared bundle is available as a workflow artifact.
+
+On trusted `main` runs, the publication job creates or updates **Latest development build**.
+It replaces the assets, moves the `development` tag to the tested commit, and updates the
+release notes with a link to the CI run. It is explicitly a prerelease, not the repository's
+latest stable release. Nix uses the same moving tag as its source reference; this does not
+publish a Nix binary closure. No README commits are needed for subsequent builds.
+
+Main runs are serialized without automatic cancellation, preventing overlapping publication.
+PR runs still cancel superseded checks. Failed build/check/preparation jobs leave the existing
+downloads untouched. Asset replacement uses separate GitHub API calls, not an atomic swap:
+if publication is interrupted, rerun the job to finish it. Checksums are uploaded last;
+retry a download if verification fails during an update. The rolling prerelease must remain
+mutable; repositories enforcing immutable releases need a different publishing strategy.
+
+Release assets stay available until replaced or removed, independently of the 14-day CI
+artifact retention. They are unsigned snapshots and must not be presented as stable releases,
+an official distribution repository, or packages for untested distributions such as openSUSE.
+
 ## GitHub setup and scope
 
-GitHub Actions must be enabled on the fork. The workflow needs no deployment credentials;
-it uses read-only repository permissions, pinned action commits, and `pull_request`, not
-`pull_request_target`. It does not publish releases or modify branches.
+GitHub Actions must be enabled on the fork. Build and preparation jobs use read-only repository
+permissions, pinned action commits, and `pull_request`, not `pull_request_target`. Only the
+publication job has `contents: write`, using the built-in GitHub token; no extra secret is
+needed. It runs exclusively on pushes to `main` or manual runs targeting `main`, after all
+four checks and download preparation pass. It never commits to a branch.
 
 After a successful run, configure a branch ruleset for `main` requiring these checks:
 

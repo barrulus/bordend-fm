@@ -127,6 +127,43 @@ Every measurement and its method is in [docs/benchmarks.md](docs/benchmarks.md).
 Nordend needs Linux with a Wayland compositor that offers xdg-shell (developed on Umbriel, also
 tried on GNOME, Plasma and niri) and a GPU driver with OpenGL ES 3.0 (Mesa).
 
+### Development downloads
+
+<!-- development-downloads:start -->
+The [latest development build](https://github.com/barrulus/bordend-fm/releases/tag/development)
+is refreshed automatically after **all checks pass on `main`**. These are unsigned Linux
+x86_64 development snapshots. Choose your exact distribution; the Fedora RPM is **not
+validated for openSUSE or RHEL**, and the DEB is not validated for Ubuntu or older Debian.
+
+| System | Download | Install after downloading |
+|---|---|---|
+| Debian 13 (trixie), amd64 | [DEB](https://github.com/barrulus/bordend-fm/releases/download/development/nordend-debian13-amd64.deb) | `sudo apt install ./nordend-debian13-amd64.deb` |
+| Fedora 44, x86_64 | [RPM](https://github.com/barrulus/bordend-fm/releases/download/development/nordend-fedora44-x86_64.rpm) | `sudo dnf install ./nordend-fedora44-x86_64.rpm` |
+| Void glibc, x86_64 | [XBPS bundle](https://github.com/barrulus/bordend-fm/releases/download/development/nordend-void-glibc-x86_64.tar.gz) | See the two commands below. |
+
+For Void, extract the bundle and keep its package and repository index together:
+
+```sh
+tar -xzf nordend-void-glibc-x86_64.tar.gz
+sudo xbps-install -R "$PWD/nordend-void-x86_64/packages" nordend
+```
+
+For Nix, with flakes enabled, run or install the same tested source revision through the
+moving `development` tag (this builds Nordend if no cached binary is available):
+
+```sh
+nix run github:barrulus/bordend-fm/development
+nix profile install github:barrulus/bordend-fm/development
+```
+
+[Checksums](https://github.com/barrulus/bordend-fm/releases/download/development/SHA256SUMS)
+and [source identity](https://github.com/barrulus/bordend-fm/releases/download/development/source.json)
+are provided with every build. To verify a download, save `SHA256SUMS` beside it and run
+`sha256sum --check --ignore-missing SHA256SUMS`. Downloads are replaced as builds pass;
+use the full commit from `source.json` instead of `development` in the Nix reference to
+pin a version. These downloads are individual packages, not an automatic-update repository.
+<!-- development-downloads:end -->
+
 ### On Void Linux
 
 Nordend is developed on Void, and comes with an xbps-src template in
