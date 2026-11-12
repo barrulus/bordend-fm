@@ -61,7 +61,10 @@ if(NORDEND_HARDENING)
     include(CheckPIESupported)
     check_pie_supported()
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    add_compile_options(-fstack-protector-strong -fstack-clash-protection)
+    # _GLIBCXX_ASSERTIONS: the standard library checks indexes (vector, array, span, string) and
+    # aborts on a bad one, instead of reading past the end. Hot loops check once a row instead
+    # (dng/develop.cpp).
+    add_compile_options(-fstack-protector-strong -fstack-clash-protection -D_GLIBCXX_ASSERTIONS)
     # Control-flow protection (CET) exists on x86 only.
     check_cxx_compiler_flag(-fcf-protection NORDEND_HAS_CF_PROTECTION)
     if(NORDEND_HAS_CF_PROTECTION)

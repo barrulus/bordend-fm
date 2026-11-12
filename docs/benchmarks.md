@@ -132,6 +132,38 @@ All the cost is the standard library's bounds checks in the development's per-pi
 (lookup tables and sums read through `operator[]`). `NORDEND_HARDENING` therefore went in
 without them first; the checks follow once those loops check a row at a time.
 
+**With the checks, after the loops changed.** The checks left in `develop.o` were found by
+building it with `-g` and resolving each call to `std::__glibcxx_assert_fail` with `addr2line
+-i` back to its line in `develop.cpp`: per pixel, the tone and sRGB tables (now spans of their
+fixed size, which `index_of` cannot leave), the gain maps' per-column values and the row's
+gains (pointers taken once a row), and the CFA sites indexing a block (`& 3`, so the compiler
+sees them below 4); per block, the column shares. What is left runs once a row or once a file.
+Against a build with every other flag and no checks (two passes, alternated):
+
+| DNG development (`nordend-decode --runs 9 --raw`) | No checks, loops as before | Checks, loops changed |
+|---|---|---|
+| DJI, 2560x1440 box | 138.7 ms | 136.9-138.2 ms |
+| DJI, box, no opcodes | 111.2-112.0 ms | 109.6-109.7 ms |
+| DJI, half size | 388.8-392.5 ms | 379.9-380.3 ms |
+| Leica M240, 2560x1440 box | 185.4-185.8 ms | 180.7-181.0 ms |
+
+Simpler loops vectorise better: a little quicker than before, checks and all. The pictures are
+the same to the bit (`--ppm`, md5) for five DNGs of the samples: `DJI_0068.DNG`,
+`RAW_LEICA_M240.DNG`, `RAW_LEICA_M8.DNG`, `20220224_104500.dng` and `sample1.dng`.
+
+The other hot paths with the checks:
+
+| Measurement | No checks | Checks |
+|---|---|---|
+| Thumbnails, 5 ORF + 3 JPEG (`nordend-thumb --make`, mean, three passes): large / x-large | 37.2-41.4 / 47.0-47.2 ms | 37.7-38.0 / 47.8-48.0 ms |
+| Text read and coloured (a harness on the engine's code, 300 runs, median): `devlog.md`, 4985 lines | 2180-2203 µs | 2242-2257 µs |
+| `browser.cpp`, 3481 lines | 459-471 µs | 485-486 µs |
+| `README.md`, 260 lines | 145-146 µs | 150-151 µs |
+| a 1472-line JSON | 474-481 µs | 508-518 µs |
+
+The text pays 2-9 %: at most about 80 µs for a whole file, read once when it is opened (a frame
+is 13 300 µs at 75 Hz). Left as it is.
+
 ## Markdown and diffs (ROADMAP 3b-2b, fourth group)
 
 ### 2026-11-09

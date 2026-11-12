@@ -4,6 +4,28 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-12 — The standard library checks its indexes (quality step, Q2)
+
+`NORDEND_HARDENING` now also defines `_GLIBCXX_ASSERTIONS`, in every build: an index past the
+end of a `vector`, `array`, `span` or `string` aborts instead of reading or writing beyond it. In
+the preview engine that turns a parser's mistake on a hostile file into "Preview unavailable"
+instead of undefined behaviour inside the cage; in tests and sanitizer builds it finds such
+mistakes earlier.
+
+It cost the DNG development 4-14 % (its per-pixel loops read tables and sums through
+`operator[]`). Those loops now check once a row instead: the tone and sRGB tables are spans of
+their fixed size (an index from `index_of` cannot leave them, so the compiler drops the check),
+the gain maps' per-column values and the row's gains are read through pointers taken once a
+row, the CFA sites are masked with `& 3`. Found by resolving every remaining check in
+`develop.o` to its line with `addr2line -i`.
+
+**Measured** (benchmarks, "Hardening"): the development is a little quicker than before, checks
+included (DJI in the 2560x1440 box 136.9-138.2 ms against 138.7; half size 380 against 389-392);
+pictures identical to the bit on five DNGs. Thumbnails unchanged; reading and colouring text
+2-9 % slower, at most about 80 µs a file, left as it is.
+
+---
+
 ## 2026-11-12 — Hardened builds everywhere (quality step, Q2)
 
 Void's package builds add hardening flags, and Void's GCC turns some on by default; a build

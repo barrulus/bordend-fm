@@ -224,19 +224,26 @@ public:
                 const std::size_t slot = use.targets[t][0];
                 float* to = slot < kColour ? sites_.data() + slot : gains.data() + slot - kColour;
                 const std::size_t step = slot < kColour ? 4 : 3;
+                // first, fraction and inside have one value an output column (made in add()):
+                // read through pointers, no per-pixel bounds check.
+                const std::uint32_t* first = use.first.data();
+                const float* fraction = use.fraction.data();
+                const std::uint8_t* inside = use.inside.data();
                 for (std::size_t x = 0; x < columns_.size(); ++x, to += step) {
-                    const float* at = values + use.first[x];
-                    const float gain = at[0] + ((at[1] - at[0]) * use.fraction[x]);
-                    *to *= use.inside[x] != 0 ? gain : 1.0F;
+                    const float* at = values + first[x];
+                    const float gain = at[0] + ((at[1] - at[0]) * fraction[x]);
+                    *to *= inside[x] != 0 ? gain : 1.0F;
                 }
             }
         }
         if (has_sites_) {
-            for (std::size_t x = 0; x < columns_.size(); ++x) {
+            // gains has three values an output column (the caller's row_gains).
+            float* gain = gains.data();
+            for (std::size_t x = 0; x < columns_.size(); ++x, gain += 3) {
                 const float* site = sites_.data() + (x * 4);
-                gains[x * 3] *= site[red_site];
-                gains[(x * 3) + 1] *= (site[green_sites[0]] + site[green_sites[1]]) * 0.5F;
-                gains[(x * 3) + 2] *= site[blue_site];
+                gain[0] *= site[red_site];
+                gain[1] *= (site[green_sites[0]] + site[green_sites[1]]) * 0.5F;
+                gain[2] *= site[blue_site];
             }
         }
     }
@@ -468,8 +475,15 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
                                                         colour->neutral.at(c) * gain);
         }
     }
-    const std::vector<float> tone = options.look ? tone_table(*colour) : std::vector<float>{};
-    const std::vector<std::uint8_t> encode = encode_table();
+    const bool toned = options.look;
+    const std::vector<float> tone_values =
+        toned ? tone_table(*colour) : std::vector<float>(kCurveSize);
+    const std::vector<std::uint8_t> encode_values = encode_table();
+    // Seen through spans of the tables' fixed size: their size is checked once, here, and an
+    // index from index_of() is below it by construction, so the per-pixel lookups need no check
+    // of their own (the compiler drops _GLIBCXX_ASSERTIONS' check, measured).
+    const std::span<const float, kCurveSize> tone{tone_values};
+    const std::span<const std::uint8_t, kCurveSize> encode{encode_values};
     constexpr auto last = static_cast<float>(kCurveSize - 1);
 
     Developed out;
@@ -566,6 +580,9 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
     // pixel more, never shown: the last block's empty second share lands there).
     const bool same_size = width == blocks_across && height == blocks_down;
     std::vector<float> sums((std::size_t{width} + 1) * 3);
+    // One share a block across: x < blocks_across == columns.size() in every caller, so read
+    // through the pointer (no per-block bounds check).
+    const Share* const column_shares = columns.data();
     // Puts a block's camera values where they go: straight when the picture is not reduced, else
     // shared between the one or two output pixels it covers (no branch: the second share may be
     // 0).
@@ -577,7 +594,7 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
             to[2] = blue;
             return;
         }
-        const Share& share = columns[x];  // NOLINT: x < blocks_across
+        const Share& share = column_shares[x];
         float* to = sums.data() + (std::size_t{share.to} * 3);
         to[0] += red * share.first;
         to[1] += green * share.first;
@@ -601,6 +618,12 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
             for (std::size_t i = 0; i < 4; ++i) {
                 scale.at(i) = black.at(i) < white ? 1.0F / (white - black.at(i)) : 0.0F;
             }
+            // The block's sites (0-3, set from the CFA pattern above). The & 3 keeps the value and
+            // lets the compiler see it is below 4: no bounds check on v in the loop.
+            const std::size_t red = red_site & 3U;
+            const std::size_t green_a = green_sites[0] & 3U;
+            const std::size_t green_b = green_sites[1] & 3U;
+            const std::size_t blue = blue_site & 3U;
             const std::uint16_t* top_row = a.data() + x0;
             const std::uint16_t* bottom_row = b.data() + x0;
             const float* column_delta = delta_h.empty() ? nullptr : delta_h.data() + (x0 - left);
@@ -619,8 +642,8 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
                         v.at(i) = level < white ? (v.at(i) - level) / (white - level) : 0.0F;
                     }
                 }
-                add(x, v[red_site], (v[green_sites[0]] + v[green_sites[1]]) * 0.5F,  // NOLINT
-                    v[blue_site]);  // NOLINT: sites < 4
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index): below 4
+                add(x, v[red], (v[green_a] + v[green_b]) * 0.5F, v[blue]);
             }
             return;
         }
@@ -681,7 +704,7 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
                 v.at(c) = (to_index.at(c * 3) * red) + (to_index.at((c * 3) + 1) * green) +
                           (to_index.at((c * 3) + 2) * blue);
             }
-            if (!tone.empty()) {
+            if (toned) {
                 // As the DNG SDK applies a tone curve (RefBaselineRGBTone): to the largest and
                 // the smallest colour, the middle one kept between them where it was, so that
                 // the hue stays (a curve on each colour alone would saturate). Written as one
@@ -719,14 +742,16 @@ std::optional<Developed> develop(const tiff::Container& container, const Develop
         while (finished < share.to) {
             finish_row(finished++);
         }
+        // open's rows have sums.size() values each (made together above).
+        const float* const from = sums.data();
         float* first = open.at(share.to % 2).data();
         for (std::size_t i = 0; i < sums.size(); ++i) {
-            first[i] += sums[i] * share.first;
+            first[i] += from[i] * share.first;
         }
         if (share.second > 0.0F) {
             float* second = open.at((share.to + 1) % 2).data();
             for (std::size_t i = 0; i < sums.size(); ++i) {
-                second[i] += sums[i] * share.second;
+                second[i] += from[i] * share.second;
             }
         }
         std::ranges::fill(sums, 0.0F);
