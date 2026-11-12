@@ -101,6 +101,8 @@ if args[0] == 'api' and args[-1].endswith('/releases/tags/development'):
         print('gh: Not Found (HTTP 404)' if mode == 'missing' else 'network unavailable', file=sys.stderr)
         sys.exit(1)
     print(json.dumps({'immutable': mode == 'immutable'}))
+elif args[0] == 'api' and '/compare/' in args[1]:
+    print('behind' if os.environ['MOCK_MODE'] == 'older' else 'ahead')
 ''')
         mock.chmod(0o755)
         log = self.root / 'calls'
@@ -135,3 +137,8 @@ if args[0] == 'api' and args[-1].endswith('/releases/tags/development'):
         result, calls = self.publish('immutable')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(len(calls), 1)
+
+    def test_old_rerun_does_not_roll_back_downloads(self):
+        result, calls = self.publish('older')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(c[0] == 'release' or '--method' in c for c in calls))

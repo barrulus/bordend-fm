@@ -23,6 +23,13 @@ if gh api "repos/$GH_REPO/releases/tags/development" > "$work/release.json" 2> "
 import json, sys
 assert not json.load(open(sys.argv[1])).get('immutable', False), 'Rolling downloads need a mutable prerelease'
 PY
+    # Rerunning an older successful workflow must not roll back a newer download.
+    relationship=$(gh api "repos/$GH_REPO/compare/development...$commit" --jq '.status')
+    case "$relationship" in
+        ahead|identical) ;;
+        behind) echo 'A newer development build is already published; keeping it.'; exit 0 ;;
+        *) echo "Development history diverged; refusing to replace it: $relationship" >&2; exit 1 ;;
+    esac
     # Upload the checksum manifest last. Readers can detect a partial update and retry.
     for file in "${files[@]}"; do
         gh release upload development "$assets/$file" --clobber

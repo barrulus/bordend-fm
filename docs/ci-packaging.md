@@ -177,7 +177,9 @@ latest stable release. Nix uses the same moving tag as its source reference; thi
 publish a Nix binary closure. No README commits are needed for subsequent builds.
 
 Main runs are serialized without automatic cancellation, preventing overlapping publication.
-PR runs still cancel superseded checks. Failed build/check/preparation jobs leave the existing
+PR runs still cancel superseded checks. Rerunning an older successful main workflow cannot
+roll downloads back to an ancestor of the already-published commit; divergent history fails
+for maintainer review. Failed build/check/preparation jobs leave the existing
 downloads untouched. Asset replacement uses separate GitHub API calls, not an atomic swap:
 if publication is interrupted, rerun the job to finish it. Checksums are uploaded last;
 retry a download if verification fails during an update. The rolling prerelease must remain
