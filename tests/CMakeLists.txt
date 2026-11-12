@@ -120,7 +120,9 @@ if(NORDEND_SANITIZER)
     target_sources(nordend-tests PRIVATE ${PROJECT_SOURCE_DIR}/src/core/src/lsan_suppressions.cpp)
 endif()
 
-add_test(NAME nordend-tests COMMAND nordend-tests)
+# Allocator thresholds depend on earlier allocations: give memory accounting its own process.
+add_test(NAME nordend-tests COMMAND nordend-tests "--source-file-exclude=*memory_test.cpp")
+add_test(NAME memory-tests COMMAND nordend-tests "--source-file=*memory_test.cpp")
 
 add_executable(nordend-portal-tests file_picker_portal_test.cpp)
 target_link_libraries(nordend-portal-tests PRIVATE nordend::platform PkgConfig::SDBUSCPP nordend::warnings)

@@ -49,7 +49,8 @@ int main(int argc, char** argv) {
             say("no landlock");
             return 0;
         }
-        say_errno(::open("/etc/hostname", O_RDONLY | O_CLOEXEC));
+        // The executable exists even in an isolated build without /etc/hostname.
+        say_errno(::open(argv[0], O_RDONLY | O_CLOEXEC));
         const int tcp = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
         sockaddr_in address{};
         address.sin_family = AF_INET;
