@@ -187,7 +187,9 @@ std::vector<std::byte> encode_text_payload(const text::Text& text, std::uint32_t
         if (i > 0) {
             payload[at++] = std::byte{'\n'};
         }
-        std::memcpy(payload.data() + at, text.lines[i].data(), text.lines[i].size());
+        // Not memcpy: an empty line's data() may be null, undefined for memcpy even for 0 bytes.
+        std::ranges::copy(std::as_bytes(std::span{text.lines[i]}),
+                          payload.begin() + static_cast<std::ptrdiff_t>(at));
         at += text.lines[i].size();
     }
     at = (at + 3) / 4 * 4;

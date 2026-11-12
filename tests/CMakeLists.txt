@@ -98,12 +98,22 @@ add_executable(nordend-sandbox-probe sandbox_probe.cpp
 target_include_directories(nordend-sandbox-probe PRIVATE ${PROJECT_SOURCE_DIR}/src/isolate/src)
 target_link_libraries(nordend-sandbox-probe PRIVATE nordend::warnings)
 add_dependencies(nordend-tests nordend-preview nordend-fake-preview nordend-sandbox-probe)
+# The MIME database the tests read: shared-mime-info as pkg-config finds it at build time, not
+# whatever $XDG_DATA_DIRS says when they run (NixOS keeps it outside /usr/share, Flatpak adds
+# its own). tests/main.cpp points $XDG_DATA_DIRS at it.
+pkg_get_variable(NORDEND_MIME_PREFIX shared-mime-info prefix)
+if(NOT NORDEND_MIME_PREFIX OR NOT EXISTS "${NORDEND_MIME_PREFIX}/share/mime/globs2")
+    message(FATAL_ERROR "The tests need shared-mime-info (its pkg-config file and "
+                        "share/mime/globs2); install it, or configure with "
+                        "-DNORDEND_BUILD_TESTS=OFF")
+endif()
 # The shipped example config must parse clean and match the built-in defaults.
 target_compile_definitions(nordend-tests
     PRIVATE NORDEND_EXAMPLE_CONFIG="${PROJECT_SOURCE_DIR}/docs/config.example.toml"
             NORDEND_TEST_DATA="${PROJECT_SOURCE_DIR}/tests/data"
             NORDEND_APP_ICON="${PROJECT_SOURCE_DIR}/data/nordend.svg"
             NORDEND_ENGINES="${PROJECT_SOURCE_DIR}/data/engines"
+            NORDEND_MIME_DATA="${NORDEND_MIME_PREFIX}/share"
             NORDEND_PREVIEW_HELPER="$<TARGET_FILE:nordend-preview>"
             NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>"
             NORDEND_SANDBOX_PROBE="$<TARGET_FILE:nordend-sandbox-probe>")

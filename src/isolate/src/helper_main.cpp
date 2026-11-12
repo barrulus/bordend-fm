@@ -136,8 +136,12 @@ void answer_text(int socket, int file, const protocol::TextAsk& ask) {
                sizeof(protocol::TextResponse) + protocol::kMaxDetail + protocol::kMaxField>
         bytes{};
     std::memcpy(bytes.data(), &response, sizeof(response));
-    std::memcpy(bytes.data() + sizeof(response), detail.data(), detail.size());
-    std::memcpy(bytes.data() + sizeof(response) + detail.size(), language.data(), language.size());
+    // std::ranges::copy, not memcpy: an empty string_view's data() may be null, and memcpy from
+    // null is undefined even for zero bytes.
+    std::ranges::copy(std::as_bytes(std::span{detail}), bytes.begin() + sizeof(response));
+    std::ranges::copy(
+        std::as_bytes(std::span{language}),
+        bytes.begin() + static_cast<std::ptrdiff_t>(sizeof(response) + detail.size()));
     const std::array<int, 1> fds{payload};
     static_cast<void>(protocol::send_packet(
         socket, std::span{bytes}.first(sizeof(response) + detail.size() + language.size()),

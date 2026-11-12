@@ -53,7 +53,10 @@ int main(int argc, char** argv) {
             // Three lines said, two sent.
             const std::string_view two = "a\nb";
             const int memfd = ::memfd_create("lie", MFD_CLOEXEC | MFD_ALLOW_SEALING);
-            static_cast<void>(::write(memfd, two.data(), two.size()));
+            if (memfd < 0 ||
+                ::write(memfd, two.data(), two.size()) != static_cast<ssize_t>(two.size())) {
+                return 1;
+            }
             ::fcntl(memfd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE);
             protocol::TextResponse response;
             response.lines = 3;
@@ -66,7 +69,9 @@ int main(int argc, char** argv) {
         }
         // big-lie: 4 bytes of pixels for a 1000x1000 picture.
         const int memfd = ::memfd_create("lie", MFD_CLOEXEC | MFD_ALLOW_SEALING);
-        static_cast<void>(::ftruncate(memfd, 4));
+        if (memfd < 0 || ::ftruncate(memfd, 4) != 0) {
+            return 1;
+        }
         ::fcntl(memfd, F_ADD_SEALS, F_SEAL_SHRINK | F_SEAL_GROW);
         protocol::Response response;
         response.width = 1000;

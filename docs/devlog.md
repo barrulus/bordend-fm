@@ -4,6 +4,36 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-12 — Builds and tests that hold on other systems (quality step, Q1)
+
+The first outside pull requests built Nordend on NixOS with GCC 16, and found what our own runs
+could not: everything here is built the same way, on the same system. Fixed, each reproduced
+here first:
+
+- **Unchecked `write()` and `ftruncate()`** in the sandbox's report handler and two test helpers
+  (reported by dMopp in #6 and barrulus in #5). With `_FORTIFY_SOURCE`, glibc marks them
+  `warn_unused_result`, and GCC (14 too, not only 16) does not accept a cast to `void` as
+  using the result, so `NORDEND_WERROR=ON` broke the build. The handler now keeps the result
+  in a variable (nothing to do about a failed write there); the test helpers check it and exit
+  with an error. Checked: the five files build with `-O2 -D_FORTIFY_SOURCE=3 -Werror`, and
+  the old `sandbox.cpp` fails that same check at the line fixed.
+- **`memcpy` from a null pointer** in the text response (an empty detail or language) and in
+  the text payload (an empty line): an empty `string_view` may have a null `data()`, and
+  `memcpy` from null is undefined even for zero bytes. UBSan reported both; `std::ranges::copy`
+  of the bytes instead. The ASan/UBSan run is now free of `runtime error` lines.
+- **Tests read the system's MIME database.** With an empty `$XDG_DATA_DIRS` (NixOS keeps
+  shared-mime-info outside `/usr/share`) eleven tests failed. CMake now finds shared-mime-info
+  with pkg-config and stops with a clear message without it; the tests point `$XDG_DATA_DIRS`
+  at it, so they read the same database whatever the environment says.
+- **A 1 PiB sparse file** in the "not enough space" test: ext4 refuses files over 16 TiB
+  ("File too large"), tmpfs does not. The file is now 1 GiB larger than the free space.
+
+**Measured:** the suite passes with `XDG_DATA_DIRS` empty, and the transfer tests with `TMPDIR`
+on ext4. Also seen: Void moved libraw to `.so.25`, so test builds older than that no longer
+start (libraw is only a test dependency; Nordend does not link it).
+
+---
+
 ## 2026-11-10 — The Noctalia template ships with Nordend
 
 A user on Noctalia saw no Noctalia colours: `colors.toml` is written by a Noctalia user template

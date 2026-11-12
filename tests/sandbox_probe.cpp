@@ -21,9 +21,12 @@ namespace isolate = nordend::isolate;
 namespace {
 
 // Printed with write: stdio's buffers would need nothing more, but stay simple.
+// A failed write exits with 2: the test then sees no answer and fails.
 void say(std::string_view text) {
-    static_cast<void>(::write(STDOUT_FILENO, text.data(), text.size()));
-    static_cast<void>(::write(STDOUT_FILENO, "\n", 1));
+    if (::write(STDOUT_FILENO, text.data(), text.size()) != static_cast<ssize_t>(text.size()) ||
+        ::write(STDOUT_FILENO, "\n", 1) != 1) {
+        std::_Exit(2);
+    }
 }
 
 void say_errno(int result) {

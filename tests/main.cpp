@@ -37,6 +37,10 @@ int main(int argc, char** argv) {
         // NOLINTNEXTLINE(concurrency-mt-unsafe): no other thread yet
         setenv(name, (std::filesystem::path{root} / folder).c_str(), 1);
     }
+    // The MIME database found at build time (tests/CMakeLists.txt), the same on every system,
+    // whatever $XDG_DATA_DIRS the tests run with.
+    // NOLINTNEXTLINE(concurrency-mt-unsafe): no other thread yet
+    setenv("XDG_DATA_DIRS", NORDEND_MIME_DATA, 1);
     // The engines Nordend ships, from their manifests in the source tree (their programs are not
     // started here).
     nordend::engines::set_installed(std::make_shared<const nordend::engines::Registry>(

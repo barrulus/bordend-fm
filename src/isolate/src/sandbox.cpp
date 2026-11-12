@@ -174,8 +174,11 @@ void report(int /*signal*/, siginfo_t* info, void* context) {
     char* const digits = line.data() + prefix.size();
     char* end = std::to_chars(digits, line.data() + line.size() - 1, info->si_syscall).ptr;
     *end = '\n';
-    static_cast<void>(
-        ::write(STDERR_FILENO, line.data(), static_cast<std::size_t>(end - line.data() + 1)));
+    // A signal handler cannot do anything about a failed write. The result is kept in a variable
+    // because GCC does not let a cast to void silence warn_unused_result (glibc's write has it
+    // under _FORTIFY_SOURCE).
+    [[maybe_unused]] const ssize_t written =
+        ::write(STDERR_FILENO, line.data(), static_cast<std::size_t>(end - line.data() + 1));
     auto* frame = static_cast<ucontext_t*>(context);
 #if defined(__x86_64__)
     frame->uc_mcontext.gregs[REG_RAX] = -ENOSYS;

@@ -256,13 +256,15 @@ TEST_CASE("transfer: refused before anything moves") {
     CHECK(result.refused == "Cannot copy Trip into itself");
     CHECK(listing(t.from / "Trip" / "deep") == Names{"b.jpg"});
 
-    // A sparse file larger than any disk here: its size counts, so it does not fit.
+    // A sparse file 1 GiB larger than the free space: its size counts, so it does not fit. Not a
+    // fixed huge size: ext4 refuses files over 16 TiB, tmpfs does not.
     {
         std::ofstream{t.from / "huge.raw"};
     }
-    fs::resize_file(t.from / "huge.raw", std::uintmax_t{1} << 50U);  // 1 PiB, no blocks
+    fs::resize_file(t.from / "huge.raw",
+                    fs::space(t.to).available + (std::uintmax_t{1} << 30U));  // no blocks
     result = t.run(TransferKind::copy, {"huge.raw"});
-    CHECK(result.refused.starts_with("Not enough space: 1125.9 TB needed, "));
+    CHECK(result.refused.starts_with("Not enough space: "));
     CHECK(listing(t.to).empty());
 }
 
