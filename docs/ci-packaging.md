@@ -162,6 +162,33 @@ commit timestamp increases. Container images are pinned in
 updates, so builds are not claimed to be bit-for-bit reproducible. Run `native.sh` rather
 than invoking `native-build.sh` or `native-install.sh` on the host.
 
+### Debian source packages and copyright
+
+The Debian builder creates an unsigned **3.0 (quilt)** source package before compiling:
+`.dsc`, `.orig.tar.gz`, `.debian.tar.xz`, source `.changes` and `.buildinfo`. The original
+archive is the exact checkout archive, renamed without changing its bytes. The packaging
+archive contains the generated Debian recipe and snapshot changelog.
+
+CI unpacks that descriptor with `dpkg-source -x` into a separate directory and builds the
+actual shipped DEB from it. That DEB then goes through the existing fresh-container install
+and rendering checks. This verifies that the source package is sufficient to rebuild the
+binary; it does not claim bit-for-bit binary reproducibility across changing environments.
+The release preparer checks the descriptor's source/version/format, its component SHA-256
+checksums and sizes, and that its original archive matches the recorded checkout SHA-256.
+A missing or mismatched source package prevents publication.
+
+The stable `nordend-debian-source.tar.gz` download bundles the versioned source-package files
+together, preserving the filenames referenced by the descriptor. The individual files are
+also in the Debian CI artifact's `native-package/debian-source/` directory. See the README
+for extraction, dependency installation and rebuild commands. The generic `nordend-source.tar.gz`
+remains the raw checkout archive, not a Debian source package or a substitute for the descriptor.
+
+`packaging/debian/copyright` uses Debian's machine-readable copyright format and is parsed
+strictly with python-debian during CI. Its `Files` entries refer to the **source tree**.
+Wuffs decoding code, the fzy matcher and subset Tabler icon fonts are compiled into the
+binaries; their original source files are not installed separately. The Noctalia palette
+values are documented too. These notices describe bundled components already in Nordend.
+
 ## Arch Linux and openSUSE Tumbleweed
 
 These are separate **x86_64 rolling-distribution** targets. Arch uses the
@@ -196,7 +223,7 @@ allows the unsigned local RPM without changing global signature settings.
 
 The README has stable links to the `development` prerelease and fixed asset names. Once all
 checks succeed, `prepare-downloads.py` checks that all five package artifacts identify the
-same source commit and checksum. It selects only the main DEB/RPM, bundles the Void package
+same source commit and checksum. It selects only the main installable packages, bundles the Debian source package and Void package
 with its repository index, and adds the source archive, `source.json` and `SHA256SUMS`.
 Release install instructions are copied from the marked README section, so they stay in sync.
 Preparation runs on PRs too; the prepared bundle is available as a workflow artifact.

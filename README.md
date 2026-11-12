@@ -164,6 +164,27 @@ are provided with every build. To verify a download, save `SHA256SUMS` beside it
 `sha256sum --check --ignore-missing SHA256SUMS`. Downloads are replaced as builds pass;
 use the full commit from `source.json` instead of `development` in the Nix reference to
 pin a version. These downloads are individual packages, not an automatic-update repository.
+
+For a **Debian source package**, download the
+[Debian source bundle](https://github.com/barrulus/bordend-fm/releases/download/development/nordend-debian-source.tar.gz).
+It contains the matching `.dsc`, `.orig.tar.gz`, `.debian.tar.xz`, source `.changes` and
+`.buildinfo`, with their versioned filenames preserved. CI builds the published DEB from
+this source package. Rebuild on Debian 13:
+
+```sh
+sudo apt update
+sudo apt install build-essential
+tar -xzf nordend-debian-source.tar.gz
+cd nordend-debian-source
+dpkg-source -x nordend_*.dsc source
+sudo apt build-dep ./source
+cd source
+dpkg-buildpackage -b -us -uc
+```
+
+These source packages are unsigned development snapshots. The
+[generic source archive](https://github.com/barrulus/bordend-fm/releases/download/development/nordend-source.tar.gz)
+is also available; it is distinct from the Debian source package.
 <!-- development-downloads:end -->
 
 ### On Void Linux

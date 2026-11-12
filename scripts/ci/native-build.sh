@@ -6,7 +6,7 @@ case "$format" in
     deb)
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
-        apt-get install -y --no-install-recommends build-essential debhelper devscripts equivs python3 ca-certificates
+        apt-get install -y --no-install-recommends build-essential debhelper devscripts python3 python3-debian ca-certificates
         ;;
     rpm) dnf install -y rpm-build rpmdevtools python3 tar gzip ;;
     tumbleweed)
@@ -37,14 +37,30 @@ snapshot=$(cat /build/snapshot)
 case "$format" in
     deb)
         tar -xzf /input/source.tar.gz -C /build
-        cd /build/nordend-checkout
+        mv /build/nordend-checkout "/build/nordend-$version+git$snapshot"
+        cd "/build/nordend-$version+git$snapshot"
         cp -a packaging/debian debian
         DEBFULLNAME='Nordend fork maintainers' DEBEMAIL='barrulus@users.noreply.github.com' \
             dch --newversion "$version+git$snapshot-1" --distribution unstable 'Build exact CI source snapshot.'
-        mk-build-deps --install --remove --tool 'apt-get -y --no-install-recommends' debian/control
+        # Read dependencies directly from the local Debian recipe.
+        apt-get -y --no-install-recommends build-dep .
         cp -a debian /output/recipe
+        python3 - <<'PYDEB'
+from debian.copyright import Copyright
+with open('debian/copyright') as source:
+    Copyright(source, strict=True)
+PYDEB
+        # Preserve the exact checkout bytes as the upstream component of 3.0 (quilt).
+        cp /input/source.tar.gz "/build/nordend_${version}+git${snapshot}.orig.tar.gz"
+        dpkg-buildpackage -S -us -uc
+        mkdir -p /output/debian-source /build/rebuild
+        cp /build/*.dsc /build/*.orig.tar.gz /build/*.debian.tar.xz \
+            /build/*_source.changes /build/*_source.buildinfo /output/debian-source/
+        # The shipped binary is built from the source package, not the original tree.
+        dpkg-source -x /output/debian-source/*.dsc /build/rebuild/nordend
+        cd /build/rebuild/nordend
         DEB_BUILD_OPTIONS="parallel=${CI_JOBS:-2}" dpkg-buildpackage -b -us -uc
-        cp /build/*.deb /build/*.changes /build/*.buildinfo /output/packages/
+        cp /build/rebuild/*.deb /build/rebuild/*.changes /build/rebuild/*.buildinfo /output/packages/
         ;;
     rpm|tumbleweed)
         mkdir -p /build/rpm/{SOURCES,SPECS}
