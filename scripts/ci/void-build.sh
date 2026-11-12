@@ -5,7 +5,7 @@ set -euo pipefail
 source /source/scripts/ci/void-env
 xbps-install -Syu xbps
 xbps-install -yu
-xbps-install -y base-chroot git python3
+xbps-install -Sy -R https://repo-default.voidlinux.org/current/bootstrap base-chroot git python3
 mkdir /buildroot
 cd /buildroot
 git init

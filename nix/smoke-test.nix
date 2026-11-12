@@ -17,7 +17,7 @@ runCommand "nordend-installed-smoke"
       desktop-file-utils
       weston
       (writeShellScriptBin "dbus-run-session" ''
-        exec ${dbus}/bin/dbus-run-session --config-file=${dbus}/share/dbus-1/session.conf "$@"
+        exec ${dbus}/bin/dbus-run-session --dbus-daemon=${dbus}/bin/dbus-daemon --config-file=${dbus}/share/dbus-1/session.conf "$@"
       '')
     ];
     FONTCONFIG_FILE = makeFontsConf { fontDirectories = [ dejavu_fonts ]; };
