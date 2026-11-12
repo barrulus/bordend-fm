@@ -15,12 +15,14 @@
 #include <doctest/doctest.h>
 
 #include "nordend/core/event_loop.hpp"
+#include "nordend/core/config.hpp"
 #include "nordend/core/worker_pool.hpp"
 #include "nordend/fs/directory_watcher.hpp"
 #include "nordend/fs/mime.hpp"
 #include "nordend/fs/operations.hpp"
 #include "nordend/fs/places.hpp"
 #include "nordend/views/browser.hpp"
+#include "nordend/ui/offscreen.hpp"
 #include "temp_dir.hpp"
 
 using nordend::core::EventLoop;
@@ -538,11 +540,14 @@ TEST_CASE("actions: copy location shares menu and palette and captures its targe
 TEST_CASE("actions: custom handoffs share applicability and capture selection across navigation") {
     Fixture f;
     using nordend::core::Action;
-    const std::vector<Action> actions{{.id = "inspect",
-                                       .label = "Inspect",
-                                       .argv = {"inspector", "{files}"},
-                                       .mime = {"text/plain"},
-                                       .selection = Action::Selection::many}};
+    std::vector<Action> actions{{.id = "inspect",
+                                 .label = "Inspect",
+                                 .argv = {"inspector", "{files}"},
+                                 .mime = {"text/plain"},
+                                 .selection = Action::Selection::many}};
+    SUBCASE("Actions submenu") {}
+    SUBCASE("parent menu") { actions.front().placement = Action::Placement::menu; }
+    const bool parent = actions.front().placement == Action::Placement::menu;
     f.browser.set_actions(actions);
     std::vector<std::string> launched;
     fs::path directory;
@@ -555,11 +560,18 @@ TEST_CASE("actions: custom handoffs share applicability and capture selection ac
         [&](const auto&, const auto&) { return available; });
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
-    const auto group = std::ranges::find(f.menu().items(), "actions", &MenuItem::id);
+    const auto group =
+        std::ranges::find(f.menu().items(), parent ? "action:inspect" : "actions", &MenuItem::id);
     REQUIRE(group != f.menu().items().end());
-    REQUIRE(group->children.size() == 1);
-    CHECK(group->children.front().id == "action:inspect");
-    const auto run = group->children.front().action;
+    if (parent) {
+        CHECK_FALSE(group->submenu);
+        CHECK(std::ranges::find(f.menu().items(), "actions", &MenuItem::id) ==
+              f.menu().items().end());
+    } else {
+        REQUIRE(group->children.size() == 1);
+        CHECK(group->children.front().id == "action:inspect");
+    }
+    const auto run = parent ? group->action : group->children.front().action;
     f.menu().close();
     f.browser.open(f.photos / "sub");
     REQUIRE(f.settle());
@@ -579,12 +591,61 @@ TEST_CASE("actions: custom handoffs share applicability and capture selection ac
             supported.end());
     available = false;
     f.browser.open_menu(100, 100, false);
-    const auto missing = std::ranges::find(f.menu().items(), "actions", &MenuItem::id);
+    const auto missing =
+        std::ranges::find(f.menu().items(), parent ? "action:inspect" : "actions", &MenuItem::id);
     REQUIRE(missing != f.menu().items().end());
-    CHECK_FALSE(missing->children.front().enabled);
+    const bool enabled = parent ? missing->enabled : missing->children.front().enabled;
+    CHECK_FALSE(enabled);
     const auto unavailable = f.browser.palette_items();
     CHECK(std::ranges::find(unavailable, "action:inspect", &nordend::views::PaletteItem::id) ==
           unavailable.end());
+}
+
+TEST_CASE("actions: parent menu actions precede the submenu in configuration order") {
+    Fixture f;
+    using nordend::core::Action;
+    const std::vector<Action> actions{{.id = "goblin",
+                                       .label = "Goblin",
+                                       .argv = {"goblin"},
+                                       .mime = {},
+                                       .selection = Action::Selection::many},
+                                      {.id = "compress",
+                                       .label = "Compress…",
+                                       .argv = {"archiver", "{files}"},
+                                       .mime = {},
+                                       .selection = Action::Selection::many,
+                                       .placement = Action::Placement::menu},
+                                      {.id = "inspect",
+                                       .label = "Inspect",
+                                       .argv = {"inspector", "{files}"},
+                                       .mime = {},
+                                       .selection = Action::Selection::many,
+                                       .placement = Action::Placement::menu}};
+    f.browser.set_actions(actions);
+    std::vector<std::string> launched;
+    f.browser.set_action_handoff(
+        [&](const auto& action, const auto& context) {
+            launched = nordend::core::action_arguments(action, context);
+        },
+        [](const auto&, const auto&) { return true; });
+    f.select({"a.txt", "b.txt"});
+    f.browser.open_menu(100, 100, false);
+    const auto& items = f.menu().items();
+    const auto group = std::ranges::find(items, "actions", &MenuItem::id);
+    REQUIRE(group != items.end());
+    REQUIRE(group - items.begin() >= 2);
+    CHECK((group - 2)->id == "action:compress");
+    CHECK((group - 1)->id == "action:inspect");
+    CHECK(ids(group->children) == Names{"action:goblin"});
+    f.choose("action:compress");
+    CHECK(launched ==
+          Names{"archiver", (f.photos / "a.txt").string(), (f.photos / "b.txt").string()});
+
+    f.select({});
+    f.browser.open_menu(100, 100, true);
+    const auto background = ids(f.menu().items());
+    CHECK(std::ranges::find(background, "action:compress") == background.end());
+    CHECK(std::ranges::find(background, "actions") == background.end());
 }
 
 TEST_CASE("actions: archive presets appear in menu and palette and hand off literal paths") {
@@ -615,4 +676,238 @@ TEST_CASE("actions: archive presets appear in menu and palette and hand off lite
     const auto picker_items = f.browser.palette_items();
     CHECK(std::ranges::find(picker_items, "action:extract_to", &nordend::views::PaletteItem::id) ==
           picker_items.end());
+}
+
+TEST_CASE("context menu: keyboard enters arbitrary nesting and backs out one level") {
+    ContextMenu menu{[] {}};
+    int ran = 0;
+    auto leaf = item("leaf", true, [&] {
+        ++ran;
+        CHECK_FALSE(menu.is_open());
+    });
+    auto nested = leaf;
+    for (int depth = 0; depth < 8; ++depth) {
+        auto group = item("group" + std::to_string(depth));
+        group.submenu = true;
+        group.children = {item("disabled", false), nested};
+        nested = std::move(group);
+    }
+    menu.open(10, 10, {nested}, true);
+    for (std::size_t depth = 1; depth <= 8; ++depth) {
+        CHECK(menu.key(key(XKB_KEY_Right)));
+        CHECK(menu.open_levels() == depth + 1);
+        CHECK(menu.highlighted(depth) == 1);
+    }
+    CHECK(menu.key(key(XKB_KEY_Escape)));
+    CHECK(menu.open_levels() == 8);
+    CHECK(menu.key(key(XKB_KEY_Left)));
+    CHECK(menu.open_levels() == 7);
+    CHECK(menu.key(key(XKB_KEY_Return)));
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    CHECK(menu.key(key(XKB_KEY_Return)));
+    CHECK(ran == 1);
+    CHECK_FALSE(menu.is_open());
+}
+
+TEST_CASE("context menu: asynchronously filled nested groups preserve keyboard navigation") {
+    ContextMenu menu{[] {}};
+    int ran = 0;
+    auto dynamic = item("open_with");
+    dynamic.submenu = true;
+    dynamic.empty_text = "Loading…";
+    auto outer = item("outer");
+    outer.submenu = true;
+    outer.children = {dynamic};
+    menu.open(10, 10, {outer}, true);
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    CHECK(menu.open_levels() == 3);
+    CHECK_FALSE(menu.highlighted(2));
+    menu.set_submenu("open_with", {item("viewer", true, [&] { ++ran; })});
+    CHECK(menu.highlighted(2) == 0);
+    CHECK(menu.key(key(XKB_KEY_Return)));
+    CHECK(ran == 1);
+
+    // Updating a parent while one of its descendants is open drops stale descendant indices.
+    dynamic.children = {outer};
+    menu.open(10, 10, {dynamic}, true);
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    menu.set_submenu("open_with", {item("replacement", false)});
+    CHECK(menu.open_levels() == 2);
+    CHECK_FALSE(menu.highlighted(1));
+    CHECK(menu.key(key(XKB_KEY_Return)));
+    CHECK(menu.is_open());
+
+    auto templates = item("new_file");
+    templates.submenu = true;
+    menu.open(10, 10, {item("empty_file"), templates}, true);
+    auto letter = item("template:Letter");
+    letter.separator = true;
+    menu.set_submenu("new_file", {item("empty_file"), letter});
+    REQUIRE(menu.items()[1].children.size() == 1);
+    CHECK(menu.items()[1].children[0].id == "template:Letter");
+    CHECK_FALSE(menu.items()[1].children[0].separator);
+}
+
+TEST_CASE("context menu: layout moves built-ins and actions without duplicates") {
+    const auto parsed = nordend::core::parse_config(R"(
+[[actions]]
+id = "script"
+label = "Script"
+argv = ["tool", "{files}"]
+selection = "many"
+[[actions]]
+id = "external"
+label = "External tool"
+argv = ["external", "{files}"]
+selection = "many"
+[context_menu]
+items = [
+  { separator = true },
+  { label = "My Actions", items = [
+    { label = "Scripts", items = [{ id = "action:script", label = "Run script" }] },
+    { label = "External", items = [{ id = "action:external" }, { id = "open_with" }] },
+  ] },
+  { id = "copy", label = "Copy these", separator = true },
+  { label = "Not applicable", items = [{id = "restore"}] },
+  { remaining = true },
+  { separator = true },
+]
+background = [{ label = "Create", items = [{id = "new_file"}, {id = "new_folder"}] }]
+sidebar = []
+)",
+                                                    "menu.toml");
+    REQUIRE(parsed.problems.empty());
+    Fixture f;
+    f.browser.set_actions(parsed.config.actions);
+    f.browser.set_context_menu(parsed.config.context_menu);
+    Names launched;
+    f.browser.set_action_handoff(
+        [&](const auto& action, const auto& context) {
+            launched = nordend::core::action_arguments(action, context);
+        },
+        [](const auto&, const auto&) { return true; });
+    f.select({"a.txt", "b.txt"});
+    f.browser.open_menu(10, 10, true);
+    const auto& items = f.menu().items();
+    REQUIRE(items.size() > 2);
+    CHECK(items[0].label == "My Actions");
+    CHECK_FALSE(items[0].separator);
+    REQUIRE(items[0].children.size() == 2);
+    const auto& scripts = items[0].children[0];
+    CHECK(scripts.label == "Scripts");
+    REQUIRE(scripts.children.size() == 1);
+    CHECK(scripts.children.front().label == "Run script");
+    const auto& external = items[0].children[1];
+    CHECK(external.label == "External");
+    REQUIRE(external.children.size() == 2);
+    CHECK(external.children[1].id == "open_with");
+    CHECK(external.children[1].children.size() == 2);  // async loader found its nested group
+    CHECK(items[1].id == "copy");
+    CHECK(items[1].keys == "Ctrl+C");
+    CHECK(items[1].separator);
+    const auto root_ids = ids(items);
+    CHECK(std::ranges::count(root_ids, "copy") == 1);
+    CHECK(std::ranges::find(root_ids, "actions") == root_ids.end());
+    CHECK(std::ranges::find(root_ids, "open_with") == root_ids.end());
+    CHECK(f.press(key(XKB_KEY_Right)));
+    CHECK(f.press(key(XKB_KEY_Right)));
+    CHECK(f.press(key(XKB_KEY_Return)));
+    CHECK(launched == Names{"tool", (f.photos / "a.txt").string(), (f.photos / "b.txt").string()});
+    // Layout hiding/relabeling doesn't remove registry actions from the palette.
+    const auto palette = f.browser.palette_items();
+    CHECK(std::ranges::find(palette, "action:script", &nordend::views::PaletteItem::id) !=
+          palette.end());
+
+    f.select({});
+    f.browser.open_menu(10, 10, true);
+    REQUIRE(f.menu().items().size() == 1);
+    CHECK(f.menu().items()[0].label == "Create");
+    REQUIRE(f.menu().items()[0].children.size() == 2);
+    CHECK(f.menu().items()[0].children[0].id == "new_file");
+    auto hidden = parsed.config.context_menu;
+    hidden.background = std::vector<nordend::core::MenuNode>{};
+    f.browser.set_context_menu(hidden);
+    f.browser.open_menu(10, 10, true);
+    CHECK_FALSE(f.menu().is_open());
+    CHECK(f.settle());  // hiding a menu must not leave unstarted loaders counted as pending
+}
+
+TEST_CASE("context menu: remaining items may be nested and empty groups are omitted") {
+    using nordend::core::MenuNode;
+    auto group = item("actions");
+    group.submenu = true;
+    group.children = {item("action:a"), item("action:b")};
+    const std::vector<MenuItem> available{item("copy"), group};
+    const std::vector<MenuNode> layout{
+        {.id = "action:a"},
+        {.label = "Everything else", .items = {{.remaining = true}}},
+        {.label = "Hidden", .items = {{.id = "unavailable"}}},
+    };
+    const auto items = nordend::views::arrange_menu(available, layout);
+    REQUIRE(items.size() == 2);
+    CHECK(items[0].id == "action:a");
+    REQUIRE(items[1].children.size() == 2);
+    CHECK(items[1].children[0].id == "copy");
+    CHECK(ids(items[1].children[1].children) == Names{"action:b"});
+}
+
+TEST_CASE("context menu: pointer navigates nested panels and switches sibling groups") {
+    nordend::ui::Offscreen gl{800, 400};
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    ContextMenu menu{[] {}};
+    int ran = 0;
+    auto scripts = item("scripts");
+    scripts.label = "Scripts";
+    scripts.submenu = true;
+    scripts.children = {item("run", true, [&] { ran = 1; })};
+    scripts.children.front().label = "Run script";
+    auto external = scripts;
+    external.id = "external";
+    external.label = "External";
+    external.children.front().action = [&] { ran = 2; };
+    auto root = item("my_actions");
+    root.label = "My Actions";
+    root.submenu = true;
+    root.children = {scripts, external};
+    const auto draw = [&] {
+        renderer.begin_frame(800, 400, 1.0F, nordend::ui::Color::rgb(0x202020));
+        menu.draw(renderer, {0, 0, 800, 400}, nordend::theme::Palette{});
+        renderer.end_frame();
+    };
+    const auto pointer = [&](float x, float y, bool click = false) {
+        nordend::ui::PointerEvent event;
+        event.kind = click ? nordend::ui::PointerEvent::Kind::press
+                           : nordend::ui::PointerEvent::Kind::motion;
+        event.button = nordend::ui::PointerButton::left;
+        event.x = x;
+        event.y = y;
+        CHECK(menu.pointer(event));
+        draw();
+    };
+    menu.open(10, 10, {root}, false);
+    draw();
+    pointer(30, 30);
+    CHECK(menu.open_levels() == 2);
+    pointer(200, 30);
+    CHECK(menu.open_levels() == 3);
+    pointer(380, 30);
+    CHECK(menu.highlighted(2) == 0);
+    pointer(200, 58);  // switch to the sibling, discarding Scripts' open descendants
+    CHECK(menu.open_levels() == 3);
+    CHECK(menu.highlighted(1) == 1);
+    pointer(380, 58, true);
+    CHECK(ran == 2);
+    CHECK_FALSE(menu.is_open());
+
+    // At the bottom/right edge, panels flip left and overlapping panels hit the deepest one.
+    menu.open(790, 390, {root}, true);
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    CHECK(menu.key(key(XKB_KEY_Right)));
+    draw();
+    pointer(620, 340, true);
+    CHECK(ran == 1);
+    CHECK_FALSE(menu.is_open());
 }

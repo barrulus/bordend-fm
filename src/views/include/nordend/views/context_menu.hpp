@@ -7,6 +7,7 @@
 #include <string_view>
 #include <vector>
 
+#include "nordend/core/menu_layout.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
@@ -29,8 +30,12 @@ struct MenuItem {       // NOLINT(misc-no-recursion): a submenu's items are Menu
     std::function<void()> action;  // runs once the menu has closed
 };
 
+// Arrange the available items without changing their applicability or callbacks.
+[[nodiscard]] std::vector<MenuItem> arrange_menu(const std::vector<MenuItem>& available,
+                                                 const std::vector<core::MenuNode>& layout);
+
 // A menu over the window at a point (a right click, the Menu key), drawn by Nordend with the
-// theme's colors: items, separators, the shortcut of each, one level of submenus. Moved to stay
+// theme's colors: items, separators, the shortcut of each, nested submenus. Moved to stay
 // whole near the window's edges.
 //
 // While open it takes every key and every click: Up and Down move (over what cannot be chosen),
@@ -56,11 +61,17 @@ public:
     void set_submenu(std::string_view id, std::vector<MenuItem> children);
 
     // The highlighted item of the menu and of the open submenu (tests).
-    [[nodiscard]] std::optional<std::size_t> highlighted() const noexcept { return main_; }
+    [[nodiscard]] std::optional<std::size_t> highlighted(std::size_t level = 0) const noexcept {
+        return level < levels_.size() ? levels_[level].highlighted : std::nullopt;
+    }
 
-    [[nodiscard]] std::optional<std::size_t> sub_highlighted() const noexcept { return sub_; }
+    [[nodiscard]] std::optional<std::size_t> sub_highlighted() const noexcept {
+        return highlighted(1);
+    }
 
-    [[nodiscard]] bool submenu_open() const noexcept { return open_sub_.has_value(); }
+    [[nodiscard]] bool submenu_open() const noexcept { return levels_.size() > 1; }
+
+    [[nodiscard]] std::size_t open_levels() const noexcept { return levels_.size(); }
 
     // Every key while open: true.
     bool key(const ui::KeyEvent& event);
@@ -71,16 +82,12 @@ public:
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette);
 
 private:
-    [[nodiscard]] static bool choosable(const MenuItem& item) {
-        return item.enabled && (!item.submenu || !item.children.empty());
-    }
-
     // The next choosable item from `from` in direction step (+1, -1), wrapping.
     [[nodiscard]] static std::optional<std::size_t> step(const std::vector<MenuItem>& items,
                                                          std::optional<std::size_t> from,
                                                          int direction);
-    [[nodiscard]] const std::vector<MenuItem>* sub_items() const;
-    void open_submenu(std::size_t index, bool keyboard);
+    [[nodiscard]] const std::vector<MenuItem>& level_items(std::size_t depth) const;
+    void open_submenu(std::size_t depth, std::size_t index, bool keyboard);
     void choose(const MenuItem& item);
     // The panels' sizes for items, in logical pixels.
     [[nodiscard]] static ui::Rect measure(ui::Renderer& renderer,
@@ -94,16 +101,16 @@ private:
     std::vector<MenuItem> items_;
     float x_{0.0F};
     float y_{0.0F};
-    std::optional<std::size_t> main_;      // highlighted in the menu
-    std::optional<std::size_t> open_sub_;  // the item whose submenu is open
-    std::optional<std::size_t> sub_;       // highlighted in the submenu
-    bool in_sub_{false};                   // the keyboard is in the submenu
 
-    // As last drawn, for the pointer.
-    ui::Rect panel_{};
-    ui::Rect sub_panel_{};
-    std::vector<ui::Rect> rects_;
-    std::vector<ui::Rect> sub_rects_;
+    struct Level {
+        std::size_t parent{0};  // item in the preceding level that opened this one
+        std::optional<std::size_t> highlighted;
+        ui::Rect panel{};
+        std::vector<ui::Rect> rects;
+    };
+
+    std::vector<Level> levels_;
+    std::size_t active_{0};
 };
 
 }  // namespace nordend::views

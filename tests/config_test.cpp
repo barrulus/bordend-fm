@@ -19,6 +19,79 @@ using nordend::core::parse_config;
 
 using nordend::test::TempDir;
 
+TEST_CASE("context menu config: nested layouts and per-context overrides") {
+    const auto result = parse_config(R"(
+[context_menu]
+items = [
+  { id = "open", label = "Open this" },
+  { label = "My Actions", items = [
+    { label = "Scripts", items = [{ id = "action:script" }] },
+    { label = "External", items = [{ id = "action:extract_here" }] },
+  ] },
+  { separator = true },
+  { remaining = true },
+]
+entry = [{ id = "copy" }]
+background = [{ id = "new_file" }]
+trash = [{ id = "restore" }]
+sidebar = []
+[[actions]]
+id = "script"
+label = "Script"
+argv = ["script", "{file}"]
+)",
+                                     "menu.toml");
+    REQUIRE(result.problems.empty());
+    CHECK(result.context_menu_valid);
+    const auto& layout = result.config.context_menu;
+    REQUIRE(layout.items);
+    REQUIRE(layout.items->size() == 4);
+    CHECK((*layout.items)[1].items[0].items[0].id == "action:script");
+    CHECK((*layout.items)[2].separator);
+    CHECK((*layout.items)[3].remaining);
+    REQUIRE(layout.entry);
+    CHECK(layout.entry->front().id == "copy");
+    REQUIRE(layout.background);
+    REQUIRE(layout.trash);
+    REQUIRE(layout.sidebar);
+    CHECK(layout.sidebar->empty());
+}
+
+TEST_CASE("context menu config: invalid trees reject the entire layout") {
+    for (const auto* invalid : {
+             "context_menu = 1",
+             "[context_menu]\nunknown = []",
+             "[context_menu]\nitems = 'open'",
+             "[context_menu]\nitems = ['open']",
+             "[context_menu]\nitems = [{}]",
+             "[context_menu]\nitems = [{id = 'typo'}]",
+             "[context_menu]\nitems = [{id = 'action:missing'}]",
+             "[context_menu]\nitems = [{id = ''}]",
+             "[context_menu]\nitems = [{id = true}]",
+             "[context_menu]\nitems = [{label = 'Empty'}]",
+             "[context_menu]\nitems = [{items = []}]",
+             "[context_menu]\nitems = [{label = 'Bad', items = 1}]",
+             "[context_menu]\nitems = [{id = 'open', items = []}]",
+             "[context_menu]\nitems = [{id = 'open', remaining = true}]",
+             "[context_menu]\nitems = [{id = 'open', typo = true}]",
+             "[context_menu]\nitems = [{separator = 1}]",
+             "[context_menu]\nitems = [{remaining = 'true'}]",
+             "[context_menu]\nitems = [{remaining = true, label = 'Bad'}]",
+             "[context_menu]\nitems = [{remaining = true}, {label = 'Group', items = [{remaining = "
+             "true}]}]",
+             "[context_menu]\nitems = [{id = 'open'}, {label = 'Group', items = [{id = 'open'}]}]",
+         }) {
+        CAPTURE(std::string{invalid});
+        const auto result = parse_config(invalid, "menu.toml");
+        CHECK_FALSE(result.problems.empty());
+        CHECK_FALSE(result.context_menu_valid);
+        CHECK_FALSE(result.config.context_menu.items);
+        CHECK_FALSE(result.config.context_menu.entry);
+    }
+    const auto syntax = parse_config("[context_menu", "menu.toml");
+    CHECK_FALSE(syntax.context_menu_valid);
+}
+
 namespace {
 
 ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml"); }

@@ -1,6 +1,7 @@
 #include "nordend/views/context_menu.hpp"
 
 #include <algorithm>
+#include <unordered_set>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
@@ -43,17 +44,6 @@ float text_width(ui::Renderer& renderer, std::string_view text) {
     return renderer.fonts().layout(text, kTextSize, renderer.scale()).width / renderer.scale();
 }
 
-// What a submenu shows: its children, else one dimmed line.
-std::vector<MenuItem> shown_children(const MenuItem& parent) {
-    if (!parent.children.empty()) {
-        return parent.children;
-    }
-    MenuItem line;
-    line.label = parent.empty_text;
-    line.enabled = false;
-    return {line};
-}
-
 }  // namespace
 
 ContextMenu::ContextMenu(std::function<void()> redraw) : redraw_{std::move(redraw)} {}
@@ -62,41 +52,71 @@ void ContextMenu::open(float x, float y, std::vector<MenuItem> items, bool keybo
     items_ = std::move(items);
     x_ = x;
     y_ = y;
-    main_.reset();
-    open_sub_.reset();
-    sub_.reset();
-    in_sub_ = false;
-    panel_ = {};
-    sub_panel_ = {};
-    rects_.clear();
-    sub_rects_.clear();
-    if (keyboard) {
-        main_ = step(items_, std::nullopt, 1);
+    active_ = 0;
+    levels_.clear();
+    if (!items_.empty()) {
+        levels_.emplace_back();
+        if (keyboard)
+            levels_.front().highlighted = step(items_, std::nullopt, 1);
     }
     redraw_();
 }
 
 void ContextMenu::close() {
-    if (!is_open()) {
+    if (!is_open())
         return;
-    }
     items_.clear();
-    main_.reset();
-    open_sub_.reset();
-    sub_.reset();
-    in_sub_ = false;
+    levels_.clear();
+    active_ = 0;
     redraw_();
 }
 
 void ContextMenu::set_submenu(std::string_view id, std::vector<MenuItem> children) {
-    const auto it = std::ranges::find(items_, id, &MenuItem::id);
-    if (it == items_.end()) {
+    std::vector<std::size_t> path;
+    const auto find = [&](const auto& self, std::vector<MenuItem>& items) -> MenuItem* {
+        for (std::size_t i = 0; i < items.size(); ++i) {
+            path.push_back(i);
+            if (items[i].id == id)
+                return &items[i];
+            if (auto* found = self(self, items[i].children))
+                return found;
+            path.pop_back();
+        }
+        return nullptr;
+    };
+    auto* found = find(find, items_);
+    if (!found)
         return;
+    // A configured layout can move a child (e.g. Empty File) out of this dynamic group.
+    std::unordered_set<std::string> elsewhere;
+    const auto collect = [&](const auto& self, const std::vector<MenuItem>& items) -> void {
+        for (const auto& item : items) {
+            if (&item == found)
+                continue;
+            if (!item.id.empty())
+                elsewhere.insert(item.id);
+            self(self, item.children);
+        }
+    };
+    collect(collect, items_);
+    std::erase_if(children, [&](const MenuItem& item) {
+        return !item.id.empty() && elsewhere.contains(item.id);
+    });
+    if (!children.empty()) {
+        children.front().separator = false;
     }
-    it->children = std::move(children);
-    const auto index = static_cast<std::size_t>(it - items_.begin());
-    if (open_sub_ == index && in_sub_ && !sub_) {
-        sub_ = step(it->children, std::nullopt, 1);  // the keyboard was waiting in it
+    found->children = std::move(children);
+    bool opened = levels_.size() > path.size();
+    for (std::size_t i = 0; opened && i < path.size(); ++i) {
+        opened = levels_[i + 1].parent == path[i];
+    }
+    if (opened) {
+        const bool keyboard = active_ >= path.size();
+        levels_.resize(path.size() + 1);
+        auto& level = levels_.back();
+        level.rects.clear();
+        level.highlighted = keyboard ? step(found->children, std::nullopt, 1) : std::nullopt;
+        active_ = std::min(active_, path.size());
     }
     redraw_();
 }
@@ -104,95 +124,84 @@ void ContextMenu::set_submenu(std::string_view id, std::vector<MenuItem> childre
 std::optional<std::size_t> ContextMenu::step(const std::vector<MenuItem>& items,
                                              std::optional<std::size_t> from, int direction) {
     const std::size_t count = items.size();
-    if (count == 0) {
+    if (count == 0)
         return std::nullopt;
-    }
     std::size_t at = from.value_or(direction > 0 ? count - 1 : 0);
     for (std::size_t tries = 0; tries < count; ++tries) {
         at = direction > 0 ? (at + 1) % count : (at + count - 1) % count;
-        if (items[at].enabled) {
+        if (items[at].enabled)
             return at;
-        }
     }
-    return from;
+    return std::nullopt;
 }
 
-const std::vector<MenuItem>* ContextMenu::sub_items() const {
-    return open_sub_ ? &items_[*open_sub_].children : nullptr;
+const std::vector<MenuItem>& ContextMenu::level_items(std::size_t depth) const {
+    const auto* items = &items_;
+    for (std::size_t i = 1; i <= depth; ++i) {
+        items = &(*items)[levels_[i].parent].children;
+    }
+    return *items;
 }
 
-void ContextMenu::open_submenu(std::size_t index, bool keyboard) {
-    open_sub_ = index;
-    main_ = index;
-    sub_.reset();
-    in_sub_ = keyboard;
+void ContextMenu::open_submenu(std::size_t depth, std::size_t index, bool keyboard) {
+    levels_[depth].highlighted = index;
+    if (levels_.size() <= depth + 1 || levels_[depth + 1].parent != index) {
+        levels_.resize(depth + 1);
+        levels_.push_back(
+            Level{.parent = index, .highlighted = std::nullopt, .panel = {}, .rects = {}});
+    }
     if (keyboard) {
-        sub_ = step(items_[index].children, std::nullopt, 1);
+        active_ = depth + 1;
+        if (!levels_[active_].highlighted) {
+            levels_[active_].highlighted = step(level_items(active_), std::nullopt, 1);
+        }
     }
     redraw_();
 }
 
 void ContextMenu::choose(const MenuItem& item) {
-    const std::function<void()> action = item.action;  // item goes with the menu
+    const std::function<void()> action = item.action;
     close();
-    if (action) {
+    if (action)
         action();
-    }
 }
 
 bool ContextMenu::key(const ui::KeyEvent& event) {
-    if (!is_open()) {
+    if (!is_open())
         return false;
-    }
-    const bool in_sub = in_sub_ && open_sub_.has_value();
-    const std::vector<MenuItem>& level = in_sub ? *sub_items() : items_;
-    std::optional<std::size_t>& highlighted = in_sub ? sub_ : main_;
-    const auto back_out = [this] {
-        in_sub_ = false;
-        open_sub_.reset();
-        sub_.reset();
-    };
+    const auto& items = level_items(active_);
+    const auto selected = levels_[active_].highlighted;
     switch (event.keysym) {
         case XKB_KEY_Down:
-            highlighted = step(level, highlighted, 1);
-            break;
         case XKB_KEY_Up:
-            highlighted = step(level, highlighted, -1);
-            break;
         case XKB_KEY_Home:
-            highlighted = step(level, std::nullopt, 1);
+        case XKB_KEY_End: {
+            const bool forward = event.keysym == XKB_KEY_Down || event.keysym == XKB_KEY_Home;
+            const bool edge = event.keysym == XKB_KEY_Home || event.keysym == XKB_KEY_End;
+            levels_[active_].highlighted =
+                step(items, edge ? std::nullopt : selected, forward ? 1 : -1);
+            levels_.resize(active_ + 1);
             break;
-        case XKB_KEY_End:
-            highlighted = step(level, std::nullopt, -1);
-            break;
+        }
         case XKB_KEY_Right:
-            if (!in_sub && main_ && items_[*main_].submenu && items_[*main_].enabled) {
-                open_submenu(*main_, true);
+        case XKB_KEY_Return:
+        case XKB_KEY_KP_Enter:
+            if (selected && items[*selected].enabled) {
+                if (items[*selected].submenu) {
+                    open_submenu(active_, *selected, true);
+                } else if (event.keysym != XKB_KEY_Right) {
+                    choose(items[*selected]);
+                    return true;
+                }
             }
             break;
         case XKB_KEY_Left:
-            if (in_sub) {
-                back_out();
-            }
-            break;
         case XKB_KEY_Escape:
-            if (in_sub) {
-                back_out();
-            } else {
+            if (active_ > 0) {
+                levels_.resize(active_);
+                --active_;
+            } else if (event.keysym == XKB_KEY_Escape) {
                 close();
-            }
-            break;
-        case XKB_KEY_Return:
-        case XKB_KEY_KP_Enter:
-            if (highlighted && level[*highlighted].enabled) {
-                if (level[*highlighted].submenu) {
-                    if (!in_sub) {
-                        open_submenu(*highlighted, true);
-                    }
-                } else {
-                    choose(level[*highlighted]);
-                    return true;
-                }
             }
             break;
         default:
@@ -203,63 +212,42 @@ bool ContextMenu::key(const ui::KeyEvent& event) {
 }
 
 bool ContextMenu::pointer(const ui::PointerEvent& event) {
-    if (!is_open()) {
+    if (!is_open())
         return false;
-    }
     using Kind = ui::PointerEvent::Kind;
-    const bool over_sub = open_sub_ && contains(sub_panel_, event.x, event.y);
-    const std::optional<std::size_t> sub_index =
-        over_sub ? index_at(sub_rects_, event.x, event.y) : std::nullopt;
-    const std::optional<std::size_t> index = !over_sub && contains(panel_, event.x, event.y)
-                                                 ? index_at(rects_, event.x, event.y)
-                                                 : std::nullopt;
-    const std::vector<MenuItem>* children = sub_items();
-    switch (event.kind) {
-        case Kind::enter:
-        case Kind::motion:
-            if (over_sub) {
-                if (sub_index && children != nullptr && *sub_index < children->size() &&
-                    (*children)[*sub_index].enabled) {
-                    sub_ = sub_index;
-                    in_sub_ = true;
-                } else {
-                    sub_.reset();
-                }
-            } else if (index) {
-                const MenuItem& item = items_[*index];
-                main_ = item.enabled ? index : std::nullopt;
-                if (item.submenu && item.enabled) {
-                    if (open_sub_ != index) {
-                        open_submenu(*index, false);
-                    }
-                } else {
-                    open_sub_.reset();
-                    sub_.reset();
-                    in_sub_ = false;
-                }
-            }
-            redraw_();
-            break;
-        case Kind::press:
-            if (over_sub) {
-                if (sub_index && children != nullptr && *sub_index < children->size() &&
-                    (*children)[*sub_index].enabled) {
-                    choose((*children)[*sub_index]);
-                }
-            } else if (index) {
-                const MenuItem& item = items_[*index];
-                if (item.enabled && item.submenu) {
-                    open_submenu(*index, false);
-                } else if (item.enabled) {
-                    choose(item);
-                }
-            } else if (!contains(panel_, event.x, event.y)) {
-                close();  // a click outside closes the menu and does nothing else
-            }
-            break;
-        default:
-            break;
+    if (event.kind != Kind::enter && event.kind != Kind::motion && event.kind != Kind::press) {
+        return true;
     }
+    // Deepest panels are drawn last and receive the pointer first when panels overlap.
+    std::optional<std::size_t> over;
+    for (std::size_t i = levels_.size(); i > 0; --i) {
+        if (contains(levels_[i - 1].panel, event.x, event.y)) {
+            over = i - 1;
+            break;
+        }
+    }
+    if (!over) {
+        if (event.kind == Kind::press)
+            close();
+        return true;
+    }
+    const auto depth = *over;
+    const auto index = index_at(levels_[depth].rects, event.x, event.y);
+    const auto& items = level_items(depth);
+    if (index && *index < items.size()) {
+        const auto& item = items[*index];
+        active_ = depth;
+        levels_[depth].highlighted = item.enabled ? index : std::nullopt;
+        if (item.enabled && item.submenu) {
+            open_submenu(depth, *index, false);
+        } else if (item.enabled && event.kind == Kind::press) {
+            choose(item);
+            return true;
+        } else {
+            levels_.resize(depth + 1);
+        }
+    }
+    redraw_();
     return true;
 }
 
@@ -339,40 +327,40 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
 
 void ContextMenu::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                        const theme::Palette& palette) {
-    if (!is_open()) {
+    if (!is_open())
         return;
+    for (std::size_t depth = 0; depth < levels_.size(); ++depth) {
+        const auto& actual = level_items(depth);
+        std::vector<MenuItem> placeholder;
+        if (actual.empty() && depth > 0) {
+            MenuItem line;
+            line.label = level_items(depth - 1)[levels_[depth].parent].empty_text;
+            line.enabled = false;
+            placeholder.push_back(std::move(line));
+        }
+        const auto& items = actual.empty() ? placeholder : actual;
+        const auto size = measure(renderer, items);
+        const float width = std::min(size.width, std::max(1.0F, bounds.width - 2.0F * kEdge));
+        float x = x_;
+        float y = y_;
+        if (depth > 0) {
+            const auto& parent = levels_[depth - 1];
+            x = parent.panel.right() - kOverlap;
+            if (x + width > bounds.right() - kEdge) {
+                x = parent.panel.x - width + kOverlap;
+            }
+            y = parent.rects[levels_[depth].parent].y - kPadding;
+        } else if (x + width > bounds.right() - kEdge) {
+            x -= width;
+        }
+        x = std::clamp(x, bounds.x + kEdge,
+                       std::max(bounds.x + kEdge, bounds.right() - kEdge - width));
+        y = std::clamp(y, bounds.y + kEdge,
+                       std::max(bounds.y + kEdge, bounds.bottom() - kEdge - size.height));
+        auto& level = levels_[depth];
+        level.panel = {x, y, width, size.height};
+        draw_panel(renderer, level.panel, items, level.highlighted, level.rects, palette);
     }
-    const ui::Rect size = measure(renderer, items_);
-    const float width = std::min(size.width, bounds.width - (2.0F * kEdge));
-    float x = x_;
-    float y = y_;
-    if (x + width > bounds.right() - kEdge) {
-        x = std::max(bounds.x + kEdge, x - width);  // opens to the left of the point
-    }
-    if (y + size.height > bounds.bottom() - kEdge) {
-        y = std::max(bounds.y + kEdge, bounds.bottom() - kEdge - size.height);
-    }
-    panel_ = {x, y, width, size.height};
-    draw_panel(renderer, panel_, items_, main_, rects_, palette);
-
-    sub_panel_ = {};
-    sub_rects_.clear();
-    if (!open_sub_ || *open_sub_ >= rects_.size()) {
-        return;
-    }
-    const std::vector<MenuItem> children = shown_children(items_[*open_sub_]);
-    const ui::Rect sub_size = measure(renderer, children);
-    const float sub_width = std::min(sub_size.width, bounds.width - (2.0F * kEdge));
-    float sub_x = panel_.right() - kOverlap;
-    if (sub_x + sub_width > bounds.right() - kEdge) {
-        sub_x = std::max(bounds.x + kEdge, panel_.x - sub_width + kOverlap);
-    }
-    float sub_y = rects_[*open_sub_].y - kPadding;
-    if (sub_y + sub_size.height > bounds.bottom() - kEdge) {
-        sub_y = std::max(bounds.y + kEdge, bounds.bottom() - kEdge - sub_size.height);
-    }
-    sub_panel_ = {sub_x, sub_y, sub_width, sub_size.height};
-    draw_panel(renderer, sub_panel_, children, sub_, sub_rects_, palette);
 }
 
 }  // namespace nordend::views
