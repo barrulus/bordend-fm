@@ -51,6 +51,32 @@ if(NORDEND_FUZZ)
     target_link_options(nordend_warnings INTERFACE -fsanitize=address,undefined)
 endif()
 
+# ---------------------------------------------------------------------------
+# Hardening, for every target (wuffs too): the same on every system, not only where a distro's
+# package build adds it. Measured free on 2026-11-12 (docs/benchmarks.md, "Hardening").
+# ---------------------------------------------------------------------------
+option(NORDEND_HARDENING "Build with the compiler's and linker's hardening flags" ON)
+if(NORDEND_HARDENING)
+    include(CheckCXXCompilerFlag)
+    include(CheckPIESupported)
+    check_pie_supported()
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    add_compile_options(-fstack-protector-strong -fstack-clash-protection)
+    # Control-flow protection (CET) exists on x86 only.
+    check_cxx_compiler_flag(-fcf-protection NORDEND_HAS_CF_PROTECTION)
+    if(NORDEND_HAS_CF_PROTECTION)
+        add_compile_options(-fcf-protection)
+    endif()
+    # Checked string and memory calls. Optimised builds only (glibc warns without optimisation,
+    # an error under NORDEND_WERROR), and not with sanitizers (they replace the same calls).
+    # -U first: a distro's package build may pass its own level already.
+    if(NOT NORDEND_SANITIZER AND NOT NORDEND_FUZZ)
+        add_compile_options("$<$<NOT:$<CONFIG:Debug>>:-U_FORTIFY_SOURCE;-D_FORTIFY_SOURCE=3>")
+    endif()
+    # Full RELRO: relocations resolved at start, then read-only.
+    add_link_options(-Wl,-z,relro -Wl,-z,now)
+endif()
+
 option(NORDEND_CLANG_TIDY "Run clang-tidy while building the nordend targets" OFF)
 if(NORDEND_CLANG_TIDY)
     find_program(NORDEND_CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)

@@ -93,6 +93,45 @@ the real figures. Warm, median of 10: `egl` 48.7, `window` 68.5, `first-frame-sh
 Once in about 30 runs weston stopped sending frame callbacks to every client until restarted;
 the tool now stops a run after 10 s of silence.
 
+## Hardening
+
+### 2026-11-12
+
+What the hardening flags cost, before `NORDEND_HARDENING` went in. Two Release builds of the
+same commit: A as before (Void's GCC 14 already defaults to PIE, `-fstack-protector-strong`
+and `-fcf-protection=full`; RELRO without `BIND_NOW`, no `_FORTIFY_SOURCE`), B with
+`-D_FORTIFY_SOURCE=3 -D_GLIBCXX_ASSERTIONS -fstack-clash-protection` and `-z relro -z now`.
+Each measurement twice, A and B alternated; the two passes agree within 1 %.
+
+| Measurement (tool) | A | B |
+|---|---|---|
+| `nordend` / `nordend-preview`, stripped | 3.28 / 1.01 MiB | 3.34 / 1.04 MiB |
+| JPEG 20 MP (`nordend-decode --runs 11`, wuffs) | 270-274 ms | 274-275 ms |
+| TIFF 4096x4096 uncompressed | 121 ms | 121-122 ms |
+| DJI DNG developed, 2560x1440 box (`--raw`, median of 8) | 139.3 ms | 159.4-159.9 ms |
+| DJI DNG developed, half size | 392.5 ms | 429.9-430.9 ms |
+| Leica M240 DNG, 2560x1440 box | 184.3 ms | 191.7 ms |
+| 10k folder, whole list (`nordend-bench-dir --runs 6`) | 15.0 ms | 15.0 ms |
+| Scrolling 10k entries, 300 frames, median (`nordend-snapshot --bench`) | 0.46 / 0.62 / 0.64 ms | 0.46 / 0.62 / 0.63 ms |
+| Start to the 10k folder shown (`nordend-bench-start -n 10`, headless weston) | 141.9 / 142.6 ms | 140.8 / 140.9 ms |
+
+Scrolling is columns / grid / details. Start-up ran in `weston --backend=headless
+--renderer=pixman` (llvmpipe, so not the on-screen figure; what matters here is A against B):
+`main` is 3.4 ms in both, so binding every symbol at start costs nothing measurable.
+
+Which flag costs, the DJI development again (`nordend-decode` built four ways, two passes):
+
+| Build | Box | Half size |
+|---|---|---|
+| A | 138.8 ms | 391.6-392.6 ms |
+| `_GLIBCXX_ASSERTIONS` alone | 160.1-160.5 ms | 430.1-430.4 ms |
+| `_FORTIFY_SOURCE=3`, stack clash, `now` | 138.6-139.3 ms | 392.1-393.0 ms |
+| all of them (B) | 159.9-160.6 ms | 429.3-429.7 ms |
+
+All the cost is the standard library's bounds checks in the development's per-pixel loops
+(lookup tables and sums read through `operator[]`). `NORDEND_HARDENING` therefore went in
+without them first; the checks follow once those loops check a row at a time.
+
 ## Markdown and diffs (ROADMAP 3b-2b, fourth group)
 
 ### 2026-11-09

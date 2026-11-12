@@ -4,6 +4,27 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-12 — Hardened builds everywhere (quality step, Q2)
+
+Void's package builds add hardening flags, and Void's GCC turns some on by default; a build
+from source elsewhere got whatever its compiler did. `NORDEND_HARDENING` (on by default) now
+asks for them in CMake, for every target, wuffs included: `-fstack-protector-strong`,
+`-fstack-clash-protection`, `-fcf-protection` (where the compiler has it), PIE, full RELRO
+(`-z relro -z now`) and `_FORTIFY_SOURCE=3`. The last only in optimised builds without
+sanitizers (glibc warns at `-O0`, an error under `NORDEND_WERROR`; ASan replaces the same
+calls), and after `-U_FORTIFY_SOURCE`, since a distro may pass its own level.
+
+**Measured** (benchmarks, "Hardening"): binaries 2 % larger; JPEG, TIFF, folder loading,
+scrolling and start-up unchanged. Of the flags tried, only `_GLIBCXX_ASSERTIONS` costs: the DNG
+development 4-14 % slower, from bounds checks in its per-pixel loops. It is left for the next
+commit, which makes those loops check a row at a time.
+
+**Checked:** the Release binaries have `BIND_NOW`, glibc's `_chk` calls and are PIE; every
+compile command has `-fPIE` or `-fPIC`; the whole tree builds with `-Werror` under
+`_FORTIFY_SOURCE=3`; the suite passes in Release, ASan and TSan, the caged helper included.
+
+---
+
 ## 2026-11-12 — Builds and tests that hold on other systems (quality step, Q1)
 
 The first outside pull requests built Nordend on NixOS with GCC 16, and found what our own runs
