@@ -280,7 +280,8 @@ startup. SVG theme icons are rendered in-process using FreeType.
 
 On first normal launch, Nordend creates a complete `config.toml` at
 `$XDG_CONFIG_HOME/nordend/config.toml` (or `~/.config/nordend/config.toml`). It includes
-all settings and a commented list of default shortcuts. Existing files, including
+all settings, commented default shortcuts and context-menu layouts, and custom-action
+examples. Existing files, including
 symlinks, are never replaced. `--check-config`, `--test-scene`, and explicit `--config`
 paths do not create a config. If creation fails, Nordend reports it and continues.
 The same reference is installed at `share/nordend/config.example.toml` under the
@@ -299,6 +300,161 @@ Each entry replaces that action's default keys; `""` disables it. F1 shows the c
 bindings. `nordend --check-config` reports invalid or conflicting bindings. See
 [the example config](docs/config.example.toml) for action names and key syntax.
 Text-editing, navigation and range-selection keys retain their standard behavior.
+
+### Custom actions and context menus
+
+Add `[[actions]]` tables to `~/.config/nordend/config.toml`. Actions appear in the context
+menu and command palette (**Ctrl+K**) when their selection and MIME rules match. Programs
+are optional dependencies: install the ones your actions use. Missing programs are dimmed
+in the context menu and omitted from the palette.
+
+This example compresses one or more selected files or folders. Nordend asks for the ZIP
+filename and destination, calls **7-Zip directly**, then notifies you when the command exits:
+
+```toml
+[[actions]]
+id = "compress"
+label = "Compress to ZIP…"
+argv = ["7z", "a", "-tzip", "-spd", "{destination}", "--", "{files}"]
+selection = "many"
+placement = "menu"
+destination = "file"
+destination_name = "Archive.zip"
+notify_on_completion = true
+```
+
+Use `7zz` instead of `7z` if that is your installed executable. `-spd` treats wildcard
+characters in selected filenames literally. `7z a` updates an existing archive; choose a
+new filename to create a separate archive. No Python or shell wrapper is needed.
+
+The same picker works with other commands. These examples require **ImageMagick** and
+**GNU cp**, respectively:
+
+```toml
+[[actions]]
+id = "resize-image"
+label = "Resize Image to Half Size…"
+argv = ["magick", "{file}", "-resize", "50%", "{destination}"]
+mime = ["image/*"]
+selection = "one"
+destination = "file"
+destination_name = "resized.png"
+notify_on_completion = true
+
+[[actions]]
+id = "copy-to"
+label = "Copy To…"
+argv = ["cp", "--archive", "--", "{files}", "{destination}"]
+selection = "many"
+destination = "directory"
+notify_on_completion = true
+```
+
+`destination = "file"` opens Nordend's save dialog; `"directory"` selects an existing
+folder. `destination_name` is an optional literal suggested filename for the file picker.
+The picker starts in the current folder, uses the action's label as its title, and passes
+the selected absolute path as `{destination}`. Cancelling launches nothing. The selection
+and working directory are captured before the picker opens. Nordend does not create the
+output: the command does, with its own overwrite behavior. The save dialog confirms an
+existing file; commands such as `cp` and `magick` can replace output. External operations
+are not part of Nordend's Undo history.
+
+Omit `destination` and `{destination}` when the application already supplies its own dialog;
+for example, File Roller can use
+`argv = ["file-roller", "--default-dir", "{directory}", "--add", "{files}"]`.
+A destination picker and `{destination}` must be configured together.
+
+`argv` is an argument array, with no shell interpretation, globbing, or environment/tilde
+expansion. Placeholders must occupy whole arguments after the executable; do not add shell
+quotes around them. Filenames containing spaces remain single arguments.
+
+| Placeholder | Value |
+| --- | --- |
+| `{file}` | One absolute selected path; requires `selection = "one"` |
+| `{files}` | Each selected absolute path as a separate argument; requires `"one"` or `"many"` |
+| `{directory}` | The current folder, also used as the command's working directory |
+| `{destination}` | The absolute path chosen by Nordend's destination picker |
+
+`selection` defaults to `"one"` (exactly one item). `"many"` allows one or more items;
+`"background"` requires none; `"any"` allows any number, including none. Use `{directory}`
+or fixed arguments with `"background"`/`"any"`, not `{file}` or `{files}`. Without `mime`,
+all file types are allowed, but multi-selection still requires `selection = "many"`.
+MIME filters accept exact types and patterns such as `"image/*"`; **every selected item**
+must match at least one filter. Folders use `"inode/directory"`.
+
+`notify_on_completion = true` enables a desktop notification and status message on success
+or failure; it defaults to false. Nordend sends notifications itself, without `notify-send`.
+The option applies to external actions: exit code 0 means success, other exit codes or
+signals mean failure. Cancelling the picker or failing to launch sends no completion notice;
+launch errors still appear in the status bar. Keep Nordend open to receive notifications.
+A desktop notification service is needed for popups; the status message still works without
+one. Completion follows the launched process, so a GUI launcher that delegates work and
+exits early cannot report when that delegated work finishes.
+
+#### Arrange and nest menus
+
+Actions default to the **Actions** submenu. `placement = "menu"` puts an action directly
+above that submenu. A `[context_menu]` layout can instead arrange built-in commands and
+custom actions into nested groups, in the order you choose. For the three actions above:
+
+```toml
+[context_menu]
+items = [
+  { id = "open" },
+  { id = "open_with" },
+  { id = "action:compress" },
+  { label = "My Actions", items = [
+    { label = "Images", items = [ { id = "action:resize-image" } ] },
+    { label = "Files", items = [ { id = "action:copy-to" } ] },
+  ] },
+  { separator = true },
+  { remaining = true },
+]
+```
+
+Use `action:<id>` for actions and built-in IDs such as `copy`, `rename`, `sort`, and
+`open_with` for other commands. A group has `label` and nested `items`; groups can nest
+further. Add `label` to an ID reference to rename its menu entry, or `separator = true`
+to place a line above it. Inapplicable items and empty groups disappear.
+
+`{ remaining = true }` keeps unlisted items in their default grouping. Use it at most once
+per layout, at any depth; omit it to hide unlisted items. Referencing `open_with`, `new_file`,
+`sort`, or `actions` keeps the parent's remaining children, including dynamically discovered
+applications/templates. Moving a child elsewhere removes it from the original group. Each
+ID can appear only once per layout. Explicit layout references override action placement;
+menu customization does not change command-palette or shortcut availability.
+
+| Layout | Context |
+| --- | --- |
+| `items` | Optional common fallback for contexts without a specific override |
+| `entry` | Files or folders targeted in an ordinary folder |
+| `background` | Empty space in an ordinary folder, without a target |
+| `trash` | Trash entries or empty space in Trash |
+| `sidebar` | Devices, bookmarks, and the Trash sidebar item |
+
+Specific arrays override `items`. Without either, Nordend uses that context's built-in menu;
+an empty array hides its menu. The [example config](docs/config.example.toml) includes the
+**complete default layouts for all four contexts**, their separators and submenu contents,
+as well as the available IDs and additional custom-action examples. Default reference arrays
+and the custom `items` example are alternatives: keep only the overrides you intend to use
+and only one `[context_menu]` table.
+
+Copy Location, Extract Here, and Extract To are built-in actions. Extraction is filtered to
+applicable archive selections; missing backends are dimmed. Supported backends include
+File Roller, unzip, gzip, tar, and 7-Zip. Copy Location cannot be replaced. Override an extraction preset by its ID to change
+its label, placement, or enabled state; providing `argv` makes it an external command.
+Actions are unavailable in Trash, and external actions are unavailable in file-picker mode.
+
+Action IDs can also be bound in the existing `[keybindings]` table, for example
+`"action:compress" = "Ctrl+Alt+z"`; define the action before enabling its binding. Actions,
+keybindings, and menu layouts reload together. Invalid changes retain the previous valid
+set on reload. Validate edits with `nordend --check-config` or
+`nordend --config /path/to/config.toml --check-config`.
+
+The installed reference at `share/nordend/config.example.toml` updates with Nordend.
+Existing personal files, including a copied `~/.config/nordend/config.example.toml`, are
+not refreshed automatically. Use the current reference when adding new features to an
+existing configuration.
 
 ## Versions
 
