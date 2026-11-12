@@ -248,7 +248,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.press(key(XKB_KEY_Menu)));
     REQUIRE(f.menu().is_open());
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase", "sort"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "rename", "trash", "erase", "action:copy_location", "sort"});
     CHECK(f.menu().items()[2].keys == "Ctrl+C");  // from the shortcuts table
     CHECK(f.menu().items()[6].keys == "Delete");
     CHECK(f.press(key(XKB_KEY_Escape)));
@@ -258,13 +258,13 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({"a.txt", "b.txt"});
     f.browser.open_menu(100, 100, false);
     CHECK(ids(f.menu().items()) ==
-          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase", "sort"});
+          Names{"open", "open_with", "copy", "cut", "-paste", "-rename", "trash", "erase", "action:copy_location", "sort"});
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_tab", "open_terminal",
                                          "add_bookmark", "copy", "cut", "-paste", "rename", "trash",
-                                         "erase", "sort"});
+                                         "erase", "action:copy_location", "sort"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -273,7 +273,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.select({});
     CHECK(f.press(key(XKB_KEY_Menu)));
     CHECK(ids(f.menu().items()) ==
-          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal", "sort"});
+          Names{"new_folder", "new_file", "paste", "add_bookmark", "open_terminal", "action:copy_location", "sort"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
 }
@@ -506,4 +506,113 @@ TEST_CASE("new file: the templates folder, as the user dirs say") {
     CHECK(nordend::fs::templates_dir(sources) == sources.home / "Modelli");
     std::ofstream{sources.config_home / "user-dirs.dirs"} << "XDG_TEMPLATES_DIR=\"$HOME/Nope\"\n";
     CHECK(nordend::fs::templates_dir(sources).empty());  // not there
+}
+
+TEST_CASE("actions: copy location shares menu and palette and captures its target") {
+    Fixture f;
+    std::vector<nordend::views::SystemClipboard::Format> offered;
+    nordend::views::SystemClipboard clipboard;
+    clipboard.offer = [&](auto formats) { offered = std::move(formats); };
+    f.browser.set_system_clipboard(std::move(clipboard));
+    f.select({"a.txt", "b.txt"});
+    f.browser.open_menu(100, 100, false);
+    f.choose("action:copy_location");
+    REQUIRE_FALSE(offered.empty());
+    CHECK(offered.front().second ==
+          (f.photos / "a.txt").string() + '\n' + (f.photos / "b.txt").string());
+    CHECK(offered.front().first == "text/plain;charset=utf-8");
+    f.select({"sub"});
+    auto items = f.browser.palette_items();
+    const auto item =
+        std::ranges::find(items, "action:copy_location", &nordend::views::PaletteItem::id);
+    REQUIRE(item != items.end());
+    f.select({"a.txt"});
+    item->action();
+    CHECK(offered.front().second == (f.photos / "sub").string());
+    f.select({});
+    f.browser.open_menu(100, 100, false);
+    f.choose("action:copy_location");
+    CHECK(offered.front().second == f.photos.string());
+}
+
+TEST_CASE("actions: custom handoffs share applicability and capture selection across navigation") {
+    Fixture f;
+    using nordend::core::Action;
+    const std::vector<Action> actions{{.id = "inspect",
+                                       .label = "Inspect",
+                                       .argv = {"inspector", "{files}"},
+                                       .mime = {"text/plain"},
+                                       .selection = Action::Selection::many}};
+    f.browser.set_actions(actions);
+    std::vector<std::string> launched;
+    fs::path directory;
+    bool available = true;
+    f.browser.set_action_handoff(
+        [&](const auto& action, const auto& context) {
+            launched = nordend::core::action_arguments(action, context);
+            directory = context.directory;
+        },
+        [&](const auto&, const auto&) { return available; });
+    f.select({"a.txt", "b.txt"});
+    f.browser.open_menu(100, 100, false);
+    const auto group = std::ranges::find(f.menu().items(), "actions", &MenuItem::id);
+    REQUIRE(group != f.menu().items().end());
+    REQUIRE(group->children.size() == 1);
+    CHECK(group->children.front().id == "action:inspect");
+    const auto run = group->children.front().action;
+    f.menu().close();
+    f.browser.open(f.photos / "sub");
+    REQUIRE(f.settle());
+    run();
+    CHECK(directory == f.photos);
+    CHECK(launched == std::vector<std::string>{"inspector", (f.photos / "a.txt").string(),
+                                               (f.photos / "b.txt").string()});
+    f.browser.open(f.photos);
+    REQUIRE(f.settle());
+    f.select({"a.txt", "sub"});
+    const auto mixed = f.browser.palette_items();
+    CHECK(std::ranges::find(mixed, "action:inspect", &nordend::views::PaletteItem::id) ==
+          mixed.end());
+    f.select({"a.txt"});
+    const auto supported = f.browser.palette_items();
+    REQUIRE(std::ranges::find(supported, "action:inspect", &nordend::views::PaletteItem::id) !=
+            supported.end());
+    available = false;
+    f.browser.open_menu(100, 100, false);
+    const auto missing = std::ranges::find(f.menu().items(), "actions", &MenuItem::id);
+    REQUIRE(missing != f.menu().items().end());
+    CHECK_FALSE(missing->children.front().enabled);
+    const auto unavailable = f.browser.palette_items();
+    CHECK(std::ranges::find(unavailable, "action:inspect", &nordend::views::PaletteItem::id) ==
+          unavailable.end());
+}
+
+TEST_CASE("actions: archive presets appear in menu and palette and hand off literal paths") {
+    Fixture f;
+    const auto archive =
+        f.dir.write("two words.zip", std::string{"PK\005\006"} + std::string(18, '\0'));
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    f.select({"two words.zip"});
+    std::vector<std::string> launched;
+    f.browser.set_action_handoff(
+        [&](const auto& action, const auto& context) {
+            launched = {action.id, context.targets.front().path.string()};
+        },
+        [](const auto&, const auto&) { return true; });
+    f.browser.open_menu(100, 100, false);
+    const auto here = std::ranges::find(f.menu().items(), "action:extract_here", &MenuItem::id);
+    REQUIRE(here != f.menu().items().end());
+    REQUIRE(here->enabled);
+    f.choose("action:extract_here");
+    CHECK(launched == std::vector<std::string>{"extract_here", archive.string()});
+    const auto items = f.browser.palette_items();
+    const auto to = std::ranges::find(items, "action:extract_to", &nordend::views::PaletteItem::id);
+    REQUIRE(to != items.end());
+    to->action();
+    CHECK(launched == std::vector<std::string>{"extract_to", archive.string()});
+    f.browser.set_action_handoff({}, {});
+    const auto picker_items = f.browser.palette_items();
+    CHECK(std::ranges::find(picker_items, "action:extract_to", &nordend::views::PaletteItem::id) ==
+          picker_items.end());
 }

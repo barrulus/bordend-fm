@@ -82,9 +82,10 @@ Launcher::~Launcher() {
 
 std::error_code Launcher::spawn(const std::vector<std::string>& argv,
                                 const std::filesystem::path& directory,
-                                std::span<const std::string> env,
-                                std::function<void(Exit)> on_exit) {
-    if (argv.empty()) {
+                                std::span<const std::string> env, std::function<void(Exit)> on_exit,
+                                int stdout_fd, int stderr_fd, int stdin_fd) {
+    if (argv.empty() || (stdout_fd != -1 && stdout_fd < 3) || (stderr_fd != -1 && stderr_fd < 3) ||
+        (stdin_fd != -1 && stdin_fd < 3)) {
         return std::make_error_code(std::errc::invalid_argument);
     }
     SpawnSetup setup;
@@ -97,8 +98,15 @@ std::error_code Launcher::spawn(const std::vector<std::string>& argv,
     posix_spawnattr_setflags(&setup.attr,
                              POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF);
     for (const int fd : {STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO}) {
-        posix_spawn_file_actions_addopen(&setup.actions, fd, "/dev/null",
-                                         fd == STDIN_FILENO ? O_RDONLY : O_WRONLY, 0);
+        const int source = fd == STDOUT_FILENO   ? stdout_fd
+                           : fd == STDERR_FILENO ? stderr_fd
+                                                 : stdin_fd;
+        if (source >= 3) {
+            posix_spawn_file_actions_adddup2(&setup.actions, source, fd);
+        } else {
+            posix_spawn_file_actions_addopen(&setup.actions, fd, "/dev/null",
+                                             fd == STDIN_FILENO ? O_RDONLY : O_WRONLY, 0);
+        }
     }
     posix_spawn_file_actions_addclosefrom_np(&setup.actions, STDERR_FILENO + 1);
     if (!directory.empty()) {

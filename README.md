@@ -86,6 +86,8 @@ every shortcut.
 - **Drag and drop** within Nordend and with other apps; rubber-band selection; the system
   clipboard
 - **Sidebar:** places, GTK bookmarks, disks through udisks2 (mount, unmount, eject)
+- **Actions:** Copy Location, archive extraction through File Roller, 7z, unzip, gzip or tar, and configurable commands
+  in the context menu, command palette and shortcuts ([examples](docs/config.example.toml))
 - **Opening:** default applications and "Open With", resolved exactly as GLib does; a terminal
   in any folder (<kbd>F4</kbd>)
 - **Always current:** folders follow changes on disk (inotify); history with

@@ -9,6 +9,7 @@
 #include <vector>
 #include <xkbcommon/xkbcommon.h>
 
+#include "nordend/core/actions.hpp"
 #include "nordend/ui/seat.hpp"
 
 namespace nordend::views {
@@ -73,6 +74,7 @@ struct Shortcut {
     bool any_shift{false};
     std::array<xkb_keysym_t, 8> keysyms{};  // unused slots are 0 (XKB_KEY_NoSymbol)
     Command command{Command::none};
+    std::string_view action_id{};  // registry actions; storage owned by the active bindings
 
     [[nodiscard]] bool matches(const ui::KeyEvent& event) const;
 };
@@ -80,7 +82,7 @@ struct Shortcut {
 // Replaces command bindings atomically. Errors leave the current bindings intact.
 // Empty strings disable a binding; an empty map restores defaults.
 [[nodiscard]] std::vector<std::string> configure_shortcuts(
-    const std::map<std::string, std::string>& bindings);
+    const std::map<std::string, std::string>& bindings, std::span<const core::Action> custom = {});
 [[nodiscard]] ui::KeyEvent view_key_event(const ui::KeyEvent& event);
 
 // Every shortcut, in the overlay's order. The browser runs its commands from here and passes a
@@ -92,6 +94,9 @@ struct Shortcut {
 
 // The browser's command for event; Command::none when it has none.
 [[nodiscard]] Command command_for(const ui::KeyEvent& event);
+
+[[nodiscard]] std::string action_for(const ui::KeyEvent& event);
+[[nodiscard]] std::string keys_for_action(std::string_view id);
 
 // event is listed for one of the scopes in where.
 [[nodiscard]] bool listed(const ui::KeyEvent& event, std::uint16_t where);

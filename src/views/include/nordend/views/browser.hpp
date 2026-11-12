@@ -256,6 +256,17 @@ public:
 
     void set_terminal_handler(TerminalHandler terminal) { terminal_ = std::move(terminal); }
 
+    using ActionHandoff = std::function<void(const core::Action&, const core::ActionContext&)>;
+
+    void set_action_handoff(
+        ActionHandoff handoff,
+        std::function<bool(const core::Action&, const core::ActionContext&)> available) {
+        action_handoff_ = std::move(handoff);
+        action_available_ = std::move(available);
+    }
+
+    void set_actions(std::span<const core::Action> custom);
+
     // Where "New File" takes its templates from: fs::templates_dir() unless set (tests).
     void set_templates_dir(std::filesystem::path directory) {
         templates_dir_ = std::move(directory);
@@ -628,6 +639,11 @@ private:
     [[nodiscard]] static std::vector<std::string> targets(const Folder& folder);
     [[nodiscard]] std::vector<MenuItem> entry_menu(const std::shared_ptr<Folder>& folder);
     [[nodiscard]] std::vector<MenuItem> folder_menu();
+    [[nodiscard]] core::ActionContext action_context(const std::shared_ptr<Folder>& folder,
+                                                     bool background = false) const;
+    [[nodiscard]] std::vector<MenuItem> action_items(const core::ActionContext& context);
+    void invoke_action(const core::Action& action, const core::ActionContext& context);
+    void run_action(std::string_view id);
     [[nodiscard]] MenuItem sort_menu();
     // A new pane at index at, its views wired to the window, sorted and filtered as the window is.
     Pane& add_pane(std::size_t at);
@@ -705,6 +721,9 @@ private:
     bool pointer_inside_{false};
     // False once destroyed: renames and new folders still on their way find out here.
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
+    std::vector<core::Action> actions_{core::action_registry()};
+    ActionHandoff action_handoff_;
+    std::function<bool(const core::Action&, const core::ActionContext&)> action_available_;
     std::size_t operations_{0};  // new folders and renames on workers
 
     // What Ctrl+C or Ctrl+X took.
