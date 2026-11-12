@@ -115,7 +115,8 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
         typed.mime = folder_->mime_of(entry);
         icons.draw_file(renderer, (folder_->mime()).name(typed.mime),
                         fs::icon_name(folder_->mime(), typed), bounds.x + kIconX,
-                        y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon);
+                        y + ((size_.row - size_.icon) / 2.0F), size_.icon, style.icon,
+                        typed.folder_icon);
         float name_right = bounds.right() - kRightPadding;
         if (entry.is_directory()) {
             name_right -= kChevronSize + 6.0F;

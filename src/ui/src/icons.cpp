@@ -163,7 +163,10 @@ bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, fl
 }
 
 void IconSet::draw_file(Renderer& renderer, std::string_view mime, std::string_view fallback,
-                        float x, float y, float size, Color color) {
+                        float x, float y, float size, Color color, std::string_view preferred) {
+    if (!preferred.empty() && draw_themed(renderer, preferred, x, y, size, color)) {
+        return;
+    }
     std::string name{mime};
     std::ranges::replace(name, '/', '-');
     if (!draw_themed(renderer, name, x, y, size, color)) {

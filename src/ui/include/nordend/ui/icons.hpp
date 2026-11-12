@@ -40,8 +40,9 @@ public:
     // draws the "file" icon and is logged once, so a typo shows up as a wrong icon rather than a
     // hole.
     void draw(Renderer& renderer, std::string_view name, float x, float y, float size, Color color);
+    // A folder's preferred theme name/local path is tried before its MIME and built-in icons.
     void draw_file(Renderer& renderer, std::string_view mime, std::string_view fallback, float x,
-                   float y, float size, Color color);
+                   float y, float size, Color color, std::string_view preferred = {});
 
 private:
     struct Glyph {

@@ -15,7 +15,7 @@ namespace nordend::ui {
 [[nodiscard]] std::vector<std::filesystem::path> icon_theme_roots();
 
 // Freedesktop icon themes: size selection, split roots, inheritance and hicolor fallback.
-// No GL resources. SVG/PNG rendering is for installed theme assets, not previewing user files.
+// No GL resources. SVG/PNG rendering is for theme assets and explicit local folder icons.
 class IconTheme {
 public:
     IconTheme(std::string name, std::vector<std::filesystem::path> roots);

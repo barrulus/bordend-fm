@@ -21,6 +21,7 @@ add_executable(nordend-tests
     event_loop_test.cpp
     file_watcher_test.cpp
     format_test.cpp
+    folder_icon_test.cpp
     icon_test.cpp
     icon_theme_test.cpp
     svg_test.cpp

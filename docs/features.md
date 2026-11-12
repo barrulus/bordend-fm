@@ -394,6 +394,13 @@ available in the trash.
   raw files and darktable sidecars have their own icons. The icons are compiled into the
   program (a 14 KB subset of the official Tabler font), so they show on any desktop.
 - Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
+- **Folder icons shared with Dolphin**: with system or named icon themes, columns, grid,
+  details and the information pane read `Icon=` from `[Desktop Entry]` in a folder's
+  `.directory` file. Theme names, absolute SVG/PNG paths and `./` paths relative to the folder
+  are supported. Without an override, Home and the XDG Desktop, Documents, Downloads, Music,
+  Pictures, Videos, Public and Templates folders use their standard icons. Missing icons fall
+  back to the normal folder icon; `builtin` keeps Tabler icons. Reopen the parent folder after
+  changing an icon in Dolphin. This does not add an icon chooser or KDE's `EmptyIcon` behavior.
 - Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
   monospace font come from `config.toml`.
 - **Its own title bar where the compositor draws none** (GNOME, weston): the title in the middle,

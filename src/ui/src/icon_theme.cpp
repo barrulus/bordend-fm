@@ -201,6 +201,14 @@ void IconTheme::add_theme(const std::string& name) {
 }
 
 std::filesystem::path IconTheme::find(std::string_view icon, int pixels) const {
+    if (icon.starts_with('/')) {
+        const std::filesystem::path path{icon};
+        std::error_code error;
+        if ((path.extension() == ".svg" || path.extension() == ".png") &&
+            std::filesystem::is_regular_file(path, error))
+            return path;
+        return {};
+    }
     if (!safe_name(icon)) {
         return {};
     }

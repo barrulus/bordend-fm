@@ -111,6 +111,18 @@ TEST_CASE("icon theme: PNG icons retain their pixels") {
     CHECK(image.height == 1);
 }
 
+TEST_CASE("icon theme: absolute custom icons and unavailable overrides") {
+    TempDir dir;
+    const IconTheme theme{"missing", {dir.path}};
+    const auto svg = dir.write("custom.svg", kSvg);
+    CHECK(theme.find(svg.string(), 48) == svg);
+    CHECK(theme.find((dir.path / "absent.svg").string(), 48).empty());
+    CHECK(theme.find(dir.write("other.txt", kSvg).string(), 48).empty());
+    fs::create_directory(dir.path / "directory.svg");
+    CHECK(theme.find((dir.path / "directory.svg").string(), 48).empty());
+    CHECK(theme.find("https://example.org/icon.svg", 48).empty());
+}
+
 TEST_CASE("icon theme: unsupported SVG filters report fallback without losing the image") {
     TempDir dir;
     const auto file =
