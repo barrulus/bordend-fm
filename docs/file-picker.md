@@ -151,3 +151,16 @@ real browser selection, view changes, filename validation and overwrite confirma
 Protocol references: [FileChooser backend](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.impl.portal.FileChooser.html),
 [Request cancellation](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.impl.portal.Request.html),
 [portal preferences](https://flatpak.github.io/xdg-desktop-portal/docs/portals.conf.html).
+
+The toolbar includes a live **Filter** field and a **New Folder** button in column,
+grid, and details views. The name filter matches substrings (ignoring ASCII case)
+and combines with the application's file type restrictions. Ctrl+Shift+F focuses
+it; Enter returns to browsing with the filter applied, and Escape clears it without
+closing the picker. Clear removes the filter with a click. Ctrl+F still opens the
+recursive file finder. The filter remains active when changing views or folders.
+
+New Folder (also Ctrl+Shift+N) clears the name filter, creates a folder in the current
+location, and selects its name for editing. When choosing a folder, the picker labels
+the input **Folder**. Typing a nonexistent folder does not create it: the error points
+to New Folder. Missing selections, broken links, wrong item types, and access errors
+have distinct messages; changing the name or selection clears a previous error.

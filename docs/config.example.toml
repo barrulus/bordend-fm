@@ -55,6 +55,7 @@ follow_accent = true
 
 # Commands and help
 # command_palette = "Ctrl+k"   # Open the command palette
+# filter_names = "Ctrl+Shift+f" # Filter names in the view
 # find_files = "Ctrl+f"         # Find files under the folder
 # show_shortcuts = "F1"         # Also ? by default (Shift is ignored)
 # context_menu = "Menu"         # Also F10/Shift+F10 by default (Shift is ignored)

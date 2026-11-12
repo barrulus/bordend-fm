@@ -481,6 +481,14 @@ settings. Selections (including Shift ranges, Ctrl+A and rubber bands) stay with
 one parent folder. Expansion is retained while switching tabs, but resets when
 navigating or switching views and is not saved across restarts.
 
+## Name filtering
+
+Every view has a live filename filter beside a New Folder button. Filtering matches
+substrings, ignoring ASCII case, and combines with picker file type restrictions.
+Ctrl+Shift+F focuses the filter; Enter keeps it applied while returning to the view,
+and Escape or Clear removes it. Ctrl+F still searches recursively with the file finder.
+New Folder clears the name filter and starts editing the created folder's name.
+
 ## File picker
 
 An optional XDG FileChooser portal backend for OpenFile, SaveFile and SaveFiles: single or
