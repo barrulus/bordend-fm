@@ -40,6 +40,18 @@ nix build .#checks.x86_64-linux.smoke --no-link --print-build-logs
 nix build .#checks.x86_64-linux.nixos-module --no-link --print-build-logs
 ```
 
+To share the Nix version, send the fork reference. With flakes enabled, the recipient can
+run it directly or install it into their profile:
+
+```sh
+nix run github:barrulus/bordend-fm
+nix profile install github:barrulus/bordend-fm
+```
+
+Append `/COMMIT_SHA` to that reference to select an exact revision. This fetches the source
+and builds Nordend if a matching binary is not cached. The Nix job does not currently upload
+a portable binary closure; copying only the executable omits its `/nix/store` dependencies.
+
 ## Void Linux
 
 The `Void glibc package and clean install` job uses Docker and Void's `xbps-src`. It packages
@@ -73,6 +85,10 @@ The script:
    is exercised by the Nix job.
 5. Checks package integrity and linked libraries, validates installed resources and config,
    then installs the compositor/test fixtures and performs the headless Wayland launch.
+
+To share a Void build, download its artifact ZIP from a successful GitHub Actions run and
+send the ZIP. The recipient should extract it and keep the entire `packages/` directory
+together, including the repository index.
 
 The artifact contains the `.xbps` and repository index in `packages/`, the effective
 template, `source.json`, and the workflow build log. On a Void machine, install a downloaded
