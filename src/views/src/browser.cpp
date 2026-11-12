@@ -67,6 +67,7 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
               [this](std::string problem) { show_message(std::move(problem), true); }},
       conflict_{redraw},
       confirm_{redraw},
+      properties_{pool, mime, redraw},
       menu_{std::move(redraw)},
       palette_{redraw_},
       trash_model_{loop, pool, watcher, std::move(mime)},
@@ -550,18 +551,27 @@ void Browser::paste_text() {
         return;
     }
     const std::vector<std::string> types = system_.types();
+    const bool for_properties = properties_.is_open();
+    const auto properties_generation = properties_.generation();
     for (const std::string_view type : kTextTypes) {
         if (std::ranges::find(types, type) == types.end()) {
             continue;
         }
         ++operations_;
         system_.read(std::string{type},
-                     [this, alive = alive_](const std::optional<std::string>& text) {
+                     [this, alive = alive_, for_properties,
+                      properties_generation](const std::optional<std::string>& text) {
                          if (!*alive) {
                              return;
                          }
                          --operations_;
                          if (!text) {
+                             return;
+                         }
+                         if (for_properties) {
+                             if (properties_.is_open() &&
+                                 properties_.generation() == properties_generation)
+                                 properties_.paste(*text);
                              return;
                          }
                          if (palette_.is_open()) {
@@ -1461,6 +1471,14 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         gone.separator = true;
         gone.action = [this] { erase(); };
         items.push_back(std::move(gone));
+        MenuItem properties;
+        properties.id = "properties";
+        properties.label = "Properties…";
+        properties.keys = keys_for(Command::properties);
+        properties.separator = true;
+        properties.enabled = names.size() == 1;
+        properties.action = [this] { show_properties(); };
+        items.push_back(std::move(properties));
         return items;
     }
     const auto add = [&items](std::string id, std::string label, std::string keys,
@@ -1563,6 +1581,9 @@ std::vector<MenuItem> Browser::entry_menu(const std::shared_ptr<Folder>& folder)
         count == 1);
     add("trash", "Move to Trash", keys_for(Command::trash), [this] { trash(); });
     add("erase", "Delete Permanently…", keys_for(Command::erase), [this] { erase(); });
+    add(
+        "properties", "Properties…", keys_for(Command::properties), [this] { show_properties(); },
+        true, count == 1);
     for (auto& item : action_items(action_context(folder))) {
         items.push_back(std::move(item));
     }
@@ -1656,7 +1677,52 @@ std::vector<MenuItem> Browser::folder_menu() {
         items.push_back(std::move(item));
     }
     items.push_back(sort_menu());
+    MenuItem properties;
+    properties.id = "properties";
+    properties.label = "Properties…";
+    properties.keys = keys_for(Command::properties);
+    properties.separator = true;
+    properties.action = [this] { show_properties(); };
+    items.push_back(std::move(properties));
     return items;
+}
+
+void Browser::show_properties() {
+    const auto folder = current_folder();
+    if (!folder || properties_.saving())
+        return;
+    const auto names = targets(*folder);
+    if (names.size() > 1 || (names.empty() && folder->is_trash()))
+        return;
+    auto path = folder->path();
+    if (!names.empty()) {
+        const auto it = std::ranges::find(folder->entries(), names.front(), &fs::Entry::name);
+        if (it == folder->entries().end())
+            return;
+        path = folder->path_of(*it);
+    }
+    menu_.close();
+    palette_.close();
+    quick_look_.close();
+    filter_focused_ = false;
+    properties_.open(
+        path,
+        [this, folder, path] {
+            const auto refresh = [&path](Folder& owner) {
+                if (owner.path() == path.parent_path())
+                    owner.refresh_entry(path.filename().string());
+            };
+            refresh(*folder);
+            for (const auto& tab : panes_) {
+                if (tab->grid.folder())
+                    refresh(*tab->grid.folder());
+                tab->details.refresh_entry(path);
+                for (std::size_t i = 0; i < tab->columns.column_count(); ++i)
+                    refresh(tab->columns.column(i).folder());
+            }
+            redraw_();
+        },
+        !folder->is_trash());
 }
 
 void Browser::open_menu(float x, float y, bool keyboard) {
@@ -2254,6 +2320,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     shortcuts_.draw(renderer, bounds, palette);
     menu_.draw(renderer, bounds, palette);
     palette_.draw(renderer, bounds, palette);
+    properties_.draw(renderer, bounds, palette, icons);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
     confirm_.draw(renderer, bounds, palette);
     if (thumbnails_) {
@@ -2298,7 +2365,8 @@ bool Browser::loading() const {
         return true;
     }
     if (operations_ > 0 || menu_loads_ > 0 || transfers_.pending() > 0 || quick_look_.loading() ||
-        info_pane_.loading() || status_bar_.loading()) {
+        info_pane_.loading() || status_bar_.loading() || properties_.loading() ||
+        properties_.saving()) {
         return true;
     }
     switch (pane().mode) {
@@ -2359,6 +2427,8 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (confirm_.is_open()) {
         return hand(confirm_.clickable_at(x, y));
     }
+    if (properties_.is_open())
+        return properties_.cursor_at(x, y);
     if (palette_.is_open()) {
         if (palette_.field_bounds().contains(x, y)) {
             return Shape::text;
@@ -2397,8 +2467,8 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
         found_after_.reset();
     }
     if (event.kind == ui::PointerEvent::Kind::release &&
-        (conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
-         shortcuts_.is_open() || quick_look_.is_open())) {
+        (conflict_.is_open() || confirm_.is_open() || properties_.is_open() || palette_.is_open() ||
+         menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open())) {
         // Taken by what the press opened (a menu from a right click): the button is up all the
         // same, and the next press finds its target again.
         button_held_ = false;
@@ -2411,6 +2481,10 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
     }
     if (confirm_.is_open()) {
         confirm_.pointer(event);
+        return;
+    }
+    if (properties_.is_open()) {
+        properties_.pointer(event);
         return;
     }
     if (palette_.is_open()) {
@@ -3315,6 +3389,14 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
     if (confirm_.is_open()) {
         return confirm_.key(event);
     }
+    if (properties_.is_open()) {
+        if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+            (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V))
+            paste_text();
+        else
+            properties_.key(event);
+        return true;
+    }
     found_after_.reset();  // a key while a file found is on its way: it stays shown, no more
     if (palette_.is_open()) {
         const Command command = command_for(event);
@@ -3545,6 +3627,9 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::context_menu:
             open_menu_from_keyboard();
+            break;
+        case Command::properties:
+            show_properties();
             break;
         case Command::back:
             back();

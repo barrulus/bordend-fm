@@ -83,6 +83,8 @@ every shortcut.
   first results in milliseconds even among 270 000; Enter shows it, Space opens Quick Look
 - **Files:** copy and move with progress and conflict questions, rename, new folder or file
   from templates, undo and redo, freedesktop trash with restore, delete permanently
+- **Properties** (Alt+Enter or right-click): file and folder details, with a searchable folder
+  icon picker. Choices are shared with Dolphin through `.directory` files.
 - **Drag and drop** within Nordend and with other apps; rubber-band selection; the system
   clipboard
 - **Sidebar:** places, GTK bookmarks, disks through udisks2 (mount, unmount, eject)

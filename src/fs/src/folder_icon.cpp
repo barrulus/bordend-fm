@@ -151,6 +151,10 @@ std::string FolderIcons::for_folder(const std::filesystem::path& folder) const {
     auto icon = parse_folder_icon(read_metadata(folder / ".directory"), folder);
     if (!icon.empty())
         return icon;
+    return default_for_folder(folder);
+}
+
+std::string FolderIcons::default_for_folder(const std::filesystem::path& folder) const {
     std::error_code error;
     const auto path = normalized(std::filesystem::absolute(folder, error));
     if (error)

@@ -88,6 +88,13 @@ void DetailsView::show(std::shared_ptr<Folder> folder) {
     redraw_();
 }
 
+void DetailsView::refresh_entry(const std::filesystem::path& path) {
+    if (root_ && root_->path() == path.parent_path())
+        root_->refresh_entry(path.filename().string());
+    if (const auto it = expanded_.find(path.parent_path()); it != expanded_.end())
+        it->second->refresh_entry(path.filename().string());
+}
+
 void DetailsView::append_rows(const std::shared_ptr<Folder>& folder, std::size_t depth) {
     for (std::size_t i = 0; i < folder->entries().size(); ++i) {
         tree_rows_.push_back({folder, i, depth});

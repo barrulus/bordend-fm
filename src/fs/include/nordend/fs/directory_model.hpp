@@ -74,6 +74,8 @@ public:
     // still watched and kept up to date.
     void set_filter(bool show_hidden, std::string keep);
     void set_predicate(Listing::Predicate predicate);
+    // Reread metadata changed inside a child folder, beyond this directory's inotify watch.
+    void refresh_entry(const std::string& name);
 
     [[nodiscard]] const std::filesystem::path& path() const noexcept { return path_; }
 

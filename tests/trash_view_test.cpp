@@ -339,7 +339,7 @@ TEST_CASE("trash folder: in the browser, Restore from the menu; nothing else is 
     folder->select_name("P1.ORF");
     CHECK(browser.key(key(XKB_KEY_Menu), Browser::Clock::now()));
     REQUIRE(browser.context_menu().is_open());
-    REQUIRE(browser.context_menu().items().size() == 2);
+    REQUIRE(browser.context_menu().items().size() == 3);
     CHECK(browser.context_menu().items()[0].id == "restore");
     CHECK(browser.context_menu().items()[1].id == "erase");
     CHECK(browser.key(key(XKB_KEY_Return), Browser::Clock::now()));

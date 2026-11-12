@@ -334,6 +334,7 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::focus_sidebar, "focus_sidebar"},
         {Command::quick_look, "quick_look"},
         {Command::show_shortcuts, "show_shortcuts"},
+        {Command::properties, "properties"},
         {Command::rename, "rename"},
         {Command::new_folder, "new_folder"},
         {Command::copy, "copy"},

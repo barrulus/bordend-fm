@@ -74,6 +74,8 @@ std::vector<PaletteItem> Browser::palette_items() {
     const std::vector<std::string> names = folder ? targets(*folder) : std::vector<std::string>{};
     const fs::Entry* const cursor = folder ? folder->cursor_entry() : nullptr;
     const bool editable = folder && !in_trash;
+    if (folder && names.size() <= 1 && (!in_trash || !names.empty()))
+        command(Command::properties, "properties", "Properties…");
 
     // Opening and moving.
     if (cursor != nullptr) {

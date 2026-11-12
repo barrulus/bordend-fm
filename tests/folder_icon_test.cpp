@@ -4,6 +4,7 @@
 
 #include <doctest/doctest.h>
 
+#include "nordend/core/file.hpp"
 #include "nordend/fs/directory.hpp"
 #include "temp_dir.hpp"
 
@@ -11,6 +12,52 @@ using nordend::fs::FolderIcons;
 using nordend::fs::parse_folder_icon;
 using nordend::test::TempDir;
 namespace fs = std::filesystem;
+
+TEST_CASE("folder icon settings: preserve unrelated content and escape values") {
+    const std::string before =
+        "# Dolphin settings\r\n[Desktop Entry]\r\nName=Projects\r\nIcon=old\r\n"
+        "Icon=duplicate\r\n[Settings]\r\nHiddenFilesShown=true\r\n";
+    const auto after = nordend::fs::update_folder_icon_text(before, "./my icon.svg");
+    CHECK(after ==
+          "# Dolphin settings\r\n[Desktop Entry]\r\nIcon=./my\\sicon.svg\r\nName=Projects\r\n"
+          "[Settings]\r\nHiddenFilesShown=true\r\n");
+    CHECK(parse_folder_icon(after, "/work") == "/work/my icon.svg");
+    const auto reset = nordend::fs::update_folder_icon_text(after, "");
+    CHECK(reset.find("Icon=") == std::string::npos);
+    CHECK(reset.find("Name=Projects") != std::string::npos);
+    CHECK(reset.find("HiddenFilesShown=true") != std::string::npos);
+    CHECK(nordend::fs::update_folder_icon_text("[Settings]\nView=2", "folder-red") ==
+          "[Settings]\nView=2\n[Desktop Entry]\nIcon=folder-red\n");
+    CHECK(nordend::fs::update_folder_icon_text("", "").empty());
+}
+
+TEST_CASE("folder icon settings: atomic save, reset and refusing unsafe metadata") {
+    TempDir dir;
+    CHECK(nordend::fs::save_folder_icon(dir.path, "folder-music").empty());
+    CHECK(nordend::fs::read_folder_icon_setting(dir.path).icon == "folder-music");
+    dir.write(".directory", "[Desktop Entry]\nIcon=folder-red\n[Settings]\nView=3\n");
+    ::chmod((dir.path / ".directory").c_str(), 0600);
+    CHECK(nordend::fs::save_folder_icon(dir.path, "").empty());
+    CHECK(nordend::core::read_text_file(dir.path / ".directory").text ==
+          "[Desktop Entry]\n[Settings]\nView=3\n");
+    CHECK((fs::status(dir.path / ".directory").permissions() & fs::perms::mask) ==
+          (fs::perms::owner_read | fs::perms::owner_write));
+    fs::remove(dir.path / ".directory");
+    dir.write("external", "keep me");
+    fs::create_symlink("external", dir.path / ".directory");
+    CHECK_FALSE(nordend::fs::save_folder_icon(dir.path, "folder-blue").empty());
+    CHECK(fs::is_symlink(dir.path / ".directory"));
+    CHECK(nordend::core::read_text_file(dir.path / "external").text == "keep me");
+    fs::remove(dir.path / ".directory");
+    REQUIRE(::mkfifo((dir.path / ".directory").c_str(), 0600) == 0);
+    CHECK_FALSE(nordend::fs::save_folder_icon(dir.path, "folder-blue").empty());
+    fs::remove(dir.path / ".directory");
+    dir.write(".directory", std::string(65537, 'x'));
+    CHECK_FALSE(nordend::fs::save_folder_icon(dir.path, "folder-blue").empty());
+    CHECK(fs::file_size(dir.path / ".directory") == 65537);
+    CHECK_FALSE(nordend::fs::save_folder_icon(dir.path / "gone", "folder-blue").empty());
+    CHECK_FALSE(fs::exists(dir.path / "gone"));
+}
 
 TEST_CASE("folder icons: Desktop Entry group, escapes and local paths") {
     CHECK(parse_folder_icon("[Desktop Entry]\nIcon=folder-development\n", "/work") ==

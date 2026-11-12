@@ -78,6 +78,8 @@ public:
 
     [[nodiscard]] const fs::DirectoryModel& model() const noexcept { return model_; }
 
+    void refresh_entry(const std::string& name) { model_.refresh_entry(name); }
+
     // Where entry really is: path() / name, or in the trash folder its place in a trash.
     [[nodiscard]] std::filesystem::path path_of(const fs::Entry& entry) const;
 

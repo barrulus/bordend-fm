@@ -31,6 +31,8 @@ public:
     // Applied at the next draw, when a GL context is current.
     void set_theme(std::string theme);
 
+    [[nodiscard]] const std::string& selected_theme() const noexcept { return selected_theme_; }
+
     [[nodiscard]] bool available() const noexcept { return outline_.has_value(); }
 
     // True when the fonts have an icon of that name.

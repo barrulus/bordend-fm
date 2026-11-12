@@ -59,6 +59,7 @@ follow_accent = true
 # find_files = "Ctrl+f"         # Find files under the folder
 # show_shortcuts = "F1"         # Also ? by default (Shift is ignored)
 # context_menu = "Menu"         # Also F10/Shift+F10 by default (Shift is ignored)
+# properties = "Alt+Return"     # File/folder properties and folder icon selection
 # open_terminal = "F4"          # Open in a terminal
 
 # Folder history
@@ -302,7 +303,7 @@ follow_accent = true
 # Files/folders: right-click an entry or the current selection.
 # open_tab and add_bookmark apply to folders; open_terminal needs a folder and terminal.
 # Open With keeps its dynamically discovered applications. Paste may be disabled when
-# the clipboard is empty; Rename is disabled for a multiple selection.
+# the clipboard is empty; Rename and Properties are disabled for a multiple selection.
 # entry = [
 #   { id = "open" },
 #   { id = "open_with" },
@@ -315,6 +316,7 @@ follow_accent = true
 #   { id = "rename", separator = true },
 #   { id = "trash" },
 #   { id = "erase" },
+#   { id = "properties", separator = true },
 #   { id = "action:copy_location" },
 #   { id = "action:extract_here" },
 #   { id = "action:extract_to" },
@@ -335,13 +337,15 @@ follow_accent = true
 #   { remaining = true },
 #   { id = "actions" },
 #   { id = "sort", separator = true },
+#   { id = "properties", separator = true },
 # ]
 #
-# Trash entries show Restore and Delete Permanently; empty space shows Empty Trash.
+# Trash entries show Restore, Delete Permanently and read-only Properties; empty space shows Empty Trash.
 # These are alternative contexts, so all three never appear together.
 # trash = [
 #   { id = "restore" },
 #   { id = "erase", separator = true },
+#   { id = "properties", separator = true },
 #   { id = "empty_trash" },
 # ]
 #
@@ -421,7 +425,7 @@ follow_accent = true
 #
 # Built-in IDs (only shown where applicable):
 # open, open_with, open_tab, open_terminal, add_bookmark, copy, cut, paste, rename, trash,
-# erase, restore, empty_trash, new_folder, new_file, empty_file, sort, sort:name, sort:size,
+# erase, restore, empty_trash, properties, new_folder, new_file, empty_file, sort, sort:name, sort:size,
 # sort:modified, sort:type, sort:ascending, sort:descending, actions,
 # action:copy_location, action:extract_here, action:extract_to,
 # mount, unmount, eject, remove_bookmark.
