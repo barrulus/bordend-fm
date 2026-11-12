@@ -23,6 +23,7 @@ struct Action {
     Placement placement{Placement::actions};
     Destination destination{Destination::none};
     std::string destination_name{};  // suggested filename for the save picker
+    bool notify_on_completion{false};
 };
 
 struct ActionTarget {

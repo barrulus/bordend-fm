@@ -248,6 +248,12 @@ bool read_actions(const toml::node& node, Reader& reader, std::vector<Action>& a
                 } else {
                     fail(std::format("{} must be an array", name));
                 }
+            } else if (name == "notify_on_completion") {
+                if (const auto* enabled = value.as_boolean()) {
+                    action.notify_on_completion = enabled->get();
+                } else {
+                    fail("notify_on_completion must be a boolean");
+                }
             } else if (name == "enabled") {
                 if (const auto enabled = value.value<bool>()) {
                     action.enabled = *enabled;

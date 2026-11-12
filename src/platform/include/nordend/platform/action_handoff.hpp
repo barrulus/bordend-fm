@@ -9,6 +9,7 @@
 #include "nordend/platform/archives.hpp"
 #include "nordend/platform/desktop_entry.hpp"
 #include "nordend/platform/launcher.hpp"
+#include "nordend/platform/notifications.hpp"
 
 namespace nordend::platform {
 
@@ -22,9 +23,10 @@ public:
     using DirectoryChosen = std::function<void(std::optional<std::filesystem::path>)>;
     using ChooseDirectory = std::function<void(const std::filesystem::path&, DirectoryChosen)>;
     using ChooseDestination = std::function<void(const core::PickerRequest&, DirectoryChosen)>;
+    using Notify = std::function<void(const std::string&, const std::string&, bool)>;
     ActionHandoff(core::EventLoop& loop, Environment environment, Report report,
                   Activate activate = {}, ChooseDirectory choose = {},
-                  ChooseDestination destination_picker = {});
+                  ChooseDestination destination_picker = {}, Notify notify = {});
     ~ActionHandoff();
     [[nodiscard]] bool available(const std::string& program) const;
     [[nodiscard]] bool available(const core::Action& action,
@@ -47,6 +49,8 @@ private:
     Activate activate_;
     ChooseDirectory choose_;
     ChooseDestination destination_picker_;
+    Notifications notifications_;
+    Notify notify_;
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};
 };
 

@@ -8,6 +8,7 @@ add_library(nordend_platform
     src/exec.cpp
     src/file_picker_portal.cpp
     src/launcher.cpp
+    src/notifications.cpp
     src/opener.cpp
     src/portal.cpp
     src/udisks.cpp
