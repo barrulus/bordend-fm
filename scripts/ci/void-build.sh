@@ -2,6 +2,7 @@
 # Container entry point. Never run xbps-src's ethereal mode on the host.
 set -euo pipefail
 [[ -f /.dockerenv && $(id -u) == 0 ]]
+# shellcheck source=scripts/ci/void-env
 source /source/scripts/ci/void-env
 xbps-install -Syu xbps
 xbps-install -yu

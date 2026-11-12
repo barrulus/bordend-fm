@@ -53,7 +53,7 @@ coreutils available:
 bash scripts/ci/void.sh /tmp/nordend-void-package
 ```
 
-Choose an output directory outside the checkout. Uncommitted changes are rejected because
+Choose a new or empty output directory outside the checkout. Uncommitted changes are rejected because
 `git archive HEAD` must match the revision recorded with the artifact. `CI_JOBS` sets build
 parallelism (default: 2).
 

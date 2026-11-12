@@ -23,6 +23,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
+      - name: Lint workflow and package scripts
+        run: |
+          nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck --command \
+            bash -c 'actionlint .github/workflows/ci.yml && shellcheck -x scripts/ci/*.sh'
       - name: Run all x86_64-linux flake checks
         run: nix flake check --print-build-logs
       - name: Build the installable package

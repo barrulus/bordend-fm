@@ -13,5 +13,5 @@ for executable in /usr/bin/nordend /usr/libexec/nordend/nordend-preview; do
 done
 xbps-install -y desktop-file-utils
 bash /source/scripts/ci/check-installed.sh /usr "$1"
-xbps-install -y weston mesa-dri dbus dejavu-fonts
+xbps-install -y weston mesa-dri dbus dejavu-fonts-ttf
 bash /source/scripts/ci/check-wayland.sh /usr
