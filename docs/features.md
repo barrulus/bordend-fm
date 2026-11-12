@@ -24,6 +24,7 @@ README's [What's next](../README.md#whats-next).
 - **Grid** (Ctrl+2): large icons and thumbnails. Ctrl+plus, Ctrl+minus or Ctrl+wheel resize the
   cells from 48 to 512 px, and Ctrl+0 goes back to the usual size. The largest sizes fit the
   available width when the window is narrow; Ctrl+I hides the information pane for more room.
+  Folder and fallback file icons stay at most 256 px, centered in the thumbnail space.
 - **Details** (Ctrl+3): a table of name, size, date and type. Click a title to sort by it and
   click again to reverse; drag a column's edge to widen it. By size, folders keep their name
   order; by type, unknown types come last. The order you choose is used in the other views too.

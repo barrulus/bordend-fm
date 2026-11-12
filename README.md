@@ -205,11 +205,6 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
 
-For photo folders, switch to the grid with **Ctrl+2** and enlarge thumbnails with
-**Ctrl+mouse wheel** or **Ctrl++**; **Ctrl+-** shrinks them and **Ctrl+0** restores the usual size.
-The size is remembered per tab. **Ctrl+I** hides the information pane to give large thumbnails
-more room. Grid thumbnails range from 48 to 512 px and fit the available window width.
-
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features

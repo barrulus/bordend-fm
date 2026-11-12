@@ -18,15 +18,9 @@
 namespace nordend::views {
 namespace {
 
-constexpr float kPadding = 16.0F;          // around the grid
-constexpr float kCellInset = 4.0F;         // highlight box inside the cell
-constexpr float kIconTop = 12.0F;          // from the cell's top to the icon
-constexpr float kNameGap = 8.0F;           // between the icon and the name
-constexpr float kNameMargin = 8.0F;        // either side of the name
-constexpr float kCellExtraWidth = 56.0F;   // a cell is the icon plus this, at least
-constexpr float kCellMinWidth = 132.0F;    // and room for a short name (P1234567.ORF)
-constexpr float kCellExtraHeight = 52.0F;  // icon plus the gaps and one line of name
-constexpr float kTextSize = 13.0F;
+constexpr float kCellInset = 4.0F;       // highlight box inside the cell
+constexpr float kNameMargin = 8.0F;      // either side of the name
+constexpr float kCellMinWidth = 132.0F;  // and room for a short name (P1234567.ORF)
 constexpr float kThumbnailRadius = 4.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
@@ -81,7 +75,9 @@ bool GridView::on_item(std::size_t index, float x, float y) const {
     const float left = area_.x + kPadding + (static_cast<float>(index % columns_) * cell_width_);
     const float top = area_.y + row_top(index / columns_) - scroller_.offset();
     const float icon = drawn_icon_size();
-    const ui::Rect picture{left + ((cell_width_ - icon) / 2.0F), top + kIconTop, icon, icon};
+    const float shown = picture_size_[index - item_first_];
+    const ui::Rect picture{left + ((cell_width_ - shown) / 2.0F),
+                           top + kIconTop + ((icon - shown) / 2.0F), shown, shown};
     const float width = name_width_[index - item_first_];
     const ui::Rect name{left + ((cell_width_ - width) / 2.0F) - kNameGap,
                         top + kIconTop + icon + (kNameGap / 2.0F), width + (2.0F * kNameGap),
@@ -301,6 +297,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     ui::FontSystem& fonts = renderer.fonts();
     item_first_ = range.first * columns_;
     name_width_.clear();
+    picture_size_.clear();
     // The cache size that covers the icon in physical pixels.
     const thumbs::Size thumbnail_size =
         thumbs::size_for(static_cast<std::uint32_t>(std::lround(icon * renderer.scale())));
@@ -341,6 +338,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                 thumbnail =
                     thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
             }
+            const float shown = thumbnail != nullptr ? icon : std::min(icon, kMaxFallbackIconSize);
+            picture_size_.push_back(shown);
             if (thumbnail != nullptr) {
                 // Fitted in the icon's square, proportions kept, centered.
                 const float fit =
@@ -354,7 +353,8 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                     ui::Corners::all(kThumbnailRadius), cut ? kCutOpacity : 1.0F);
             } else {
                 icons.draw(renderer, fs::icon_name(*mime_, typed),
-                           x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon);
+                           x + ((cell_width_ - shown) / 2.0F),
+                           y + kIconTop + ((icon - shown) / 2.0F), shown, style.icon);
             }
             if (edit_ != nullptr && edit_->holds(*folder_, entry)) {
                 // One line across the cell, where the name starts.

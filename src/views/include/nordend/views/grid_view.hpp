@@ -44,6 +44,14 @@ class GridView {
 public:
     using Clock = ui::Scroller::Clock;
 
+    static constexpr float kPadding = 16.0F;          // around the grid
+    static constexpr float kIconTop = 12.0F;          // from the cell's top to the icon
+    static constexpr float kNameGap = 8.0F;           // between the icon and the name
+    static constexpr float kCellExtraWidth = 56.0F;   // a cell is the icon plus this, at least
+    static constexpr float kCellExtraHeight = 52.0F;  // icon plus the gaps and one line of name
+    static constexpr float kTextSize = 13.0F;
+    static constexpr float kMaxFallbackIconSize = 256.0F;
+
     // thumbnails may be nullptr: icons only.
     GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWatcher& watcher,
              std::shared_ptr<const fs::MimeDatabase> mime, std::function<void()> redraw,
@@ -199,6 +207,7 @@ private:
     // The width of each drawn cell's name, from item_first_ on: a press on the icon or the name
     // drags the entry, elsewhere in the cell it starts a band.
     std::vector<float> name_width_;
+    std::vector<float> picture_size_;  // thumbnail square or capped fallback icon, per drawn cell
     std::size_t item_first_{0};
 };
 

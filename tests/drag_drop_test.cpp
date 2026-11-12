@@ -40,6 +40,7 @@ using nordend::ui::Modifiers;
 using nordend::ui::PointerButton;
 using nordend::ui::PointerEvent;
 using nordend::views::Browser;
+using nordend::views::GridView;
 using nordend::views::ViewHit;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
@@ -322,7 +323,7 @@ struct Fixture {
 
 }  // namespace
 
-TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn cells") {
+TEST_CASE("grid: fallback icons stay capped and centered with matching hit areas") {
     Fixture f;
     if (!f.gl) {
         return;
@@ -333,8 +334,10 @@ TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn 
     nordend::theme::Palette palette;
     palette.primary = nordend::ui::Color::rgb(0xFF0000);     // folder icons
     palette.on_surface = nordend::ui::Color::rgb(0x00FF00);  // names
-    for (const int size : {384, 512}) {
-        for (const int width : {200, 280}) {
+    for (const int size : {256, 384, 512}) {
+        const int full_width =
+            size + static_cast<int>((2.0F * GridView::kPadding) + GridView::kCellExtraWidth);
+        for (const int width : {200, 280, full_width}) {
             CAPTURE(size);
             CAPTURE(width);
             grid.set_size_index(Browser::grid_index(size));
@@ -344,26 +347,46 @@ TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn 
             f.renderer->end_frame();
             CHECK(grid.icon_size() == size);  // fitting does not change the saved zoom
             const float center = static_cast<float>(width) / 2.0F;
-            const float icon_bottom = width == 200 ? 140.0F : 220.0F;
-            const auto icon = grid.hit(center, 60);
+            const float slot = std::min(static_cast<float>(size), static_cast<float>(width) -
+                                                                      (2.0F * GridView::kPadding) -
+                                                                      GridView::kCellExtraWidth);
+            const float shown = std::min(slot, GridView::kMaxFallbackIconSize);
+            const float slot_top = GridView::kPadding + GridView::kIconTop;
+            const float icon_top = slot_top + ((slot - shown) / 2.0F);
+            const float icon_bottom = icon_top + shown;
+            const float icon_left = center - (shown / 2.0F);
+            const float icon_y = icon_top + (shown / 2.0F);
+            const float name_y =
+                slot_top + slot + GridView::kNameGap + (GridView::kTextSize / 2.0F);
+            const float row_height = slot + GridView::kCellExtraHeight;
+            const auto icon = grid.hit(center, icon_y);
             REQUIRE(icon);
-            CHECK(icon->entry == 0);
-            CHECK(icon->on_item);
-            const auto gutter = grid.hit(30, 60);
+            CHECK(icon.value_or(ViewHit{}).entry == 0);
+            CHECK(icon.value_or(ViewHit{}).on_item);
+            const auto gutter = grid.hit(icon_left - 1.0F, icon_y);
             REQUIRE(gutter);
-            CHECK_FALSE(gutter->on_item);
-            const auto name = grid.hit(center, icon_bottom + 12);
+            CHECK_FALSE(gutter.value_or(ViewHit{}).on_item);
+            const auto name = grid.hit(center, name_y);
             REQUIRE(name);
-            CHECK(name->entry == 0);
-            CHECK(name->on_item);
-            const auto gap = grid.hit(center, icon_bottom + 30);
+            CHECK(name.value_or(ViewHit{}).entry == 0);
+            CHECK(name.value_or(ViewHit{}).on_item);
+            const auto gap = grid.hit(center, GridView::kPadding + row_height - 1.0F);
             REQUIRE(gap);
-            CHECK_FALSE(gap->on_item);
-            const auto next = grid.hit(center, icon_bottom + 80);
+            CHECK_FALSE(gap.value_or(ViewHit{}).on_item);
+            const auto next = grid.hit(center, row_height + slot_top + 1.0F);
             REQUIRE(next);
-            CHECK(next->entry == 1);
-            CHECK(next->on_item);
-            CHECK_FALSE(grid.hit(static_cast<float>(width), 60));
+            CHECK(next.value_or(ViewHit{}).entry == 1);
+            CHECK(next.value_or(ViewHit{}).on_item == (shown == slot));
+            CHECK_FALSE(grid.hit(static_cast<float>(width), icon_y));
+
+            if (shown < slot) {
+                const auto above = grid.hit(center, icon_top - 1.0F);
+                REQUIRE(above);
+                CHECK_FALSE(above.value_or(ViewHit{}).on_item);
+                const auto below = grid.hit(center, icon_bottom + 1.0F);
+                REQUIRE(below);
+                CHECK_FALSE(below.value_or(ViewHit{}).on_item);
+            }
 
             std::vector<std::uint8_t> pixels(static_cast<std::size_t>(kWidth) * kHeight * 4);
             glReadPixels(0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
@@ -372,7 +395,7 @@ TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn 
             int right = 0;
             int top = kHeight;
             int bottom = 0;
-            for (int y = 0; y < static_cast<int>(icon_bottom + 40); ++y) {
+            for (int y = 0; y < static_cast<int>(GridView::kPadding + row_height); ++y) {
                 for (int x = 0; x < width; ++x) {
                     const auto at = (static_cast<std::size_t>(kHeight - 1 - y) * kWidth +
                                      static_cast<std::size_t>(x)) *
@@ -387,10 +410,12 @@ TEST_CASE("grid: large icons fit narrow views and hit testing follows the drawn 
                 }
             }
             CHECK(red > 0);
-            CHECK(left >= 44);
-            CHECK(right < width - 44);
-            CHECK(top >= 28);
+            CHECK(left >= icon_left);
+            CHECK(right < center + (shown / 2.0F));
+            CHECK(top >= icon_top);
             CHECK(bottom < icon_bottom);
+            CHECK(static_cast<float>(right - left) > shown / 2.0F);
+            CHECK(static_cast<float>(bottom - top) > shown / 2.0F);
             CHECK(glGetError() == GL_NO_ERROR);
         }
     }
