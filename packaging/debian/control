@@ -1,0 +1,18 @@
+Source: nordend
+Section: utils
+Priority: optional
+Maintainer: Nordend fork maintainers <barrulus@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config,
+ libwayland-dev, wayland-protocols, libegl-dev, libgles-dev, libxkbcommon-dev,
+ libharfbuzz-dev, libfreetype-dev, libfontconfig-dev, libtomlplusplus-dev,
+ libwebp-dev, libjxl-dev, zlib1g-dev, libsdbus-c++-dev (>= 2)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/barrulus/bordend-fm
+
+Package: nordend
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, shared-mime-info, hicolor-icon-theme
+Description: Native Wayland file manager
+ A file manager with column and grid views, isolated previews, configurable
+ custom actions and an optional desktop file chooser portal.
