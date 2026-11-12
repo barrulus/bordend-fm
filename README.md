@@ -149,6 +149,10 @@ sudo xbps-install -R hostdir/binpkgs nordend
 The package is the latest release, **0.5.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
+For **this fork’s current checkout**, use the [CI package builder](docs/ci-packaging.md#void-linux)
+instead of the upstream release recipe above. It builds an XBPS snapshot from the exact Git
+commit and installs it in a fresh Void container before checking it.
+
 ### With Nix
 
 From a checkout, with Nix flakes enabled:
@@ -457,6 +461,17 @@ The installed reference at `share/nordend/config.example.toml` updates with Nord
 Existing personal files, including a copied `~/.config/nordend/config.example.toml`, are
 not refreshed automatically. Use the current reference when adding new features to an
 existing configuration.
+
+### CI and package checks
+
+Pull requests run the full Nix test suite, NixOS module checks, installed-package checks,
+and a Void XBPS build/install check against the PR checkout. Both installed packages must
+render a window under headless Weston. Initial coverage is x86_64 Linux/glibc; ARM, musl,
+and other distribution packages are not yet covered by this workflow.
+
+See [CI and packaging](docs/ci-packaging.md) for local commands, downloadable Void snapshots,
+required branch checks, pinned build tools, and the distinction between development snapshots
+and release packages.
 
 ## Versions
 

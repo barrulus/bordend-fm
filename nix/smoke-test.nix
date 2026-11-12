@@ -1,15 +1,31 @@
-{ runCommand, package }:
-runCommand "nordend-installed-smoke" { } ''
-  ${package}/bin/nordend --version | grep -F 'nordend ${package.version}'
-  ${package}/bin/nordend --config ${../docs/config.example.toml} --check-config
-  test -x ${package}/libexec/nordend/nordend-preview
-  test -s ${package}/share/nordend/engines/base.toml
-  test -s ${package}/share/applications/nordend.desktop
-  test -s ${package}/share/icons/hicolor/scalable/apps/nordend.svg
-  test -s ${package}/share/nordend/noctalia/nordend
-  ${package}/bin/nordend --help | grep -F -- '--pick'
-  test -s ${package}/share/xdg-desktop-portal/portals/nordend.portal
-  grep -F 'org.freedesktop.impl.portal.FileChooser;' ${package}/share/xdg-desktop-portal/portals/nordend.portal
-  grep -F 'Exec=${package}/bin/nordend --portal' ${package}/share/dbus-1/services/org.freedesktop.impl.portal.desktop.nordend.service
-  touch "$out"
-''
+{
+  runCommand,
+  package,
+  bash,
+  desktop-file-utils,
+  weston,
+  dbus,
+  mesa,
+  makeFontsConf,
+  dejavu_fonts,
+  writeShellScriptBin,
+}:
+runCommand "nordend-installed-smoke"
+  {
+    nativeBuildInputs = [
+      bash
+      desktop-file-utils
+      weston
+      (writeShellScriptBin "dbus-run-session" ''
+        exec ${dbus}/bin/dbus-run-session --dbus-daemon=${dbus}/bin/dbus-daemon --config-file=${dbus}/share/dbus-1/session.conf "$@"
+      '')
+    ];
+    FONTCONFIG_FILE = makeFontsConf { fontDirectories = [ dejavu_fonts ]; };
+    __EGL_VENDOR_LIBRARY_FILENAMES = "${mesa}/share/glvnd/egl_vendor.d/50_mesa.json";
+    LIBGL_DRIVERS_PATH = "${mesa}/lib/dri";
+  }
+  ''
+    bash ${../scripts/ci/check-installed.sh} ${package} ${package.version}
+    bash ${../scripts/ci/check-wayland.sh} ${package}
+    touch "$out"
+  ''
