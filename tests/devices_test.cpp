@@ -101,15 +101,19 @@ std::vector<UdisksObject> machine() {
 
 TEST_CASE("volumes: the disks worth showing, named and told apart") {
     const std::vector<Volume> volumes = rummage::platform::volumes_from(machine());
-    REQUIRE(volumes.size() == 3);
-    // By name: the system's own unmounted partition is left out, the mounted ones stay.
-    CHECK(volumes[0].name == "DATA");
+    REQUIRE(volumes.size() == 4);
+    // By name: internal partitions are visible before mounting, even with HintSystem set.
+    CHECK(volumes[0].name == "500 GB Volume");
     CHECK_FALSE(volumes[0].external);
-    CHECK(volumes[0].mount_point == fs::path{"/run/media/me/DATA"});
-    CHECK(volumes[1].name == "kinetic");
-    CHECK(volumes[1].external);
-    CHECK_FALSE(volumes[1].mount_point);
-    CHECK(volumes[2].name == "rummage");
+    CHECK_FALSE(volumes[0].mount_point);
+    CHECK(volumes[0].object == "/org/freedesktop/UDisks2/block_devices/nvme0n1p2");
+    CHECK(volumes[1].name == "DATA");
+    CHECK_FALSE(volumes[1].external);
+    CHECK(volumes[1].mount_point == fs::path{"/run/media/me/DATA"});
+    CHECK(volumes[2].name == "kinetic");
+    CHECK(volumes[2].external);
+    CHECK_FALSE(volumes[2].mount_point);
+    CHECK(volumes[3].name == "rummage");
 
     CHECK(rummage::platform::size_name(500'107'862'016) == "500 GB Volume");
     CHECK(rummage::platform::size_name(2'000'398'934'016) == "2.0 TB Volume");
@@ -135,16 +139,61 @@ TEST_CASE("volumes: the sidebar's devices learn their disks; a disk not mounted 
          .disk = {}},
     };
     places = rummage::platform::with_volumes(std::move(places), volumes);
-    REQUIRE(places.size() == 3);
+    REQUIRE(places.size() == 4);
     CHECK(places[0].disk.volume.empty());
     CHECK(places[1].disk.volume == "/org/freedesktop/UDisks2/block_devices/sda");
     CHECK(places[1].disk.mounted);
     CHECK_FALSE(places[1].disk.ejectable);
-    CHECK(places[2].label == "kinetic");
+    CHECK(places[2].label == "500 GB Volume");
     CHECK(places[2].path.empty());
-    CHECK(places[2].icon == "usb");
+    CHECK(places[2].icon == "database-off");
+    CHECK(places[2].disk.volume == "/org/freedesktop/UDisks2/block_devices/nvme0n1p2");
     CHECK_FALSE(places[2].disk.mounted);
-    CHECK(places[2].disk.ejectable);
+    CHECK_FALSE(places[2].disk.ejectable);
+    CHECK(places[3].label == "kinetic");
+    CHECK(places[3].path.empty());
+    CHECK(places[3].icon == "usb");
+    CHECK_FALSE(places[3].disk.mounted);
+    CHECK(places[3].disk.ejectable);
+}
+
+TEST_CASE("volumes: ignored and non-filesystem internal partitions stay hidden") {
+    UdisksObject object = partition("/b/nvme0n1p2", "/d/nvme", "Data", {}, true);
+    SUBCASE("ignored") { object.hint_ignore = true; }
+    SUBCASE("swap") { object.id_usage = "other"; }
+    SUBCASE("encrypted") { object.id_usage = "crypto"; }
+    SUBCASE("no filesystem interface") { object.filesystem = false; }
+    SUBCASE("no block interface") { object.block = false; }
+    CHECK(rummage::platform::volumes_from({drive("/d/nvme", ""), object}).empty());
+}
+
+TEST_CASE("volumes: an internal partition stays listed across mount and unmount") {
+    UdisksObject object = partition("/b/nvme0n1p2", "/d/nvme", "Data", {}, true);
+    const auto places = [&] {
+        return rummage::platform::with_volumes(
+            rummage::fs::parse_mounts(
+                object.mount_points.empty()
+                    ? ""
+                    : "36 25 259:2 / /run/media/me/Data rw - ext4 /dev/nvme0n1p2 rw\n"),
+            rummage::platform::volumes_from({drive("/d/nvme", ""), object}));
+    };
+    const std::vector<Place> before = places();
+    REQUIRE(before.size() == 1);
+    CHECK(before[0].label == "Data");
+    CHECK(before[0].path.empty());
+    CHECK_FALSE(before[0].disk.mounted);
+    CHECK_FALSE(before[0].disk.ejectable);
+
+    object.mount_points = {"/run/media/me/Data"};
+    const std::vector<Place> mounted = places();
+    REQUIRE(mounted.size() == 1);
+    CHECK(mounted[0].path == object.mount_points.front());
+    CHECK(mounted[0].disk.volume == before[0].disk.volume);
+    CHECK(mounted[0].disk.mounted);
+    CHECK_FALSE(mounted[0].disk.ejectable);
+
+    object.mount_points.clear();
+    CHECK(places() == before);
 }
 
 TEST_CASE("volumes: ejecting a drive unmounts every mounted file system on it") {
@@ -234,6 +283,28 @@ TEST_CASE("devices: a disk not mounted is mounted when chosen, then opened") {
     f.browser.mount_place(f.place(false), true);
     REQUIRE(f.settle());
     CHECK(f.message() == "“kinetic” could not be mounted: wrong fs type");
+}
+
+TEST_CASE("devices: choosing an unmounted internal partition mounts it, or reports denial") {
+    Fixture f;
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    const std::vector<Place> places = rummage::platform::with_volumes(
+        {}, rummage::platform::volumes_from(
+                {drive("/d/nvme", ""), partition("/b/nvme0n1p2", "/d/nvme", "Data", {}, true)}));
+    REQUIRE(places.size() == 1);
+    CHECK(f.calls.empty());  // Listing a partition never mounts it.
+    bool denied = false;
+    SUBCASE("mount succeeds") {}
+    SUBCASE("authorization denied") {
+        denied = true;
+        f.answer = "not allowed";
+    }
+    f.browser.open_place(places.front());
+    REQUIRE(f.settle());
+    CHECK(f.calls == std::vector<std::string>{"mount /b/nvme0n1p2"});
+    CHECK(f.shown() == (denied ? f.dir.path : f.disk));
+    CHECK(f.message() == (denied ? "“Data” could not be mounted: not allowed" : "“Data” mounted"));
 }
 
 TEST_CASE("devices: unmounting and ejecting leave the disk first, and say how it went") {

@@ -53,7 +53,8 @@ struct Volume {
 [[nodiscard]] std::string size_name(std::uint64_t bytes);
 
 // The file systems worth showing: a Block with a Filesystem, not to be ignored, whose usage is a
-// file system; the system's own (internal, not removable) only while mounted.
+// file system, including unmounted internal partitions. HintSystem controls authorization in
+// udisks2, not visibility; HintIgnore is the visibility hint.
 [[nodiscard]] std::vector<Volume> volumes_from(const std::vector<UdisksObject>& objects);
 
 // The places with the volumes in: a mounted disk's place (from the mount table) learns its
