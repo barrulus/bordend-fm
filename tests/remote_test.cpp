@@ -231,6 +231,47 @@ TEST_CASE("gvfs: the mount of a WebDAV URI: one type, ssl for davs, the path kep
           nullptr);
 }
 
+TEST_CASE("remote: dot-dot never climbs above the server's root, and stays in the mount") {
+    CHECK(parse_remote_uri("sftp://host/../../etc")->path == "/etc");
+    CHECK(parse_remote_uri("sftp://host/a/./b/../c/")->path == "/a/c/");
+    CHECK(parse_remote_uri("sftp://host/%2E%2E/%2e%2e/etc")->path == "/etc");
+    CHECK(parse_remote_uri("smb://nas/Public/../Private")->path == "/Private");
+    CHECK(location_of("smb://nas/Public/../Private").spec.items.at("share") == "private");
+
+    const GvfsMount mount{.dbus_id = ":1.43",
+                          .object_path = "/org/gtk/vfs/mount/3",
+                          .name = "host",
+                          .fuse = "/run/user/1000/gvfs/sftp:host=host",
+                          .spec = location_of("sftp://host/").spec};
+    CHECK(rummage::platform::local_path(mount, location_of("sftp://host/../../etc")) ==
+          "/run/user/1000/gvfs/sftp:host=host/etc");
+    // A location made by hand with ".." in it gets no local folder at all.
+    GvfsLocation raw = location_of("sftp://host/");
+    raw.path = "/../../etc";
+    CHECK(rummage::platform::local_path(mount, raw).empty());
+}
+
+TEST_CASE("gvfs: a WebDAV prefix holds only whole folder names") {
+    GvfsMount mount{.dbus_id = ":1.44",
+                    .object_path = "/org/gtk/vfs/mount/4",
+                    .name = "team",
+                    .fuse = "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam",
+                    .spec = location_of("davs://nas/").spec};
+    mount.spec.prefix = "/team";
+    const std::vector<GvfsMount> mounts{mount};
+    CHECK(rummage::platform::mount_holding(mounts, location_of("davs://nas/team-old/report")) ==
+          nullptr);
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team-old/report")).empty());
+    REQUIRE(rummage::platform::mount_holding(mounts, location_of("davs://nas/team/report")) !=
+            nullptr);
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team/report")) ==
+          "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam/report");
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team")) == mount.fuse);
+    mount.spec.prefix = "/team/";  // with a trailing slash, the same
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team/report")) ==
+          "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam/report");
+}
+
 TEST_CASE("gvfs: a mount matches when it has every key wanted, and gives the local folder") {
     const GvfsLocation wanted = location_of("smb://fileshare.example/Public/Scans");
     GvfsMount mount = share_mount("fileshare.example", "public",
@@ -568,6 +609,17 @@ TEST_CASE("location: paths, home, file URIs, servers and Windows shares") {
           Location{.folder = {}, .uri = "sftp://me@host/srv"});
     CHECK(parse_location("\\\\fileshare\\Dokumente\\Steuer", home) ==
           Location{.folder = {}, .uri = "smb://fileshare/Dokumente/Steuer"});
+    // Windows shares percent-encoded: "#", "%" and spaces stay part of the folder's name.
+    CHECK(parse_location("\\\\fileshare\\Reports#2026", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/Reports%232026"});
+    CHECK(parse_location("\\\\fileshare\\100%20done", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/100%2520done"});
+    CHECK(parse_location("\\\\fileshare\\My Files", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/My%20Files"});
+    CHECK(parse_location("smb://fileshare/My Files", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/My%20Files"});
+    CHECK(parse_remote_uri("smb://fileshare/Reports%232026")->path == "/Reports#2026");
+    CHECK(parse_remote_uri("smb://fileshare/100%2520done")->path == "/100%20done");
     CHECK_FALSE(parse_location("", home));
     CHECK_FALSE(parse_location("fileshare/Public", home));  // no way to tell what it is
     CHECK(parse_location("ftp://host/pub", home) ==

@@ -15,6 +15,7 @@
 #include <system_error>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 #include "rummage/core/file.hpp"
 #include "rummage/core/log.hpp"
@@ -91,6 +92,58 @@ std::string percent_decode(std::string_view text) {
             }
         }
         out += text[i];
+    }
+    return out;
+}
+
+// A decoded remote path with "." and ".." resolved, never above the root: "/a/../../etc" is
+// "/etc". Empty components are dropped; a trailing slash stays.
+std::string normalize_remote_path(std::string_view path) {
+    std::vector<std::string_view> parts;
+    std::string_view rest = path;
+    while (!rest.empty()) {
+        const std::size_t slash = rest.find('/');
+        const std::string_view part = rest.substr(0, slash);
+        rest = slash == std::string_view::npos ? std::string_view{} : rest.substr(slash + 1);
+        if (part.empty() || part == ".") {
+            continue;
+        }
+        if (part == "..") {
+            if (!parts.empty()) {
+                parts.pop_back();
+            }
+            continue;
+        }
+        parts.push_back(part);
+    }
+    std::string out;
+    for (const std::string_view part : parts) {
+        out += '/';
+        out += part;
+    }
+    if (out.empty()) {
+        return "/";
+    }
+    if (path.ends_with('/')) {
+        out += '/';
+    }
+    return out;
+}
+
+// Each byte outside the unreserved set and "/" as "%XX": a folder name made safe for a URI.
+std::string percent_encode_path(std::string_view text) {
+    static constexpr std::string_view kHex = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(text.size());
+    for (const char c : text) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (std::isalnum(byte) != 0 || c == '-' || c == '.' || c == '_' || c == '~' || c == '/') {
+            out += c;
+        } else {
+            out += '%';
+            out += kHex[byte >> 4U];
+            out += kHex[byte & 0x0FU];
+        }
     }
     return out;
 }
@@ -230,7 +283,7 @@ std::optional<RemoteUri> parse_remote_uri(std::string_view uri) {
         }
         out.port = number;
     }
-    out.path = path.empty() ? std::string{"/"} : percent_decode(path);
+    out.path = normalize_remote_path(percent_decode(path));
     return out;
 }
 
@@ -377,10 +430,13 @@ std::optional<Location> parse_location(std::string_view text, const std::filesys
         return std::nullopt;
     }
     if (text.starts_with("\\\\")) {  // \\server\share\dir
-        std::string uri{"smb://"};
+        std::string unc;
         for (const char c : text.substr(2)) {
-            uri += c == '\\' ? '/' : c;
+            unc += c == '\\' ? '/' : c;
         }
+        // Encoded: "Reports#2026" is a folder, not a fragment, and "My Files" stays one name
+        // in the bookmarks file.
+        std::string uri = "smb://" + percent_encode_path(unc);
         if (!parse_remote_uri(uri)) {
             return std::nullopt;
         }
@@ -397,7 +453,12 @@ std::optional<Location> parse_location(std::string_view text, const std::filesys
         if (!parse_remote_uri(text)) {
             return std::nullopt;
         }
-        return Location{.folder = {}, .uri = std::string{text}};
+        // A space typed in a URI is the folder's: the bookmarks file ends the URI at one.
+        std::string uri;
+        for (const char c : text) {
+            uri += c == ' ' ? std::string_view{"%20"} : std::string_view{&c, 1};
+        }
+        return Location{.folder = {}, .uri = std::move(uri)};
     }
     if (text == "~") {
         return Location{.folder = home, .uri = {}};

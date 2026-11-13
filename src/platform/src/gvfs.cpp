@@ -199,10 +199,25 @@ bool spec_matches(const GvfsMountSpec& wanted, const GvfsMountSpec& mounted) {
     });
 }
 
+namespace {
+
+// Whether path is prefix or below it: "/team" holds "/team/a", not "/team-old/a".
+bool under_prefix(std::string_view path, std::string_view prefix) {
+    while (prefix.size() > 1 && prefix.ends_with('/')) {
+        prefix.remove_suffix(1);
+    }
+    if (prefix.empty() || prefix == "/") {
+        return true;
+    }
+    return path.starts_with(prefix) && (path.size() == prefix.size() || path[prefix.size()] == '/');
+}
+
+}  // namespace
+
 const GvfsMount* mount_holding(const std::vector<GvfsMount>& mounts, const GvfsLocation& location) {
     for (const GvfsMount& mount : mounts) {
         if (spec_matches(location.spec, mount.spec) &&
-            location.path.starts_with(mount.spec.prefix)) {
+            under_prefix(location.path, mount.spec.prefix)) {
             return &mount;
         }
     }
@@ -213,17 +228,33 @@ std::filesystem::path local_path(const GvfsMount& mount, const GvfsLocation& loc
     if (mount.fuse.empty()) {
         return {};
     }
+    if (!under_prefix(location.path, mount.spec.prefix)) {
+        return {};
+    }
+    std::string_view prefix = mount.spec.prefix;
+    while (prefix.size() > 1 && prefix.ends_with('/')) {
+        prefix.remove_suffix(1);
+    }
     std::string_view inside = location.path;
-    if (inside.starts_with(mount.spec.prefix)) {
-        inside.remove_prefix(mount.spec.prefix.size());
+    if (prefix != "/") {
+        inside.remove_prefix(prefix.size());
     }
-    while (inside.starts_with('/')) {
-        inside.remove_prefix(1);
+    // Component by component, so nothing can step out of the FUSE folder: parse_remote_uri
+    // already resolved "..", and a stray one here means no local path at all.
+    std::filesystem::path where = mount.fuse;
+    while (!inside.empty()) {
+        const std::size_t slash = inside.find('/');
+        const std::string_view part = inside.substr(0, slash);
+        inside = slash == std::string_view::npos ? std::string_view{} : inside.substr(slash + 1);
+        if (part.empty() || part == ".") {
+            continue;
+        }
+        if (part == "..") {
+            return {};
+        }
+        where /= part;
     }
-    while (inside.ends_with('/')) {
-        inside.remove_suffix(1);
-    }
-    return inside.empty() ? mount.fuse : mount.fuse / inside;
+    return where;
 }
 
 std::vector<fs::Place> with_remote_mounts(std::vector<fs::Place> places,
