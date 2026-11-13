@@ -481,7 +481,7 @@ Renderer::Renderer(FontSystem& fonts) : gl_{std::make_unique<Gl>()}, fonts_{font
 Renderer::~Renderer() = default;
 
 void Renderer::begin_frame(std::int32_t buffer_width, std::int32_t buffer_height, float scale,
-                           Color clear) {
+                           Color clear, float margin) {
     buffer_width_ = buffer_width;
     buffer_height_ = buffer_height;
     scale_ = scale;
@@ -489,12 +489,121 @@ void Renderer::begin_frame(std::int32_t buffer_width, std::int32_t buffer_height
     glyphs_.clear();
     clips_.clear();
 
-    glViewport(0, 0, buffer_width_, buffer_height_);
+    const auto inset = std::clamp(static_cast<std::int32_t>(snap(std::max(margin, 0.0F), scale)), 0,
+                                  std::min(buffer_width, buffer_height) / 2);
     glDisable(GL_SCISSOR_TEST);
+    if (inset > 0) {
+        glViewport(0, 0, buffer_width_, buffer_height_);
+        glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+        glClear(GL_COLOR_BUFFER_BIT);
+    }
+    set_view(inset, inset, buffer_width_ - (2 * inset), buffer_height_ - (2 * inset));
+    if (inset > 0) {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(view_x_, buffer_height_ - view_y_ - view_height_, view_width_, view_height_);
+    }
     glClearColor(clear.r, clear.g, clear.b, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);  // premultiplied alpha
+}
+
+void Renderer::set_view(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height) {
+    view_x_ = x;
+    view_y_ = y;
+    view_width_ = std::max(0, width);
+    view_height_ = std::max(0, height);
+    // GL's viewport origin is the bottom-left corner.
+    glViewport(view_x_, buffer_height_ - view_y_ - view_height_, view_width_, view_height_);
+}
+
+void Renderer::frame_window(float radius, std::span<const WindowShadow> shadows, Color outline) {
+    if (view_x_ == 0 && view_y_ == 0) {
+        return;  // no margin: the compositor's frame, or none
+    }
+    if (!clips_.empty()) {
+        log::warn("renderer: frame_window with {} clip(s) pushed", clips_.size());
+        return;
+    }
+    flush();
+    const auto x = static_cast<float>(view_x_);
+    const auto y = static_cast<float>(view_y_);
+    const auto width = static_cast<float>(view_width_);
+    const auto height = static_cast<float>(view_height_);
+    const std::int32_t content_x = view_x_;
+    const std::int32_t content_y = view_y_;
+    const std::int32_t content_width = view_width_;
+    const std::int32_t content_height = view_height_;
+    set_view(0, 0, buffer_width_, buffer_height_);  // the margin too, in buffer pixels
+    const float r = std::min(radius * scale_, std::min(width, height) / 2.0F);
+
+    // The corners: what lies outside the rounded window goes (dst × the box's coverage), one
+    // corner square at a time so that the rest of the content is not touched.
+    if (r > 0.0F) {
+        glBlendFunc(GL_ZERO, GL_SRC_ALPHA);
+        glEnable(GL_SCISSOR_TEST);
+        const auto side = static_cast<std::int32_t>(std::ceil(r));
+        const std::array<std::array<std::int32_t, 2>, 4> corners{{
+            {content_x, content_y},
+            {content_x + content_width - side, content_y},
+            {content_x, content_y + content_height - side},
+            {content_x + content_width - side, content_y + content_height - side},
+        }};
+        for (const auto& [cx, cy] : corners) {
+            glScissor(cx, buffer_height_ - cy - side, side, side);
+            push_box({.rect = {x, y, width, height},
+                      .radii = {r, r, r, r},
+                      .fill = {1.0F, 1.0F, 1.0F, 1.0F},
+                      .border_color = {0.0F, 0.0F, 0.0F, 0.0F},
+                      .params = {0.0F, 0.0F}});
+            flush();
+        }
+        glDisable(GL_SCISSOR_TEST);
+    }
+
+    // Behind what is there (dst over src): the outline, then the shadows, nearest first. Only
+    // in four bands, the margin and the corners' depth, as the opaque content hides the rest.
+    glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE);
+    glEnable(GL_SCISSOR_TEST);
+    const Color line = outline.premultiplied();
+    const auto depth = static_cast<std::int32_t>(std::ceil(r)) + 1;
+    const std::int32_t top = content_y + depth;
+    const std::int32_t bottom = content_y + content_height - depth;
+    const std::int32_t left = content_x + depth;
+    const std::int32_t right = content_x + content_width - depth;
+    const std::array<std::array<std::int32_t, 4>, 4> bands{{
+        {0, 0, buffer_width_, top},  // x, y, width, height
+        {0, bottom, buffer_width_, buffer_height_ - bottom},
+        {0, top, left, std::max(0, bottom - top)},
+        {right, top, buffer_width_ - right, std::max(0, bottom - top)},
+    }};
+    for (const auto& [bx, by, bw, bh] : bands) {
+        if (bw <= 0 || bh <= 0) {
+            continue;
+        }
+        glScissor(bx, buffer_height_ - by - bh, bw, bh);
+        push_box({.rect = {x - 1.0F, y - 1.0F, width + 2.0F, height + 2.0F},
+                  .radii = {r + 1.0F, r + 1.0F, r + 1.0F, r + 1.0F},
+                  .fill = {line.r, line.g, line.b, line.a},
+                  .border_color = {0.0F, 0.0F, 0.0F, 0.0F},
+                  .params = {0.0F, 0.0F}});
+        for (const WindowShadow& shadow : shadows) {
+            if (shadow.blur <= 0.0F) {
+                continue;
+            }
+            const Color shade = shadow.color.premultiplied();
+            push_box({.rect = {x, y + std::round(shadow.offset_y * scale_), width, height},
+                      .radii = {r, r, r, r},
+                      .fill = {shade.r, shade.g, shade.b, shade.a},
+                      .border_color = {0.0F, 0.0F, 0.0F, 0.0F},
+                      .params = {0.0F, shadow.blur * scale_}});
+        }
+        flush();
+    }
+    glDisable(GL_SCISSOR_TEST);
+    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    set_view(content_x, content_y, content_width, content_height);
 }
 
 void Renderer::end_frame() {
@@ -567,7 +676,7 @@ void Renderer::draw_image(const Texture& texture, const Rect& rect, const Corner
     };
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, texture.id());
-    gl_->images.draw(&instance, 1, sizeof(ImageInstance), buffer_width_, buffer_height_);
+    gl_->images.draw(&instance, 1, sizeof(ImageInstance), view_width_, view_height_);
 }
 
 float Renderer::draw_text(std::string_view utf8, float x, float y, float size, Color color,
@@ -701,13 +810,14 @@ void Renderer::apply_clip() {
     const auto y1 = static_cast<GLint>(snap(clip.bottom(), scale_));
     glEnable(GL_SCISSOR_TEST);
     // GL's scissor origin is the bottom-left corner.
-    glScissor(x0, buffer_height_ - y1, std::max(0, x1 - x0), std::max(0, y1 - y0));
+    glScissor(view_x_ + x0, buffer_height_ - view_y_ - y1, std::max(0, x1 - x0),
+              std::max(0, y1 - y0));
 }
 
 void Renderer::flush() {
     if (!boxes_.empty()) {
-        gl_->boxes.draw(boxes_.data(), boxes_.size(), sizeof(BoxInstance), buffer_width_,
-                        buffer_height_);
+        gl_->boxes.draw(boxes_.data(), boxes_.size(), sizeof(BoxInstance), view_width_,
+                        view_height_);
         boxes_.clear();
     }
     if (!glyphs_.empty()) {
@@ -716,8 +826,8 @@ void Renderer::flush() {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, gl_->color_atlas.texture());
         glActiveTexture(GL_TEXTURE0);
-        gl_->glyphs.draw(glyphs_.data(), glyphs_.size(), sizeof(GlyphInstance), buffer_width_,
-                         buffer_height_);
+        gl_->glyphs.draw(glyphs_.data(), glyphs_.size(), sizeof(GlyphInstance), view_width_,
+                         view_height_);
         glyphs_.clear();
     }
 }

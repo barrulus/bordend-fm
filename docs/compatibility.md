@@ -78,7 +78,9 @@ The integrated header (0.6.0): tested by the author on 2026-11-13 on Umbriel, an
 `nordend-void` on GNOME (no xdg-decoration: "decorations: client-side, the compositor draws
 none") and Plasma (KWin offers xdg-decoration and grants client-side: "decorations: Nordend's
 own (client-side)"). On both the window has square corners and no shadow (GTK apps draw their
-own): planned for 0.6.1.
+own): rounded corners and a shadow of Nordend's own since 0.6.1, tested by the author on
+2026-11-13 on Umbriel, GNOME and Plasma: no second shadow from any of them, resizing from the
+shadow, none when maximized or tiled.
 
 niri: 26.04, nested in Umbriel on the host (in the VM niri needs virgl, BUG-017 of
 void-noctalia), minimal config without `prefer-no-csd`, tested by the author on 2026-10-31.

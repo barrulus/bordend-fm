@@ -31,6 +31,26 @@ at 2560x1440, 75 Hz (a frame is 13.3 ms).
 
 Details in "Start-up", "Directory loading", "Quick Look" and "Column view scrolling" below.
 
+## The window's frame (0.6.1)
+
+### 2026-11-13
+
+What rounded corners and a shadow cost a frame. A throwaway program linked against
+`libnordend_ui.a` draws into a 2560x1440 `ui::Offscreen` (RX 6650 XT, radeonsi): `begin_frame`,
+40 boxes and 40 lines of text, `end_frame`, 200 frames between two `glFinish`, best of 5; once
+without a margin, once with the 24 px margin and `WindowFrame::draw`.
+
+| | ms a frame |
+|---|---|
+| Without the frame | 0.142 |
+| With the frame (corners cut, outline, two shadows) | 0.151 |
+
+About 9 µs more. The shadow is drawn only in four bands (the margin and the corners' depth): the
+same picture as over the whole window (0 pixels differ between the two snapshots), without
+three window-sized passes of the shadow's shader under opaque content. The surface grows by the
+margin: 948x608 for a 900x560 window, 7 % more pixels for the compositor, which skips blending
+the window's opaque region.
+
 ## Start-up (ROADMAP 7.6)
 
 **Target:** cold start to the first frame in < 150 ms (DESIGN).

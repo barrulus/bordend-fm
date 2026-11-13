@@ -31,7 +31,8 @@
 // --csd draws Nordend's own header (the window's buttons in the path row), as where the
 // compositor leaves the title bar to Nordend; STATE is
 // comma-separated words: "normal", "maximized", "inactive", "no-minimize", and "hover-close",
-// "hover-maximize", "press-close" for the pointer over a button.
+// "hover-maximize", "press-close" for the pointer over a button, "framed" for the rounded corners
+// and the shadow (ui::WindowFrame) over a grey backdrop.
 // --desktop draws with the palette made from a desktop's look, as without colors.toml under GNOME
 // or Plasma: LOOK is "dark" or "light", with an accent after a comma: "dark,#3584e4".
 // --gtk draws with the palette made from a gtk.css's colours (and what it imports), as Nordend
@@ -87,6 +88,7 @@
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/seat.hpp"
 #include "nordend/ui/text.hpp"
+#include "nordend/ui/window.hpp"
 #include "nordend/views/browser.hpp"
 #include "nordend/views/title_bar.hpp"
 #include "test_scene.hpp"
@@ -373,8 +375,13 @@ int main(int argc, char** argv) {
         for (const std::string& problem : palette.problems) {
             log::warn("{}", problem);
         }
-        const auto buffer_width = static_cast<std::int32_t>(std::lround(width * scale));
-        const auto buffer_height = static_cast<std::int32_t>(std::lround(height * scale));
+        // "framed": the window's rounded corners and shadow (ui::WindowFrame), over a backdrop.
+        const bool framed = csd && csd->find("framed") != std::string::npos;
+        const float margin = framed ? static_cast<float>(ui::WindowFrame::kMargin) : 0.0F;
+        const auto buffer_width =
+            static_cast<std::int32_t>(std::lround((width + (2.0F * margin)) * scale));
+        const auto buffer_height =
+            static_cast<std::int32_t>(std::lround((height + (2.0F * margin)) * scale));
 
         const ui::Offscreen offscreen{buffer_width, buffer_height};
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(buffer_width) *
@@ -436,7 +443,8 @@ int main(int argc, char** argv) {
             const ui::Rect bounds = csd ? title_bar.content(window_bounds) : window_bounds;
             std::optional<std::pair<float, float>> drag_image;  // where the pointer drags
             const auto frame = [&] {
-                renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
+                renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface,
+                                     margin);
                 if (columns) {
                     columns->set_window_header(csd ? std::optional<float>{title_bar.buttons_width()}
                                                    : std::nullopt);
@@ -454,6 +462,9 @@ int main(int argc, char** argv) {
                     }
                 } else {
                     nordend::app::draw_test_scene(renderer, bounds, palette.palette);
+                }
+                if (framed) {
+                    ui::WindowFrame::draw(renderer, csd->find("inactive") == std::string::npos);
                 }
                 renderer.end_frame();
             };
@@ -726,6 +737,17 @@ int main(int argc, char** argv) {
                 for (const std::string& line :
                      columns ? columns->memory_lines() : std::vector<std::string>{}) {
                     std::printf("memory: %s\n", line.c_str());
+                }
+            }
+        }
+        if (framed) {
+            // Premultiplied over a mid-grey backdrop, as a desktop would show it.
+            static constexpr unsigned kBackdrop = 0x9C;
+            for (std::size_t i = 0; i < pixels.size(); i += 4) {
+                const unsigned rest = 255U - pixels[i + 3];
+                for (std::size_t c = 0; c < 3; ++c) {
+                    pixels[i + c] = static_cast<std::uint8_t>(
+                        std::min(255U, pixels[i + c] + ((kBackdrop * rest + 127U) / 255U)));
                 }
             }
         }

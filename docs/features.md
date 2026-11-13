@@ -373,6 +373,12 @@ README's [What's next](../README.md#whats-next).
   title: the path says where you are. `[window] title_bar = "compositor"` keeps the compositor's
   title bar (the path back in its own row, at the next start); a compositor that insists on its
   own bar has the last word, and one that draws none always gets Nordend's header.
+- **Rounded corners and a shadow** around Nordend's own header, as GTK draws them (radius 12 px;
+  a lighter shadow when the window is in the back): the window's surface is 24 px larger on every
+  side, the window geometry tells the compositor where the window itself is, and the opaque
+  region spares it blending the window. The 10 px of shadow nearest the window resize it, as in
+  GTK; the rest lets clicks through. None when maximized, fullscreen or tiled, nor under the
+  compositor's title bar.
 - Pointer shapes from the compositor's cursor theme (cursor-shape-v1): a resize arrow on every
   draggable edge, a hand on what a click acts on (the status bar's buttons, a transfer's ×, the
   path's crumbs, a disk's eject icon, "More details", the buttons of a question), the text cursor

@@ -20,6 +20,13 @@ struct ColorRun {
     Color color{};
 };
 
+// One soft shadow under a window (Renderer::frame_window), in logical pixels.
+struct WindowShadow {
+    float blur{0.0F};      // Gaussian sigma
+    float offset_y{0.0F};  // downwards
+    Color color{};
+};
+
 struct BoxStyle {
     Color fill{};
     Corners radius{};
@@ -46,9 +53,18 @@ public:
     Renderer(Renderer&&) = delete;
     Renderer& operator=(Renderer&&) = delete;
 
+    // With margin > 0 (logical pixels), the window's content is the buffer less a margin on every
+    // side: the whole buffer is cleared transparent, the content to clear, and every draw and
+    // clip until end_frame takes the content's top-left as (0, 0). Without, the content is the
+    // whole buffer, cleared opaque.
     void begin_frame(std::int32_t buffer_width, std::int32_t buffer_height, float scale,
-                     Color clear);
+                     Color clear, float margin = 0.0F);
     void end_frame();
+
+    // With a margin: rounds the content's corners to radius, then puts outline (one pixel
+    // around the content) and the shadows behind it, in the margin. Call after the content, with
+    // no clip pushed. Nothing without a margin.
+    void frame_window(float radius, std::span<const WindowShadow> shadows, Color outline);
 
     [[nodiscard]] float scale() const noexcept { return scale_; }
 
@@ -108,9 +124,16 @@ private:
     FontSystem& fonts_;
     std::vector<BoxInstance> boxes_;  // pending, at most one of the two lists is non-empty
     std::vector<GlyphInstance> glyphs_;
-    std::vector<Rect> clips_;  // logical; empty = whole buffer
+    void set_view(std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height);
+
+    std::vector<Rect> clips_;  // logical; empty = the whole view
     std::int32_t buffer_width_{0};
     std::int32_t buffer_height_{0};
+    // What draws reach, in physical pixels from the buffer's top-left: the content.
+    std::int32_t view_x_{0};
+    std::int32_t view_y_{0};
+    std::int32_t view_width_{0};
+    std::int32_t view_height_{0};
     float scale_{1.0F};
 };
 

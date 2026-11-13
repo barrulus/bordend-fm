@@ -52,11 +52,36 @@ std::uint32_t to_xdg_edge(Edge edge) {
 
 }  // namespace
 
+std::int32_t WindowFrame::margin(const WindowState& state, bool client_decorations,
+                                 bool wanted) noexcept {
+    const bool tiled =
+        state.tiled_left || state.tiled_right || state.tiled_top || state.tiled_bottom;
+    if (!wanted || !client_decorations || state.maximized || state.fullscreen || tiled) {
+        return 0;
+    }
+    return kMargin;
+}
+
+void WindowFrame::draw(Renderer& renderer, bool activated) {
+    // Close to GTK's: a near shadow and a wide soft one, lighter for a window in the back.
+    static constexpr Color kBlack = Color::rgb(0x000000);
+    static constexpr std::array<WindowShadow, 2> kActive{{
+        {.blur = 2.0F, .offset_y = 1.0F, .color = kBlack.with_alpha(0.22F)},
+        {.blur = 8.0F, .offset_y = 3.0F, .color = kBlack.with_alpha(0.30F)},
+    }};
+    static constexpr std::array<WindowShadow, 2> kInactive{{
+        {.blur = 1.5F, .offset_y = 1.0F, .color = kBlack.with_alpha(0.16F)},
+        {.blur = 5.0F, .offset_y = 2.0F, .color = kBlack.with_alpha(0.18F)},
+    }};
+    renderer.frame_window(kRadius, activated ? kActive : kInactive, kBlack.with_alpha(0.18F));
+}
+
 Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const WindowOptions& options)
     : display_{display},
       egl_{egl},
       width_{options.width},
       height_{options.height},
+      frame_wanted_{options.frame},
       title_{options.title},
       background_{options.background} {
     surface_.reset(wl_compositor_create_surface(display_.compositor()));
@@ -167,15 +192,22 @@ void Window::draw() {
 
     // The buffer is in physical pixels; the viewport maps it back onto the logical size.
     // Both are double-buffered state applied by the commit inside eglSwapBuffers.
+    drawn_margin_ = margin_;
     if (viewport_) {
-        wp_viewport_set_destination(viewport_.get(), width_, height_);
+        wp_viewport_set_destination(viewport_.get(), width_ + (2 * margin_),
+                                    height_ + (2 * margin_));
     }
+    update_surface_regions();
 
     eglMakeCurrent(egl_.display(), egl_surface_, egl_surface_, egl_.context());
-    renderer_->begin_frame(buffer_width_, buffer_height_, static_cast<float>(scale()), background_);
+    renderer_->begin_frame(buffer_width_, buffer_height_, static_cast<float>(scale()), background_,
+                           static_cast<float>(margin_));
     if (draw_handler_) {
         draw_handler_(*renderer_,
                       Rect{0.0F, 0.0F, static_cast<float>(width_), static_cast<float>(height_)});
+    }
+    if (margin_ > 0) {
+        WindowFrame::draw(*renderer_, state_.activated);
     }
     renderer_->end_frame();
     if (eglSwapBuffers(egl_.display(), egl_surface_) != EGL_TRUE) {
@@ -227,8 +259,9 @@ void Window::drop_drag_icon() {
 }
 
 void Window::update_buffer_size() {
-    const std::int32_t width = to_physical(width_, scale_120_);
-    const std::int32_t height = to_physical(height_, scale_120_);
+    margin_ = WindowFrame::margin(state_, client_decorations_, frame_wanted_);
+    const std::int32_t width = to_physical(width_ + (2 * margin_), scale_120_);
+    const std::int32_t height = to_physical(height_ + (2 * margin_), scale_120_);
     if (width != buffer_width_ || height != buffer_height_) {
         buffer_width_ = width;
         buffer_height_ = height;
@@ -236,17 +269,48 @@ void Window::update_buffer_size() {
     }
 }
 
+void Window::update_surface_regions() {
+    const std::array<std::int32_t, 3> wanted{width_, height_, margin_};
+    if (wanted == regions_for_) {
+        return;
+    }
+    regions_for_ = wanted;
+    const std::int32_t m = margin_;
+    xdg_surface_set_window_geometry(xdg_surface_.get(), m, m, width_, height_);
+
+    // The pointer reaches the window and the frame's resize band; the shadow beyond it lets
+    // clicks through to what is below.
+    if (m > 0) {
+        const auto band = static_cast<std::int32_t>(WindowFrame::kResizeBand);
+        wl_region* input = wl_compositor_create_region(display_.compositor());
+        wl_region_add(input, m - band, m - band, width_ + (2 * band), height_ + (2 * band));
+        wl_surface_set_input_region(surface_.get(), input);
+        wl_region_destroy(input);
+    } else {
+        wl_surface_set_input_region(surface_.get(), nullptr);  // the whole surface
+    }
+
+    // Opaque: the window but its rounded corners, so the compositor need not blend it.
+    const auto r = m > 0 ? static_cast<std::int32_t>(WindowFrame::kRadius) : 0;
+    wl_region* opaque = wl_compositor_create_region(display_.compositor());
+    wl_region_add(opaque, m, m + r, width_, std::max(0, height_ - (2 * r)));
+    if (r > 0) {
+        wl_region_add(opaque, m + r, m, std::max(0, width_ - (2 * r)), height_);
+    }
+    wl_surface_set_opaque_region(surface_.get(), opaque);
+    wl_region_destroy(opaque);
+}
+
 void Window::on_surface_configure(void* data, xdg_surface* surface, std::uint32_t serial) {
     auto& self = *static_cast<Window*>(data);
     xdg_surface_ack_configure(surface, serial);
     self.configured_ = true;
     self.state_ = self.pending_state_;
-    if (self.pending_width_ > 0 && self.pending_height_ > 0 &&
-        (self.pending_width_ != self.width_ || self.pending_height_ != self.height_)) {
+    if (self.pending_width_ > 0 && self.pending_height_ > 0) {
         self.width_ = self.pending_width_;
         self.height_ = self.pending_height_;
-        self.update_buffer_size();
     }
+    self.update_buffer_size();  // the size, or the state that sets the frame, may have changed
     // Every configure needs a commit to apply its ack; with a frame in flight the commit
     // happens on the next frame callback, which keeps interactive resizing at display rate.
     self.request_redraw();
@@ -361,6 +425,7 @@ void Window::on_decoration_configure(void* data, zxdg_toplevel_decoration_v1* /*
     }
     self.decoration_answered_ = true;
     self.client_decorations_ = client;
+    self.update_buffer_size();
     self.request_redraw();
 }
 

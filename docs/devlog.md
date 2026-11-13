@@ -4,6 +4,52 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — Rounded corners and a shadow (0.6.1)
+
+**Tested by the author** (2026-11-13, installed build): on Umbriel "funziona tutto" (one
+shadow: Umbriel adds none), and in the VM `nordend-void` on GNOME 48 and Plasma 6.7 (KWin adds
+none either): corners and shadow, a lighter shadow in the back, resizing from the shadow, clicks
+through the outer shadow to the desktop, none when maximized or tiled (Super+←) and back after.
+
+**Decision** (with the author, after the GNOME/Plasma check of 0.6.0: "non ha angoli smussati
+né ombra, si può fixare?"): Nordend draws them itself where it draws its decorations, as GTK
+does; radius 12 px, no setting unless Umbriel turns out to add its own. Before barrulus's PR #3
+(opacity), which needs the alpha surface too and will be rebased on this.
+
+**Done**
+- EGL configs with 8 bits of alpha (ARGB8888 surfaces, the drag image too, cleared opaque).
+- `Renderer::begin_frame(..., margin)`: the buffer cleared transparent, the content cleared to
+  the background; draws and clips go to a view (`set_view`: viewport + scissor offset), so every
+  view keeps drawing from (0, 0) and nothing else changed. `Renderer::frame_window(radius,
+  shadows, outline)`: the four corners cut by multiplying the destination by a rounded box's
+  coverage (`GL_ZERO, GL_SRC_ALPHA`, one scissored corner square at a time), then outline and
+  shadows behind the content (`GL_ONE_MINUS_DST_ALPHA, GL_ONE`), scissored to four bands.
+- `ui::WindowFrame`: `margin(state, client_decorations, wanted)` (24 px, 0 when maximized,
+  fullscreen, tiled on any side or under server-side decorations), `draw(renderer, activated)`
+  (a near and a wide shadow, lighter when inactive; a 1 px outline at 18 % black).
+- `Window`: `WindowOptions::frame`; the buffer and the viewport's destination include the margin;
+  `xdg_surface.set_window_geometry` around the window; the input region is the window plus the
+  10 px band, the opaque region the window but its corners (both only resent when size or margin
+  change); `content_offset()` (the margin as last drawn) and `resize_band()`. The margin follows
+  every configure (state and size) and the decoration's answer.
+- `main.cpp`: pointer and drop positions moved by `content_offset()`, the window menu's back;
+  `TitleBar::set_outside_band(window.resize_band())`: edges and corners reach the band outside.
+- `nordend-snapshot --csd normal,framed` (or `inactive,framed`): the frame over a grey backdrop.
+- Tests: `window_frame_test.cpp` (when there is a margin; offscreen pixels: content moved by the
+  margin, clips too, the corner cut, outline and shadow outside, deeper below, the buffer's
+  corner clear; nothing without a margin), `title_bar_test.cpp` (the outside band: edges,
+  corners, beyond it nothing, none when maximized, not from a tiled edge). 441 test cases.
+
+**Measured**: 0.142 → 0.151 ms a frame at 2560x1440 ([benchmarks](benchmarks.md)); the banded
+shadow gives the same pixels as the whole-window one.
+
+**Open**: at logout the session bus goes before the window: Nordend ends with "Failed to get
+bus poll data (Transport endpoint is not connected)" from the portal's `BusLoop` instead of a
+clean exit (seen in the VM's GNOME log; older than the frame). Harmless, to tidy: a lost bus
+should only stop following the portal.
+
+---
+
 ## 2026-11-13 — Nordend 0.6.0
 
 A minor release for ROADMAP 3½ and 3⅞: the colours of the user's GTK theme, read live with

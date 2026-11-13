@@ -113,19 +113,23 @@ ui::Rect TitleBar::content(const ui::Rect& bounds) const {
 }
 
 TitleBar::Hit TitleBar::hit(float x, float y) const {
-    if (!contains(bounds_, x, y)) {
+    const bool resizable = !state_.maximized && !state_.fullscreen;
+    const float band = resizable ? outside_band_ : 0.0F;
+    const ui::Rect b = bounds_.inset(-band);  // with the frame's band outside the window
+    if (!contains(b, x, y)) {
         return {};
     }
-    if (!state_.maximized && !state_.fullscreen) {
-        const ui::Rect& b = bounds_;
-        const bool left = !state_.tiled_left && x < b.x + kEdge;
-        const bool right = !state_.tiled_right && x >= b.right() - kEdge;
-        const bool top = !state_.tiled_top && y < b.y + kEdge;
-        const bool bottom = !state_.tiled_bottom && y >= b.bottom() - kEdge;
-        const bool near_left = !state_.tiled_left && x < b.x + kCorner;
-        const bool near_right = !state_.tiled_right && x >= b.right() - kCorner;
-        const bool near_top = !state_.tiled_top && y < b.y + kCorner;
-        const bool near_bottom = !state_.tiled_bottom && y >= b.bottom() - kCorner;
+    if (resizable) {
+        const float edge_reach = band + kEdge;
+        const float corner_reach = band + kCorner;
+        const bool left = !state_.tiled_left && x < b.x + edge_reach;
+        const bool right = !state_.tiled_right && x >= b.right() - edge_reach;
+        const bool top = !state_.tiled_top && y < b.y + edge_reach;
+        const bool bottom = !state_.tiled_bottom && y >= b.bottom() - edge_reach;
+        const bool near_left = !state_.tiled_left && x < b.x + corner_reach;
+        const bool near_right = !state_.tiled_right && x >= b.right() - corner_reach;
+        const bool near_top = !state_.tiled_top && y < b.y + corner_reach;
+        const bool near_bottom = !state_.tiled_bottom && y >= b.bottom() - corner_reach;
         const auto edge = [](ui::Edge e) { return Hit{.part = Part::edge, .edge = e}; };
         if ((top && near_left) || (left && near_top)) {
             return edge(ui::Edge::top_left);

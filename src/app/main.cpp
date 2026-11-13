@@ -407,7 +407,8 @@ int main(int argc, char** argv) {
              // compositor's title bar.
              .force_client_decorations =
                  client_decorations_forced() ||
-                 config.window.title_bar == core::Config::Window::TitleBar::integrated}};
+                 config.window.title_bar == core::Config::Window::TitleBar::integrated,
+             .frame = true}};
         startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -565,8 +566,12 @@ int main(int argc, char** argv) {
                     .finish = [&] { clipboard.finish_drop(); },
                     .modifiers = [&] { return seat.modifiers(); },
                 });
-                clipboard.set_drop_handler(
-                    [&](const ui::DropEvent& event) { columns->drop_event(event); });
+                clipboard.set_drop_handler([&](const ui::DropEvent& surface_event) {
+                    ui::DropEvent event = surface_event;
+                    event.x -= window.content_offset();  // surface-local: the frame's margin
+                    event.y -= window.content_offset();
+                    columns->drop_event(event);
+                });
                 clipboard.set_drag_end_handler([&](bool /*dropped*/) {
                     window.drop_drag_icon();
                     columns->drag_ended();
@@ -625,7 +630,9 @@ int main(int argc, char** argv) {
              .toggle_maximized = [&] { window.toggle_maximized(); },
              .window_menu =
                  [&](float x, float y) {
-                     window.show_window_menu(display.seat(), seat.input_serial(), x, y);
+                     window.show_window_menu(display.seat(), seat.input_serial(),
+                                             x + window.content_offset(),
+                                             y + window.content_offset());
                  },
              .close = [&] { window.close(); }},
             [&] { window.request_redraw(); },
@@ -658,8 +665,11 @@ int main(int argc, char** argv) {
         bool hovered = false;
         int clicks = 0;
         std::string last_pointer = "Move the pointer, click the button, scroll";
-        seat.set_pointer_handler([&](const ui::PointerEvent& event) {
+        seat.set_pointer_handler([&](const ui::PointerEvent& surface_event) {
             using Kind = ui::PointerEvent::Kind;
+            ui::PointerEvent event = surface_event;
+            event.x -= window.content_offset();  // surface-local: the frame's margin
+            event.y -= window.content_offset();
             if (window.client_decorations() && !content_pressed) {
                 if (title_bar.pointer(event)) {
                     if (!std::exchange(bar_has_pointer, true) && columns) {
@@ -741,6 +751,7 @@ int main(int argc, char** argv) {
             const bool decorated = window.client_decorations();
             if (decorated) {
                 title_bar.set_state(window.state());
+                title_bar.set_outside_band(window.resize_band());
                 if (title_bar.integrated()) {
                     title_bar.layout(bounds);  // its buttons go over the header, drawn after it
                 } else {

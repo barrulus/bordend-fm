@@ -50,6 +50,7 @@ add_executable(nordend-tests
     state_test.cpp
     thumbs_test.cpp
     title_bar_test.cpp
+    window_frame_test.cpp
     erase_test.cpp
     erase_view_test.cpp
     file_finder_test.cpp

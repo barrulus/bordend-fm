@@ -33,7 +33,8 @@ EglContext::EglContext(const Display& display)
         throw_egl("eglBindAPI");
     }
 
-    // Opaque XRGB8888 window surfaces. No alpha until a translucent background is a feature.
+    // ARGB8888 window surfaces: the frame's shadow and rounded corners are transparent around
+    // the window, which says what is opaque (Window::update_surface_regions).
     // clang-format off
     static constexpr std::array<EGLint, 13> kConfigAttribs{
         EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
@@ -41,14 +42,14 @@ EglContext::EglContext(const Display& display)
         EGL_RED_SIZE,        8,
         EGL_GREEN_SIZE,      8,
         EGL_BLUE_SIZE,       8,
-        EGL_ALPHA_SIZE,      0,
+        EGL_ALPHA_SIZE,      8,
         EGL_NONE};
     // clang-format on
     EGLint count = 0;
     if (eglChooseConfig(display_, kConfigAttribs.data(), &config_, 1, &count) != EGL_TRUE ||
         count == 0) {
         eglTerminate(display_);
-        throw_egl("eglChooseConfig (RGB888, OpenGL ES 3)");
+        throw_egl("eglChooseConfig (ARGB8888, OpenGL ES 3)");
     }
 
     // clang-format off

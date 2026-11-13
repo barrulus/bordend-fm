@@ -61,6 +61,10 @@ public:
 
     [[nodiscard]] bool integrated() const noexcept { return static_cast<bool>(drag_area_); }
 
+    // The window's frame (ui::WindowFrame) resizes it from this far outside its edges too, in
+    // its shadow; 0 = from inside only.
+    void set_outside_band(float band) { outside_band_ = band; }
+
     // The width the buttons take at the window's right, with their margins: the header keeps it
     // free. 0 before a layout or in fullscreen.
     [[nodiscard]] float buttons_width() const;
@@ -92,6 +96,7 @@ private:
     std::function<void(ui::CursorShape)> set_cursor_;
     ui::WindowState state_;
     ui::Rect bounds_{};
+    float outside_band_{0.0F};
     ui::Rect bar_{};
     ui::Rect minimize_{};  // empty when the compositor cannot minimize
     ui::Rect maximize_{};

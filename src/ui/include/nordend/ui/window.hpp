@@ -1,6 +1,7 @@
 #pragma once
 
 #include <EGL/egl.h>
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -33,6 +34,8 @@ struct WindowOptions {
     // Ask for client-side decorations even where the compositor offers server-side ones
     // (NORDEND_FORCE_CSD, to try them); the compositor may still answer server-side.
     bool force_client_decorations{false};
+    // Rounded corners and a shadow when the window draws its own decorations (WindowFrame).
+    bool frame{false};
 };
 
 // A window edge or corner, grabbed to resize the window.
@@ -63,6 +66,23 @@ struct WindowState {
     bool has_window_menu{true};
 
     bool operator==(const WindowState&) const = default;
+};
+
+// Rounded corners and a soft shadow, as GTK draws them, for a window whose decorations are its
+// own: the surface is larger than the window by a transparent margin on every side, which holds
+// the shadow; the window geometry tells the compositor where the window itself is. None when
+// maximized, fullscreen or tiled, nor under the compositor's decorations.
+struct WindowFrame {
+    static constexpr std::int32_t kMargin = 24;  // logical pixels on every side
+    static constexpr float kResizeBand = 10.0F;  // of the margin, what resizes the window
+    static constexpr float kRadius = 12.0F;
+
+    // The margin the window takes in state (0 = no frame).
+    [[nodiscard]] static std::int32_t margin(const WindowState& state, bool client_decorations,
+                                             bool wanted) noexcept;
+
+    // Draws the frame around the content drawn with a margin (Renderer::frame_window).
+    static void draw(Renderer& renderer, bool activated);
 };
 
 // A top-level xdg-shell window rendered with OpenGL ES, with server-side decorations when the
@@ -131,6 +151,18 @@ public:
     // Output scale chosen by the compositor (1.0, 1.25, 1.5, ...); 1.0 without fractional-scale.
     [[nodiscard]] double scale() const noexcept { return static_cast<double>(scale_120_) / 120.0; }
 
+    // Where the window is in its surface, in logical pixels (the frame's margin, as last drawn):
+    // pointer and drop positions are surface-local, the draw handler's bounds start at (0, 0).
+    [[nodiscard]] float content_offset() const noexcept {
+        return static_cast<float>(drawn_margin_);
+    }
+
+    // How far outside the window, in logical pixels, the pointer resizes it: the frame's band,
+    // 0 without a frame.
+    [[nodiscard]] float resize_band() const noexcept {
+        return drawn_margin_ > 0 ? WindowFrame::kResizeBand : 0.0F;
+    }
+
     // Size of the rendered buffer in physical pixels.
     [[nodiscard]] std::int32_t buffer_width() const noexcept { return buffer_width_; }
 
@@ -161,9 +193,11 @@ private:
     static void on_frame_done(void* data, wl_callback* callback, std::uint32_t time_ms);
 
     void draw();
-    // Recomputes the physical buffer size from the logical size and scale; resizes the
-    // wl_egl_window if it changed.
+    // Recomputes the frame's margin from the state, then the physical buffer size from the
+    // logical size, the margin and the scale; resizes the wl_egl_window if it changed.
     void update_buffer_size();
+    // Window geometry, input and opaque regions for the frame just drawn (applied by its commit).
+    void update_surface_regions();
 
     Display& display_;
     EglContext& egl_;
@@ -177,6 +211,11 @@ private:
     bool configured_{false};
     bool dirty_{false};
     bool client_decorations_{false};
+    bool frame_wanted_{false};
+    std::int32_t margin_{0};        // the frame's, for the next frame
+    std::int32_t drawn_margin_{0};  // the frame's, as last drawn
+    // What update_surface_regions last told the compositor: width, height, margin.
+    std::array<std::int32_t, 3> regions_for_{-1, -1, -1};
     bool decoration_answered_{false};  // the compositor said which, at least once
     WindowState state_;
     WindowState pending_state_;  // from configure, applied with its ack

@@ -163,3 +163,33 @@ TEST_CASE("title bar: the edges' cursors") {
     CHECK_FALSE(f.bar.pointer({.kind = Kind::leave}));
     CHECK(f.redraws == redraws + 2);
 }
+
+TEST_CASE("title bar: the frame's band resizes from outside the window") {
+    Fixture f;
+    // Without a band, outside the window is nobody's.
+    CHECK_FALSE(f.send(Kind::press, -4.0F, 300.0F));
+    CHECK(f.actions.empty());
+
+    f.bar.set_outside_band(10.0F);
+    CHECK(f.send(Kind::press, -4.0F, 300.0F));
+    CHECK(f.resized == Edge::left);
+    CHECK(f.send(Kind::press, 805.0F, 605.0F));
+    CHECK(f.resized == Edge::bottom_right);
+    CHECK(f.send(Kind::press, -8.0F, 10.0F));  // beside the top, within a corner's reach
+    CHECK(f.resized == Edge::top_left);
+    CHECK(f.send(Kind::press, 400.0F, 2.0F));  // the inside band stays
+    CHECK(f.resized == Edge::top);
+    CHECK(f.actions.size() == 4);
+
+    // Beyond the band, the shadow lets the pointer through (the input region does too).
+    CHECK_FALSE(f.send(Kind::press, -11.0F, 300.0F));
+
+    // Maximized or tiled: no band, none from a tiled edge.
+    f.bar.set_state({.maximized = true});
+    CHECK_FALSE(f.send(Kind::press, -4.0F, 300.0F));
+    f.bar.set_state({.tiled_left = true});
+    f.actions.clear();
+    CHECK(f.send(Kind::press, 805.0F, 300.0F));
+    CHECK(f.resized == Edge::right);
+    CHECK(f.send(Kind::press, -4.0F, 300.0F) == false);
+}
