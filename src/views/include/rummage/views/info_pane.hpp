@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -42,6 +43,8 @@ public:
     static constexpr float kMinContent = 320.0F;
     // Either side of the pane's edge, where the pointer grabs it (grid and details).
     static constexpr float kEdgeGrab = 4.0F;
+    // A line of a text file's page.
+    static constexpr float kTextLineHeight = 15.0F;
 
     // thumbnails may be nullptr: icons only.
     InfoPane(core::WorkerPool& pool, Thumbnails* thumbnails, std::function<void()> redraw);
@@ -60,9 +63,20 @@ public:
 
     // A wheel or touchpad scroll: true when it was over the pane, which scrolls when its content
     // is taller than it.
+    // Over a text file's page that has more lines than fit, the wheel scrolls the page and not the
+    // pane.
     bool scroll(const ui::PointerEvent& event, Clock::time_point now);
 
-    [[nodiscard]] bool animating() const noexcept { return scroller_.animating(); }
+    // How the keyboard moves a text file's page.
+    enum class TextScroll : std::uint8_t { line_up, line_down, page_up, page_down };
+
+    // Moves the text page by a few lines or by a page: true when there was a page with more lines
+    // than fit, false (the key is not taken) otherwise.
+    bool scroll_text(TextScroll how, Clock::time_point now);
+
+    [[nodiscard]] bool animating() const noexcept {
+        return scroller_.animating() || page_scroller_.animating();
+    }
 
     [[nodiscard]] bool expanded() const noexcept { return expanded_; }
 
@@ -70,7 +84,10 @@ public:
     [[nodiscard]] bool clickable_at(float x, float y) const { return toggle_.contains(x, y); }
 
     // Before a frame: what it drew is gone unless it is drawn again (a view without the pane).
-    void forget_layout() noexcept { toggle_ = {}; }
+    void forget_layout() noexcept {
+        toggle_ = {};
+        page_ = {};
+    }
 
     // The width the user gave it (dragging its edge in the grid or the details).
     [[nodiscard]] float width() const noexcept { return width_; }
@@ -86,6 +103,14 @@ public:
 
     // What it shows is still being read (snapshots, tests).
     [[nodiscard]] bool loading() const noexcept { return job_.has_value(); }
+
+    // The text page as last drawn (empty when there is none) and how far it is scrolled, and how
+    // far it can be (tests).
+    [[nodiscard]] const ui::Rect& text_page() const noexcept { return page_; }
+
+    [[nodiscard]] float text_offset() const noexcept { return page_scroller_.offset(); }
+
+    [[nodiscard]] float text_max_offset() const noexcept { return page_scroller_.max_offset(); }
 
     // What was read about the entry shown last; nullptr before it arrives (tests).
     [[nodiscard]] const preview::Summary* summary() const noexcept { return summary_.get(); }
@@ -106,7 +131,10 @@ private:
     float width_{kWidth};
     ui::Rect bounds_{};  // as last drawn
     ui::Rect toggle_{};  // "More details", as last drawn; empty when not shown
+    ui::Rect page_{};    // a text file's page, as last drawn; empty when not shown
     ui::Scroller scroller_;
+    ui::Scroller page_scroller_;  // through the text page's lines
+    bool page_placed_{false};     // the page has been put at its start (a log's end) for this entry
     float content_height_{0.0F};  // of the last draw
     // False once destroyed: results still on their way find out here.
     std::shared_ptr<bool> alive_{std::make_shared<bool>(true)};

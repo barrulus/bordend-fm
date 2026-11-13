@@ -57,6 +57,34 @@ constexpr std::array kShortcuts{
              .keysyms = {XKB_KEY_i, XKB_KEY_I},
              .command = Command::toggle_info},
     Shortcut{.group = "General",
+             .keys = "Alt+K",
+             .action = "Scroll the info pane's text up",
+             .scope = scope::kViews,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_k, XKB_KEY_K},
+             .command = Command::scroll_preview_up},
+    Shortcut{.group = "General",
+             .keys = "Alt+J",
+             .action = "Scroll the info pane's text down",
+             .scope = scope::kViews,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_j, XKB_KEY_J},
+             .command = Command::scroll_preview_down},
+    Shortcut{.group = "General",
+             .keys = "Alt+PgUp",
+             .action = "Scroll the info pane's text a page up",
+             .scope = scope::kViews,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_Page_Up},
+             .command = Command::scroll_preview_page_up},
+    Shortcut{.group = "General",
+             .keys = "Alt+PgDn",
+             .action = "Scroll the info pane's text a page down",
+             .scope = scope::kViews,
+             .modifiers = kAlt,
+             .keysyms = {XKB_KEY_Page_Down},
+             .command = Command::scroll_preview_page_down},
+    Shortcut{.group = "General",
              .keys = "Ctrl+B",
              .action = "Sidebar",
              .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
@@ -543,6 +571,14 @@ std::optional<std::size_t> binding_index(std::string_view name) {
         command = Command::details_view;
     if (name == "toggle_info")
         command = Command::toggle_info;
+    if (name == "scroll_preview_up")
+        command = Command::scroll_preview_up;
+    if (name == "scroll_preview_down")
+        command = Command::scroll_preview_down;
+    if (name == "scroll_preview_page_up")
+        command = Command::scroll_preview_page_up;
+    if (name == "scroll_preview_page_down")
+        command = Command::scroll_preview_page_down;
     if (name == "toggle_sidebar")
         command = Command::toggle_sidebar;
     if (name == "focus_sidebar")

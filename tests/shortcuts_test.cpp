@@ -357,6 +357,34 @@ TEST_CASE("shortcuts: overrides replace defaults and reject conflicts atomically
     CHECK(command_for(chord(XKB_KEY_F2, {})) == Command::rename);
 }
 
+TEST_CASE("shortcuts: Alt+J, Alt+K and Alt+Page Up/Down scroll the info pane, and can be rebound") {
+    ResetBindings reset;
+    using rummage::views::command_for;
+    using rummage::views::configure_shortcuts;
+    constexpr rummage::ui::Modifiers alt{.alt = true};
+    CHECK(command_for(chord(XKB_KEY_k, alt)) == Command::scroll_preview_up);
+    CHECK(command_for(chord(XKB_KEY_K, alt)) == Command::scroll_preview_up);
+    CHECK(command_for(chord(XKB_KEY_j, alt)) == Command::scroll_preview_down);
+    CHECK(command_for(chord(XKB_KEY_Page_Up, alt)) == Command::scroll_preview_page_up);
+    CHECK(command_for(chord(XKB_KEY_Page_Down, alt)) == Command::scroll_preview_page_down);
+    // Without Alt the keys are the view's own: Page Up and Page Down move the cursor.
+    CHECK(command_for(chord(XKB_KEY_Page_Down, {})) == Command::none);
+    CHECK(command_for(chord(XKB_KEY_j, {})) == Command::none);
+
+    // The names and chords the example config shows.
+    REQUIRE(configure_shortcuts({{"scroll_preview_up", "Alt+u"},
+                                 {"scroll_preview_page_up", "Alt+Page_Up"},
+                                 {"scroll_preview_page_down", "Ctrl+Alt+j"},
+                                 {"scroll_preview_down", ""}})
+                .empty());
+    CHECK(command_for(chord(XKB_KEY_u, alt)) == Command::scroll_preview_up);
+    CHECK(command_for(chord(XKB_KEY_Page_Up, alt)) == Command::scroll_preview_page_up);
+    CHECK(command_for(chord(XKB_KEY_j, {.ctrl = true, .alt = true})) ==
+          Command::scroll_preview_page_down);
+    CHECK(command_for(chord(XKB_KEY_j, alt)) == Command::none);
+    CHECK(command_for(chord(XKB_KEY_k, alt)) == Command::none);
+}
+
 TEST_CASE("shortcuts: custom selection and rename work in each view") {
     ResetBindings reset;
     REQUIRE(rummage::views::configure_shortcuts(

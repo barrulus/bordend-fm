@@ -35,6 +35,11 @@ enum class Command : std::uint8_t {
     grid_view,
     details_view,
     toggle_info,
+    // Before toggle_split: the commands from there on need panes, which a file picker lacks.
+    scroll_preview_up,
+    scroll_preview_down,
+    scroll_preview_page_up,
+    scroll_preview_page_down,
     toggle_sidebar,
     focus_sidebar,
     quick_look,
