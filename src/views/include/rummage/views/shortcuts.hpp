@@ -71,6 +71,7 @@ enum class Command : std::uint8_t {
     same_other_pane,
     copy_other_pane,
     move_other_pane,
+    go_to,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

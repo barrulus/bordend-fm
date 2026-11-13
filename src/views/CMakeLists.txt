@@ -31,6 +31,7 @@ add_library(rummage_views
     src/fuzzy.cpp
     src/grid_view.cpp
     src/info_pane.cpp
+    src/location_dialog.cpp
     src/name_editor.cpp
     src/pane.cpp
     src/password_dialog.cpp

@@ -41,6 +41,7 @@
 #include "rummage/views/file_finder.hpp"
 #include "rummage/views/grid_view.hpp"
 #include "rummage/views/info_pane.hpp"
+#include "rummage/views/location_dialog.hpp"
 #include "rummage/views/name_editor.hpp"
 #include "rummage/views/pane.hpp"
 #include "rummage/views/password_dialog.hpp"
@@ -215,9 +216,9 @@ public:
 
     [[nodiscard]] bool has_overlay() const {
         return errors_.is_open() || password_.is_open() || mount_password_.is_open() ||
-               conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
-               editor_.active() || shortcuts_.is_open() || quick_look_.is_open() ||
-               properties_.is_open();
+               location_.is_open() || conflict_.is_open() || confirm_.is_open() ||
+               palette_.is_open() || menu_.is_open() || editor_.active() || shortcuts_.is_open() ||
+               quick_look_.is_open() || properties_.is_open();
     }
 
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
@@ -511,6 +512,13 @@ public:
     void mount_remote(const fs::Place& place, bool open);
     void unmount_remote(const fs::Place& place);
 
+    // Ctrl+L: the card that goes to a folder or a server, the folder shown in it to start with.
+    void open_location();
+
+    // Goes where text leads (fs::parse_location): opens a folder, or mounts and opens a server,
+    // adding it to the sidebar first when add. Returns what is wrong with text; empty when it went.
+    std::string go_to(std::string_view text, bool add);
+
     // Where a drop would go now, as the views mark it.
     [[nodiscard]] const DropMark& drop_mark() const noexcept { return drop_mark_; }
 
@@ -583,6 +591,8 @@ public:
 
     [[nodiscard]] PasswordDialog& mount_password_dialog() noexcept { return mount_password_; }
 
+    [[nodiscard]] LocationDialog& location_dialog() noexcept { return location_; }
+
     void show_properties();
 
     [[nodiscard]] PropertiesDialog& properties_dialog() noexcept { return properties_; }
@@ -632,6 +642,8 @@ private:
     struct BookmarkChange {
         std::vector<std::filesystem::path> add;
         std::optional<std::filesystem::path> remove;
+        std::optional<std::string> add_uri{};  // a remote bookmark, and its name
+        std::string add_label{};
         std::optional<std::string> remove_uri{};  // a remote bookmark
         std::string remove_label{};               // its name, for the message
     };
@@ -827,6 +839,7 @@ private:
     ConfirmDialog confirm_;
     ConfirmDialog password_;
     PasswordDialog mount_password_;
+    LocationDialog location_;
     ErrorDialog errors_;
     PropertiesDialog properties_;
     ContextMenu menu_;
