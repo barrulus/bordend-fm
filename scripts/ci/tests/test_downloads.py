@@ -82,6 +82,15 @@ class DownloadsTest(unittest.TestCase):
         self.assertEqual((self.output / 'rummage-media-debian13-amd64.deb').read_bytes(), b'rummage-media_0.5.0_amd64.deb')
         self.assertIn('Install me.', (self.output / 'release-notes.md').read_text())
 
+    def test_void_locally_built_dependency_is_included(self):
+        dependency = self.roots['void'] / 'packages/libheif-1.23.6_1.x86_64.xbps'
+        dependency.write_bytes(b'local dependency')
+        self.prepare()
+        with tarfile.open(self.output / 'rummage-void-glibc-x86_64.tar.gz') as archive:
+            member = archive.extractfile(f'rummage-void-x86_64/packages/{dependency.name}')
+            self.assertIsNotNone(member)
+            self.assertEqual(member.read(), dependency.read_bytes())
+
     def test_missing_media_rejected(self):
         (self.roots['deb'] / 'packages/rummage-media_0.5.0_amd64.deb').unlink()
         with self.assertRaisesRegex(ValueError, 'rummage-media'):
