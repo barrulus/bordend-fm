@@ -62,6 +62,11 @@ flat in vec4 v_fill;
 flat in vec4 v_border_color;
 flat in vec2 v_params;
 
+// Enabled only while drawing the window frame: its shadow and outline belong outside
+// the rounded content, even when that content is translucent.
+uniform vec4 u_frame_content;
+uniform float u_frame_radius;
+
 out vec4 o_color;
 
 float rounded_box_distance(vec2 p, vec2 half_size, vec4 radii) {
@@ -81,6 +86,16 @@ float erf_approx(float x) {
 }
 
 void main() {
+    float outside = 1.0;
+    if (u_frame_content.z > 0.0) {
+        vec2 half_content = u_frame_content.zw * 0.5;
+        float content_d = rounded_box_distance(v_pos - (u_frame_content.xy + half_content),
+                                               half_content, vec4(u_frame_radius));
+        outside = clamp(0.5 + content_d, 0.0, 1.0);
+        if (outside == 0.0) {
+            discard;
+        }
+    }
     vec2 half_size = v_rect.zw * 0.5;
     vec2 p = v_pos - (v_rect.xy + half_size);
     float d = rounded_box_distance(p, half_size, v_radii);
@@ -88,13 +103,13 @@ void main() {
     float sigma = v_params.y;
     if (sigma > 0.0) {
         float alpha = 0.5 - 0.5 * erf_approx(d / (sigma * 1.41421356));
-        o_color = v_fill * alpha;
+        o_color = v_fill * (alpha * outside);
         return;
     }
 
     float coverage = clamp(0.5 - d, 0.0, 1.0);
     float inner = clamp(0.5 - (d + v_params.x), 0.0, 1.0);
-    o_color = v_fill * inner + v_border_color * (coverage - inner);
+    o_color = (v_fill * inner + v_border_color * (coverage - inner)) * outside;
 }
 )glsl";
 
@@ -460,6 +475,8 @@ struct Renderer::Gl {
                     sizeof(ImageInstance)};
     Pipeline glyphs{kGlyphVertexShader, kGlyphFragmentShader, kGlyphAttributes,
                     sizeof(GlyphInstance)};
+    GLint frame_content_uniform{glGetUniformLocation(boxes.program(), "u_frame_content")};
+    GLint frame_radius_uniform{glGetUniformLocation(boxes.program(), "u_frame_radius")};
     Atlas coverage_atlas{GL_R8, GL_RED};
     Atlas color_atlas{GL_RGBA8, GL_RGBA};
     std::unordered_map<GlyphKey, GlyphEntry, GlyphKeyHash> entries;
@@ -566,7 +583,11 @@ void Renderer::frame_window(float radius, std::span<const WindowShadow> shadows,
     }
 
     // Behind what is there (dst over src): the outline, then the shadows, nearest first. Only
-    // in four bands, the margin and the corners' depth, as the opaque content hides the rest.
+    // in four bands, the margin and the corners' depth. Mask out the rounded content explicitly:
+    // destination alpha alone cannot hide the frame behind a translucent background.
+    glUseProgram(gl_->boxes.program());
+    glUniform4f(gl_->frame_content_uniform, x, y, width, height);
+    glUniform1f(gl_->frame_radius_uniform, r);
     glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE);
     glEnable(GL_SCISSOR_TEST);
     const Color line = outline.premultiplied();
@@ -604,6 +625,7 @@ void Renderer::frame_window(float radius, std::span<const WindowShadow> shadows,
         }
         flush();
     }
+    glUniform4f(gl_->frame_content_uniform, 0.0F, 0.0F, 0.0F, 0.0F);
     glDisable(GL_SCISSOR_TEST);
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
     set_view(content_x, content_y, content_width, content_height);
@@ -614,7 +636,11 @@ void Renderer::fill_background(const Rect& rect, Color color) {
     color = color.premultiplied();
     // A scissored clear replaces the panel, avoiding accumulated alpha from the frame clear.
     // push_clip flushes previous draws; pop_clip restores the caller's clipping rectangle.
-    push_clip(rect);
+    // Unlike geometry, glClear ignores the viewport. Keep even an oversized panel out of
+    // the transparent frame margin.
+    const Rect content{0.0F, 0.0F, static_cast<float>(view_width_) / scale_,
+                       static_cast<float>(view_height_) / scale_};
+    push_clip(rect.intersect(content));
     glClearColor(color.r, color.g, color.b, color.a);
     glClear(GL_COLOR_BUFFER_BIT);
     pop_clip();
