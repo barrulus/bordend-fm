@@ -24,9 +24,12 @@ constexpr float kTextSize = 13.0F;
 constexpr float kSmallSize = 12.0F;
 constexpr float kSectionSize = 11.0F;
 constexpr float kLineSize = 11.0F;  // a text file's lines
-constexpr float kLineHeight = 15.0F;
+constexpr float kLineHeight = InfoPane::kTextLineHeight;
 constexpr float kPagePadding = 8.0F;
-constexpr std::size_t kPageLines = 14;  // at most, under the name
+constexpr std::size_t kPageLines = 30;  // at most, under the name; more scroll
+constexpr float kScrollStep = 3.0F;     // lines, for Alt+J and Alt+K
+constexpr float kScrollbarWidth = 4.0F;
+constexpr float kScrollbarMinThumb = 24.0F;
 
 // "1 file", "3 files".
 std::string count_of(std::size_t count, std::string_view noun) {
@@ -154,13 +157,43 @@ bool InfoPane::scroll(const ui::PointerEvent& event, Clock::time_point now) {
         event.y >= bounds_.bottom()) {
         return false;
     }
+    // A page with more lines than fit takes the wheel over it; the rest of the pane scrolls the
+    // pane.
+    ui::Scroller& scroller = page_.contains(event.x, event.y) && page_scroller_.max_offset() > 0.0F
+                                 ? page_scroller_
+                                 : scroller_;
     if (event.wheel_y != 0.0F) {
-        scroller_.wheel(event.wheel_y, now);
+        scroller.wheel(event.wheel_y, now);
     } else if (event.scroll_y != 0.0F) {
-        scroller_.finger(event.scroll_y, now);
+        scroller.finger(event.scroll_y, now);
     }
     if (event.scroll_finger && event.scroll_stop) {
-        scroller_.release(now);
+        scroller.release(now);
+    }
+    redraw_();
+    return true;
+}
+
+bool InfoPane::scroll_text(TextScroll how, Clock::time_point now) {
+    if (page_.width <= 0.0F || page_scroller_.max_offset() <= 0.0F) {
+        return false;
+    }
+    // A page: what is shown less a line, so that one stays in sight.
+    const float page = std::max(kLineHeight, page_.height - (2.0F * kPagePadding) - kLineHeight);
+    const float from = page_scroller_.destination();
+    switch (how) {
+        case TextScroll::line_up:
+            page_scroller_.glide_to(from - (kScrollStep * kLineHeight), now);
+            break;
+        case TextScroll::line_down:
+            page_scroller_.glide_to(from + (kScrollStep * kLineHeight), now);
+            break;
+        case TextScroll::page_up:
+            page_scroller_.glide_to(from - page, now);
+            break;
+        case TextScroll::page_down:
+            page_scroller_.glide_to(from + page, now);
+            break;
     }
     redraw_();
     return true;
@@ -184,6 +217,8 @@ void InfoPane::request(const std::filesystem::path& path, std::int64_t modified_
     key_ = std::move(key);
     summary_.reset();
     scroller_.jump_to(0.0F);  // another entry starts at the top
+    page_scroller_.jump_to(0.0F);
+    page_placed_ = false;
     if (job_) {
         job_->cancel();
     }
@@ -206,6 +241,7 @@ void InfoPane::request(const std::filesystem::path& path, std::int64_t modified_
 void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                     ui::IconSet& icons, const Folder& folder, Clock::time_point now) {
     toggle_ = {};
+    page_ = {};
     bounds_ = bounds;
     // Scrolls when the content (as tall as at the last draw) does not fit.
     scroller_.set_extent(content_height_, bounds.height);
@@ -298,23 +334,48 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         }
         out.skip(box + 18.0F);
     } else if (summary != nullptr && summary->text && !summary->text->lines.empty()) {
-        // The first lines on a small page.
+        // A small page of the lines; the rest scrolls.
         const std::vector<std::string>& lines = summary->text->lines;
         const std::vector<std::vector<text::Span>>& spans = summary->text->spans;
         const theme::SyntaxColors colours = theme::syntax_colors(palette);
-        const std::size_t count = std::min(lines.size(), kPageLines);
-        const float height = (static_cast<float>(count) * kLineHeight) + (2.0F * kPagePadding);
-        const ui::Rect page{preview_left, out.y(), preview_width, height};
-        renderer.draw_box(page, {.fill = palette.surface_container, .radius = {}});
-        for (std::size_t i = 0; i < count; ++i) {
+        const std::size_t shown = std::min(lines.size(), kPageLines);
+        const float view = static_cast<float>(shown) * kLineHeight;
+        const float height = view + (2.0F * kPagePadding);
+        page_ = {preview_left, out.y(), preview_width, height};
+        page_scroller_.set_extent(static_cast<float>(lines.size()) * kLineHeight, view);
+        if (!page_placed_) {
+            // A log opens at its newest lines.
+            page_scroller_.jump_to(summary->text->tail ? page_scroller_.max_offset() : 0.0F);
+            page_placed_ = true;
+        }
+        page_scroller_.advance(now);
+        const float page_offset = page_scroller_.offset();
+        renderer.draw_box(page_, {.fill = palette.surface_container, .radius = {}});
+        const ui::Rect inner{page_.x, page_.y + kPagePadding, page_.width, view};
+        renderer.push_clip(inner);
+        const auto first = static_cast<std::size_t>(page_offset / kLineHeight);
+        const auto last = std::min(
+            lines.size(), static_cast<std::size_t>(std::ceil((page_offset + view) / kLineHeight)));
+        for (std::size_t i = first; i < last; ++i) {
             const std::vector<ui::ColorRun> runs = i < spans.size()
                                                        ? colour_runs(spans[i], colours, 1.0F)
                                                        : std::vector<ui::ColorRun>{};
-            renderer.draw_text_runs(lines[i], page.x + kPagePadding,
-                                    page.y + kPagePadding + (static_cast<float>(i) * kLineHeight),
+            renderer.draw_text_runs(lines[i], inner.x + kPagePadding,
+                                    inner.y + (static_cast<float>(i) * kLineHeight) - page_offset,
                                     kLineSize, palette.on_surface_variant, runs,
-                                    page.width - (2.0F * kPagePadding), ui::Ellipsis::end,
+                                    page_.width - (2.0F * kPagePadding), ui::Ellipsis::end,
                                     ui::Typeface::monospace);
+        }
+        renderer.pop_clip();
+        if (page_scroller_.max_offset() > 0.0F) {
+            // A thin thumb, only when there is more than the page shows.
+            const float content = static_cast<float>(lines.size()) * kLineHeight;
+            const float thumb = std::max(kScrollbarMinThumb, view * view / content);
+            const float thumb_y =
+                inner.y + ((view - thumb) * page_offset / page_scroller_.max_offset());
+            renderer.draw_box(
+                {page_.right() - kScrollbarWidth - 3.0F, thumb_y, kScrollbarWidth, thumb},
+                {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
         }
         out.skip(height + 18.0F);
     } else {

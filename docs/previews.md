@@ -98,6 +98,16 @@ Reads are bounded. Large `.log` files show the last 256 KiB and open at the bott
 the caption identifies the tail. Do not assume a selected preview contains every
 byte of a large source file.
 
+## Text in the information pane
+
+The information pane shows a text file as a page of up to 30 lines, coloured as in
+Quick Look, and scrolls through everything Quick Look would read (the same bounded
+read, and a large `.log` opens at its newest lines). The wheel or touchpad over the
+page scrolls the page; anywhere else on the pane it scrolls the pane. **Alt+J** and
+**Alt+K** scroll three lines down and up, **Alt+Page Down** and **Alt+Page Up** a page.
+Long lines are cut with an ellipsis; open Quick Look to scroll them sideways. The pane
+has no selection, so Quick Look is still the place to copy text.
+
 ## Optional video previews and caching
 
 Install the matching `rummage-media` package for video thumbnails and still previews

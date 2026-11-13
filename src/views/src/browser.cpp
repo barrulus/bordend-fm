@@ -3835,8 +3835,10 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
         // On a text page Home, End, Page Up and Page Down move through it; Ctrl+A selects its
         // text and Ctrl+C copies it (with nothing selected, Ctrl+C copies the file, as without
         // Quick Look).
-        if (command >= Command::toggle_split)
-            return true;
+        if (command >= Command::toggle_split || (command >= Command::scroll_preview_up &&
+                                                 command <= Command::scroll_preview_page_down)) {
+            return true;  // the info pane is under it, and the panes are not shown
+        }
         if (quick_look_.text_key(event, now)) {
             return true;
         }
@@ -3953,6 +3955,18 @@ void Browser::run(Command command, Clock::time_point now) {
             break;
         case Command::toggle_info:
             set_info_visible(!info_visible_);
+            break;
+        case Command::scroll_preview_up:
+            info_pane_.scroll_text(InfoPane::TextScroll::line_up, now);
+            break;
+        case Command::scroll_preview_down:
+            info_pane_.scroll_text(InfoPane::TextScroll::line_down, now);
+            break;
+        case Command::scroll_preview_page_up:
+            info_pane_.scroll_text(InfoPane::TextScroll::page_up, now);
+            break;
+        case Command::scroll_preview_page_down:
+            info_pane_.scroll_text(InfoPane::TextScroll::page_down, now);
             break;
         case Command::toggle_sidebar:
             set_sidebar_visible(!sidebar_visible_);

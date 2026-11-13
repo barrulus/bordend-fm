@@ -47,6 +47,7 @@ add_executable(rummage-tests
     text_selection_test.cpp
     platform_test.cpp
     preview_test.cpp
+    info_pane_test.cpp
     quick_look_test.cpp
     rename_test.cpp
     renderer_runs_test.cpp

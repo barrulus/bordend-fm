@@ -14,12 +14,10 @@ Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind
     if (kind == Kind::image && !mime.starts_with("video/")) {
         summary.photo = picture::load_photo_info(path);
     } else if (kind == Kind::text) {
-        // A few kilobytes are enough for the lines the pane has room for.
-        text::Loaded loaded = text::load_text({.path = path,
-                                               .mime = std::string{mime},
-                                               .limits = {.max_bytes = std::size_t{8} * 1024,
-                                                          .max_line_bytes = 256,
-                                                          .max_lines = kSummaryLines}});
+        // As much as Quick Look reads: the pane's page scrolls through it. A log's newest lines
+        // are at its end.
+        text::Loaded loaded = text::load_text(
+            {.path = path, .mime = std::string{mime}, .limits = {.tail = mime == "text/x-log"}});
         if (loaded.failure == text::Failure::none) {
             summary.text = std::move(loaded.text);
         }

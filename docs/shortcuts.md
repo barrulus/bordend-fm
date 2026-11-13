@@ -12,6 +12,8 @@ a shortcut's meaning follows the focused control.
 | --- | --- | --- |
 | Ctrl+1 / Ctrl+2 / Ctrl+3 | Columns / grid / details | `columns_view`, `grid_view`, `details_view` |
 | Ctrl+I | Toggle information pane in grid/details | `toggle_info` |
+| Alt+J / Alt+K | Scroll the information pane's text page down / up by three lines | `scroll_preview_down`, `scroll_preview_up` |
+| Alt+Page Down / Alt+Page Up | Scroll the information pane's text page by a page | `scroll_preview_page_down`, `scroll_preview_page_up` |
 | Ctrl+B | Toggle sidebar | `toggle_sidebar` |
 | F6 | Focus sidebar / return to view | `focus_sidebar` |
 | Ctrl+H | Show/hide hidden files | `toggle_hidden` |

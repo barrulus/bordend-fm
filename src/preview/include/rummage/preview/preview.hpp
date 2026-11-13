@@ -81,10 +81,8 @@ public:
 struct Summary {
     Info info;
     std::optional<picture::PhotoInfo> photo;  // images and camera raw files
-    std::optional<Text> text;                 // the first lines of a text file
+    std::optional<Text> text;  // a text file's beginning (a log's end), as in Quick Look
 };
-
-inline constexpr std::size_t kSummaryLines = 40;
 
 // Reads it for an entry of type mime whose provider makes kind. Blocking: call it on a worker.
 [[nodiscard]] Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind kind,

@@ -111,8 +111,27 @@ TEST_CASE("preview: the info pane's summary of a photo, a text file and a folder
     const preview::Summary text = preview::summarize(write(dir.path / "a.txt", many), "text/plain",
                                                      preview::Kind::text, token);
     const preview::Text lines = text.text.value_or(preview::Text{});
-    CHECK(lines.lines.size() == preview::kSummaryLines);
-    CHECK(lines.truncated);
+    CHECK(lines.lines.size() == 100);  // all of it: the pane's page scrolls through them
+    CHECK_FALSE(lines.truncated);
+    // More than Quick Look reads: the beginning of a text file, but a log's end.
+    const TempDir bigs;  // apart: the folder below counts its entries
+    std::string big;
+    for (int i = 0; i < 40000; ++i) {
+        big += "row " + std::to_string(i) + "\n";
+    }
+    const preview::Text head = preview::summarize(write(bigs.path / "big.txt", big), "text/plain",
+                                                  preview::Kind::text, token)
+                                   .text.value_or(preview::Text{});
+    CHECK(head.truncated);
+    CHECK_FALSE(head.tail);
+    REQUIRE_FALSE(head.lines.empty());
+    CHECK(head.lines.front() == "row 0");
+    const preview::Text newest = preview::summarize(write(bigs.path / "big.log", big), "text/x-log",
+                                                    preview::Kind::text, token)
+                                     .text.value_or(preview::Text{});
+    CHECK(newest.tail);
+    REQUIRE_FALSE(newest.lines.empty());
+    CHECK(newest.lines.back() == "row 39999");
     // A text file that cannot be read has no lines; nor has a binary one.
     CHECK_FALSE(
         preview::summarize(dir.path / "missing.txt", "text/plain", preview::Kind::text, token)
