@@ -1,6 +1,7 @@
 # Nordend's checks on every push to main and every pull request, in a Void Linux container
 # (the system Nordend is made on, with the same libraries). TSan and clang-tidy are run by hand
 # before commits: too slow here. Tests that need the author's raw samples skip themselves.
+# The nix job builds the Nix package on the runner itself, in Nix's build sandbox.
 name: CI
 
 on:
@@ -103,3 +104,13 @@ jobs:
             exit 1
           fi
           exit $status
+
+  # The Nix package (flake.nix, packaging/nix): built and its tests run in Nix's own build
+  # sandbox, with nixpkgs' libraries (flake.lock) instead of Void's.
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b  # v31.11.3
+      - name: Build and test
+        run: nix flake check -L

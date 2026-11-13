@@ -4,6 +4,34 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — A Nix package, with a flake
+
+**Done.** Nordend has a second package of its own, after Void's: `flake.nix` at the top and the
+package in `packaging/nix/package.nix`, written in nixpkgs' style so it could go there one day.
+It builds the tree the flake sits in with the libraries of the nixpkgs in `flake.lock`
+(nixos-unstable), runs the whole test suite in Nix's build sandbox (no network, no GPU, no D-Bus:
+the tests that need them skip), and wraps `nordend` so it finds shared-mime-info's database and
+the hicolor icon theme wherever the system keeps them. The version comes from `CMakeLists.txt`,
+so a release has one number less to change. x86_64 Linux only, the one built and tried. The
+overlay (`overlays.default`) puts `nordend` into a NixOS configuration's packages. The CI gained
+a `nix` job, `nix flake check` on the runner itself (`cachix/install-nix-action`, pinned to
+v31.11.3's commit). README: "On NixOS and with Nix".
+
+**Measured.** The package with everything it needs takes 141 MiB in the Nix store (a closure of
+its own, not shared with a desktop's). `nordend` is 4.6 MiB there: Nix strips debug data but
+keeps the symbols (3.28 MiB with CMake's `--strip`).
+
+**Tested by the author** on a new VM, `nordend-nixos` (NixOS 26.05, GNOME on Wayland), installed
+from the flake into the user's profile: it starts, `--about`, thumbnails of every image format
+(the helpers run caged from `/nix/store`: `Seccomp: 2`), icons, Quick Look on Markdown, sorting
+by type, the app in GNOME's grid. One difference: Nix's wrapper renames the real program
+`.nordend-wrapped`, so the memory report there is `pkill -USR1 -f bin/.nordend-wrapped`.
+
+**Decisions.** Two packages of our own, Void and Nix; CMake for every other system. The VMs are
+one per distro, `nordend-<distro>` (`nordend-dev` became `nordend-void`).
+
+---
+
 ## 2026-11-13 — Sorting by type when the name gives several types; tests that pass in Nix's sandbox
 
 **Done.** shared-mime-info 2.5 (NixOS has it, Void still 2.4) also gives `*.md` to Sega ROMs

@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0"><img src="https://img.shields.io/badge/release-v0.5.0-2a6a9e" alt="release v0.5.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-420%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="420 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-422%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="422 tests, ASan, TSan">
   <a href="https://github.com/pankaspe/nordend-fm/actions/workflows/ci.yml"><img src="https://github.com/pankaspe/nordend-fm/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
@@ -22,8 +22,9 @@
 > with **syntax colours** for over twenty languages (code, configuration, Markdown, diffs), to
 > select and copy, logs shown from their newest lines; read, like pictures since 0.4.0, by
 > Nordend's own code in a **caged helper process**.
-> On Void Linux, [install it as a package](#on-void-linux); anywhere else,
-> [build it from source](#from-source) in about a minute.
+> On Void Linux, [install it as a package](#on-void-linux); on NixOS or with Nix, from
+> [its flake](#on-nixos-and-with-nix); anywhere else, [build it from source](#from-source) in
+> about a minute.
 
 <p align="center">
   <img src="docs/images/readme-screenshot.webp" alt="Nordend in a light theme: the column view in a folder of photos exported from darktable, the context menu open on one with Open With, its preview and EXIF in the info pane" width="100%">
@@ -102,7 +103,7 @@ every shortcut.
 |---|---|
 | Binary | **3.95 MB** (3.28 MB stripped), x86-64; the decoders and text readers in `nordend-preview`, 1.13 MB (1.01 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 8); no GTK, no Qt, no GLib |
-| Code | about 51 300 lines of C++20, 17 400 of tests (420 test cases, under ASan and TSan too) |
+| Code | about 51 300 lines of C++20, 17 400 of tests (422 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -145,6 +146,29 @@ sudo xbps-install -R hostdir/binpkgs nordend
 
 The package is the latest release, **0.5.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
+
+### On NixOS and with Nix
+
+Nordend comes with a flake: [`flake.nix`](flake.nix), and the package in
+[`packaging/nix`](packaging/nix). It is not in nixpkgs, and there is no binary cache: Nix builds
+it on your machine, in a few minutes, its tests included. It is new on `main` (no release has
+it yet), for x86_64 Linux, tried on NixOS 26.05 with GNOME.
+
+```sh
+nix run github:pankaspe/nordend-fm           # try it
+nix profile add github:pankaspe/nordend-fm   # keep it (nix profile install in older Nix)
+```
+
+In a NixOS configuration made with flakes:
+
+```nix
+# flake.nix: inputs
+nordend.url = "github:pankaspe/nordend-fm";
+
+# a module (with inputs passed in specialArgs)
+nixpkgs.overlays = [ inputs.nordend.overlays.default ];
+environment.systemPackages = [ pkgs.nordend ];
+```
 
 ### From source
 
@@ -215,7 +239,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Grid thumbnails up to 512 px, sharp from the larger caches (icons stay at 256); builds hardened on every system (stack protection, full RELRO, `_FORTIFY_SOURCE=3`, the standard library's index checks) |
+| on `main`, next | Grid thumbnails up to 512 px, sharp from the larger caches (icons stay at 256); builds hardened on every system (stack protection, full RELRO, `_FORTIFY_SOURCE=3`, the standard library's index checks); a Nix flake, built and tested in Nix's sandbox on every push; sorting by type puts a file whose name has several types (`.md` with shared-mime-info 2.5) among its likely type |
 | [0.5.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0), 2026-11-09 | Text previews: text files in Quick Look and the info pane, read in the caged helper (UTF-8, UTF-16, Latin-1) with syntax colours from your theme for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell (heredocs included), fish, CMake, Makefiles, JSON, TOML, YAML, INI files and desktop entries, `.gitignore` and `.gitattributes`, Markdown (code blocks in their own language) and diffs; select with the pointer, Ctrl+A, Ctrl+C; long lines scroll sideways; Home, End, Page Up and Page Down; a caption with the language, encoding and line ends; minified files shown plain; logs opened at their newest lines. The helper became the first engine, described by a manifest |
 | [0.4.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0), 2026-11-08 | Image previews read by Nordend's own code: DNG developed when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files) with the file's colour, tone curve, vignetting and lens corrections, read identically to LibRaw and 2-4 times faster; TIFF with its own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, CMYK, tiles, a scanner's scan in a SubIFD); raw files' previews and the info pane's EXIF without exiv2 (the same results, 3 to 100 times quicker); pictures made in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock), so a file that crashes or hangs one costs only its preview; one path for every picture, told by the file's bytes; a plain sentence when a file cannot be shown. Canon CRW and Minolta MRW get that sentence; darktable sidecars' ratings are no longer read (Nordend's own ratings come next) |
 | [0.3.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.3.1), 2026-11-07 | Fixes: DNG previews stored as a JPEG inside a TIFF (Leica M240, Samsung GX20 at full size), broken previews passed over for the next one (Samsung SRW), PGM and PPM images, a plain message for raw formats with no readable preview (Sigma X3F, old Panasonic RAW) |
