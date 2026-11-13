@@ -43,6 +43,7 @@
 #include "rummage/views/info_pane.hpp"
 #include "rummage/views/name_editor.hpp"
 #include "rummage/views/pane.hpp"
+#include "rummage/views/password_dialog.hpp"
 #include "rummage/views/properties_dialog.hpp"
 #include "rummage/views/quick_look.hpp"
 #include "rummage/views/shortcuts.hpp"
@@ -121,6 +122,29 @@ struct Devices {
     std::function<void(const std::string& volume, Done done)> eject;
 };
 
+// Network folders as the app connects them (gvfs): remote bookmarks mounted by their URI; tests
+// give a fake. Without it a remote bookmark says it cannot be mounted.
+struct Remotes {
+    using Done = Devices::Done;
+    using Mounted = Devices::Mounted;
+
+    // What a mount asks the person; the Browser answers on its cards.
+    struct Prompts {
+        std::function<void(const LoginRequest& request,
+                           std::function<void(std::optional<Login> login)> answer)>
+            login;
+        // choices[0] goes on; nullopt gives up.
+        std::function<void(const std::string& message, const std::vector<std::string>& choices,
+                           std::function<void(std::optional<std::size_t> choice)> answer)>
+            question;
+        std::function<void()> cancel;  // the server stopped waiting: the cards close
+    };
+
+    // An error of "cancelled": the person gave up, nothing to report.
+    std::function<void(const std::string& uri, Prompts prompts, Mounted done)> mount;
+    std::function<void(const std::string& uri, Done done)> unmount;
+};
+
 // Loop thread only. Must not outlive the loop, pool or watcher.
 class Browser {
 public:
@@ -190,9 +214,10 @@ public:
     [[nodiscard]] const ui::Rect& new_folder_bounds() const { return area().new_folder_bounds; }
 
     [[nodiscard]] bool has_overlay() const {
-        return errors_.is_open() || password_.is_open() || conflict_.is_open() ||
-               confirm_.is_open() || palette_.is_open() || menu_.is_open() || editor_.active() ||
-               shortcuts_.is_open() || quick_look_.is_open() || properties_.is_open();
+        return errors_.is_open() || password_.is_open() || mount_password_.is_open() ||
+               conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
+               editor_.active() || shortcuts_.is_open() || quick_look_.is_open() ||
+               properties_.is_open();
     }
 
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
@@ -458,6 +483,8 @@ public:
 
     // "Remove from Sidebar" on a bookmark.
     void remove_from_sidebar(const std::filesystem::path& folder);
+    // A remote bookmark's line goes from the bookmarks file; label names it in the message.
+    void remove_remote_from_sidebar(const std::string& uri, const std::string& label);
 
     // The bookmarks file: fs::bookmarks_file() unless set (tests).
     void set_bookmarks_file(std::filesystem::path file) { bookmarks_file_ = std::move(file); }
@@ -467,7 +494,10 @@ public:
 
     void set_devices(Devices devices) { devices_ = std::move(devices); }
 
-    // A place chosen in the sidebar: opened, after mounting a disk that is not mounted.
+    void set_remotes(Remotes remotes) { remotes_ = std::move(remotes); }
+
+    // A place chosen in the sidebar: opened, after mounting a disk or a network folder that is
+    // not mounted.
     void open_place(const fs::Place& place);
 
     // A disk's place: mounted (then opened, when open), unmounted, or ejected (unmounted and
@@ -475,6 +505,11 @@ public:
     void mount_place(const fs::Place& place, bool open);
     void unmount_place(const fs::Place& place);
     void eject_place(const fs::Place& place);
+
+    // A remote bookmark's place: mounted through gvfs (asking for a password on a card when the
+    // server wants one; then opened, when open), or unmounted, the view leaving it first.
+    void mount_remote(const fs::Place& place, bool open);
+    void unmount_remote(const fs::Place& place);
 
     // Where a drop would go now, as the views mark it.
     [[nodiscard]] const DropMark& drop_mark() const noexcept { return drop_mark_; }
@@ -546,6 +581,8 @@ public:
 
     [[nodiscard]] ConfirmDialog& password_dialog() noexcept { return password_; }
 
+    [[nodiscard]] PasswordDialog& mount_password_dialog() noexcept { return mount_password_; }
+
     void show_properties();
 
     [[nodiscard]] PropertiesDialog& properties_dialog() noexcept { return properties_; }
@@ -595,6 +632,8 @@ private:
     struct BookmarkChange {
         std::vector<std::filesystem::path> add;
         std::optional<std::filesystem::path> remove;
+        std::optional<std::string> remove_uri{};  // a remote bookmark
+        std::string remove_label{};               // its name, for the message
     };
 
     void next_bookmark_change();
@@ -787,6 +826,7 @@ private:
     ConflictDialog conflict_;
     ConfirmDialog confirm_;
     ConfirmDialog password_;
+    PasswordDialog mount_password_;
     ErrorDialog errors_;
     PropertiesDialog properties_;
     ContextMenu menu_;
@@ -846,6 +886,7 @@ private:
 
     DragAndDrop dnd_;
     Devices devices_;
+    Remotes remotes_;
     // Leaves a folder on the disk at mount point before it goes: the view goes home.
     void leave_disk(const std::filesystem::path& mount_point);
     std::optional<std::filesystem::path> bookmarks_file_;

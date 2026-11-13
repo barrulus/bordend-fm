@@ -105,6 +105,9 @@ std::size_t TextField::next(std::size_t at) const noexcept {
 }
 
 std::size_t TextField::previous_word(std::size_t at) const noexcept {
+    if (masked_) {
+        return 0;
+    }
     while (at > 0 && separator(text_[previous(at)])) {
         at = previous(at);
     }
@@ -115,6 +118,9 @@ std::size_t TextField::previous_word(std::size_t at) const noexcept {
 }
 
 std::size_t TextField::next_word(std::size_t at) const noexcept {
+    if (masked_) {
+        return text_.size();
+    }
     while (at < text_.size() && separator(text_[at])) {
         at = next(at);
     }
@@ -234,6 +240,7 @@ bool TextField::key(const KeyEvent& event) {
 }
 
 std::string TextField::display_text(std::size_t bytes) const {
+    bytes = std::min(bytes, text_.size());
     if (!masked_)
         return text_.substr(0, bytes);
     std::string bullets;
@@ -271,7 +278,7 @@ void TextField::click(float x, bool extend) {
 
 void TextField::draw(Renderer& renderer, const Rect& rect, float size, const FieldColors& colors,
                      bool masked) {
-    masked_ = masked;
+    masked_ = masked || always_masked_;
     bounds_ = rect;
     size_ = size;
     scale_ = renderer.scale();

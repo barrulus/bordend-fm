@@ -43,6 +43,13 @@ public:
 
     [[nodiscard]] const std::string& text() const noexcept { return text_; }
 
+    // A password's field: every character drawn as a dot, Ctrl+Left and Ctrl+Right go to the
+    // ends (the words would show through).
+    // draw() masks it too when asked to.
+    void set_masked(bool masked) noexcept { masked_ = always_masked_ = masked; }
+
+    [[nodiscard]] bool masked() const noexcept { return masked_; }
+
     // Selects [begin, end) (clamped, moved back to character boundaries); the caret at end.
     void select(std::size_t begin, std::size_t end);
 
@@ -116,6 +123,7 @@ private:
     std::vector<State> undo_;     // oldest first
     std::vector<State> redo_;
     Edit last_edit_{Edit::other};  // other: the next edit starts a new one
+    bool always_masked_{false};    // set_masked(true): masked whatever draw() is told
 };
 
 }  // namespace rummage::ui
