@@ -389,10 +389,11 @@ available in the trash.
   each) goes back to the system when the card closes.
 - **Sidebar:** your home and its folders (Downloads, Pictures… in your language, from
   `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
-  the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.
+  the disks, including unmounted internal partitions when udisks2 is available.
   Ctrl+B hides the sidebar, and F6 moves the keyboard into it and back.
-- **Disks:** through udisks2, a disk plugged in appears among the devices, quieter, without
-  mounting itself (encrypted ones come later); a click mounts it and opens it, and a disk that
+- **Disks:** through udisks2, unmounted internal partitions and disks plugged in appear among
+  the devices, quieter, without mounting themselves (encrypted ones come later); a click mounts
+  a partition and opens it, requesting authorization when required, and a disk that
   mounts read-only says why (an NTFS disk not closed properly) and what fixes it. The eject icon of
   an external disk unmounts every partition on it and powers it off, taking the view home first if
   it shows that disk; "in use" says to close what is open there. The right click mounts, unmounts
