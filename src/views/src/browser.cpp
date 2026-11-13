@@ -1,4 +1,4 @@
-#include "nordend/views/browser.hpp"
+#include "rummage/views/browser.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,16 +15,16 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
-#include "nordend/core/file.hpp"
-#include "nordend/core/memory.hpp"
-#include "nordend/fs/erase.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/fs/operations.hpp"
-#include "nordend/fs/places.hpp"
-#include "nordend/fs/trash.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/core/memory.hpp"
+#include "rummage/fs/erase.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/fs/operations.hpp"
+#include "rummage/fs/places.hpp"
+#include "rummage/fs/trash.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 // Temporary drawing/input context; keyboard focus is tracked separately.
@@ -4107,4 +4107,4 @@ bool Browser::view_key(const ui::KeyEvent& event, Clock::time_point now) {
     return false;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

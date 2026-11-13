@@ -20,7 +20,7 @@ def debian_source_files(directory, identity):
     """Check the unsigned 3.0 (quilt) descriptor before publishing its components."""
     upstream = f"{identity['version']}+git{identity['timestamp']}.git{identity['commit'][:12]}"
     version = upstream + '-1'
-    descriptor = only(directory, 'nordend_*.dsc')
+    descriptor = only(directory, 'rummage_*.dsc')
     fields = {}
     current = None
     for line in descriptor.read_text().splitlines():
@@ -33,9 +33,9 @@ def debian_source_files(directory, identity):
             fields[current] = value.strip()
         else:
             current = None
-    if (fields.get('Source'), fields.get('Version'), fields.get('Format')) != ('nordend', version, '3.0 (quilt)'):
+    if (fields.get('Source'), fields.get('Version'), fields.get('Format')) != ('rummage', version, '3.0 (quilt)'):
         raise ValueError('Debian source descriptor does not match the snapshot')
-    expected = {f'nordend_{upstream}.orig.tar.gz', f'nordend_{version}.debian.tar.xz'}
+    expected = {f'rummage_{upstream}.orig.tar.gz', f'rummage_{version}.debian.tar.xz'}
     found = set()
     components = []
     for line in fields.get('Checksums-Sha256', '').splitlines():
@@ -54,8 +54,8 @@ def debian_source_files(directory, identity):
     if found != expected:
         raise ValueError('Missing Debian source component')
     return [descriptor, *components,
-            only(directory, 'nordend_*_source.changes'),
-            only(directory, 'nordend_*_source.buildinfo')]
+            only(directory, 'rummage_*_source.changes'),
+            only(directory, 'rummage_*_source.buildinfo')]
 
 
 def prepare(artifacts, output, commit, repository, run_id, readme):
@@ -81,17 +81,17 @@ def prepare(artifacts, output, commit, repository, run_id, readme):
     if any(hashlib.sha256(source.read_bytes()).hexdigest() != identity['sha256'] for source in sources):
         raise ValueError('Source archive checksum mismatch')
     debian_sources = debian_source_files(roots['deb'] / 'debian-source', identity)
-    deb = only(roots['deb'] / 'packages', 'nordend_*_amd64.deb')
-    rpm = only(roots['rpm'] / 'packages', 'nordend-[0-9]*.x86_64.rpm')
-    arch = only(roots['arch'] / 'packages', 'nordend-[0-9]*-x86_64.pkg.tar.zst')
-    tumbleweed = only(roots['tumbleweed'] / 'packages', 'nordend-[0-9]*.x86_64.rpm')
-    void = only(roots['void'] / 'packages', 'nordend-[0-9]*.x86_64.xbps')
-    media_void = only(roots['void'] / 'packages', 'nordend-media-*.x86_64.xbps')
+    deb = only(roots['deb'] / 'packages', 'rummage_*_amd64.deb')
+    rpm = only(roots['rpm'] / 'packages', 'rummage-[0-9]*.x86_64.rpm')
+    arch = only(roots['arch'] / 'packages', 'rummage-[0-9]*-x86_64.pkg.tar.zst')
+    tumbleweed = only(roots['tumbleweed'] / 'packages', 'rummage-[0-9]*.x86_64.rpm')
+    void = only(roots['void'] / 'packages', 'rummage-[0-9]*.x86_64.xbps')
+    media_void = only(roots['void'] / 'packages', 'rummage-media-*.x86_64.xbps')
     media_assets = {
-        'nordend-media-debian13-amd64.deb': only(roots['deb'] / 'packages', 'nordend-media_*_amd64.deb'),
-        'nordend-media-fedora44-x86_64.rpm': only(roots['rpm'] / 'packages', 'nordend-media-[0-9]*.x86_64.rpm'),
-        'nordend-media-arch-x86_64.pkg.tar.zst': only(roots['arch'] / 'packages', 'nordend-media-[0-9]*-x86_64.pkg.tar.zst'),
-        'nordend-media-tumbleweed-x86_64.rpm': only(roots['tumbleweed'] / 'packages', 'nordend-media-[0-9]*.x86_64.rpm'),
+        'rummage-media-debian13-amd64.deb': only(roots['deb'] / 'packages', 'rummage-media_*_amd64.deb'),
+        'rummage-media-fedora44-x86_64.rpm': only(roots['rpm'] / 'packages', 'rummage-media-[0-9]*.x86_64.rpm'),
+        'rummage-media-arch-x86_64.pkg.tar.zst': only(roots['arch'] / 'packages', 'rummage-media-[0-9]*-x86_64.pkg.tar.zst'),
+        'rummage-media-tumbleweed-x86_64.rpm': only(roots['tumbleweed'] / 'packages', 'rummage-media-[0-9]*.x86_64.rpm'),
     }
     index = roots['void'] / 'packages/x86_64-repodata'
     if not index.is_file() or index.stat().st_size == 0:
@@ -101,18 +101,18 @@ def prepare(artifacts, output, commit, repository, run_id, readme):
     output.mkdir(parents=True, exist_ok=True)
     for name, source in media_assets.items():
         shutil.copyfile(source, output / name)
-    shutil.copyfile(deb, output / 'nordend-debian13-amd64.deb')
-    shutil.copyfile(rpm, output / 'nordend-fedora44-x86_64.rpm')
-    shutil.copyfile(arch, output / 'nordend-arch-x86_64.pkg.tar.zst')
-    shutil.copyfile(tumbleweed, output / 'nordend-tumbleweed-x86_64.rpm')
-    with tarfile.open(output / 'nordend-void-glibc-x86_64.tar.gz', 'w:gz') as archive:
+    shutil.copyfile(deb, output / 'rummage-debian13-amd64.deb')
+    shutil.copyfile(rpm, output / 'rummage-fedora44-x86_64.rpm')
+    shutil.copyfile(arch, output / 'rummage-arch-x86_64.pkg.tar.zst')
+    shutil.copyfile(tumbleweed, output / 'rummage-tumbleweed-x86_64.rpm')
+    with tarfile.open(output / 'rummage-void-glibc-x86_64.tar.gz', 'w:gz') as archive:
         for source in (void, media_void, index):
-            archive.add(source, arcname=f'nordend-void-x86_64/packages/{source.name}')
-        archive.add(roots['void'] / 'source.json', arcname='nordend-void-x86_64/source.json')
-    with tarfile.open(output / 'nordend-debian-source.tar.gz', 'w:gz') as archive:
+            archive.add(source, arcname=f'rummage-void-x86_64/packages/{source.name}')
+        archive.add(roots['void'] / 'source.json', arcname='rummage-void-x86_64/source.json')
+    with tarfile.open(output / 'rummage-debian-source.tar.gz', 'w:gz') as archive:
         for source in debian_sources:
-            archive.add(source, arcname=f'nordend-debian-source/{source.name}')
-    shutil.copyfile(sources[0], output / 'nordend-source.tar.gz')
+            archive.add(source, arcname=f'rummage-debian-source/{source.name}')
+    shutil.copyfile(sources[0], output / 'rummage-source.tar.gz')
     (output / 'source.json').write_text(json.dumps(identity, indent=2) + '\n')
     (output / 'SHA256SUMS').write_text(''.join(
         f'{hashlib.sha256(asset.read_bytes()).hexdigest()}  {asset.name}\n'

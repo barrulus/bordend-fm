@@ -10,27 +10,27 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory_watcher.hpp"
-#include "nordend/fs/mime.hpp"
-#include "nordend/fs/places.hpp"
-#include "nordend/theme/palette.hpp"
-#include "nordend/ui/icons.hpp"
-#include "nordend/ui/offscreen.hpp"
-#include "nordend/ui/renderer.hpp"
-#include "nordend/ui/text.hpp"
-#include "nordend/views/browser.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/fs/places.hpp"
+#include "rummage/theme/palette.hpp"
+#include "rummage/ui/icons.hpp"
+#include "rummage/ui/offscreen.hpp"
+#include "rummage/ui/renderer.hpp"
+#include "rummage/ui/text.hpp"
+#include "rummage/views/browser.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::fs::Place;
-using nordend::test::TempDir;
-using nordend::ui::CursorShape;
-using nordend::ui::KeyEvent;
-using nordend::ui::Modifiers;
-using nordend::ui::PointerEvent;
-using nordend::views::Browser;
+using rummage::core::EventLoop;
+using rummage::fs::Place;
+using rummage::test::TempDir;
+using rummage::ui::CursorShape;
+using rummage::ui::KeyEvent;
+using rummage::ui::Modifiers;
+using rummage::ui::PointerEvent;
+using rummage::views::Browser;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -61,9 +61,9 @@ KeyEvent key(xkb_keysym_t keysym, Modifiers modifiers = {}) {
     return event;
 }
 
-std::unique_ptr<nordend::ui::Offscreen> offscreen() {
+std::unique_ptr<rummage::ui::Offscreen> offscreen() {
     try {
-        return std::make_unique<nordend::ui::Offscreen>(kWidth, kHeight);
+        return std::make_unique<rummage::ui::Offscreen>(kWidth, kHeight);
     } catch (const std::runtime_error& error) {
         MESSAGE("no offscreen OpenGL: " << error.what());
         return nullptr;
@@ -81,16 +81,16 @@ struct Fixture {
     TempDir dir;
     fs::path root = dir.path / "root";
     fs::path photos = root / "photos";
-    std::unique_ptr<nordend::ui::Offscreen> gl = offscreen();
-    std::unique_ptr<nordend::ui::FontSystem> fonts;
-    std::unique_ptr<nordend::ui::Renderer> renderer;
-    std::unique_ptr<nordend::ui::IconSet> icons;
+    std::unique_ptr<rummage::ui::Offscreen> gl = offscreen();
+    std::unique_ptr<rummage::ui::FontSystem> fonts;
+    std::unique_ptr<rummage::ui::Renderer> renderer;
+    std::unique_ptr<rummage::ui::IconSet> icons;
     EventLoop loop;
-    nordend::core::WorkerPool pool{loop, 2};
-    nordend::fs::DirectoryWatcher watcher{loop};
+    rummage::core::WorkerPool pool{loop, 2};
+    rummage::fs::DirectoryWatcher watcher{loop};
     std::vector<CursorShape> sent;  // what the seat was asked for, in order
     Browser browser{loop,    pool,
-                    watcher, nordend::fs::MimeDatabase::load(),
+                    watcher, rummage::fs::MimeDatabase::load(),
                     [] {},   [this](CursorShape shape) { sent.push_back(shape); }};
 
     explicit Fixture(const std::string& family = "sans-serif") {
@@ -109,15 +109,15 @@ struct Fixture {
                              .icon = "usb",
                              .disk = {.volume = "/dev/sdb1", .mounted = true, .ejectable = true}}});
         if (gl) {
-            fonts = std::make_unique<nordend::ui::FontSystem>(family);
-            renderer = std::make_unique<nordend::ui::Renderer>(*fonts);
-            icons = std::make_unique<nordend::ui::IconSet>(*fonts);
+            fonts = std::make_unique<rummage::ui::FontSystem>(family);
+            renderer = std::make_unique<rummage::ui::Renderer>(*fonts);
+            icons = std::make_unique<rummage::ui::IconSet>(*fonts);
         }
     }
 
     void draw() {
         renderer->begin_frame(kWidth, kHeight, 1.0F, {});
-        browser.draw(*renderer, {0.0F, 0.0F, kWidth, kHeight}, nordend::theme::Palette{}, *icons,
+        browser.draw(*renderer, {0.0F, 0.0F, kWidth, kHeight}, rummage::theme::Palette{}, *icons,
                      Browser::Clock::now());
         renderer->end_frame();
     }
@@ -164,9 +164,9 @@ TEST_CASE("pointer shapes: a hand on every kind of button, an arrow elsewhere") 
     REQUIRE(f.settle());
     f.press(key(XKB_KEY_Down));  // a.jpg: the info pane shows it, with "More details"
 
-    const nordend::views::StatusBar& status = f.browser.status_bar();
-    const nordend::views::Breadcrumb& path = f.browser.breadcrumb();
-    const nordend::views::Sidebar& sidebar = f.browser.sidebar();
+    const rummage::views::StatusBar& status = f.browser.status_bar();
+    const rummage::views::Breadcrumb& path = f.browser.breadcrumb();
+    const rummage::views::Sidebar& sidebar = f.browser.sidebar();
 
     // The status bar's buttons are hands; its text is not.
     CHECK(f.find(CursorShape::pointer, [&](float x, float y) { return status.claims(x, y); }));
@@ -201,7 +201,7 @@ TEST_CASE("pointer shapes: the text cursor over a name being edited") {
     f.press(key(XKB_KEY_Down));
     f.press(key(XKB_KEY_F2));
     REQUIRE(f.browser.name_editor().active());
-    const nordend::ui::Rect field = f.browser.name_editor().field().bounds();
+    const rummage::ui::Rect field = f.browser.name_editor().field().bounds();
     REQUIRE_FALSE(field.empty());
     CHECK(f.browser.cursor_at(field.x + (field.width / 2.0F), field.y + (field.height / 2.0F)) ==
           CursorShape::text);
@@ -218,7 +218,7 @@ TEST_CASE("pointer shapes: a card takes them; under a menu, an arrow") {
     REQUIRE(f.settle());
     f.press(key(XKB_KEY_Down));
     f.press(key(XKB_KEY_Delete, {.shift = true}));  // asks before deleting for good
-    const nordend::views::StatusBar& status = f.browser.status_bar();
+    const rummage::views::StatusBar& status = f.browser.status_bar();
     // Its buttons are hands; the status bar under it is no longer clickable.
     CHECK(f.find(CursorShape::pointer));
     CHECK_FALSE(
@@ -237,7 +237,7 @@ TEST_CASE("pointer shapes: sent when they change, the resize arrow first") {
     f.browser.open(f.photos);
     REQUIRE(f.settle());
     f.press(key(XKB_KEY_Down));
-    const nordend::views::StatusBar& status = f.browser.status_bar();
+    const rummage::views::StatusBar& status = f.browser.status_bar();
     const std::optional<Point> button =
         f.find(CursorShape::pointer, [&](float x, float y) { return status.claims(x, y); });
     REQUIRE(button);
@@ -277,8 +277,8 @@ TEST_CASE("pointer shapes: sidebar zoom scales eject targets and routes wheel in
     const auto before = sidebar.eject_icon(f.photos);
     REQUIRE(before);
     const auto view_size = f.browser.details().list_size();
-    nordend::ui::PointerEvent wheel;
-    wheel.kind = nordend::ui::PointerEvent::Kind::scroll;
+    rummage::ui::PointerEvent wheel;
+    wheel.kind = rummage::ui::PointerEvent::Kind::scroll;
     wheel.x = before->x + before->width / 2.0F;
     wheel.y = before->y + before->height / 2.0F;
     wheel.modifiers.ctrl = true;
@@ -310,18 +310,18 @@ TEST_CASE("toolbar: filter and New Folder buttons work in each view") {
         f.browser.set_mode(mode);
         f.browser.open(f.photos);
         REQUIRE(f.settle());
-        const auto click = [&](const nordend::ui::Rect& rect) {
+        const auto click = [&](const rummage::ui::Rect& rect) {
             const float x = rect.x + rect.width / 2;
             const float y = rect.y + rect.height / 2;
             f.browser.pointer({.kind = PointerEvent::Kind::press,
                                .x = x,
                                .y = y,
-                               .button = nordend::ui::PointerButton::left},
+                               .button = rummage::ui::PointerButton::left},
                               Browser::Clock::now());
             f.browser.pointer({.kind = PointerEvent::Kind::release,
                                .x = x,
                                .y = y,
-                               .button = nordend::ui::PointerButton::left},
+                               .button = rummage::ui::PointerButton::left},
                               Browser::Clock::now());
         };
         auto field = f.browser.filter_bounds();
@@ -361,7 +361,7 @@ TEST_CASE("toolbar: font metrics keep labels and fields apart at every scale") {
                     f.browser.set_name_filter(filter);
                     f.renderer->begin_frame(kWidth, kHeight, scale, {});
                     f.browser.draw(*f.renderer, {0, 0, width, kHeight / scale},
-                                   nordend::theme::Palette{}, *f.icons, Browser::Clock::now());
+                                   rummage::theme::Palette{}, *f.icons, Browser::Clock::now());
                     f.renderer->end_frame();
                     const float label_width = f.fonts->layout("Filter", 13, scale).width / scale;
                     const auto field = f.browser.filter_bounds();
@@ -400,7 +400,7 @@ TEST_CASE("status bar: enlarged text reserves height and keeps buttons centered"
             CHECK(bar.text_size() == size);
             f.renderer->begin_frame(kWidth, kHeight, scale, {});
             const float bottom = kHeight / scale;
-            f.browser.draw(*f.renderer, {0, 0, 600, bottom}, nordend::theme::Palette{}, *f.icons,
+            f.browser.draw(*f.renderer, {0, 0, 600, bottom}, rummage::theme::Palette{}, *f.icons,
                            Browser::Clock::now());
             f.renderer->end_frame();
             const float height = bar.height(*f.renderer);

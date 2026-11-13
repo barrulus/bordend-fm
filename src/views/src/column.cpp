@@ -1,4 +1,4 @@
-#include "nordend/views/column.hpp"
+#include "rummage/views/column.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -6,11 +6,11 @@
 
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/ui/text_field.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/ui/text_field.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kRowInset = 6.0F;  // highlight box inside the column
@@ -211,4 +211,4 @@ std::optional<std::pair<float, float>> Column::cursor_anchor() const {
     return std::pair{rows_area_.x + 32.0F, bottom};
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

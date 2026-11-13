@@ -1,9 +1,9 @@
 #include <algorithm>
 #include <utility>
 
-#include "nordend/views/browser.hpp"
+#include "rummage/views/browser.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 
 void Browser::set_context_menu(core::MenuLayout layout) {
     menu_layout_ = std::move(layout);
@@ -120,4 +120,4 @@ void Browser::run_action(std::string_view id) {
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

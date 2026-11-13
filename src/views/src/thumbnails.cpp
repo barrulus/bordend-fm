@@ -1,10 +1,10 @@
-#include "nordend/views/thumbnails.hpp"
+#include "rummage/views/thumbnails.hpp"
 
 #include <algorithm>
 #include <utility>
 #include <vector>
 
-namespace nordend::views {
+namespace rummage::views {
 
 Thumbnails::Thumbnails(core::WorkerPool& pool, std::shared_ptr<const thumbs::Cache> cache,
                        std::function<void()> redraw)
@@ -112,4 +112,4 @@ Thumbnails::Usage Thumbnails::usage() const {
     return usage;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

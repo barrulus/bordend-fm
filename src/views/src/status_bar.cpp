@@ -1,4 +1,4 @@
-#include "nordend/views/status_bar.hpp"
+#include "rummage/views/status_bar.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -7,9 +7,9 @@
 #include <sys/statvfs.h>
 #include <utility>
 
-#include "nordend/views/format.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kPadding = 16.0F;
@@ -253,4 +253,4 @@ void StatusBar::pointer(const ui::PointerEvent& event) {
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

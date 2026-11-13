@@ -1,11 +1,11 @@
-#include "nordend/platform/archives.hpp"
+#include "rummage/platform/archives.hpp"
 
 #include <algorithm>
 #include <array>
 #include <format>
 #include <string_view>
 
-namespace nordend::platform {
+namespace rummage::platform {
 namespace {
 
 std::string lower_name(const std::filesystem::path& path) {
@@ -35,7 +35,7 @@ std::optional<ArchiveBackend> archive_backend(const core::ActionTarget& target,
         if (const auto program = find("unrar"))
             return ArchiveBackend{.kind = Kind::unrar, .program = *program};
     }
-    // Keep encrypted ZIP, RAR and 7z extraction in Bordend's password flow.
+    // Keep encrypted ZIP, RAR and 7z extraction in rummage's password flow.
     if (zip || rar || mime == "application/x-7z-compressed") {
         for (const auto* candidate : {"7zz", "7z"}) {
             if (const auto program = find(candidate)) {
@@ -216,7 +216,7 @@ std::string archive_failure(const core::ActionTarget& target, const ArchiveBacke
     } else if (has("unable to get password") || has("password required") ||
                (backend.kind == ArchiveBackend::Kind::unzip && password_error)) {
         reason =
-            "This archive needs a password, but unzip cannot use Bordend's password dialog. "
+            "This archive needs a password, but unzip cannot use rummage's password dialog. "
             "Install 7zz (7-Zip) and try again.";
     } else if (password_error) {
         reason =
@@ -297,4 +297,4 @@ std::string archive_failure(const core::ActionTarget& target, const ArchiveBacke
     return message;
 }
 
-}  // namespace nordend::platform
+}  // namespace rummage::platform

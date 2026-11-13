@@ -1,4 +1,4 @@
-#include "nordend/views/quick_look.hpp"
+#include "rummage/views/quick_look.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -9,11 +9,11 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 
 #include "draw_helpers.hpp"
-#include "nordend/core/log.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/core/log.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 // Milliseconds from then to now.
@@ -768,4 +768,4 @@ QuickLook::Usage QuickLook::usage() const {
     return usage;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

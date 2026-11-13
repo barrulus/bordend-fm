@@ -1,4 +1,4 @@
-#include "nordend/thumbs/cache.hpp"
+#include "rummage/thumbs/cache.hpp"
 
 #include <algorithm>
 #include <array>
@@ -14,13 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/picture/load.hpp"
-#include "nordend/picture/png.hpp"
-#include "nordend/picture/wuffs.hpp"
-#include "nordend/thumbs/md5.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/picture/load.hpp"
+#include "rummage/picture/png.hpp"
+#include "rummage/picture/wuffs.hpp"
+#include "rummage/thumbs/md5.hpp"
 
-namespace nordend::thumbs {
+namespace rummage::thumbs {
 namespace {
 
 constexpr std::string_view kUriKey = "Thumb::URI";
@@ -80,11 +80,11 @@ bool store(const std::filesystem::path& target, const picture::Image& image, con
     const std::vector<std::uint8_t> png =
         picture::encode_png(image, {{std::string{kUriKey}, uri},
                                     {std::string{kMtimeKey}, std::to_string(mtime)},
-                                    {"Software", "Nordend"}});
+                                    {"Software", "rummage"}});
     if (png.empty() || !make_private_directories(target.parent_path())) {
         return false;
     }
-    std::string temporary = target.string() + ".nordend-XXXXXX";
+    std::string temporary = target.string() + ".rummage-XXXXXX";
     const int fd = ::mkstemp(temporary.data());  // mode 0600
     if (fd < 0) {
         return false;
@@ -250,4 +250,4 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
             .error = {}};
 }
 
-}  // namespace nordend::thumbs
+}  // namespace rummage::thumbs

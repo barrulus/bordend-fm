@@ -1,6 +1,6 @@
 [engine]
 name = "media"
-program = "nordend-media"
+program = "rummage-media"
 protocol = 4
 
 [[family]]

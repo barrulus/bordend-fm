@@ -17,27 +17,27 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory_watcher.hpp"
-#include "nordend/fs/mime.hpp"
-#include "nordend/theme/palette.hpp"
-#include "nordend/ui/icons.hpp"
-#include "nordend/ui/offscreen.hpp"
-#include "nordend/ui/renderer.hpp"
-#include "nordend/ui/text.hpp"
-#include "nordend/views/browser.hpp"
-#include "nordend/views/list_size.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/theme/palette.hpp"
+#include "rummage/ui/icons.hpp"
+#include "rummage/ui/offscreen.hpp"
+#include "rummage/ui/renderer.hpp"
+#include "rummage/ui/text.hpp"
+#include "rummage/views/browser.hpp"
+#include "rummage/views/list_size.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::test::TempDir;
-using nordend::ui::CursorShape;
-using nordend::ui::KeyEvent;
-using nordend::ui::Modifiers;
-using nordend::ui::PointerButton;
-using nordend::ui::PointerEvent;
-using nordend::views::Browser;
+using rummage::core::EventLoop;
+using rummage::test::TempDir;
+using rummage::ui::CursorShape;
+using rummage::ui::KeyEvent;
+using rummage::ui::Modifiers;
+using rummage::ui::PointerButton;
+using rummage::ui::PointerEvent;
+using rummage::views::Browser;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -97,9 +97,9 @@ KeyEvent key(xkb_keysym_t keysym, Modifiers modifiers = {}) {
 constexpr Modifiers kCtrl{.ctrl = true};
 constexpr Modifiers kCtrlShift{.ctrl = true, .shift = true};
 
-std::unique_ptr<nordend::ui::Offscreen> offscreen(std::int32_t height = kHeight) {
+std::unique_ptr<rummage::ui::Offscreen> offscreen(std::int32_t height = kHeight) {
     try {
-        return std::make_unique<nordend::ui::Offscreen>(kWidth, height);
+        return std::make_unique<rummage::ui::Offscreen>(kWidth, height);
     } catch (const std::runtime_error& error) {
         MESSAGE("no offscreen OpenGL: " << error.what());
         return nullptr;
@@ -112,13 +112,13 @@ struct Fixture {
     fs::path a = dir.path / "a";
     fs::path b = dir.path / "b";
     EventLoop loop;
-    nordend::core::WorkerPool pool{loop, 2};
-    nordend::fs::DirectoryWatcher watcher{loop};
+    rummage::core::WorkerPool pool{loop, 2};
+    rummage::fs::DirectoryWatcher watcher{loop};
     std::size_t redraws{0};
     Browser browser{loop,
                     pool,
                     watcher,
-                    nordend::fs::MimeDatabase::load(),
+                    rummage::fs::MimeDatabase::load(),
                     [this] { ++redraws; },
                     [](CursorShape /*shape*/) {}};
 
@@ -158,7 +158,7 @@ TEST_CASE("panes: tab sets, navigation, selection and filters stay independent")
     CHECK(f.browser.tab_count() == 1);
     f.browser.open(f.b);
     REQUIRE(f.settle());
-    f.browser.set_sort(nordend::fs::SortKey::size, true);
+    f.browser.set_sort(rummage::fs::SortKey::size, true);
     f.browser.set_show_hidden(true);
     f.browser.set_name_filter("two");
     f.browser.details().folder()->select_name("two.txt");
@@ -166,7 +166,7 @@ TEST_CASE("panes: tab sets, navigation, selection and filters stay independent")
     CHECK(f.press(key(XKB_KEY_Tab)));
     CHECK(f.browser.active_pane() == 0);
     CHECK(f.browser.tab_titles() == Names{"a", "sub"});
-    CHECK(f.browser.sort_order().key == nordend::fs::SortKey::name);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::name);
     CHECK_FALSE(f.browser.shows_hidden());
     CHECK(f.browser.name_filter().empty());
     REQUIRE(left->cursor_entry());
@@ -237,7 +237,7 @@ TEST_CASE("panes: captured menu transfers cannot follow a later selection or des
     f.browser.focus_pane(0);
     auto items = f.browser.palette_items();
     auto found =
-        std::ranges::find(items, "command:copy_other_pane", &nordend::views::PaletteItem::id);
+        std::ranges::find(items, "command:copy_other_pane", &rummage::views::PaletteItem::id);
     REQUIRE(found != items.end());
     auto action = found->action;
     CHECK(found->label.find(f.b.string()) != std::string::npos);
@@ -258,7 +258,7 @@ TEST_CASE("panes: session round trip retains both tab sets even while one is hid
     f.browser.toggle_split();
     f.browser.open(f.b);
     f.browser.set_mode(Browser::Mode::grid);
-    f.browser.set_sort(nordend::fs::SortKey::modified, true);
+    f.browser.set_sort(rummage::fs::SortKey::modified, true);
     f.browser.set_show_hidden(true);
     f.browser.set_name_filter("two");
     f.browser.set_stacked(true);
@@ -266,11 +266,11 @@ TEST_CASE("panes: session round trip retains both tab sets even while one is hid
     f.browser.toggle_split();
     REQUIRE(f.settle());
     const auto saved = f.browser.state();
-    const auto parsed = nordend::views::parse_state(nordend::views::format_state(saved), "test");
+    const auto parsed = rummage::views::parse_state(rummage::views::format_state(saved), "test");
     REQUIRE(parsed.problems.empty());
     CHECK(parsed.state == saved);
     Browser restored{
-        f.loop, f.pool, f.watcher, nordend::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
+        f.loop, f.pool, f.watcher, rummage::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
     restored.apply(parsed.state);
     REQUIRE(restored.restore_session(parsed.state));
     REQUIRE(run_until(f.loop, [&] { return !restored.loading(); }));
@@ -280,7 +280,7 @@ TEST_CASE("panes: session round trip retains both tab sets even while one is hid
     CHECK(restored.mode() == Browser::Mode::grid);
     CHECK(restored.name_filter() == "two");
     CHECK(restored.shows_hidden());
-    CHECK(restored.sort_order().key == nordend::fs::SortKey::modified);
+    CHECK(restored.sort_order().key == rummage::fs::SortKey::modified);
     CHECK(restored.sort_order().descending);
     CHECK(restored.stacked());
     CHECK(restored.split_ratio() == doctest::Approx(0.65F));
@@ -322,7 +322,7 @@ TEST_CASE("panes: editor and filter Tab never switch panes; picker cannot split"
     CHECK(f.browser.active_pane() == 1);
     f.browser.name_editor().cancel();
     Browser picker{
-        f.loop, f.pool, f.watcher, nordend::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
+        f.loop, f.pool, f.watcher, rummage::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
     picker.set_panes_enabled(false);
     picker.open(f.a);
     picker.toggle_split();
@@ -336,9 +336,9 @@ TEST_CASE("panes: pointer focus, inactive scrolling, both tab bars, resizing and
     const auto gl = offscreen();
     if (!gl)
         return;
-    nordend::ui::FontSystem fonts;
-    nordend::ui::Renderer renderer{fonts};
-    nordend::ui::IconSet icons{fonts};
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
     f.browser.set_sidebar_visible(false);
     f.browser.set_info_visible(false);
     f.browser.set_mode(Browser::Mode::details);
@@ -349,7 +349,7 @@ TEST_CASE("panes: pointer focus, inactive scrolling, both tab bars, resizing and
     REQUIRE(f.settle());
     const auto draw = [&] {
         renderer.begin_frame(kWidth, kHeight, 1.0F, {});
-        f.browser.draw(renderer, {0, 0, kWidth, kHeight}, nordend::theme::Palette{}, icons,
+        f.browser.draw(renderer, {0, 0, kWidth, kHeight}, rummage::theme::Palette{}, icons,
                        Browser::Clock::now());
         renderer.end_frame();
     };
@@ -411,19 +411,19 @@ TEST_CASE("panes: pointer focus, inactive scrolling, both tab bars, resizing and
     f.browser.set_drag_and_drop(
         {.start = {},
          .cancel = {},
-         .types = [] { return std::vector<std::string>{std::string{nordend::views::kUriList}}; },
-         .source_actions = [] { return nordend::ui::kDndCopy; },
-         .action = [] { return nordend::ui::kDndCopy; },
+         .types = [] { return std::vector<std::string>{std::string{rummage::views::kUriList}}; },
+         .source_actions = [] { return rummage::ui::kDndCopy; },
+         .action = [] { return rummage::ui::kDndCopy; },
          .accept = {},
          .read =
-             [&](std::string, nordend::views::DragAndDrop::Done done) {
+             [&](std::string, rummage::views::DragAndDrop::Done done) {
                  const std::vector<fs::path> paths{f.a / "one.txt"};
-                 done(nordend::views::uri_list(paths));
+                 done(rummage::views::uri_list(paths));
              },
          .finish = {},
          .modifiers = {}});
     f.browser.drop_event(
-        {.kind = nordend::ui::DropEvent::Kind::drop, .x = r.x + 40, .y = r.bottom() - 50});
+        {.kind = rummage::ui::DropEvent::Kind::drop, .x = r.x + 40, .y = r.bottom() - 50});
     REQUIRE(f.settle());
     CHECK(fs::exists(f.b / "one.txt"));
     CHECK(f.browser.active_pane() == 0);
@@ -436,7 +436,7 @@ TEST_CASE("panes: pointer focus, inactive scrolling, both tab bars, resizing and
 
 TEST_CASE("panes: a delayed mount opens in the originating tab without stealing focus") {
     Fixture f;
-    nordend::views::Devices::Mounted complete;
+    rummage::views::Devices::Mounted complete;
     f.browser.set_devices(
         {.mount = [&](const std::string&, auto done) { complete = std::move(done); },
          .unmount = {},
@@ -445,7 +445,7 @@ TEST_CASE("panes: a delayed mount opens in the originating tab without stealing 
     f.browser.open(f.b);
     REQUIRE(f.settle());
     f.browser.focus_pane(0);
-    const nordend::fs::Place disk{.section = nordend::fs::Place::Section::devices,
+    const rummage::fs::Place disk{.section = rummage::fs::Place::Section::devices,
                                   .label = "Disk",
                                   .path = {},
                                   .icon = "drive",
@@ -501,7 +501,7 @@ TEST_CASE("panes: missing saved folders use a valid fallback and retain the othe
         }
         saved.active_pane = 1 - missing;
         Browser restored{f.loop,    f.pool,
-                         f.watcher, nordend::fs::MimeDatabase::load(),
+                         f.watcher, rummage::fs::MimeDatabase::load(),
                          [] {},     [](CursorShape) {}};
         restored.apply(saved);
         REQUIRE(restored.restore_session(saved));
@@ -525,9 +525,9 @@ TEST_CASE("panes: an idle split does not schedule another frame while drawing") 
     const auto gl = offscreen();
     if (!gl)
         return;
-    nordend::ui::FontSystem fonts;
-    nordend::ui::Renderer renderer{fonts};
-    nordend::ui::IconSet icons{fonts};
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
     f.browser.set_info_visible(false);
     f.browser.set_mode(Browser::Mode::details);
     f.browser.toggle_split();
@@ -536,7 +536,7 @@ TEST_CASE("panes: an idle split does not schedule another frame while drawing") 
     const auto now = Browser::Clock::now() + 2s;
     const auto draw = [&] {
         renderer.begin_frame(kWidth, kHeight, 1, {});
-        f.browser.draw(renderer, {0, 0, kWidth, kHeight}, nordend::theme::Palette{}, icons, now);
+        f.browser.draw(renderer, {0, 0, kWidth, kHeight}, rummage::theme::Palette{}, icons, now);
         renderer.end_frame();
     };
     draw();
@@ -553,9 +553,9 @@ TEST_CASE("panes: split toolbars and status bar respect configured font metrics"
     const auto gl = offscreen(kHeight * 2);
     if (!gl)
         return;
-    nordend::ui::FontSystem fonts;
-    nordend::ui::Renderer renderer{fonts};
-    nordend::ui::IconSet icons{fonts};
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
     f.browser.set_sidebar_visible(false);
     f.browser.set_info_visible(false);
     f.browser.toggle_split();
@@ -570,7 +570,7 @@ TEST_CASE("panes: split toolbars and status bar respect configured font metrics"
                 f.browser.set_name_filter("one");
                 renderer.begin_frame(kWidth, kHeight * 2, scale, {});
                 const float bottom = kHeight * 2 / scale;
-                f.browser.draw(renderer, {0, 0, 600, bottom}, nordend::theme::Palette{}, icons,
+                f.browser.draw(renderer, {0, 0, 600, bottom}, rummage::theme::Palette{}, icons,
                                Browser::Clock::now());
                 renderer.end_frame();
                 const auto pane = f.browser.pane_bounds(index);
@@ -596,9 +596,9 @@ TEST_CASE("panes: archive dialogs capture keys and password paste without switch
     f.browser.toggle_split();
     REQUIRE(f.settle());
     const auto active = f.browser.active_pane();
-    nordend::views::SystemClipboard clipboard;
+    rummage::views::SystemClipboard clipboard;
     clipboard.types = [] { return std::vector<std::string>{"text/plain"}; };
-    clipboard.read = [](std::string, nordend::views::SystemClipboard::Done done) {
+    clipboard.read = [](std::string, rummage::views::SystemClipboard::Done done) {
         done("archive secret");
     };
     f.browser.set_system_clipboard(std::move(clipboard));

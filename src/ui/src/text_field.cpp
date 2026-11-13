@@ -1,12 +1,12 @@
-#include "nordend/ui/text_field.hpp"
+#include "rummage/ui/text_field.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "nordend/ui/text.hpp"
+#include "rummage/ui/text.hpp"
 
-namespace nordend::ui {
+namespace rummage::ui {
 namespace {
 
 constexpr float kCaretWidth = 1.5F;
@@ -308,4 +308,4 @@ void TextField::draw(Renderer& renderer, const Rect& rect, float size, const Fie
     renderer.pop_clip();
 }
 
-}  // namespace nordend::ui
+}  // namespace rummage::ui

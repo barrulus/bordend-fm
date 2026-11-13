@@ -1,4 +1,4 @@
-#include "nordend/fs/directory.hpp"
+#include "rummage/fs/directory.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -10,9 +10,9 @@
 #include <unistd.h>
 #include <utility>
 
-#include "nordend/fs/folder_icon.hpp"
+#include "rummage/fs/folder_icon.hpp"
 
-namespace nordend::fs {
+namespace rummage::fs {
 namespace {
 
 // Entries between cancellation checks.
@@ -178,4 +178,4 @@ core::CancelToken load_directory(core::WorkerPool& pool, std::filesystem::path p
         [on_done = std::move(on_done)](const ReadResult& result) { on_done(result); });
 }
 
-}  // namespace nordend::fs
+}  // namespace rummage::fs

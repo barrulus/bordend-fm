@@ -1,9 +1,0 @@
-usr/bin/*
-usr/libexec/nordend/nordend-preview
-usr/share/applications/*
-usr/share/icons/*
-usr/share/nordend/engines/base.toml
-usr/share/nordend/noctalia/*
-usr/share/nordend/config.example.toml
-usr/share/dbus-1/*
-usr/share/xdg-desktop-portal/*

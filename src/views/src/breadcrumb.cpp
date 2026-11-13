@@ -1,12 +1,12 @@
-#include "nordend/views/breadcrumb.hpp"
+#include "rummage/views/breadcrumb.hpp"
 
 #include <algorithm>
 #include <utility>
 
 #include "draw_helpers.hpp"
-#include "nordend/fs/trash.hpp"
+#include "rummage/fs/trash.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kPadding = 16.0F;  // either end of the bar
@@ -213,4 +213,4 @@ std::vector<std::string> Breadcrumb::shown() const {
     return out;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

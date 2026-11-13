@@ -37,11 +37,11 @@ class DownloadsTest(unittest.TestCase):
             if kind != 'void':
                 (root / 'input/source.tar.gz').write_bytes(b'source')
         for kind, names in {
-            'void': ['nordend-media-0.5.0_1.x86_64.xbps', 'nordend-0.5.0_1.x86_64.xbps', 'x86_64-repodata'],
-            'arch': ['nordend-media-0.5.0-1-x86_64.pkg.tar.zst', 'nordend-0.5.0-1-x86_64.pkg.tar.zst', 'nordend-debug-0.5.0-1-x86_64.pkg.tar.zst'],
-            'tumbleweed': ['nordend-media-0.5.0-1.1.x86_64.rpm', 'nordend-0.5.0-1.1.x86_64.rpm'],
-            'deb': ['nordend-media_0.5.0_amd64.deb', 'nordend_0.5.0_amd64.deb', 'nordend-dbgsym_0.5.0_amd64.deb'],
-            'rpm': ['nordend-media-0.5.0.x86_64.rpm', 'nordend-0.5.0.x86_64.rpm', 'nordend-debuginfo-0.5.0.x86_64.rpm', 'nordend-0.5.0.src.rpm'],
+            'void': ['rummage-media-0.5.0_1.x86_64.xbps', 'rummage-0.5.0_1.x86_64.xbps', 'x86_64-repodata'],
+            'arch': ['rummage-media-0.5.0-1-x86_64.pkg.tar.zst', 'rummage-0.5.0-1-x86_64.pkg.tar.zst', 'rummage-debug-0.5.0-1-x86_64.pkg.tar.zst'],
+            'tumbleweed': ['rummage-media-0.5.0-1.1.x86_64.rpm', 'rummage-0.5.0-1.1.x86_64.rpm'],
+            'deb': ['rummage-media_0.5.0_amd64.deb', 'rummage_0.5.0_amd64.deb', 'rummage-dbgsym_0.5.0_amd64.deb'],
+            'rpm': ['rummage-media-0.5.0.x86_64.rpm', 'rummage-0.5.0.x86_64.rpm', 'rummage-debuginfo-0.5.0.x86_64.rpm', 'rummage-0.5.0.src.rpm'],
         }.items():
             for name in names:
                 (self.roots[kind] / 'packages' / name).write_bytes(name.encode())
@@ -50,16 +50,16 @@ class DownloadsTest(unittest.TestCase):
         directory.mkdir()
         upstream = f"0.5.0+git20261112000000.git{COMMIT[:12]}"
         version = upstream + '-1'
-        original = directory / f'nordend_{upstream}.orig.tar.gz'
+        original = directory / f'rummage_{upstream}.orig.tar.gz'
         original.write_bytes(b'source')
-        packaging = directory / f'nordend_{version}.debian.tar.xz'
+        packaging = directory / f'rummage_{version}.debian.tar.xz'
         packaging.write_bytes(b'debian packaging')
-        self.descriptor = directory / f'nordend_{version}.dsc'
-        self.descriptor.write_text(f'Format: 3.0 (quilt)\nSource: nordend\nVersion: {version}\nChecksums-Sha256:\n' + ''.join(
+        self.descriptor = directory / f'rummage_{version}.dsc'
+        self.descriptor.write_text(f'Format: 3.0 (quilt)\nSource: rummage\nVersion: {version}\nChecksums-Sha256:\n' + ''.join(
             f' {hashlib.sha256(p.read_bytes()).hexdigest()} {p.stat().st_size} {p.name}\n'
             for p in (original, packaging)))
         for suffix in ('changes', 'buildinfo'):
-            (directory / f'nordend_{version}_source.{suffix}').write_text('source build metadata\n')
+            (directory / f'rummage_{version}_source.{suffix}').write_text('source build metadata\n')
 
     def prepare(self):
         downloads.prepare(self.artifacts, self.output, COMMIT, 'owner/repo', '123', self.readme)
@@ -67,24 +67,24 @@ class DownloadsTest(unittest.TestCase):
     def test_assets_and_instructions(self):
         self.prepare()
         self.assertEqual(len(list(self.output.iterdir())), 14)
-        self.assertEqual((self.output / 'nordend-debian13-amd64.deb').read_bytes(), b'nordend_0.5.0_amd64.deb')
-        self.assertEqual((self.output / 'nordend-fedora44-x86_64.rpm').read_bytes(), b'nordend-0.5.0.x86_64.rpm')
-        self.assertEqual((self.output / 'nordend-arch-x86_64.pkg.tar.zst').read_bytes(), b'nordend-0.5.0-1-x86_64.pkg.tar.zst')
-        self.assertEqual((self.output / 'nordend-tumbleweed-x86_64.rpm').read_bytes(), b'nordend-0.5.0-1.1.x86_64.rpm')
-        with tarfile.open(self.output / 'nordend-void-glibc-x86_64.tar.gz') as archive:
-            self.assertIn('nordend-void-x86_64/packages/x86_64-repodata', archive.getnames())
-        with tarfile.open(self.output / 'nordend-debian-source.tar.gz') as archive:
+        self.assertEqual((self.output / 'rummage-debian13-amd64.deb').read_bytes(), b'rummage_0.5.0_amd64.deb')
+        self.assertEqual((self.output / 'rummage-fedora44-x86_64.rpm').read_bytes(), b'rummage-0.5.0.x86_64.rpm')
+        self.assertEqual((self.output / 'rummage-arch-x86_64.pkg.tar.zst').read_bytes(), b'rummage-0.5.0-1-x86_64.pkg.tar.zst')
+        self.assertEqual((self.output / 'rummage-tumbleweed-x86_64.rpm').read_bytes(), b'rummage-0.5.0-1.1.x86_64.rpm')
+        with tarfile.open(self.output / 'rummage-void-glibc-x86_64.tar.gz') as archive:
+            self.assertIn('rummage-void-x86_64/packages/x86_64-repodata', archive.getnames())
+        with tarfile.open(self.output / 'rummage-debian-source.tar.gz') as archive:
             self.assertEqual(len(archive.getnames()), 5)
-            self.assertIn('nordend-debian-source/' + self.descriptor.name, archive.getnames())
+            self.assertIn('rummage-debian-source/' + self.descriptor.name, archive.getnames())
         for line in (self.output / 'SHA256SUMS').read_text().splitlines():
             digest, filename = line.split('  ')
             self.assertEqual(digest, hashlib.sha256((self.output / filename).read_bytes()).hexdigest())
-        self.assertEqual((self.output / 'nordend-media-debian13-amd64.deb').read_bytes(), b'nordend-media_0.5.0_amd64.deb')
+        self.assertEqual((self.output / 'rummage-media-debian13-amd64.deb').read_bytes(), b'rummage-media_0.5.0_amd64.deb')
         self.assertIn('Install me.', (self.output / 'release-notes.md').read_text())
 
     def test_missing_media_rejected(self):
-        (self.roots['deb'] / 'packages/nordend-media_0.5.0_amd64.deb').unlink()
-        with self.assertRaisesRegex(ValueError, 'nordend-media'):
+        (self.roots['deb'] / 'packages/rummage-media_0.5.0_amd64.deb').unlink()
+        with self.assertRaisesRegex(ValueError, 'rummage-media'):
             self.prepare()
 
     def test_mixed_source_rejected(self):
@@ -104,7 +104,7 @@ class DownloadsTest(unittest.TestCase):
             self.prepare()
 
     def test_ambiguous_package_rejected(self):
-        (self.roots['deb'] / 'packages/nordend_0.6.0_amd64.deb').write_bytes(b'old')
+        (self.roots['deb'] / 'packages/rummage_0.6.0_amd64.deb').write_bytes(b'old')
         with self.assertRaisesRegex(ValueError, 'exactly one'):
             self.prepare()
 
@@ -172,7 +172,7 @@ elif args[0] == 'api' and '/compare/' in args[1]:
         self.assertFalse(any(c[0] == 'release' or '--method' in c for c in calls))
 
     def test_missing_arch_blocks_preparation(self):
-        (self.roots['arch'] / 'packages/nordend-0.5.0-1-x86_64.pkg.tar.zst').unlink()
+        (self.roots['arch'] / 'packages/rummage-0.5.0-1-x86_64.pkg.tar.zst').unlink()
         with self.assertRaisesRegex(ValueError, 'exactly one'):
             self.prepare()
 

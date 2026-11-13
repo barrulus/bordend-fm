@@ -1,5 +1,5 @@
 {
-  description = "Nordend, a native file manager for Wayland";
+  description = "rummage, a native file manager for Wayland";
 
   inputs.nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.zst";
 
@@ -13,25 +13,25 @@
     in
     {
       nixosModules = {
-        nordend = import ./nix/module.nix self;
-        default = self.nixosModules.nordend;
+        rummage = import ./nix/module.nix self;
+        default = self.nixosModules.rummage;
       };
 
       packages = forEachSystem (system: {
-        nordend = nixpkgs.legacyPackages.${system}.callPackage ./nix/package.nix { };
-        nordend-with-media = self.packages.${system}.nordend.override { withMedia = true; };
-        nordend-media = self.packages.${system}.nordend-with-media.media;
-        default = self.packages.${system}.nordend;
+        rummage = nixpkgs.legacyPackages.${system}.callPackage ./nix/package.nix { };
+        rummage-with-media = self.packages.${system}.rummage.override { withMedia = true; };
+        rummage-media = self.packages.${system}.rummage-with-media.media;
+        default = self.packages.${system}.rummage;
       });
 
       checks = forEachSystem (system: {
-        tests = self.packages.${system}.nordend.override {
+        tests = self.packages.${system}.rummage.override {
           withTests = true;
           withMedia = true;
         };
         nixos-module = import ./nix/module-check.nix { inherit self nixpkgs system; };
         smoke = nixpkgs.legacyPackages.${system}.callPackage ./nix/smoke-test.nix {
-          package = self.packages.${system}.nordend;
+          package = self.packages.${system}.rummage;
         };
       });
 
@@ -42,7 +42,7 @@
         in
         {
           default = pkgs.mkShell {
-            inputsFrom = [ self.packages.${system}.nordend ];
+            inputsFrom = [ self.packages.${system}.rummage ];
             packages = with pkgs; [
               clang-tools
               doctest

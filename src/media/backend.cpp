@@ -1,4 +1,4 @@
-// Video parsing lives only in nordend-media, after the same cage as nordend-preview.
+// Video parsing lives only in rummage-media, after the same cage as rummage-preview.
 #include "backend.hpp"
 
 #include <algorithm>
@@ -21,7 +21,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
-namespace nordend::isolate::backend {
+namespace rummage::isolate::backend {
 namespace {
 constexpr std::int64_t kMaxPixels = 32'000'000;
 constexpr std::uint64_t kReadBudget = 128U * 1024U * 1024U;
@@ -336,4 +336,4 @@ text::Loaded read_text(int, const text::Limits&) {
 }
 
 void colour(text::Text&, std::string_view, std::string_view) {}
-}  // namespace nordend::isolate::backend
+}  // namespace rummage::isolate::backend

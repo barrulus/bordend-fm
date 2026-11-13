@@ -1,4 +1,4 @@
-#include "nordend/views/format.hpp"
+#include "rummage/views/format.hpp"
 
 #include <algorithm>
 #include <array>
@@ -6,7 +6,7 @@
 #include <ctime>
 #include <format>
 
-namespace nordend::views {
+namespace rummage::views {
 
 std::string format_size(std::uint64_t bytes) {
     if (bytes == 1) {
@@ -60,4 +60,4 @@ std::vector<std::size_t> rows_touched(float top, float bottom, float row_height,
     return rows;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

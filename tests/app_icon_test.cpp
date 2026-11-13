@@ -1,4 +1,4 @@
-#include "nordend/theme/app_icon.hpp"
+#include "rummage/theme/app_icon.hpp"
 
 #include <array>
 #include <chrono>
@@ -10,31 +10,31 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/file.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/theme/desktop.hpp"
-#include "nordend/theme/theme.hpp"
-#include "nordend/ui/color.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/theme/desktop.hpp"
+#include "rummage/theme/theme.hpp"
+#include "rummage/ui/color.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::core::read_text_file;
-using nordend::core::WorkerPool;
-using nordend::test::TempDir;
-using nordend::theme::app_icon_svg;
-using nordend::theme::app_icon_tones;
-using nordend::theme::AppIconChange;
-using nordend::theme::AppIconKeeper;
-using nordend::theme::AppIconPlace;
-using nordend::theme::AppIconTones;
-using nordend::theme::Color;
-using nordend::theme::Desktop;
-using nordend::theme::hex;
-using nordend::theme::kIceTones;
-using nordend::theme::sync_app_icon;
-using nordend::theme::Theme;
-using nordend::theme::written_by_nordend;
+using rummage::core::EventLoop;
+using rummage::core::read_text_file;
+using rummage::core::WorkerPool;
+using rummage::test::TempDir;
+using rummage::theme::app_icon_svg;
+using rummage::theme::app_icon_tones;
+using rummage::theme::AppIconChange;
+using rummage::theme::AppIconKeeper;
+using rummage::theme::AppIconPlace;
+using rummage::theme::AppIconTones;
+using rummage::theme::Color;
+using rummage::theme::Desktop;
+using rummage::theme::hex;
+using rummage::theme::kIceTones;
+using rummage::theme::sync_app_icon;
+using rummage::theme::Theme;
+using rummage::theme::written_by_rummage;
 using namespace std::chrono_literals;
 
 namespace {
@@ -46,10 +46,10 @@ std::string text_of(const std::filesystem::path& path) { return read_text_file(p
 }  // namespace
 
 TEST_CASE("app icon: without an accent it is the installed icon, byte for byte") {
-    const std::string installed = text_of(NORDEND_APP_ICON);
+    const std::string installed = text_of(RUMMAGE_APP_ICON);
     REQUIRE_FALSE(installed.empty());
     CHECK(app_icon_svg(std::nullopt) == installed);
-    CHECK_FALSE(written_by_nordend(installed));
+    CHECK_FALSE(written_by_rummage(installed));
 }
 
 TEST_CASE("app icon: the installed front colour as accent gives back the installed tones") {
@@ -86,16 +86,16 @@ TEST_CASE("app icon: tones from four accents") {
     }
 }
 
-TEST_CASE("app icon: a recoloured icon says Nordend wrote it") {
+TEST_CASE("app icon: a recoloured icon says rummage wrote it") {
     const std::string svg = app_icon_svg(Color::rgb(0x3584E4));
-    CHECK(written_by_nordend(svg));
+    CHECK(written_by_rummage(svg));
     CHECK(svg.find("#3584e4") != std::string::npos);
     CHECK(svg.starts_with("<?xml"));
 }
 
 TEST_CASE("app icon: sync writes only what changes and takes away only its own file") {
     const TempDir dir;
-    const AppIconPlace place{.path = dir.path / "icons/hicolor/scalable/apps/nordend.svg"};
+    const AppIconPlace place{.path = dir.path / "icons/hicolor/scalable/apps/rummage.svg"};
     const Color blue = Color::rgb(0x3584E4);
     const Color green = Color::rgb(0x3A944A);
 
@@ -109,7 +109,7 @@ TEST_CASE("app icon: sync writes only what changes and takes away only its own f
     CHECK_FALSE(std::filesystem::exists(place.path));
 
     SUBCASE("someone else's icon is never touched") {
-        dir.write("icons/hicolor/scalable/apps/nordend.svg", "<svg>mine</svg>");
+        dir.write("icons/hicolor/scalable/apps/rummage.svg", "<svg>mine</svg>");
         CHECK(sync_app_icon(place, blue) == AppIconChange::left_alone);
         CHECK(sync_app_icon(place, std::nullopt) == AppIconChange::none);
         CHECK(text_of(place.path) == "<svg>mine</svg>");
@@ -119,11 +119,11 @@ TEST_CASE("app icon: sync writes only what changes and takes away only its own f
 
 TEST_CASE("app icon: installed under ~/.local, the installed icon comes back") {
     const TempDir dir;
-    const AppIconPlace place{.path = dir.path / "nordend.svg", .installed_there = true};
-    dir.write("nordend.svg", app_icon_svg(std::nullopt));  // cmake --install put it there
+    const AppIconPlace place{.path = dir.path / "rummage.svg", .installed_there = true};
+    dir.write("rummage.svg", app_icon_svg(std::nullopt));  // cmake --install put it there
 
     CHECK(sync_app_icon(place, Color::rgb(0x9141AC)) == AppIconChange::written);
-    CHECK(written_by_nordend(text_of(place.path)));
+    CHECK(written_by_rummage(text_of(place.path)));
     CHECK(sync_app_icon(place, std::nullopt) == AppIconChange::restored);
     CHECK(text_of(place.path) == app_icon_svg(std::nullopt));
     CHECK(sync_app_icon(place, std::nullopt) == AppIconChange::none);
@@ -131,9 +131,9 @@ TEST_CASE("app icon: installed under ~/.local, the installed icon comes back") {
 
 TEST_CASE("app icon: default place follows XDG_DATA_HOME") {
     // tests/main.cpp points XDG_DATA_HOME at the test root; the test binary is not installed.
-    const AppIconPlace place = nordend::theme::default_app_icon_place();
+    const AppIconPlace place = rummage::theme::default_app_icon_place();
     REQUIRE_FALSE(place.path.empty());
-    CHECK(place.path.string().ends_with("/data/icons/hicolor/scalable/apps/nordend.svg"));
+    CHECK(place.path.string().ends_with("/data/icons/hicolor/scalable/apps/rummage.svg"));
     CHECK_FALSE(place.installed_there);
 }
 
@@ -145,7 +145,7 @@ TEST_CASE("app icon keeper: one job at a time, the latest accent wins") {
         loop.quit(-1);
     });
     WorkerPool pool{loop};
-    const AppIconPlace place{.path = dir.path / "nordend.svg"};
+    const AppIconPlace place{.path = dir.path / "rummage.svg"};
     AppIconKeeper keeper{pool, place};
     int jobs = 0;
     keeper.set_done_handler([&](AppIconChange) {

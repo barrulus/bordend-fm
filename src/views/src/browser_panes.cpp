@@ -5,10 +5,10 @@
 #include <system_error>
 #include <utility>
 
-#include "nordend/views/browser.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/views/browser.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 std::filesystem::path session_fallback() {
@@ -247,4 +247,4 @@ std::optional<std::size_t> Browser::area_at(float x, float y) const {
     return {};
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

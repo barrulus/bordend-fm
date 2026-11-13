@@ -1,11 +1,11 @@
 #include <utility>
 
-#include "nordend/core/log.hpp"
-#include "nordend/engines/engines.hpp"
-#include "nordend/picture/load.hpp"
-#include "nordend/preview/preview.hpp"
+#include "rummage/core/log.hpp"
+#include "rummage/engines/engines.hpp"
+#include "rummage/picture/load.hpp"
+#include "rummage/preview/preview.hpp"
 
-namespace nordend::preview {
+namespace rummage::preview {
 namespace {
 
 // What an engine shows as a picture (images, camera raw files from their embedded previews),
@@ -101,4 +101,4 @@ const Provider& provider_for(const fs::MimeDatabase& mime, fs::MimeId type) {
     return kInfo;
 }
 
-}  // namespace nordend::preview
+}  // namespace rummage::preview

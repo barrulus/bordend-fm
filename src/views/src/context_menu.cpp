@@ -1,11 +1,11 @@
-#include "nordend/views/context_menu.hpp"
+#include "rummage/views/context_menu.hpp"
 
 #include <algorithm>
 #include <unordered_set>
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kItemHeight = 28.0F;
@@ -362,4 +362,4 @@ void ContextMenu::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

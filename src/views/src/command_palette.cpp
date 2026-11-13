@@ -1,12 +1,12 @@
-#include "nordend/views/command_palette.hpp"
+#include "rummage/views/command_palette.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "nordend/views/fuzzy.hpp"
+#include "rummage/views/fuzzy.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kWidth = 600.0F;
@@ -461,4 +461,4 @@ void CommandPalette::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     renderer.pop_clip();
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

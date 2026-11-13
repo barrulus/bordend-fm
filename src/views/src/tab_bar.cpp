@@ -1,9 +1,9 @@
-#include "nordend/views/tab_bar.hpp"
+#include "rummage/views/tab_bar.hpp"
 
 #include <algorithm>
 #include <utility>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kPadding = 8.0F;     // before the first tab
@@ -153,4 +153,4 @@ void TabBar::pointer(const ui::PointerEvent& event) {
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

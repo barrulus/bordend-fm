@@ -1,4 +1,4 @@
-#include "nordend/views/column_view.hpp"
+#include "rummage/views/column_view.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,10 +11,10 @@
 
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kDividerGrab = 4.0F;  // either side of a column edge
@@ -793,4 +793,4 @@ std::optional<std::pair<float, float>> ColumnView::cursor_anchor() const {
     return columns_[focus_].column->cursor_anchor();
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

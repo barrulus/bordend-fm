@@ -1,13 +1,13 @@
-add_library(nordend_theme
+add_library(rummage_theme
     src/app_icon.cpp
     src/desktop.cpp
     src/oklch.cpp
     src/palette.cpp
     src/syntax.cpp
     src/theme.cpp)
-add_library(nordend::theme ALIAS nordend_theme)
+add_library(rummage::theme ALIAS rummage_theme)
 
-target_include_directories(nordend_theme PUBLIC include)
-target_link_libraries(nordend_theme
-    PUBLIC nordend::core nordend::ui
-    PRIVATE PkgConfig::TOMLPLUSPLUS nordend::warnings)
+target_include_directories(rummage_theme PUBLIC include)
+target_link_libraries(rummage_theme
+    PUBLIC rummage::core rummage::ui
+    PRIVATE PkgConfig::TOMLPLUSPLUS rummage::warnings)

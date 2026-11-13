@@ -1,4 +1,4 @@
-#include "nordend/fs/mime.hpp"
+#include "rummage/fs/mime.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -11,17 +11,17 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory.hpp"
-#include "nordend/fs/entry.hpp"
-#include "nordend/fs/sort.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory.hpp"
+#include "rummage/fs/entry.hpp"
+#include "rummage/fs/sort.hpp"
 #include "temp_dir.hpp"
 
-using nordend::fs::Entry;
-using nordend::fs::kUnknownMime;
-using nordend::fs::MimeDatabase;
-using nordend::fs::MimeId;
-using nordend::test::TempDir;
+using rummage::fs::Entry;
+using rummage::fs::kUnknownMime;
+using rummage::fs::MimeDatabase;
+using rummage::fs::MimeId;
+using rummage::test::TempDir;
 
 namespace {
 
@@ -198,7 +198,7 @@ TEST_CASE("mime: detect() on entries, and the loader's name-only types") {
     std::filesystem::create_directory(files.path / "sub");
 
     std::vector<Entry> entries;
-    nordend::fs::read_directory(files.path, nordend::core::CancelToken{}, {.mime = f.db},
+    rummage::fs::read_directory(files.path, rummage::core::CancelToken{}, {.mime = f.db},
                                 [&](std::vector<Entry> chunk) {
                                     for (Entry& e : chunk) {
                                         entries.push_back(std::move(e));
@@ -231,7 +231,7 @@ TEST_CASE("mime: a name with several types sorts by type with its best one, snif
     files.write("noext", "data");
 
     std::vector<Entry> entries;
-    nordend::fs::read_directory(files.path, nordend::core::CancelToken{}, {.mime = f.db},
+    rummage::fs::read_directory(files.path, rummage::core::CancelToken{}, {.mime = f.db},
                                 [&](std::vector<Entry> chunk) {
                                     for (Entry& e : chunk) {
                                         entries.push_back(std::move(e));
@@ -248,7 +248,7 @@ TEST_CASE("mime: a name with several types sorts by type with its best one, snif
         }
     }
     std::ranges::sort(
-        entries, nordend::fs::SortOrder{.key = nordend::fs::SortKey::type, .mime = f.db.get()});
+        entries, rummage::fs::SortOrder{.key = rummage::fs::SortKey::type, .mime = f.db.get()});
     std::vector<std::string> names;
     names.reserve(entries.size());
     for (const Entry& entry : entries) {

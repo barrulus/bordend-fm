@@ -1,4 +1,4 @@
-#include "nordend/isolate/helpers.hpp"
+#include "rummage/isolate/helpers.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,13 +24,13 @@
 #include <utility>
 #include <vector>
 
-#include "nordend/core/log.hpp"
-#include "nordend/core/worker_pool.hpp"
+#include "rummage/core/log.hpp"
+#include "rummage/core/worker_pool.hpp"
 #include "protocol.hpp"
 
 extern char** environ;  // NOLINT(readability-redundant-declaration): POSIX, not in a header
 
-namespace nordend::isolate {
+namespace rummage::isolate {
 namespace {
 
 picture::Loaded failed(picture::Failure failure, std::string detail) {
@@ -203,7 +203,7 @@ std::optional<Helpers::Helper> Helpers::spawn() const {
     posix_spawnattr_setsigmask(&attr, &none);
     posix_spawnattr_setsigdefault(&attr, &all);
     posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF);
-    // Nordend closes idle helpers itself; a helper's own idle time, longer, is only a fallback.
+    // rummage closes idle helpers itself; a helper's own idle time, longer, is only a fallback.
     std::vector<std::string> args{options_.program.string(), "--idle-ms",
                                   std::to_string((options_.idle.count() * 2) + 1000)};
     args.insert(args.end(), options_.args.begin(), options_.args.end());
@@ -347,7 +347,7 @@ bool Helpers::run(std::span<const std::byte> request, std::span<const int> fds,
         const std::optional<Helper> helper = take(cancel);
         if (!helper) {
             why = options_.program.empty()
-                      ? "nordend-preview not found"
+                      ? "rummage-preview not found"
                       : "the preview helper could not start: " + options_.program.string();
             return false;
         }
@@ -588,4 +588,4 @@ void use_engines(const engines::Registry& registry, HelperOptions options) {
     }
 }
 
-}  // namespace nordend::isolate
+}  // namespace rummage::isolate

@@ -1,4 +1,4 @@
-#include "nordend/views/info_pane.hpp"
+#include "rummage/views/info_pane.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -8,10 +8,10 @@
 #include <vector>
 
 #include "draw_helpers.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kPadding = 20.0F;     // either side of the content
@@ -418,4 +418,4 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     finish();
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

@@ -3,13 +3,13 @@
 #include <unistd.h>
 
 #include "backend.hpp"
-#include "nordend/formats/formats.hpp"
-#include "nordend/formats/text/read.hpp"
-#include "nordend/formats/text/syntax.hpp"
+#include "rummage/formats/formats.hpp"
+#include "rummage/formats/text/read.hpp"
+#include "rummage/formats/text/syntax.hpp"
 #include "warm_up.hpp"
 
-namespace nordend::isolate::backend {
-namespace isolate = nordend::isolate;
+namespace rummage::isolate::backend {
+namespace isolate = rummage::isolate;
 
 // A memfd holding bytes, for the warm-up; -1 on an error.
 int memfd_of(const isolate::WarmUpPicture& file) {
@@ -32,14 +32,14 @@ void warm_up() {
         }
         const int fd = memfd_of(file);
         if (fd >= 0) {
-            static_cast<void>(nordend::formats::make_picture(fd, 64, 64));
+            static_cast<void>(rummage::formats::make_picture(fd, 64, 64));
             ::close(fd);
         }
     }
     if (photo != nullptr) {
         const int fd = memfd_of(*photo);
         if (fd >= 0) {
-            static_cast<void>(nordend::formats::photo_info(fd));
+            static_cast<void>(rummage::formats::photo_info(fd));
             ::close(fd);
         }
     }
@@ -59,4 +59,4 @@ text::Loaded read_text(int fd, const text::Limits& limits) {
 void colour(text::Text& value, std::string_view name, std::string_view mime) {
     formats::text::colour(value, name, mime);
 }
-}  // namespace nordend::isolate::backend
+}  // namespace rummage::isolate::backend

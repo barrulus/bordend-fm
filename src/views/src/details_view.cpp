@@ -1,4 +1,4 @@
-#include "nordend/views/details_view.hpp"
+#include "rummage/views/details_view.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,11 +12,11 @@
 
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/ui/text_field.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/ui/text_field.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 using Field = DetailsView::Field;
@@ -1007,4 +1007,4 @@ std::optional<std::pair<float, float>> DetailsView::cursor_anchor() const {
     return std::pair{rows_.x + 48.0F, bottom};
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

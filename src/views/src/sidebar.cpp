@@ -1,4 +1,4 @@
-#include "nordend/views/sidebar.hpp"
+#include "rummage/views/sidebar.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -7,7 +7,7 @@
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kTop = 8.0F;  // above the first section
@@ -519,4 +519,4 @@ bool Sidebar::key(const ui::KeyEvent& event) {
     return true;
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

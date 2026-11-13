@@ -1,4 +1,4 @@
-#include "nordend/views/title_bar.hpp"
+#include "rummage/views/title_bar.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -6,7 +6,7 @@
 
 #include "draw_helpers.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kButtonSize = 24.0F;
@@ -295,4 +295,4 @@ void TitleBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views
