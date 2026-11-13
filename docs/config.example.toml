@@ -1,4 +1,6 @@
 # rummage configuration: ~/.config/rummage/config.toml ($XDG_CONFIG_HOME/rummage/config.toml).
+# Guides: docs/configuration.md, docs/appearance.md, docs/actions.md, docs/shortcuts.md.
+# The installed reference is share/rummage/config.example.toml; personal copies are not refreshed.
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting rummage: rummage --check-config
 # Created on first normal launch when no config exists; existing files are never replaced.

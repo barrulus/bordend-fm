@@ -1,5 +1,13 @@
 # File picker
 
+[Documentation](README.md) · [Installation](install.md) · [Command line](command-line.md) · [Troubleshooting](troubleshooting.md#applications-do-not-use-the-picker)
+
+This guide describes rummage's picker and portal integration. It is separate from
+the default application used to open folders.
+
+Jump to [NixOS setup](#enable-on-nixos-with-umbriel), [other systems](#enable-on-other-systems),
+[standalone usage](#try-without-changing-desktop-defaults), or [verification](#verification).
+
 rummage can provide Open, Save and folder-selection dialogs for applications using the
 XDG FileChooser portal. Its backend runs alongside other portal backends: Umbriel can keep
 handling screenshots and screen sharing, with rummage handling file selection.
@@ -151,6 +159,8 @@ real browser selection, view changes, filename validation and overwrite confirma
 Protocol references: [FileChooser backend](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.impl.portal.FileChooser.html),
 [Request cancellation](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.impl.portal.Request.html),
 [portal preferences](https://flatpak.github.io/xdg-desktop-portal/docs/portals.conf.html).
+
+## Filtering and creating folders
 
 The toolbar includes a live **Filter** field and a **New Folder** button in column,
 grid, and details views. The name filter matches substrings (ignoring ASCII case)

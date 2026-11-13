@@ -1,5 +1,7 @@
 # CI and package validation
 
+[Documentation](README.md) · [Installation](install.md) · [Development](development.md)
+
 The fork's [workflow](../.github/workflows/ci.yml) runs on pull requests, pushes to `main`,
 and manual dispatch. It currently validates **x86_64 Linux with glibc**. The flake still
 exposes aarch64 packages, but this workflow does not claim to build or run them. Debian 13,
@@ -103,10 +105,10 @@ These are unsigned development snapshots, not an official Void repository or pub
 release. Their package version distinguishes them from upstream v0.5.0; the application
 still reports its CMake version. `source.json` identifies the exact source commit.
 
-The checked-in [release template](../packaging/void/rummage/template) still describes the
-upstream v0.5.0 release, with its original checksum. The checkout builder deliberately
-reuses its dependency and install rules. A future fork release needs an explicit fork tag,
-version, archive URL and checksum before changing that release recipe or publishing packages.
+The checked-in [checkout template](../packaging/void/rummage/template) contains
+placeholder source identity. The builder supplies the exact archive and checksum;
+it does not fetch an upstream release. A future stable fork release needs its own
+tag, version and verified source identity.
 
 The container digest and void-packages commit are pinned in
 [`scripts/ci/void-env`](../scripts/ci/void-env). Void's binary repositories are rolling, so
@@ -179,7 +181,7 @@ A missing or mismatched source package prevents publication.
 
 The stable `rummage-debian-source.tar.gz` download bundles the versioned source-package files
 together, preserving the filenames referenced by the descriptor. The individual files are
-also in the Debian CI artifact's `native-package/debian-source/` directory. See the README
+also in the Debian CI artifact's `native-package/debian-source/` directory. See [installation](install.md#development-downloads)
 for extraction, dependency installation and rebuild commands. The generic `rummage-source.tar.gz`
 remains the raw checkout archive, not a Debian source package or a substitute for the descriptor.
 
@@ -214,7 +216,8 @@ headless Weston. Test fixtures are installed after the runtime dependency checks
 unit suite continues to run in Nix. Both jobs must pass before any development downloads are
 published, and the release preparer requires all five native package identities to match.
 
-The README provides stable links and installation commands. Arch and Tumbleweed users should
+The README provides stable links; [installation](install.md#development-downloads)
+provides the distribution-specific commands. Arch and Tumbleweed users should
 fully update their systems before installing these snapshots. These are unsigned local
 packages, not configured pacman/zypper repositories; Tumbleweed's install command explicitly
 allows the unsigned local RPM without changing global signature settings.
@@ -225,7 +228,8 @@ The README has stable links to the `development` prerelease and fixed asset name
 checks succeed, `prepare-downloads.py` checks that all five package artifacts identify the
 same source commit and checksum. It selects only the main installable packages, bundles the Debian source package and Void package
 with its repository index, and adds the source archive, `source.json` and `SHA256SUMS`.
-Release install instructions are copied from the marked README section, so they stay in sync.
+Release download links and the installation-guide link are copied from the marked README
+section, so they stay in sync. Keep both development-downloads marker comments intact.
 Preparation runs on PRs too; the prepared bundle is available as a workflow artifact.
 
 On trusted `main` runs, the publication job creates or updates **Latest development build**.

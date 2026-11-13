@@ -1,4 +1,12 @@
 > Historical notes from Nordend development, retained with their original names and measurements.
+
+[Documentation](README.md) · [Current features](features.md) · [Architecture](architecture.md)
+
+This is a historical work log. Each entry describes its own date/revision; later
+entries or current guides can supersede it. Test counts, performance results,
+future plans and internal ROADMAP step numbers are not current API guarantees.
+The private design/roadmap notes mentioned in old entries are not prerequisites
+for using or contributing to the public project.
 > Upstream: https://github.com/pankaspe/nordend-fm. Current application: rummage.
 
 # Devlog
@@ -6,6 +14,26 @@
 Work log, newest first. Each entry: what was done, decisions, measurements, open points.
 
 ---
+
+<details>
+<summary>Jump to a section</summary>
+
+- [2026-11-11](#2026-11-11--svg-icons-prepared-against-fork-main)
+- [2026-11-10](#2026-11-10--svg-stroke-invariants-repaired-small-size-compatibility-still-open)
+- [2026-11-09](#2026-11-09--nordend-050)
+- [2026-11-08](#2026-11-08--shell-fish-cmake-makefiles-roadmap-3b-2b-second-group)
+- [2026-11-07](#2026-11-07--dng-fuzzing-and-timings-roadmap-2d-3)
+- [2026-11-06](#2026-11-06--the-site-as-documentation)
+- [2026-11-04](#2026-11-04--77b-rubber-band-selection-with-the-mouse)
+- [2026-11-01](#2026-11-01--the-site-and-a-shorter-readme)
+- [2026-10-31](#2026-10-31--no-settings-panel-nordend---about)
+- [2026-10-30](#2026-10-30--a-title-bar-of-its-own-where-the-compositor-draws-none-roadmap-74-third-part)
+- [2026-10-29](#2026-10-29--the-trash-in-the-sidebar-and-restore-roadmap-64c)
+- [2026-10-28](#2026-10-28--status-bar-and-shortcuts-roadmap-511)
+- [2026-10-27](#2026-10-27--a-breadcrumb-roadmap-510)
+- [2026-10-26](#2026-10-26--selection-roadmap-43)
+
+</details>
 
 ## 2026-11-11 — SVG icons prepared against fork main
 
