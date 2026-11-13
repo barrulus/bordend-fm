@@ -153,6 +153,39 @@ TEST_CASE("column view: reveal unfolds the columns down to a file") {
     CHECK(f.view.focus() == 2);
 }
 
+TEST_CASE("column view: filtering an ancestor safely closes its descendant columns") {
+    Fixture f;
+    f.view.reveal(f.root, f.root / "alpha" / "beta" / "photo.jpg");
+    REQUIRE(f.settle());
+    REQUIRE(f.view.column_count() == 3);
+
+    SUBCASE("the first column loses its selected folder") {
+        f.browser.set_name_filter("readme");
+        REQUIRE(f.view.column_count() == 1);
+        CHECK(f.view.focus() == 0);
+        const auto& entries = f.view.column(0).folder().model().listing().entries();
+        REQUIRE(entries.size() == 1);
+        CHECK(entries.front().name == "readme.md");
+    }
+    SUBCASE("a later column loses its selected folder") {
+        f.browser.set_entry_filter([](const rummage::fs::Entry& entry) {
+            return entry.name != "beta";
+        });
+        REQUIRE(f.view.column_count() == 2);
+        CHECK(f.view.focus() == 1);
+        const auto& entries = f.view.column(1).folder().model().listing().entries();
+        REQUIRE(entries.size() == 1);
+        CHECK(entries.front().name == "notes.txt");
+    }
+
+    f.browser.set_name_filter("");
+    f.browser.set_entry_filter({});
+    f.view.reveal(f.root, f.root / "alpha" / "beta" / "photo.jpg");
+    REQUIRE(f.settle());
+    CHECK(f.view.column_count() == 3);
+    CHECK(cursor_name(f.view.column(2)) == "photo.jpg");
+}
+
 TEST_CASE("column view: a folder deleted or renamed under the cursor updates the columns") {
     Fixture f;
     f.view.reveal(f.root, f.root / "alpha" / "beta");
