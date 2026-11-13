@@ -41,11 +41,13 @@ std::string refused(const std::string& text) {
 }
 
 // picture::may_show's list until 0.4.0, each still shown by the image family.
-constexpr std::array<std::string_view, 30> kBefore{"image/png",
+constexpr std::array<std::string_view, 32> kBefore{"image/png",
                                                    "image/jpeg",
                                                    "image/gif",
                                                    "image/webp",
                                                    "image/jxl",
+                                                   "image/heic",
+                                                   "image/heif",
                                                    "image/tiff",
                                                    "image/x-adobe-dng",
                                                    "image/x-canon-cr2",
@@ -95,7 +97,7 @@ TEST_CASE("engines: the base engine shows what may_show listed before, and text"
     CHECK(family.info);
     CHECK(family.thumbnails);
     CHECK_FALSE(family.subclasses);
-    CHECK(family.mime.size() == 30);
+    CHECK(family.mime.size() == kBefore.size());
 
     const std::shared_ptr<const MimeDatabase> mime = MimeDatabase::load();
     for (const std::string_view type : kBefore) {
@@ -105,7 +107,7 @@ TEST_CASE("engines: the base engine shows what may_show listed before, and text"
         CHECK(registry->find(*mime, id) == &family);
     }
     CHECK(registry->engine_of(family) == &base);
-    for (const std::string_view type : {"application/pdf", "image/heic", "application/zip"}) {
+    for (const std::string_view type : {"application/pdf", "image/avif", "application/zip"}) {
         CAPTURE(type);
         CHECK(registry->find(*mime, mime->find(type)) == nullptr);
     }

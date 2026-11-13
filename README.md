@@ -80,8 +80,8 @@ every shortcut.
 - **Raw files:** the previews cameras embed in ORF, CR2, NEF, ARW, RAF, RW2, SRW, DNG, 3FR
   (found by rummage's own reader), upright and cropped to the shot; DNGs with only a small
   preview (Leica, drones) developed by rummage itself; EXIF in the info pane
-- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, and TIFF, PGM and PPM with rummage's own
-  readers; thumbnails in the shared freedesktop cache
+- **Images:** PNG, JPEG, GIF (wuffs), WebP, JPEG XL, HEIC/HEIF (HEVC), and TIFF, PGM and PPM
+  with rummage's own readers; thumbnails in the shared freedesktop cache
 - **Isolated reading:** every picture is made in a caged helper process, never in rummage
 - **darktable:** sidecars follow their photo everywhere; ratings shown
 - **Command palette** (<kbd>Ctrl</kbd>+<kbd>K</kbd>): every command, place and tab, fuzzy-matched
@@ -272,6 +272,10 @@ the host's graphics drivers.
 
 ### From source
 
+HEIC support requires libheif 1.23 or newer, its libde265 decoder (built in or
+installed as a plugin), and Little CMS 2. The Nix development shell supplies these.
+The helper loads codecs before entering its sandbox; decoding adds no sandbox permissions.
+
 On Void Linux the packages are these; elsewhere, the development packages of the same libraries
 (their names differ and have not been tried yet):
 
@@ -279,7 +283,7 @@ On Void Linux the packages are these; elsewhere, the development packages of the
 sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
-    libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel
+    libwebp-devel libjxl-devel libheif-devel libde265-devel lcms2-devel zlib-devel sdbus-c++-devel
 git clone https://github.com/barrulus/rummage rummage
 cd rummage
 cmake -B build -G Ninja

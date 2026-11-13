@@ -11,13 +11,14 @@
 #include "rummage/picture/image.hpp"
 
 // The image formats rummage reads: decoding PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL
-// (libjxl), PGM/PPM (ours). Runs in the isolated helper only.
+// (libjxl), HEIC/HEIF (libheif/libde265), PGM/PPM and TIFF (ours). Runs in the isolated helper
+// only.
 namespace rummage::formats::image {
 
 using picture::apply_orientation;
 using picture::Image;
 
-enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl, pnm, tiff };
+enum class Format : std::uint8_t { unknown, png, jpeg, gif, webp, jxl, heif, pnm, tiff };
 
 [[nodiscard]] std::string_view format_name(Format format) noexcept;
 
@@ -28,6 +29,8 @@ struct DecodeOptions {
     // Larger images are refused before any pixel memory is allocated (200 MP: 800 MB of RGBA).
     std::uint64_t max_pixels{200'000'000};
     // Turn the pixels as the EXIF orientation says, so that the image stands as it was shot.
+    // HEIF container transforms (including crop) are always applied by libheif; its EXIF
+    // orientation is ignored and Decoded::orientation is 1, preventing a second rotation.
     bool apply_orientation{true};
 };
 
@@ -42,9 +45,9 @@ struct Decoded {
     Problem problem{Problem::none};
 };
 
-// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame), JPEG XL, PGM, PPM or TIFF image
-// (its first full-resolution one). Never
-// throws for bad input: problems land in error. Thread-safe: call it from workers.
+// Decodes a PNG, JPEG, GIF (first frame), WebP (first frame), JPEG XL, HEIC/HEIF (primary still),
+// PGM, PPM or TIFF image (its first full-resolution one). Never throws for bad input: problems land
+// in error. Thread-safe: call it from workers.
 [[nodiscard]] Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options = {});
 
 // Reads the file and decodes it.
