@@ -63,7 +63,7 @@ std::vector<std::string> names(const Folder& folder) {
     return out;
 }
 
-// root/{alpha/{inner.txt}, gamma/, a.markdown (10 bytes), b.txt (100), c.txt (1)}
+// root/{alpha/{inner.txt}, gamma/, a.md (10 bytes), b.txt (100), c.txt (1)}
 struct Fixture {
     TempDir dir;
     fs::path root = dir.path / "root";
@@ -79,7 +79,7 @@ struct Fixture {
         fs::create_directories(root / "alpha");
         fs::create_directories(root / "gamma");
         write(root / "alpha" / "inner.txt", 1);
-        write(root / "a.markdown", 10);
+        write(root / "a.md", 10);
         write(root / "b.txt", 100);
         write(root / "c.txt", 1);
         browser.open(root);
@@ -112,14 +112,14 @@ TEST_CASE("details: Ctrl+3 shows the same folder, cursor and selection; every vi
     CHECK(cursor_name(*folder) == "gamma");
     CHECK(folder->selected_names() == std::vector<std::string>{"alpha", "gamma"});
 
-    f.press(XKB_KEY_Down);  // a.markdown, alone
-    CHECK(folder->selected_names() == std::vector<std::string>{"a.markdown"});
+    f.press(XKB_KEY_Down);  // a.md, alone
+    CHECK(folder->selected_names() == std::vector<std::string>{"a.md"});
     f.press(XKB_KEY_2, {.ctrl = true});  // straight to the grid
     REQUIRE(f.browser.mode() == Browser::Mode::grid);
     CHECK(f.browser.grid().folder() == folder);
     f.press(XKB_KEY_3, {.ctrl = true});  // and back
     CHECK(f.details.folder() == folder);
-    CHECK(cursor_name(*folder) == "a.markdown");
+    CHECK(cursor_name(*folder) == "a.md");
     f.press(XKB_KEY_1, {.ctrl = true});
     REQUIRE(f.browser.mode() == Browser::Mode::columns);
     CHECK(f.browser.columns().focused_folder() == folder);
@@ -131,28 +131,24 @@ TEST_CASE("details: sorting by a column, again reversed; the cursor stays on its
     f.press(XKB_KEY_3, {.ctrl = true});
     const std::shared_ptr<Folder> folder = f.details.folder();
     REQUIRE(folder != nullptr);
-    CHECK(names(*folder) ==
-          std::vector<std::string>{"alpha", "gamma", "a.markdown", "b.txt", "c.txt"});
+    CHECK(names(*folder) == std::vector<std::string>{"alpha", "gamma", "a.md", "b.txt", "c.txt"});
     f.press(XKB_KEY_End);  // c.txt
 
     f.details.sort_by(Field::size);
     CHECK(folder->order().key == SortKey::size);
     CHECK_FALSE(folder->order().descending);
     // Folders first, then 1, 10 and 100 bytes.
-    CHECK(names(*folder) ==
-          std::vector<std::string>{"alpha", "gamma", "c.txt", "a.markdown", "b.txt"});
+    CHECK(names(*folder) == std::vector<std::string>{"alpha", "gamma", "c.txt", "a.md", "b.txt"});
     CHECK(cursor_name(*folder) == "c.txt");
     CHECK(folder->cursor() == 2);
 
     f.details.sort_by(Field::size);  // the same title again: largest first
     CHECK(folder->order().descending);
-    CHECK(names(*folder) ==
-          std::vector<std::string>{"gamma", "alpha", "b.txt", "a.markdown", "c.txt"});
+    CHECK(names(*folder) == std::vector<std::string>{"gamma", "alpha", "b.txt", "a.md", "c.txt"});
     CHECK(cursor_name(*folder) == "c.txt");
 
     f.details.sort_by(Field::type);  // text/markdown before text/plain
-    CHECK(names(*folder) ==
-          std::vector<std::string>{"alpha", "gamma", "a.markdown", "b.txt", "c.txt"});
+    CHECK(names(*folder) == std::vector<std::string>{"alpha", "gamma", "a.md", "b.txt", "c.txt"});
 
     // The columns show the folder as sorted; a folder the details open is sorted the same way.
     f.details.sort_by(Field::modified);

@@ -276,10 +276,9 @@ void TextField::draw(Renderer& renderer, const Rect& rect, float size, const Fie
     size_ = size;
     scale_ = renderer.scale();
     fonts_ = &renderer.fonts();
-    renderer.draw_box(rect, {.fill = colors.background,
-                             .radius = Corners::all(4.0F),
-                             .border_width = 1.5F,
-                             .border = colors.border});
+    renderer.draw_box(
+        rect,
+        {.fill = colors.background, .radius = {}, .border_width = 1.5F, .border = colors.border});
 
     // Sideways scroll: the caret stays inside, and a text that fits is not scrolled.
     const Rect inner = rect.inset(kPadding);

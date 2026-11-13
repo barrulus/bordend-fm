@@ -17,9 +17,8 @@ constexpr float kKeysGap = 32.0F;    // between a label and its shortcut
 constexpr float kArrowWidth = 18.0F;
 constexpr float kMinWidth = 180.0F;
 constexpr float kTextSize = 13.0F;
-constexpr float kEdge = 4.0F;     // kept free between a panel and the window's edge
-constexpr float kOverlap = 4.0F;  // a submenu over its menu's side
-constexpr float kRadius = 10.0F;
+constexpr float kEdge = 4.0F;        // kept free between a panel and the window's edge
+constexpr float kOverlap = 4.0F;     // a submenu over its menu's side
 constexpr float kMarkWidth = 18.0F;  // before the labels of a panel with radio items
 constexpr float kDot = 6.0F;         // the dot of a checked radio item
 
@@ -273,10 +272,10 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
                              const std::vector<MenuItem>& items,
                              std::optional<std::size_t> highlighted, std::vector<ui::Rect>& rects,
                              const theme::Palette& palette) {
-    renderer.draw_shadow({panel.x, panel.y + 4.0F, panel.width, panel.height},
-                         ui::Corners::all(kRadius), 12.0F, palette.shadow.with_alpha(0.6F));
+    renderer.draw_shadow({panel.x, panel.y + 4.0F, panel.width, panel.height}, {}, 12.0F,
+                         palette.shadow.with_alpha(0.6F));
     renderer.draw_box(panel, {.fill = palette.surface_container_high,
-                              .radius = ui::Corners::all(kRadius),
+                              .radius = {},
                               .border_width = 1.0F,
                               .border = palette.outline_variant});
     rects.clear();
@@ -294,7 +293,7 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
         rects.push_back(rect);
         const bool lit = highlighted == i && item.enabled;
         if (lit) {
-            renderer.draw_box(rect, {.fill = palette.hover, .radius = ui::Corners::all(6.0F)});
+            renderer.draw_box(rect, {.fill = palette.hover, .radius = {}});
         }
         ui::Color text = item.enabled ? palette.on_surface : palette.outline;
         ui::Color dim = item.enabled ? palette.on_surface_variant : palette.outline;
@@ -317,7 +316,7 @@ void ContextMenu::draw_panel(ui::Renderer& renderer, const ui::Rect& panel,
         if (item.radio && item.checked) {
             renderer.draw_box({panel.x + kTextInset + ((kMarkWidth - kDot) / 2.0F) - 3.0F,
                                y + ((kItemHeight - kDot) / 2.0F), kDot, kDot},
-                              {.fill = text, .radius = ui::Corners::all(kDot / 2.0F)});
+                              {.fill = text, .radius = {}});
         }
         const float room = right - keys_width - label_x - (item.keys.empty() ? 0.0F : kKeysGap);
         renderer.draw_text(item.label, label_x, text_y, kTextSize, text, std::max(room, 1.0F));

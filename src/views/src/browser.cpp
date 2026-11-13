@@ -2300,8 +2300,7 @@ void Browser::draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
                 palette.on_surface_variant);
     }
     const auto button = [&](const ui::Rect& rect, const char* label) {
-        renderer.draw_box(
-            rect, {.fill = palette.surface_container_highest, .radius = ui::Corners::all(6)});
+        renderer.draw_box(rect, {.fill = palette.surface_container_highest, .radius = {}});
         text_in(label, {rect.x + 10, rect.y, rect.width - 20, rect.height}, palette.on_surface);
     };
     if (!area().clear_filter_bounds.empty()) {
@@ -2356,8 +2355,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         renderer.fill_background(controls, palette.surface_container);
         const auto button = [&](ui::Rect& rect, float x, float width, const char* label) {
             rect = {x, controls.y + 2, width, 26};
-            renderer.draw_box(
-                rect, {.fill = palette.surface_container_highest, .radius = ui::Corners::all(4)});
+            renderer.draw_box(rect, {.fill = palette.surface_container_highest, .radius = {}});
             renderer.draw_text(label, x + 8, rect.y + 6, 12, palette.on_surface, width - 16);
         };
         std::string split_label = split_visible_ ? "One pane" : "Two panes";
@@ -3093,7 +3091,7 @@ void Browser::draw_band(ui::Renderer& renderer, const theme::Palette& palette) c
                       // The text's colour: it shows over the selection it makes, which has
                       // the accent's.
                       {.fill = palette.on_surface.with_alpha(0.12F),
-                       .radius = ui::Corners::all(3.0F),
+                       .radius = {},
                        .border_width = 1.5F,
                        .border = palette.on_surface.with_alpha(0.85F)});
     renderer.pop_clip();

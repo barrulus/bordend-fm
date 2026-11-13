@@ -281,13 +281,13 @@ void TitleBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         const bool pressed = pressed_ == part && hovered;
         ui::Color icon = text;
         if (part == Part::close && hovered) {
-            renderer.draw_box(rect, {.fill = pressed ? palette.error_container : palette.error,
-                                     .radius = ui::Corners::all(kButtonSize / 2.0F)});
+            renderer.draw_box(
+                rect, {.fill = pressed ? palette.error_container : palette.error, .radius = {}});
             icon = pressed ? palette.on_error_container : palette.on_error;
         } else if (hovered) {
             renderer.draw_box(
                 rect, {.fill = pressed ? palette.surface_bright : palette.surface_container_highest,
-                       .radius = ui::Corners::all(kButtonSize / 2.0F)});
+                       .radius = {}});
         }
         icons.draw(renderer, icon_of(part, state_.maximized),
                    rect.x + ((kButtonSize - kIconSize) / 2.0F),

@@ -503,8 +503,7 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
         const float thumb_x = area_.x + ((area_.width - thumb) * offset / scroller_.max_offset());
         renderer.draw_box(
             {thumb_x, area_.bottom() - kScrollbarHeight - 2.0F, thumb, kScrollbarHeight},
-            {.fill = palette.on_surface_variant.with_alpha(0.45F),
-             .radius = ui::Corners::all(kScrollbarHeight / 2.0F)});
+            {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
     }
     renderer.pop_clip();
 

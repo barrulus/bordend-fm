@@ -23,7 +23,6 @@ double since(QuickLook::Clock::time_point then) {
 
 constexpr float kMargin = 32.0F;         // around the image
 constexpr float kCaptionHeight = 44.0F;  // under it
-constexpr float kRadius = 6.0F;
 constexpr float kCardWidth = 340.0F;
 constexpr float kCardIcon = 96.0F;
 constexpr float kRowHeight = 24.0F;
@@ -39,7 +38,6 @@ constexpr float kPageColumns = 120.0F;  // characters a page is wide, at most
 // pixel beyond, at most kAutoscrollMax.
 constexpr float kAutoscrollPerPixel = 12.0F;
 constexpr float kAutoscrollMax = 4000.0F;
-constexpr float kPageRadius = 10.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
 
@@ -60,8 +58,8 @@ void draw_caption(ui::Renderer& renderer, const ui::Rect& area, const theme::Pal
     const float text_width_px = std::min(text_width(renderer, caption, 13.0F), area.width - 32.0F);
     const ui::Rect pill{area.x + ((area.width - text_width_px) / 2.0F) - 14.0F,
                         area.bottom() + 12.0F, text_width_px + 28.0F, 26.0F};
-    renderer.draw_box(pill, {.fill = palette.surface_container_high.with_alpha(0.92F * fade),
-                             .radius = ui::Corners::all(13.0F)});
+    renderer.draw_box(
+        pill, {.fill = palette.surface_container_high.with_alpha(0.92F * fade), .radius = {}});
     renderer.draw_text(caption, pill.x + 14.0F, pill.y + 5.0F, 13.0F,
                        palette.on_surface.with_alpha(fade), text_width_px, ui::Ellipsis::middle);
 }
@@ -506,9 +504,8 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
         const ui::Rect rect{area.x + ((area.width - shown_width) / 2.0F),
                             area.y + ((area.height - shown_height) / 2.0F), shown_width,
                             shown_height};
-        renderer.draw_shadow(shifted_down(rect), ui::Corners::all(kRadius), 18.0F,
-                             palette.shadow.with_alpha(0.6F * fade));
-        renderer.draw_image(*texture, rect, ui::Corners::all(kRadius), fade);
+        renderer.draw_shadow(shifted_down(rect), {}, 18.0F, palette.shadow.with_alpha(0.6F * fade));
+        renderer.draw_image(*texture, rect, {}, fade);
     }
     draw_caption(renderer, area, palette, caption, fade);
 }
@@ -535,10 +532,8 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
         std::min(area.height, std::max(content, kLineHeight) + (2.0F * kPagePadding));
     const ui::Rect page{area.x + ((area.width - page_width) / 2.0F),
                         area.y + ((area.height - page_height) / 2.0F), page_width, page_height};
-    renderer.draw_shadow(shifted_down(page), ui::Corners::all(kPageRadius), 18.0F,
-                         palette.shadow.with_alpha(0.6F * fade));
-    renderer.draw_box(page, {.fill = palette.surface_container.with_alpha(fade),
-                             .radius = ui::Corners::all(kPageRadius)});
+    renderer.draw_shadow(shifted_down(page), {}, 18.0F, palette.shadow.with_alpha(0.6F * fade));
+    renderer.draw_box(page, {.fill = palette.surface_container.with_alpha(fade), .radius = {}});
 
     const ui::Rect inner{page.x, page.y + kPagePadding, page.width,
                          page.height - (2.0F * kPagePadding)};
@@ -648,18 +643,18 @@ void QuickLook::draw_text(ui::Renderer& renderer, const ui::Rect& area,
         const float thumb = std::max(kScrollbarMinThumb, text_room * text_room / content_width);
         const float travel = text_room - thumb;
         const float thumb_x = text_x + (travel * sideways / text_sideways_.max_offset());
-        renderer.draw_box({thumb_x, page.bottom() - kScrollbarWidth - 4.0F, thumb, kScrollbarWidth},
-                          {.fill = palette.on_surface_variant.with_alpha(0.45F * fade),
-                           .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+        renderer.draw_box(
+            {thumb_x, page.bottom() - kScrollbarWidth - 4.0F, thumb, kScrollbarWidth},
+            {.fill = palette.on_surface_variant.with_alpha(0.45F * fade), .radius = {}});
     }
     // Scrollbar: a thin thumb, only when there is something to scroll.
     if (text_scroller_.max_offset() > 0.0F) {
         const float thumb = std::max(kScrollbarMinThumb, inner.height * inner.height / content);
         const float travel = inner.height - thumb;
         const float thumb_y = inner.y + (travel * offset / text_scroller_.max_offset());
-        renderer.draw_box({page.right() - kScrollbarWidth - 4.0F, thumb_y, kScrollbarWidth, thumb},
-                          {.fill = palette.on_surface_variant.with_alpha(0.45F * fade),
-                           .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+        renderer.draw_box(
+            {page.right() - kScrollbarWidth - 4.0F, thumb_y, kScrollbarWidth, thumb},
+            {.fill = palette.on_surface_variant.with_alpha(0.45F * fade), .radius = {}});
     }
 
     // name   C++   UTF-8   CRLF   3449 lines   120 kB
@@ -723,10 +718,9 @@ void QuickLook::draw_card(ui::Renderer& renderer, const ui::Rect& area,
                          (static_cast<float>(rows.size() + (error ? 1 : 0)) * kRowHeight) + 20.0F;
     const ui::Rect card{area.x + ((area.width - kCardWidth) / 2.0F),
                         area.y + ((area.height - height) / 2.0F), kCardWidth, height};
-    renderer.draw_shadow(shifted_down(card), ui::Corners::all(14.0F), 18.0F,
-                         palette.shadow.with_alpha(0.6F * fade));
-    renderer.draw_box(card, {.fill = palette.surface_container_high.with_alpha(fade),
-                             .radius = ui::Corners::all(14.0F)});
+    renderer.draw_shadow(shifted_down(card), {}, 18.0F, palette.shadow.with_alpha(0.6F * fade));
+    renderer.draw_box(card,
+                      {.fill = palette.surface_container_high.with_alpha(fade), .radius = {}});
     float y = card.y + 32.0F;
     icons.draw(
         renderer, fs::icon_name(*mime_, typed), card.x + ((kCardWidth - kCardIcon) / 2.0F), y,
