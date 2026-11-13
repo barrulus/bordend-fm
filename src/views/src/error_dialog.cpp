@@ -147,7 +147,7 @@ void ErrorDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const ui::Rect card{bounds.x + (bounds.width - width) / 2,
                         bounds.y + (bounds.height - height) / 2, width, height};
     renderer.draw_box(card, {.fill = palette.surface_container_high,
-                             .radius = ui::Corners::all(14),
+                             .radius = {},
                              .border_width = 1,
                              .border = palette.outline_variant});
     const auto title = pending() == 1 ? std::string{"Action failed"}
@@ -174,9 +174,9 @@ void ErrorDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     copy_button_ = {close_button_.x - 144, close_button_.y, 136, 32};
     for (const bool copy : {true, false}) {
         const auto& button = copy ? copy_button_ : close_button_;
-        renderer.draw_box(button,
-                          {.fill = copy ? palette.surface_container_highest : palette.primary,
-                           .radius = ui::Corners::all(8)});
+        renderer.draw_box(
+            button,
+            {.fill = copy ? palette.surface_container_highest : palette.primary, .radius = {}});
         renderer.draw_text(copy ? "Copy Details" : "Close   ↵", button.x + 12, button.y + 6, 13,
                            copy ? palette.on_surface : palette.on_primary, button.width - 24);
     }

@@ -107,7 +107,7 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
             renderer.draw_box({bounds.x + kRowInset, y + 1.0F, bounds.width - (2.0F * kRowInset),
                                size_.row - 2.0F},
                               {.fill = style.fill.value_or(kTransparent),
-                               .radius = ui::Corners::all(6.0F),
+                               .radius = {},
                                .border_width = style.ring ? 1.5F : 0.0F,
                                .border = style.ring.value_or(kTransparent)});
         }
@@ -149,10 +149,7 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
     if (drop != nullptr && drop->covers(path())) {
         renderer.draw_box(
             {bounds.x + 2.0F, bounds.y + 2.0F, bounds.width - 4.0F, bounds.height - 4.0F},
-            {.fill = kTransparent,
-             .radius = ui::Corners::all(8.0F),
-             .border_width = 2.0F,
-             .border = palette.primary});
+            {.fill = kTransparent, .radius = {}, .border_width = 2.0F, .border = palette.primary});
     }
 
     // Scrollbar: a thin thumb, only when there is something to scroll.
@@ -162,8 +159,7 @@ void Column::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::P
         const float thumb_y = bounds.y + (travel * offset / scroller_.max_offset());
         renderer.draw_box(
             {bounds.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
-            {.fill = palette.on_surface_variant.with_alpha(0.45F),
-             .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+            {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
     }
     renderer.pop_clip();
 

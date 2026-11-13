@@ -2,12 +2,28 @@
 #include <cmath>
 #include <cstdlib>
 #include <format>
+#include <system_error>
 #include <utility>
 
 #include "nordend/views/browser.hpp"
 #include "nordend/views/format.hpp"
 
 namespace nordend::views {
+namespace {
+
+std::filesystem::path session_fallback() {
+    // HOME may name a missing directory (for example /homeless-shelter in a Nix build).
+    if (const char* home = std::getenv("HOME"); home != nullptr) {
+        const std::filesystem::path path{home};
+        std::error_code error;
+        if (path.is_absolute() && std::filesystem::is_directory(path, error)) {
+            return path;
+        }
+    }
+    return "/";
+}
+
+}  // namespace
 
 Browser::BrowsingArea::BrowsingArea(Browser& browser)
     : breadcrumb{browser.redraw_,
@@ -207,13 +223,11 @@ bool Browser::restore_session(const State& state) {
         apply(state);
         const bool second = restore_tabs(tabs[1], state.other_shown_tab);
         if (!second) {
-            const char* home = std::getenv("HOME");
-            open(home ? home : "/");
+            open(session_fallback());
         }
         if (!restored) {
             context_area_ = 0;
-            const char* home = std::getenv("HOME");
-            open(home ? home : "/");
+            open(session_fallback());
         }
         restored = true;
         split_visible_ = state.split_visible;

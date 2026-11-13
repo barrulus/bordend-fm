@@ -221,7 +221,7 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
     const auto& card = card_;
     renderer.draw_box(card, {.fill = palette.surface_container_high,
-                             .radius = ui::Corners::all(14.0F),
+                             .radius = {},
                              .border_width = 1.0F,
                              .border = palette.outline_variant});
     renderer.push_clip(card);
@@ -241,7 +241,7 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         const auto& header = group.header;
         const bool focused = keyboard_focus_ && focused_group_ == i;
         renderer.draw_box(header, {.fill = palette.surface_container_high,
-                                   .radius = ui::Corners::all(4.0F),
+                                   .radius = {},
                                    .border_width = focused ? 1.0F : 0.0F,
                                    .border = palette.primary});
         renderer.fill_rect({header.x, header.bottom() - 1.0F, header.width, 1.0F},
@@ -267,9 +267,8 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     }
     renderer.pop_clip();
     if (max_scroll_ > 0.0F) {
-        renderer.draw_box(track_,
-                          {.fill = palette.outline_variant, .radius = ui::Corners::all(4.0F)});
-        renderer.draw_box(thumb(), {.fill = palette.primary, .radius = ui::Corners::all(4.0F)});
+        renderer.draw_box(track_, {.fill = palette.outline_variant, .radius = {}});
+        renderer.draw_box(thumb(), {.fill = palette.primary, .radius = {}});
     }
     renderer.pop_clip();
 }

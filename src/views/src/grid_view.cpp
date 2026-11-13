@@ -27,7 +27,6 @@ constexpr float kCellExtraWidth = 56.0F;   // a cell is the icon plus this, at l
 constexpr float kCellMinWidth = 132.0F;    // and room for a short name (P1234567.ORF)
 constexpr float kCellExtraHeight = 52.0F;  // icon plus the gaps and one line of name
 constexpr float kTextSize = 13.0F;
-constexpr float kThumbnailRadius = 4.0F;
 constexpr float kScrollbarWidth = 4.0F;
 constexpr float kScrollbarMinThumb = 24.0F;
 
@@ -339,7 +338,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                 renderer.draw_box({x + kCellInset, y + kCellInset,
                                    cell_width_ - (2.0F * kCellInset), height - (2.0F * kCellInset)},
                                   {.fill = style.fill.value_or(kTransparent),
-                                   .radius = ui::Corners::all(10.0F),
+                                   .radius = {},
                                    .border_width = style.ring ? 1.5F : 0.0F,
                                    .border = style.ring.value_or(kTransparent)});
             }
@@ -365,8 +364,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                                      y + kIconTop + ((icon - shown_height) / 2.0F), shown_width,
                                      shown_height};
                 const float alpha = cut ? kCutOpacity : 1.0F;
-                renderer.draw_image(*thumbnail, frame,
-                                    ui::Corners::all(video ? 0.0F : kThumbnailRadius), alpha);
+                renderer.draw_image(*thumbnail, frame, {}, alpha);
                 if (video) {
                     for (const float edge : {frame.x - rail, frame.x + frame.width}) {
                         renderer.draw_box({edge, frame.y, rail, frame.height},
@@ -378,7 +376,7 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                                 renderer.draw_box(
                                     {edge + rail * 0.25F, top, hole, hole},
                                     {.fill = ui::Color::rgb(0xdddddd).with_alpha(alpha),
-                                     .radius = ui::Corners::all(1.0F)});
+                                     .radius = {}});
                             }
                         }
                     }
@@ -423,15 +421,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         const float travel = area_.height - thumb;
         const float thumb_y = area_.y + (travel * offset / scroller_.max_offset());
         renderer.draw_box({area_.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
-                          {.fill = palette.on_surface_variant.with_alpha(0.45F),
-                           .radius = ui::Corners::all(kScrollbarWidth / 2.0F)});
+                          {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
     }
     if (drop_ != nullptr && drop_->covers(folder_->path())) {
-        renderer.draw_box({area_.x + 2.0F, area_.y + 2.0F, area_.width - 4.0F, area_.height - 4.0F},
-                          {.fill = kTransparent,
-                           .radius = ui::Corners::all(8.0F),
-                           .border_width = 2.0F,
-                           .border = palette.primary});
+        renderer.draw_box(
+            {area_.x + 2.0F, area_.y + 2.0F, area_.width - 4.0F, area_.height - 4.0F},
+            {.fill = kTransparent, .radius = {}, .border_width = 2.0F, .border = palette.primary});
     }
     renderer.pop_clip();
     if (pane) {

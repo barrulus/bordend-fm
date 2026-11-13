@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -46,6 +47,30 @@ using Names = std::vector<std::string>;
 
 constexpr std::int32_t kWidth = 1000;
 constexpr std::int32_t kHeight = 700;
+
+// Construct before the fixture starts workers; restore after they have stopped.
+struct ScopedHome {
+    std::optional<std::string> previous;
+
+    explicit ScopedHome(const char* value) {
+        if (const char* home = std::getenv("HOME")) {
+            previous = home;
+        }
+        if (value) {
+            REQUIRE(setenv("HOME", value, 1) == 0);
+        } else {
+            REQUIRE(unsetenv("HOME") == 0);
+        }
+    }
+
+    ~ScopedHome() {
+        if (previous) {
+            setenv("HOME", previous->c_str(), 1);
+        } else {
+            unsetenv("HOME");
+        }
+    }
+};
 
 bool run_until(EventLoop& loop, const std::function<bool()>& done) {
     bool ok = false;
@@ -436,24 +461,63 @@ TEST_CASE("panes: a delayed mount opens in the originating tab without stealing 
     CHECK(f.browser.columns().focused_folder()->path() == f.a / "sub");
 }
 
-TEST_CASE("panes: unreadable saved folders leave a usable pane and retain the other group") {
-    Fixture f;
-    f.browser.toggle_split();
-    f.browser.open(f.b);
-    REQUIRE(f.settle());
-    auto saved = f.browser.state();
-    saved.tabs[0].folder = f.dir.path / "missing";
-    Browser restored{
-        f.loop, f.pool, f.watcher, nordend::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
-    restored.apply(saved);
-    REQUIRE(restored.restore_session(saved));
-    REQUIRE(run_until(f.loop, [&] { return !restored.loading(); }));
-    CHECK(restored.split_visible());
-    CHECK(restored.tab_titles() == Names{"b"});
-    restored.focus_pane(0);
-    CHECK(restored.tab_count() == 1);
-    REQUIRE(restored.columns().focused_folder());
-    CHECK(fs::is_directory(restored.columns().focused_folder()->path()));
+TEST_CASE("panes: missing saved folders use a valid fallback and retain the other group") {
+    TempDir home_dir;
+    std::optional<std::string> home = home_dir.path.string();
+    fs::path expected = home_dir.path;
+    SUBCASE("existing home") {}
+    SUBCASE("missing home") {
+        home = (home_dir.path / "missing").string();
+        expected = "/";
+    }
+    SUBCASE("home is a file") {
+        home = home_dir.write("file", "not a directory").string();
+        expected = "/";
+    }
+    SUBCASE("relative home") {
+        home = ".";
+        expected = "/";
+    }
+    SUBCASE("empty home") {
+        home = "";
+        expected = "/";
+    }
+    SUBCASE("unset home") {
+        home.reset();
+        expected = "/";
+    }
+    const ScopedHome environment{home ? home->c_str() : nullptr};
+    for (const std::size_t missing : {std::size_t{0}, std::size_t{1}}) {
+        INFO("missing pane: " << missing);
+        Fixture f;
+        f.browser.toggle_split();
+        f.browser.open(f.b);
+        REQUIRE(f.settle());
+        auto saved = f.browser.state();
+        for (auto& tab : saved.tabs) {
+            if (tab.pane == missing) {
+                tab.folder = f.dir.path / "missing";
+            }
+        }
+        saved.active_pane = 1 - missing;
+        Browser restored{f.loop,    f.pool,
+                         f.watcher, nordend::fs::MimeDatabase::load(),
+                         [] {},     [](CursorShape) {}};
+        restored.apply(saved);
+        REQUIRE(restored.restore_session(saved));
+        REQUIRE(run_until(f.loop, [&] { return !restored.loading(); }));
+        CHECK(restored.split_visible());
+        CHECK(restored.active_pane() == 1 - missing);
+        CHECK(restored.tab_count() == 1);
+        REQUIRE(restored.columns().focused_folder());
+        CHECK(restored.columns().focused_folder()->path() == (missing == 0 ? f.b : f.a));
+        restored.focus_pane(missing);
+        REQUIRE(run_until(f.loop, [&] { return !restored.loading(); }));
+        CHECK(restored.tab_count() == 1);
+        REQUIRE(restored.columns().focused_folder());
+        CHECK(restored.columns().focused_folder()->path() == expected);
+        CHECK_FALSE(restored.columns().focused_folder()->model().error());
+    }
 }
 
 TEST_CASE("panes: an idle split does not schedule another frame while drawing") {

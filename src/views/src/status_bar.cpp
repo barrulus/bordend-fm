@@ -146,7 +146,7 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
         if (active || hovered_ == i) {
             renderer.draw_box(button, {.fill = active ? palette.surface_container_highest
                                                       : palette.surface_container_high,
-                                       .radius = ui::Corners::all(6.0F)});
+                                       .radius = {}});
         }
         ui::Color color = hovered_ == i ? palette.on_surface : palette.on_surface_variant;
         if (active) {
@@ -168,8 +168,8 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
         cancel_button_ = {buttons_.front().x - kHelpGap - kButtonWidth, top, kButtonWidth,
                           kButtonHeight};
         if (cancel_hovered_) {
-            renderer.draw_box(cancel_button_, {.fill = palette.surface_container_high,
-                                               .radius = ui::Corners::all(6.0F)});
+            renderer.draw_box(cancel_button_,
+                              {.fill = palette.surface_container_high, .radius = {}});
         }
         icons.draw(renderer, "x", cancel_button_.x + ((kButtonWidth - kIconSize) / 2.0F),
                    cancel_button_.y + ((kButtonHeight - kIconSize) / 2.0F), kIconSize,

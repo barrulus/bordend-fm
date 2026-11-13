@@ -204,7 +204,7 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
             renderer.draw_box({bounds.x + kInset, y + 1.0F, bounds.width - (2.0F * kInset),
                                (kRowHeight * scale()) - 2.0F},
                               {.fill = *fill,
-                               .radius = ui::Corners::all(8.0F),
+                               .radius = {},
                                .border_width = drop ? 1.5F : 0.0F,
                                .border = palette.primary});
         }
@@ -238,7 +238,7 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
         renderer.draw_box({bounds.x + kInset, bounds.y + line - offset - 1.0F,
                            bounds.width - (2.0F * kInset), 2.0F},
-                          {.fill = palette.primary, .radius = ui::Corners::all(1.0F)});
+                          {.fill = palette.primary, .radius = {}});
     }
     renderer.pop_clip();
 

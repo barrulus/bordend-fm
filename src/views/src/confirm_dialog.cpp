@@ -153,7 +153,7 @@ void ConfirmDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const ui::Rect card{bounds.x + ((bounds.width - width) / 2.0F),
                         bounds.y + ((bounds.height - height) / 2.0F), width, height};
     renderer.draw_box(card, {.fill = palette.surface_container_high,
-                             .radius = ui::Corners::all(14.0F),
+                             .radius = {},
                              .border_width = 1.0F,
                              .border = palette.outline_variant});
     renderer.push_clip(card);
@@ -194,7 +194,7 @@ void ConfirmDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                                             : palette.on_error_container)
                           : palette.on_surface;
         }
-        renderer.draw_box(button, {.fill = fill, .radius = ui::Corners::all(8.0F)});
+        renderer.draw_box(button, {.fill = fill, .radius = {}});
         const std::string label =
             action ? std::format("{}   ↵", action_) : std::string{"Cancel   Esc"};
         renderer.draw_text(label, button.x + 14.0F,

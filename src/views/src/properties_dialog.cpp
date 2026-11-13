@@ -426,7 +426,7 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     const ui::Rect card{bounds.x + (bounds.width - width) / 2,
                         bounds.y + (bounds.height - height) / 2, width, height};
     renderer.draw_box(card, {.fill = palette.surface_container_high,
-                             .radius = ui::Corners::all(14),
+                             .radius = {},
                              .border_width = 1,
                              .border = palette.outline_variant});
     content_ = {card.x, card.y, card.width, card.height - 70};
@@ -445,7 +445,7 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                             bool primary = false) {
         const auto fill = primary && enabled ? palette.primary : palette.surface_container_highest;
         renderer.draw_box(rect, {.fill = fill,
-                                 .radius = ui::Corners::all(7),
+                                 .radius = {},
                                  .border_width = focus_ == id ? 2.0F : 0.0F,
                                  .border = palette.primary});
         renderer.draw_text(label, rect.x + 12, rect.y + 7, 13,
@@ -484,7 +484,7 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                                 cell_width - 4, cell_height - 4};
             if (index == selected_)
                 renderer.draw_box(cell, {.fill = palette.primary_container,
-                                         .radius = ui::Corners::all(6),
+                                         .radius = {},
                                          .border_width = focus_ == "grid" ? 2.0F : 0.0F,
                                          .border = palette.primary});
             const float size = std::min(44.0F, cell_height - 26);
@@ -568,7 +568,7 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         const float thumb = track * content_.height / (natural_height - 70);
         renderer.draw_box(
             {card.right() - 7, card.y + 12 + (track - thumb) * scroll_ / max_scroll_, 3, thumb},
-            {.fill = palette.outline, .radius = ui::Corners::all(2)});
+            {.fill = palette.outline, .radius = {}});
     }
     const float footer = card.bottom() - 56;
     if (picking_) {
