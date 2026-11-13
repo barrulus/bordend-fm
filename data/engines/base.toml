@@ -18,6 +18,8 @@ mime = [
     "image/gif",
     "image/webp",
     "image/jxl",
+    "image/heic",
+    "image/heif",
     "image/tiff",
     "image/x-adobe-dng",
     "image/x-canon-cr2",

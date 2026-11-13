@@ -1,579 +1,91 @@
-# rummage: every feature
+# Feature overview
 
-Everything rummage does today, by area. Numbers are measurements from
-[benchmarks.md](benchmarks.md), taken on a Ryzen 7 5700G with an RX 6650 XT; how each feature came
-to be is in the [devlog](devlog.md), and what comes next is in the
-README's [What's next](../README.md#whats-next).
+[Documentation](README.md) · [Using rummage](usage.md) · [Roadmap](roadmap.md)
 
-## What it is
+This is a map of the current source tree's capabilities. Detailed behavior belongs
+in the linked guides. The fork develops beyond upstream Nordend 0.5.0; see [release history](releases.md).
 
-- A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
-  boxes, text, icons and images. **No GTK, no Qt, no GLib.**
-- Its own project, at home on any Wayland desktop. On Noctalia (Noctalia Shell, the Umbriel
-  compositor) it wears the Noctalia theme and the same line icons, and Umbriel draws its title
-  bar; elsewhere (GNOME, weston) rummage draws its own.
-- One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
-  nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
+## Browsing and navigation
 
-## Three views of the same folder
+- Columns, thumbnail grid and a details table; changing views retains location and selection.
+- Expandable folders in details, loaded on demand; selection stays within one parent.
+- Two persistent panes with their own tabs, locations, views, sorting, hidden settings and filters.
+- Live filename filtering alongside recursive search; independent sidebar zoom.
+- Sorting by name, size, modified date or type; hidden-file toggle; live directory updates.
+- Keyboard and mouse selection, rubber bands, smooth scrolling and adjustable zoom.
+- Breadcrumb, history, places, GTK bookmarks and removable-device integration.
+- Network bookmarks (smb, sftp, ftp, WebDAV) mounted through gvfs; Ctrl+L to go to a folder or server.
+- Fuzzy command palette and recursive filename/path search with cancellation.
 
-- **Columns** (Ctrl+1), as in Finder: each folder you pick opens in the next column, and the last
-  column shows the selected file. Left from the first column climbs to the parent. Columns are
-  resized by dragging their edge (a double click on the edge resets it), and the row slides
-  sideways by itself to keep the focused column in sight.
-- **Grid** (Ctrl+2): large icons and thumbnails. Ctrl+plus, Ctrl+minus or Ctrl+wheel resize the
-  cells from 48 to 512 px, and Ctrl+0 goes back to the usual size. The largest sizes fit the
-  available width when the window is narrow; Ctrl+I hides the information pane for more room.
-- **Details** (Ctrl+3): a table of name, size, date and type. Click a title to sort by it and
-  click again to reverse; drag a column's edge to widen it. By size, folders keep their name
-  order; by type, unknown types come last. The order you choose is used in the other views too.
-- **Zoom in the lists** too: Ctrl+plus, Ctrl+minus or Ctrl+wheel make the rows of the columns and
-  the details larger or smaller (five sizes: row, icon and text grow together, the details' other
-  columns with them), Ctrl+0 the usual size; the cursor's row stays where it is on screen. The
-  lists share one size, the grid keeps its own. Each tab has its own zoom (a new tab starts with
-  the one it comes from), remembered with the tabs.
-- **Sort By** in the context menu (on a file or on empty space), in every view: name, size,
-  modified or type, ascending or descending, a dot on the order in use. Each tab keeps its own order,
-  shared by its three views and remembered at the next start.
-- **Tabs** (Ctrl+T): each with its own folder, view and back/forward history. The bar above the
-  path shows them when there are two or more: a click shows a tab, its × or a middle click
-  closes it, + opens one. Ctrl+Tab and Ctrl+Shift+Tab go round them, Alt+1…9 picks one, Ctrl+W
-  closes the one shown (never the last). Each tab keeps its own zoom too. A middle click on a folder, or the context menu's Open in
-  New Tab (Tabs, for several folders), opens it in a tab behind the one shown; a middle click on
-  a selected folder opens every selected folder. Sorting, hidden files and the filename filter
-  are independent in each tab. The shared sidebar and information panel follow the active pane.
-- **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
-  the file types already detected. The status bar has a button for each view.
+See [Using rummage](usage.md) and the [shortcut reference](shortcuts.md).
+Search is not content search; remote browsing without gvfs, encrypted-volume unlocking and
+bookmark reordering are not implemented. Name sorting is natural and ASCII
+case-insensitive, not locale collation.
 
-## Two persistent browsing panes
+## Files and external applications
 
-- **F3** or **Two panes** splits the browser. On first use, the second pane starts at the current
-  location and receives focus. Each pane has its own tabs, breadcrumb, selections, history,
-  scrolling, view modes, zoom, sort order, hidden-file setting and filename filters.
-- **Tab** switches panes while browsing. Clicking a pane's header focuses it without disturbing
-  its selection. Hovering or scrolling the other pane does not move keyboard focus. The active
-  header has an accent and an “Active” label; inactive selections remain visible in subdued colors.
-- **Ctrl+T**, **Ctrl+W**, **Ctrl+Tab**, **Ctrl+Shift+Tab** and **Alt+1…9** operate in the active
-  pane. The last tab in each pane stays open. New tabs inherit view, zoom, sorting and hidden-file
-  visibility, and start with an empty filename filter.
-- Drag the divider to resize; double-click it to equalize. **Top / bottom** changes orientation,
-  and **Swap panes** exchanges their positions while keeping focus with the same content.
-  Column view works inside either pane, just like Grid and Details.
-- **Ctrl+F5** copies selected files to the other pane's current folder; **Ctrl+F6** moves them.
-  The command palette and **Panes** context submenu show the destination path and direction.
-  In expanded Details views, the destination is the breadcrumb's folder, not a selected child.
-  Transfers capture both ends when invoked and use the existing conflict handling, sidecar
-  support, progress and window-wide undo. Clipboard copy/paste keeps its usual behavior.
-- **Open in Other Pane** opens a selected folder in a new tab there. **Show Same Folder in Other
-  Pane** opens the current location there. Both focus the destination without replacing its tabs.
-  These commands and layout controls are available in the command palette and **Panes** submenu.
-- **F3** again shows the active pane full-width, retaining the hidden pane's tabs and selections.
-  Cross-pane transfers are unavailable until both panes are visible again. Reopening rummage
-  without a folder restores both tab sets, active tabs, focused pane, orientation, divider and
-  whether the second pane was hidden. Older single-pane sessions remain readable.
-- One sidebar, information panel and transfer status serve the window. The information panel
-  follows the active pane; **Ctrl+I** hides it. Each pane also shows its own selection count.
-  The file picker stays single-pane. Text fields and dialogs retain their normal Tab handling.
+- Copy/move with progress, cancellation and conflict choices; rename and create from templates.
+- Freedesktop Trash across filesystems, restore, confirmed permanent deletion and undo/redo.
+- Clipboard exchange and drag/drop with desktop applications.
+- Mounting internal partitions and removable disks through udisks2, with authorization when required.
+- Properties and a folder-icon picker, sharing `.directory` metadata with Dolphin.
+- Default applications and Open With from desktop MIME associations; terminal launching.
+- darktable sidecars follow supported photo operations.
+- Copy Location, automatic archive backends and configurable external actions.
+- Destination pickers, completion notifications and nested/context-specific menus.
 
+See [file operations](file-operations.md) and [actions](actions.md). Permanent
+removal cannot be undone; external commands/extraction are outside file-operation
+undo. File handling is local; general queued jobs, macros and batch rename are
+not implemented.
 
-## Moving and selecting
+## Previews
 
-- **Natural scrolling.** On a touchpad the list follows the fingers 1:1, keeps gliding when they
-  lift, slows down smoothly and stops softly at the ends. A mouse wheel glides instead of jumping,
-  and quick turns add up. The arrows and Page Up/Down glide; Home and End jump.
-- **Keyboard first:** arrows, Page Up/Down, Home and End; Enter, Right or Alt+Down to go in;
-  Backspace, Left or Alt+Up to go back. The cursor lands on the folder you came from.
-- **History:** Alt+Left and Alt+Right, or the mouse's back and forward buttons, go through the
-  folders opened (the last 100), each with the cursor where it was left. Opening a folder after
-  going back drops the ones ahead; a folder deleted meanwhile is skipped, with a message.
-- **Hidden files out of the way:** dotfiles are hidden at start; Ctrl+H shows them (dimmed) in
-  the active tab and hides them again. Hidden, they are never selected, so Ctrl+A and Delete touch
-  only what you see, and the status bar says how many there are ("12 items, 3 hidden"). A hidden
-  folder you open (from a bookmark, say) stays in sight on the way to it.
-- **Selection as you expect it:** click, Ctrl+click and Shift+click; Shift+arrows for a range,
-  Ctrl+arrows and Ctrl+Space to pick here and there, Ctrl+A for all, Escape for one again.
-- **Rubber band:** a drag from empty space (below the entries, a row away from its icon and
-  name, a cell away from them in the grid) draws a rectangle that selects what it touches; with
-  Ctrl it adds to the selection. Past the top or bottom of the list it scrolls, faster the
-  farther the pointer; in the column view it stays in its column. A drag from an icon or a name
-  still moves the files, and a click anywhere on a row still selects it.
-- **The selection follows its files:** cursor and selection are kept by name, so they stay on a
-  file that another program renames or that moves in the order.
-- **Every shortcut on one card:** F1 or "?" lists them all, from the same table the code runs on,
-  and a test checks that the card and the behaviour agree. Groups start collapsed; click a heading to expand it, or use Tab and Enter.
-  Keys and descriptions share aligned rows. The card adapts to the window width;
-  scroll with the wheel, touchpad, scrollbar, arrow keys, Page Up/Down, or Home/End.
-  Escape, the close button, or a click outside dismisses it.
+- Isolated image and text decoding through `rummage-preview`.
+- PNG, JPEG, GIF, WebP, JPEG XL, HEIC/HEIF (HEVC), TIFF/BigTIFF and binary PGM/PPM previews.
+- Camera raw embedded previews and development of supported DNG data when needed.
+- Photo metadata, orientation/crop handling and shared freedesktop thumbnail caching.
+- Quick Look for pictures and text, with file-to-file navigation.
+- Text encoding detection, syntax colours, selection/copy and log tails.
+- Optional isolated FFmpeg video thumbnails and Quick Look stills.
 
-## Actions and external programs
+See [previews and formats](previews.md) for decoder limits. Video playback, rendered
+Markdown, PDF previews, SVG document previews and darktable rating import are not
+current capabilities. SVG **theme icons** have their own in-process renderer.
 
-- **Copy Location** in the context menu and command palette copies selected absolute paths as
-  text, one per line. On empty space it copies the current folder. Bind `copy_location` in
-  `[keybindings]` to give it a shortcut.
-- **Extract Here / Extract To…** automatically choose an installed archive program: 7zz/7z
-  for ZIP/7z files and unrar for RAR (falling back to 7zz/7z). Otherwise it uses File Roller,
-  unzip for ZIP, gzip for single gzip files, tar for tar archives,
-  and 7zz/7z as a fallback. Compressed tar is unpacked fully, including when only 7z is installed.
-  Install 7zz/7z for encrypted ZIP and 7z, and unrar for RAR: some 7-Zip packages omit RAR decoding.
-  Each selected archive must have a suitable backend. If one is missing, extraction stays available
-  with a “setup required” label; invoking it explains which program to install.
-- **CLI extraction** uses a fresh folder named after the archive; a single compressed file becomes
-  its decompressed filename. Existing output is kept and the new output gets a numbered name.
-  Extract To… opens rummage's folder picker. Sources are always retained. rummage reports success
-  only after the tool finishes; failures retain partial output in an `(extracting)` folder.
-  Keep rummage open until extraction finishes: closing it may leave that folder unfinished.
-  The 7zz/7z and unrar backends prompt for archive passwords, including encrypted headers. Passwords
-  are masked and passed through stdin. Wrong passwords can be retried; cancelling creates no
-  output. Other CLI backends do not prompt; use Open With for their encrypted archives.
-  File Roller owns its own destination, password and conflict dialogs. In mixed selections,
-  files assigned to File Roller are handed off separately from CLI extraction.
-- **Action failures** stay in a scrollable dialog until dismissed, with Copy Details (Ctrl+C).
-  Reports identify the archive, extractor, destination, exit status or filesystem error,
-  useful diagnostic output, and any retained partial output. Missing RAR support explains how
-  to install unrar. Unsupported encryption, rejected passwords, corrupt archives, disk-space
-  problems and access failures receive specific guidance; unknown errors retain the extractor’s
-  diagnostics. Multiple failures are queued, so another archive succeeding cannot hide them.
-- **Custom actions** in `[[actions]]` tables in `config.toml`: a label, argument array, optional
-  MIME filters, and a selection rule. They appear under Actions on right click and directly in
-  Ctrl+K; bind `"action:<id>"` to a shortcut, also shown in F1. All three views use the same
-  action definitions and matching rules. Mixed selections must match in full.
-- **Literal arguments:** `{file}`, `{files}` and `{directory}` pass paths as arguments, including
-  spaces and punctuation. Shell scripts are explicit, with paths passed as positional arguments.
-  A menu or palette captures its target paths, so changing selection or tabs cannot redirect it.
-- **Live configuration:** action definitions and shortcuts update together; invalid definitions
-  keep the previous set on reload. `rummage --check-config` validates both. The bundled archive
-  actions can be overridden or disabled by ID; Copy Location remains a native operation.
-- **Handoff:** external programs run independently, and the status bar reports launch and exit
-  failures. Directory watching picks up their output. External changes do not enter rummage's
-  undo history. General-purpose supervised jobs, multi-step macros and an action editor are
-  future work; the built-in CLI extraction workflow tracks its own completion.
+## Desktop integration and customization
 
-See [the example configuration](config.example.toml) for image editing, upscaling, shell scripts
-and archive overrides. External actions are unavailable in file-picker mode; actions are not
-available in the trash.
+- Wayland input, clipboard, drag/drop, activation and fractional scaling where protocols exist.
+- Server-side decorations or rummage's title bar; cursor-shape or Xcursor fallback.
+- Desktop light/dark/accent settings, Noctalia palette template and live palette changes.
+- Desktop SVG/PNG icon themes, custom place icons and an accent application icon.
+- Fonts, pointer settings, background opacity, keybindings, actions and menu layouts in TOML.
+- Remembered two-pane/multi-tab sessions and window/view state, without saving navigation history.
 
-## Photos first
+See [configuration](configuration.md), [appearance](appearance.md) and
+[compatibility](compatibility.md). Fonts need a restart; the other settings have
+specific reload rules. No graphical settings editor is provided.
 
-- **Thumbnails in a fraction of a second.** rummage reads the previews that cameras already store
-  inside their raw files instead of developing the raw. A screenful of photos is ready in
-  0.15-0.4 s the first time and in 12-22 ms from the cache. One thumbnail takes 12 ms from an
-  OM-1 JPEG and 36 ms from an ORF.
-- **Raw files from many cameras:** OM System and Olympus ORF (including the maker-note preview),
-  Canon CR2, Nikon NEF and TIFF, Sony ARW, Fujifilm RAF, Panasonic RW2 (cropped to the shot's
-  aspect ratio), Samsung SRW, Epson ERF, Hasselblad 3FR and DNG (including previews stored as a
-  JPEG inside a TIFF: full size in a Samsung GX20's DNG). A DNG whose previews are too small for
-  where it is shown (more than 4/3 stretched: Leica M240 and M8, DJI drones, files from Adobe's
-  converter) is developed by rummage's own reader instead: lossless JPEG or uncompressed sensor
-  data (8-16 bit, strips or tiles, linear raw too), black and white levels, the camera's white
-  balance with highlights kept white, the file's colour matrices for the shot's light, its
-  baseline exposure and tone curve (else a light curve of rummage's), the default crop, the
-  file's corrections (gain maps for vignetting and colour shading, the lens warp: a DJI drone's
-  corners no longer dark; a correction rummage does not apply keeps the preview), at half
-  size or smaller, straight to the size shown; in Quick Look in about 105 ms (Canon) to 260 ms
-  (M240 at 2560x1440). Each is shown upright, in the shape it
-  was shot, without the black bars some cameras put on their thumbnails; a preview the camera
-  stored broken is passed over for the next one. Formats with no preview rummage can read (Sigma
-  X3F, old Panasonic RAW) say so in Quick Look.
-- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
-  (8 and 16 bits), and **TIFF** with rummage's own reader (BigTIFF too; uncompressed, LZW,
-  Deflate, PackBits, JPEG; 1 to 16-bit and floating-point samples; grey, RGB, YCbCr, palette,
-  CMYK, alpha; strips and tiles), with EXIF orientation. The format is told by the file's bytes, not its name
-  (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
-- **Pictures made apart:** the code that reads photos (libwebp, libjxl, wuffs, and rummage's own
-  TIFF, DNG and camera-file readers) run in small `rummage-preview` processes, not in rummage: a file that crashes or hangs
-  one costs only its preview ("Preview unavailable"), and rummage carries on. Each one lives in
-  a cage of rummage's own (seccomp and landlock, no library): it cannot open a file, reach the
-  network, start a program or signal another one, and has at most 4 GiB of memory. They start when a
-  picture is first needed (at most one per worker), give their memory back after a quiet second,
-  and rummage closes them after 30 s without work.
-- **Engines described by manifests:** each reader program (an *engine*; `rummage-preview` is the
-  base engine, for images and text) comes with a small TOML manifest in `share/rummage/engines/`
-  saying which types it shows and what it gives back. Text files too are read in its cage, never
-  by rummage. rummage reads them at start-up (about 0.05 ms) and asks them
-  who shows a file; a broken manifest or a missing program is skipped with a warning, and the
-  files it would show get the information card. `rummage --about` lists the engines found.
-- **Plain reasons:** a file that cannot be shown says why in one sentence, the same in Quick Look
-  and everywhere else: not a kind rummage shows, no readable preview in a raw file, too large,
-  damaged, or unreadable.
-- **Shared freedesktop thumbnail cache:** thumbnails go where GNOME, KDE and other apps look for
-  them, byte-compatible, so they are made once for all of them. Files that fail are remembered.
-- **Quick Look** (Space): the photo fills the window, raw files included. An ORF fitted to a
-  2880x1620 screen takes 51-55 ms. The arrows walk the folder without closing it, and the next
-  photo is already loading. Text files open on a page you can scroll, in your monospace font
-  (darktable sidecars included), read in UTF-8, UTF-16 (with its byte order mark) or Latin-1
-  (Windows-1252, for files from old editors: "caffè 3€" shows as written), with **syntax
-  colours** for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell scripts (heredocs
-  included), fish, CMake, Makefiles, JSON (with JSONC's and JSON5's comments), TOML, YAML
-  (block scalars, anchors and tags included) and INI files (desktop entries, systemd units,
-  `.gitconfig`, `.editorconfig`), keys set apart from their values, and `.gitignore` (and
-  `.dockerignore`, `.ignore`, `.npmignore`...) and `.gitattributes`, wildcards and negations
-  standing out, Markdown (highlighted, not rendered: its code blocks in their own language, a
-  YAML or TOML front matter) and diffs and patches (added and removed lines, hunks, headers), the
-  language found from the file's type, its name (`PKGBUILD`,
-  Void's `template`, `CMakeLists.txt`, `Cargo.lock`, `.clang-format`, `.gitignore`), its extension or its `#!` line, made from your theme's colours and readable
-  on its page; the info pane's first lines are coloured too; any other file shows what it is.
-  On a text page you **select and copy**: drag (the page scrolls when you go past its top or
-  bottom), double click a word, triple click a line, Shift+click to extend, Ctrl+A for the whole
-  file, Ctrl+C copies the text (with nothing selected it copies the file, as anywhere else); a
-  click beside the page still closes Quick Look. Long lines scroll sideways (Shift+wheel, or the
-  touchpad), the line numbers staying put; Home and End reach the text's top and bottom, Page Up
-  and Page Down a page (the arrows still walk the folder). The caption says the language, the
-  encoding, CRLF when the file has it, the lines and the size. A minified file (lines over 500
-  bytes on average) is shown plain, its caption saying so. A log (`.log`) larger than what is read
-  shows its newest lines: its last 256 KiB, opened at the bottom, "last N lines" in the caption.
-- **The info pane** beside every view shows the preview and what the file is: size, pixel size,
-  dates (including the birth time), type, and for photos the shot itself (camera, lens,
-  exposure, aperture, ISO, focal length, when) with your darktable rating from the `.xmp`
-  sidecar. "More details" adds permissions, owner and group, link target and item count. In the
-  grid and the details Ctrl+I hides it, and its edge can be dragged from 240 to 720 px.
-- **darktable-aware:** sidecars get their own icon, show your rating, and follow their photo when
-  it is renamed.
+## File selection for other applications
 
-## Working with files
+- Standalone open-file, multi-file, directory and save-file commands with NUL-separated output.
+- Optional XDG FileChooser backend for OpenFile, SaveFile and SaveFiles.
+- Glob/MIME filters, application choices, overwrite confirmation and cancellation.
+- Shared views/previews while keeping the browser's saved session separate.
+- D-Bus activation, Wayland parenting where available and NixOS module configuration.
 
-- **Opens in the right app.** Enter or a double click opens a file in its default application,
-  chosen exactly as GTK apps choose it: 0 differences from `gio` on all 1 232 file types and
-  aliases. rummage implements the freedesktop specs itself, without `xdg-open`:
-  - several files for the same app start one instance (five photos, one darktable);
-  - terminal apps such as Helix open in a terminal (`$TERMINAL`, `xdg-terminal-exec`, foot,
-    kitty, ghostty, alacritty, wezterm...);
-  - the new window comes up in front, through an xdg-activation token;
-  - apps run detached: no zombies, and closing rummage leaves them open;
-  - an executable is never run: it opens in the app for its type;
-  - the status bar says what happened ("Opening 5 files with Darktable…"), in red when there is
-    no app for a type or the app fails at once.
-- **Open in a terminal.** F4 opens a terminal in the folder under the cursor, else in the folder
-  shown (also from the context menu, "Open in Terminal"); the same terminal as for terminal apps
-  (`$TERMINAL`, `xdg-terminal-exec`, foot...).
-- **Rename in place** (F2): the name becomes a field where it is, in all three views, with the
-  name selected but not its extension. Typing works with accents and compose. Enter keeps the
-  name, Escape gives up, and a click elsewhere keeps it. The usual editing keys work, including
-  words with Ctrl+arrows and selection with Shift; Ctrl+V pastes the clipboard's text (its first
-  line); Ctrl+Z undoes and Ctrl+Shift+Z redoes (a word typed, characters deleted one after
-  another, or a paste is one step; up to 100).
-- **New folder** (Ctrl+Shift+N): "New Folder" (or "New Folder 2"...), ready to be named.
-- **Never overwrites:** renames use `RENAME_NOREPLACE`, so an existing file is never replaced,
-  even one that appears in the meantime. A taken or invalid name is refused with a message and
-  the field stays open for another try.
-- **Photo-safe renames:** renaming `P1.ORF` also renames `P1.ORF.xmp` and the duplicates
-  `P1_01.ORF.xmp`, `P1_02.ORF.xmp`… If any of their new names is taken, nothing moves.
-- **Copy and move** (Ctrl+C or Ctrl+X, then Ctrl+V), in any of the three views:
-  - a move on one disk is a rename: instant, whatever the size;
-  - a copy runs as fast as `cp` (3.1 GB of photos in 1.39 s, warm cache, against 1.39 s), by
-    the kernel's `copy_file_range`, on a thread of its own, so the window never waits;
-  - the status bar shows "Copying 163 files · 2.1 GB of 3.4 GB · 180 MB/s · 8 s left", a
-    progress line and an × to stop; what arrived is selected afterwards;
-  - nothing half-copied ever carries a real name: each file is written under a hidden temporary
-    name and renamed when complete, and a folder is built whole the same way. Stopping leaves
-    nothing behind;
-  - moving off another disk (an SD card, a USB drive) deletes the original only after its copy is
-    flushed to disk;
-  - dates (to the nanosecond), permissions and symbolic links are kept, and darktable sidecars
-    travel with their photo, even under a new name;
-  - cut files fade until pasted (Escape keeps them where they are);
-  - a taken name asks on a card: Replace (the old file goes only once the new one is complete;
-    folders are merged), Skip, Keep both ("P1 2.ORF", sidecars included), for this one or for
-    the rest; pasting into the same folder keeps both by itself;
-  - refused before anything moves: a folder into itself, or more than the free space.
-- **Undo** (Ctrl+Z, in any view and in Quick Look) the last operation on files, and redo it
-  (Ctrl+Shift+Z):
-  - a rename gets its old name back, darktable sidecars included; a move goes back where it came
-    from, across disks too; a Delete is restored; a restore goes back to the trash;
-  - copies and new folders or files go to the trash, never deleted, so even an undo can be
-    undone; a new folder only while it is empty, a new file only while it is as it was made;
-  - a permanent delete cannot be undone, and the status bar says so; what changed meanwhile
-    (a file another program moved) is skipped and said;
-  - the status bar says what happened: "Undone: “Lake.ORF” is “P1.ORF” again", "Undone: 3
-    items moved to the trash", "Redone: “P1.ORF” back in album".
-- **Drag and drop:** a press on an entry's icon or name moved a few pixels drags it (the whole selection when it
-  is in it), with its icon and name under the pointer. It drops onto a folder in any view (marked),
-  the empty part of a column or view (that folder), a step of the path above or a place in the
-  sidebar; the Trash trashes. On the same disk it moves, onto another it copies; Ctrl copies,
-  Shift moves. It goes through the same engine as a paste: sidecars, questions, progress, Ctrl+Z.
-  A folder never goes into itself, and dropping where the files already are does nothing. Other
-  programs receive the files as file URIs and paths (Firefox, terminals), only to copy: rummage
-  never deletes its files because another program says it took them. Files dragged from another
-  program (Firefox's downloads) are copied; a web address is not a file. Near the top or bottom of
-  a list the drag scrolls it. Opening a folder by hovering over it comes later.
-- **The system clipboard**, with other programs:
-  - files copied or cut in rummage paste in other programs: a file manager, Firefox (an upload, a
-    message), a terminal or an editor (their paths); rummage offers them as
-    `x-special/gnome-copied-files`, `text/uri-list` (each file URI as GLib writes it) and text,
-    and says "cut" the GNOME and the KDE way;
-  - files copied or cut in another program paste in rummage with Ctrl+V: copied, or moved when
-    the other program cut them, through the same engine (sidecars, conflicts, progress); only
-    files on this computer are taken;
-  - read and written through pipes the window's loop watches: a program that does not answer
-    never freezes rummage (it is given up after 3 s);
-  - when another program copies something, the files rummage cut stop fading: Ctrl+V pastes what
-    is on the clipboard now. A cut pasted once empties the clipboard.
-- **The Trash** in the sidebar (its icon full or empty):
-  - every trash as one folder: the home's and each disk's (`.Trash-1000` on a data disk), by
-    original name; the same name trashed twice shows as "a.txt" and "a.2.txt";
-  - the info pane adds where it came from and when it was deleted; previews, thumbnails and
-    Quick Look work as anywhere else; it follows what other programs trash or restore, live;
-  - Restore (right click) puts things back where they were, makes their folder again if it is
-    gone, asks on the card when the name is taken (a folder is never merged), and brings a
-    photo's darktable sidecars back with it;
-  - Delete (or "Delete Permanently…" in the menu) deletes the selection for good, a photo with
-    its trashed darktable sidecars; "Empty Trash…" (on the trash's empty space, or a right click
-    on Trash in the sidebar) empties every trash at once, orphaned `.trashinfo` files and
-    `directorysizes` included; both after the confirmation card;
-  - nothing is made, renamed or pasted there, and files are not opened from the trash.
-- **Context menu**: a right click (or a two-finger tap on the touchpad) in any of the three views
-  or on the info pane, the Menu key or Shift+F10:
-  - on files and folders: Open, Open With, Copy, Cut, Paste, Rename (one entry), Move to Trash,
-    Delete Permanently; on a folder also Open in Terminal and Add to Sidebar;
-    on a folder's empty space: New Folder, New File, Paste, Add to Sidebar, Open in Terminal; what cannot be done now is dimmed,
-    and each item shows its shortcut;
-  - a right click on an entry selects it first, unless it is part of the selection already;
-  - Open With lists the applications for the file's type exactly as GTK apps do (0 differences
-    from `gio mime` on all 1 232 types and aliases), the default one first, and opens every
-    selected file with the one chosen (on a folder: the applications for folders, such as an
-    editor, and the selected folders);
-  - New File makes an empty file, or a copy of one of your templates (`XDG_TEMPLATES_DIR`),
-    never over an existing file, with the name ready to edit;
-  - drawn by rummage in your theme's colors, it stays whole near the window's edges, and the
-    keyboard works in it: arrows, Enter, → into a submenu, ← and Escape back.
-- **Empty files open as their name says**: a new, empty `notes.txt` opens in your text editor
-  (GLib calls any empty file `application/x-zerosize`, which no application opens).
-- **Trash** (Delete), the freedesktop Trash specification 1.0, in any of the three views and in
-  Quick Look:
-  - files on the home's disk go to `~/.local/share/Trash`, files on other disks to that disk's
-    own trash (`.Trash-1000` at its top, or `.Trash/1000`): a rename, never a copy, so trashing
-    is instant (1 001 items in 25 ms, `gio trash` 70 ms); where no trash can be made, the files
-    stay and the status bar says why;
-  - other trash programs (`trash-list`, `trash-restore`, gio, file managers) see what rummage
-    trashed and restore it to its place: the `.trashinfo` files are the same as GLib's, odd
-    names included;
-  - darktable sidecars go with their photo, each restorable on its own;
-  - the cursor moves on to the next entry; the status bar says what went ("“P2.ORF” with 1
-    darktable sidecar moved to the trash") or what could not;
-  - trashed folders are listed in `directorysizes` with their size, so trash tools need not
-    measure them again.
-- **Delete permanently** (Shift+Delete, in any view and in Quick Look; Delete in the Trash):
-  - first a card says what goes: "Delete “P1.ORF” permanently?", "With its darktable sidecar ·
-    21.0 MB", and for folders how many files and folders they hold in all; the size is added up
-    on a worker, the card is there at once; Enter (or the red Delete) deletes, Escape (or Cancel)
-    keeps everything;
-  - on the transfer thread, with progress in the status bar and its × to stop; links are never
-    followed, read-only folders of yours are opened up to be emptied; darktable sidecars go with
-    their photo, and a photo that stays keeps them;
-  - 10 101 files and folders in 0.20 s on ext4 (`rm -rf` 0.17 s: the difference is the first
-    pass that counts them for the progress bar).
-- **Clear errors:** a read-only folder, permission denied or a missing file shows a message in the
-  status bar, never a crash.
+See [file-picker setup](file-picker.md) and [command-line reference](command-line.md).
+Only applications using the portal use this backend. Unsupported parent handles
+open independent windows; filename-based MIME filtering has limits.
 
-## Finding your way
+## Implementation and evidence
 
-- **Command palette** (Ctrl+K): a card at the top of the window; type a few letters of anything
-  rummage can do and Enter runs it. Every command is there, the ones with a shortcut (shown at the
-  right) and the ones only in menus (Sort by…, Open With…, New Empty File, Empty Trash, Eject,
-  Zoom, Select All, Quit); only what can be used at that moment is offered ("Paste" with
-  something to paste, "Rename…" with one entry). The sidebar's places are there as "Go to …" and
-  the other tabs as "Tab 2: …". The letters are matched in order anywhere (fzy, as Noctalia's
-  launcher): "nf" finds New Folder, "gdo" Go to Downloads; the matched letters show in the accent.
-  With nothing typed, the ten most recently used come first, remembered in `state.toml`. ↑ ↓
-  and Page Up/Down move, Enter runs, Escape or Ctrl+K again closes; the mouse works too. Each item
-  goes the same way as its key or menu item, so they never differ. "Open With…" lists the
-  applications in the palette itself.
-- **Find files** (Ctrl+F): the same card, on every file and folder under the folder you are in,
-  at any depth. They are listed once, nearest first, on a worker (273 000 entries in under half a
-  second), and what you type is matched against their paths on all the workers, a new letter
-  cancelling the search before: the first results show in about 8 ms. A match in a file's name
-  ranks above one that needs its folders, so "vinc17" finds `Piramide Vincent/_7230017.ORF`;
-  spaces in what you type do not count. Enter shows the file in the view (the columns unfold down
-  to it), Space opens it in Quick Look, Shift+Enter in its application. Hidden files are left out
-  unless Ctrl+H shows them; links are not followed and other disks mounted inside are not entered;
-  the search stops at 300 000 entries and says so. The memory the paths took (about 85 bytes
-  each) goes back to the system when the card closes.
-- **Sidebar:** your home and its folders (Downloads, Pictures… in your language, from
-  `user-dirs.dirs`), the file system, your GTK bookmarks (shared with other file managers) and
-  the mounted disks. A disk appears as soon as it is mounted and disappears when it is unmounted.
-  Ctrl+B hides the sidebar, and F6 moves the keyboard into it and back.
-- **Disks:** through udisks2, a disk plugged in appears among the devices, quieter, without
-  mounting itself (encrypted ones come later); a click mounts it and opens it, and a disk that
-  mounts read-only says why (an NTFS disk not closed properly) and what fixes it. The eject icon of
-  an external disk unmounts every partition on it and powers it off, taking the view home first if
-  it shows that disk; "in use" says to close what is open there. The right click mounts, unmounts
-  and ejects. The list follows disks coming and going; nothing waits on udisks2.
-- **Network folders:** `smb://`, `sftp://`, `ftp://` and `dav://`/`davs://` (WebDAV) bookmarks
-  (the ones Nautilus and other GTK file managers keep in the same file) are listed too, quieter
-  until mounted. A click mounts one through gvfs on the session bus, with no GLib in rummage, and
-  opens it through gvfs's FUSE folder. A server that wants a name and a password gets them on a
-  card: user, domain, a password drawn as dots, "Anonymous" when the server allows it, and
-  "Remember the password" (gvfs keeps it in the keyring). A mounted share has an eject icon that
-  unmounts it; the right click mounts, unmounts and removes the bookmark. Without gvfs a message
-  says so.
-- **Go to (Ctrl+L):** a card with one line for where to go: a folder (`/data`, `~/Pictures`,
-  `file://…`) or a server (`smb://server/share`, `sftp://user@host/path`, `ftp://host`,
-  `davs://host/path`, or a Windows share `\\server\share`). A server is added to the sidebar too
-  (unless unticked) and mounted. A wrong address says what is wrong and the card stays open. Also
-  in the command palette.
-- **Favourites:** Ctrl+D adds the folder shown, "Add to Sidebar" the folders selected (or the
-  folder, from its empty part), and folders dragged onto the "BOOKMARKS" title or below the last
-  place are added at the end, a line showing where; dropping onto a place still moves into it.
-  A right click on a favourite removes it. They are the GTK bookmarks: other file managers and
-  the Open dialogs of other apps (Firefox's) show them too. The file is written all at once on a
-  worker, keeping what rummage does not touch (remote bookmarks, labels, order); a folder already
-  there is not added twice. Reordering and renaming come later.
-- **Breadcrumb:** the folder's path as a row of clickable steps, starting from your home. A long
-  path is shortened from the left.
-- **Status bar:** item count, selection, free space on the disk (updated after a copy into the
-  folder), the three view buttons and "?". Messages appear here for a few seconds.
+rummage uses C++20, Wayland and OpenGL ES without GTK, Qt or GLib. The
+[architecture](architecture.md) explains modules and execution, and the
+[security model](security.md) distinguishes isolated readers from other file
+handling and external programs.
 
-## Always current
-
-- **Live folders:** files created, removed, changed or renamed by any program show up at once
-  (inotify). A thousand-file copy arrives in a few smooth updates, not a thousand.
-- **File types exactly as GTK sees them:** the freedesktop shared-mime-info database, read by
-  name first and by content only when needed (and only for what is on screen). 0 differences from
-  `gio` on about 4 750 files.
-- **Live theme:** change the palette in Noctalia and rummage follows instantly (with the
-  `rummage` template enabled in Noctalia); elsewhere, switch
-  the desktop between light and dark or pick another accent colour and rummage follows too.
-
-## Looks
-
-- Its own icon: a golden folder holding colourful papers and a photo
-  (`share/icons/hicolor/scalable/apps/rummage.svg`, named after the app id), shown by docks,
-  launchers and menus on any desktop.
-- **The icon follows the accent:** rummage writes its icon in the desktop's accent (Noctalia's
-  primary colour, else GNOME's or Plasma's accent from the portal) to
-  `~/.local/share/icons/hicolor/scalable/apps/rummage.svg`, which docks and launchers read before
-  the installed one, and rewrites it when the accent changes, only when it changes. The three
-  folder tones keep the supplied icon's lightness and steps in OKLCH, with the accent's hue and
-  chroma (held to what the icon can carry); the papers, photo, and outline retain their colours.
-  No accent, or `icon.follow_accent = false`: the copy is taken away (installed under `~/.local`,
-  the supplied icon is written back). An icon not
-  written by rummage at that path is never touched.
-- Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
-  raw files and darktable sidecars have their own icons. The icons are compiled into the
-  program (a 14 KB subset of the official Tabler font), so they show on any desktop.
-- Sharp at any scale: fractional scaling (1, 1.25, 1.5, 2…), boxes snapped to the pixel grid.
-- **Folder icons shared with Dolphin**: with system or named icon themes, columns, grid,
-  details and the information pane read `Icon=` from `[Desktop Entry]` in a folder's
-  `.directory` file. Theme names, absolute SVG/PNG paths and `./` paths relative to the folder
-  are supported. Without an override, Home and the XDG Desktop, Documents, Downloads, Music,
-  Pictures, Videos, Public and Templates folders use their standard icons. Missing icons fall
-  back to the normal folder icon; `builtin` keeps Tabler icons. Reopen the parent folder after
-  changing an icon in Dolphin. KDE's `EmptyIcon` behavior is not supported.
-- **Properties** (Alt+Enter or the context menu): inspect one file or folder, or the current
-  folder from the background menu. Shows location, type, size or item count, dates, owner,
-  group, permissions and symlink target. Metadata is read-only. For folders, **Change Icon…**
-  opens a searchable, paged grid of folder icons from the active theme; a custom icon name or
-  SVG/PNG path can also be entered or pasted. **Default** removes the override. Choices are
-  staged until **Apply**; Cancel leaves disk unchanged. Saving preserves other `.directory`
-  settings and refreshes the icon in open views. Trash properties are read-only. Tab moves
-  between controls, arrows and Page Up/Down browse icons, Enter chooses, and Escape goes back
-  from the picker or closes Properties. Short windows scroll the content and keep buttons visible.
-- Text shaped by HarfBuzz, with font fallback for accents, emoji and CJK. Your font family and
-  monospace font come from `config.toml`.
-- **Its own title bar where the compositor draws none** (GNOME, weston): the title in the middle,
-  minimize, maximize (restore when maximized) and close at the right, in the theme's colors;
-  drag it to move the window, double-click to maximize, right-click for the compositor's window
-  menu; the window's edges and corners resize it, with the matching arrows (not when maximized,
-  nor on an edge tiled against the screen). Buttons the compositor cannot honour are left out.
-  `RUMMAGE_FORCE_CSD=1` asks any compositor for it (the compositor may still decorate).
-- Pointer shapes from the compositor's cursor theme (cursor-shape-v1): a resize arrow on every
-  draggable edge, a hand on what a click acts on (the status bar's buttons, a transfer's ×, the
-  path's crumbs, a disk's eject icon, "More details", the buttons of a question), the text cursor
-  over a name being edited. Where the compositor has no cursor-shape-v1 (GNOME, weston), rummage
-  draws them itself from the xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`, sharp at any
-  scale); `RUMMAGE_FORCE_XCURSOR=1` does so on any compositor.
-
-## Fast, and measured
-
-| What | Time |
-|------|-----:|
-| First entries of a 10 000-file folder (warm / cold cache) | 0.8 ms / 1.7 ms |
-| The whole folder loaded and sorted (warm / cold) | 19.5 ms / 81 ms |
-| A scrolling frame at 2880x1620 (columns / grid / details) | 0.26 / 0.30 / 0.36-0.50 ms |
-| Sorting 10 000 entries by size, date or type | 1-3 ms |
-| Quick Look of an ORF, fitted to 2880x1620 | 51-55 ms |
-| Reading every installed app to choose one | 0.5 ms |
-| Copying 342 photos, 3.1 GB, warm cache (rummage / `cp -a`) | 1.39 s / 1.39 s |
-| CPU while nothing moves | 0 |
-
-A 3.5 MB binary (2.9 MB stripped) with 21 direct libraries; 25 MB of its own memory at start,
-54 MB after browsing 163 raw photos (143 MB resident with the shared libraries): decoded photos
-go back to the system.
-
-## Settings
-
-- `~/.config/rummage/config.toml`: font family, monospace font, double-click time and distance,
-  the icon in the accent ([example](config.example.toml)). `rummage --check-config` reports every problem with its
-  line.
-- No settings window: the defaults are the system's fonts (fontconfig's `sans-serif` and
-  `monospace`) and the desktop's colours, and the few settings live in the file.
-  `config.toml` is followed while rummage runs: the double click and the icon change at once, the fonts at
-  the next start; a file with problems keeps the settings in use, with the problems in the log.
-- **`rummage --about`**: rummage's version and commit, the distribution, the kernel, the
-  desktop, the versions of Noctalia and Umbriel when they are running (asked of the very
-  programs running, never of another copy) and the GPU (from a surfaceless OpenGL context), one
-  "Label: value" line each, ready to paste into a bug report; and the engines found, with
-  their programs.
-- Colors come from Noctalia (`~/.config/rummage/colors.toml`, written by Noctalia from the
-  `rummage` template, installed at `share/rummage/noctalia/rummage`; the README's "On Noctalia"
-  says how to enable it). Without the file, rummage follows the desktop through the freedesktop portal (GNOME,
-  Plasma): light or dark, and the accent colour for the selection, icons and links, with
-  neutral surfaces and text kept readable (WCAG AA contrast, tested for 15 accents). Without a
-  portal either, a built-in default palette is used.
-- **Remembered from one start to the next** (`~/.local/state/rummage/state.toml`, written by
-  rummage): the view, the details' order and column widths, hidden files shown or not, the
-  sidebar and the info pane (shown, width, "More details"), the window's size and whether it was
-  maximized. With multiple tabs or a second pane, both tab sets return when rummage starts without
-  a folder (Super+E): locations, views, cursors, column roots, zoom, sorting, hidden files and
-  filters, plus active tabs, focused pane, layout and divider. Missing folders are left out;
-  an empty restored pane falls back to Home. A single tab that has never been split opens Home
-  or the folder given. Back/forward history is not saved. A broken file means the defaults.
-
-## Standards it follows
-
-freedesktop thumbnails, shared-mime-info, MIME applications associations, Desktop Entry, XDG
-base and user directories, GTK bookmarks; Wayland xdg-shell, xdg-decoration, fractional-scale,
-viewporter, cursor-shape and xdg-activation.
-
-## Next
-
-0.5.0 is out (text previews with syntax colours, selecting and copying, logs from their end; the
-helper became the first engine), after 0.4.0 (image previews read by rummage's own code in caged
-helpers: DNG, TIFF, raw previews and EXIF without exiv2), 0.3.1 (more raw previews), 0.3.0 (the
-command palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, zoom in the
-lists) and the first release, 0.1.0. Coming, roughly in this order: other common formats, colour
-labels and ratings, a Quick Look for photographers, further pane workflows. See the README's
-[What's next](../README.md#whats-next).
-
-### Expandable folders in details view
-
-In the main window's details view (**Ctrl+3**), click a folder's chevron to show its
-contents inline. **Right** expands the selected folder, then moves into its first
-child; **Left** collapses it or selects its parent row. **Enter** or a double click
-opens the folder as the new location. **Backspace** goes above the tree's root.
-Expanded folders load on demand and follow filesystem changes, sorting and hidden-file
-settings. Selections (including Shift ranges, Ctrl+A and rubber bands) stay within
-one parent folder. Expansion is retained while switching tabs, but resets when
-navigating or switching views and is not saved across restarts.
-
-## Name filtering
-
-Every view has a live filename filter beside a New Folder button. Filtering matches
-substrings, ignoring ASCII case, and combines with picker file type restrictions.
-Ctrl+Shift+F focuses the filter; Enter keeps it applied while returning to the view,
-and Escape or Clear removes it. Ctrl+F still searches recursively with the file finder.
-New Folder clears the name filter and starts editing the created folder's name.
-
-## File picker
-
-An optional XDG FileChooser portal backend for OpenFile, SaveFile and SaveFiles: single or
-multiple files and folders, filename entry, glob/MIME filters, application choices, overwrite
-confirmation and cancellation. Picker windows reuse the three views and previews without
-changing the file manager's saved tabs. See [setup and usage](file-picker.md).
-
-## Optional video thumbnails and still previews
-
-The separate `rummage-media` package uses system FFmpeg shared libraries in the isolated preview
-helper. Grid thumbnails have cinema film rails; information-pane and Quick Look stills are clean.
-There is no playback or autoplay. Without the helper or compatible libraries, the application
-continues normally and can display existing cached thumbnails. Missing dependencies do not poison
-the thumbnail failure cache. Decoder support depends on the installed FFmpeg build.
+[Benchmarks](benchmarks.md) record performance at specific revisions and machines.
+Binary sizes, dependency counts and test counts change with the build; they are
+not repeated here as current guarantees. See [development](development.md) to
+reproduce checks and [the roadmap](roadmap.md) for planned work.

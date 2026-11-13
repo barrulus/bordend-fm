@@ -1,4 +1,11 @@
 > Historical notes from Nordend development, retained with their original names and measurements.
+
+[Documentation](README.md) · [Troubleshooting](troubleshooting.md) · [Compatibility](compatibility.md)
+
+This is a historical record of upstream integration issues, not rummage's live
+issue tracker. Status means the last status recorded in an entry; it has not been
+rechecked against today's upstream revisions. For a current failure, reproduce
+it and record exact versions before assuming one of these entries applies.
 > Upstream: https://github.com/pankaspe/nordend-fm. Current application: rummage.
 
 # Upstream bug log

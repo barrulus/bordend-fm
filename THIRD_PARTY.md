@@ -1,7 +1,9 @@
 # Third-party material
 
+[Documentation](docs/README.md) · [License](LICENSE)
+
 Code or data taken from other projects, with origin and license. Libraries linked as system
-packages are not listed here (see `docs/DESIGN.md`).
+packages are not listed here (see [build dependencies](docs/install.md#build-dependencies)).
 
 | What | Where in rummage | Origin | License |
 |------|------------------|--------|---------|

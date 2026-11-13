@@ -1,4 +1,11 @@
 > Historical notes from Nordend development, retained with their original names and measurements.
+
+[Documentation](README.md) · [Development tools](development.md#diagnostic-tools)
+
+These are dated measurements, not a fresh benchmark of the current tree. Compare
+results only with their hardware, build, revision, fixture and cache context.
+References to DESIGN/ROADMAP identify historical planning steps; the targets and
+methods needed to read these results are included here.
 > Upstream: https://github.com/pankaspe/nordend-fm. Current application: rummage.
 
 # Benchmarks
@@ -6,6 +13,63 @@
 Nordend's performance targets (the design's performance goals, summed up in "DESIGN targets"
 below) are measured here, not assumed. Every number below comes from a tool in this repository, so it can be run
 again. Newest results first in each section; the [devlog](devlog.md) tells the story around them.
+
+<details>
+<summary>Jump to a section</summary>
+
+- [Machine](#machine)
+- [DESIGN targets (ROADMAP 7.6)](#design-targets-roadmap-76)
+- [Start-up (ROADMAP 7.6)](#start-up-roadmap-76)
+- [Markdown and diffs (ROADMAP 3b-2b, fourth group)](#markdown-and-diffs-roadmap-3b-2b-fourth-group)
+- [Data and configuration files (ROADMAP 3b-2b, third group)](#data-and-configuration-files-roadmap-3b-2b-third-group)
+- [The general lexer (ROADMAP 3b-2b, first group)](#the-general-lexer-roadmap-3b-2b-first-group)
+- [Syntax colours (ROADMAP 3b-2a)](#syntax-colours-roadmap-3b-2a)
+- [Text through the base engine (ROADMAP 3b-1)](#text-through-the-base-engine-roadmap-3b-1)
+- [Engines' manifests (ROADMAP 3a)](#engines-manifests-roadmap-3a)
+- [The preview helper without exiv2 (ROADMAP 2e-5)](#the-preview-helper-without-exiv2-roadmap-2e-5)
+- [Photo information: Nordend's reader against exiv2 (ROADMAP 2e-3)](#photo-information-nordends-reader-against-exiv2-roadmap-2e-3)
+- [Raw previews: Nordend's reader against exiv2 (ROADMAP 2e-2)](#raw-previews-nordends-reader-against-exiv2-roadmap-2e-2)
+- [DNG opcodes: gain maps and lens warp (ROADMAP 2d-4)](#dng-opcodes-gain-maps-and-lens-warp-roadmap-2d-4)
+- [DNG development made quicker (ROADMAP 2d-3)](#dng-development-made-quicker-roadmap-2d-3)
+- [DNGs developed (ROADMAP 2d-2)](#dngs-developed-roadmap-2d-2)
+- [DNG sensor data, our own reader (ROADMAP 2d-1)](#dng-sensor-data-our-own-reader-roadmap-2d-1)
+- [TIFF, our own reader (ROADMAP 2c)](#tiff-our-own-reader-roadmap-2c)
+- [Parsers out of Nordend (ROADMAP 2b-3)](#parsers-out-of-nordend-roadmap-2b-3)
+- [The helper's cage (ROADMAP 2b-2)](#the-helpers-cage-roadmap-2b-2)
+- [Pictures in a helper (ROADMAP 2b-1)](#pictures-in-a-helper-roadmap-2b-1)
+- [One path for every picture (ROADMAP 2a)](#one-path-for-every-picture-roadmap-2a)
+- [Raw previews (ROADMAP 1, 0.3.1)](#raw-previews-roadmap-1-031)
+- [Command palette (ROADMAP 8a)](#command-palette-roadmap-8a)
+- [Finding files (ROADMAP 8b)](#finding-files-roadmap-8b)
+- [Binary](#binary)
+- [Memory](#memory)
+- [Directory loading (ROADMAP 3.1)](#directory-loading-roadmap-31)
+- [List scrolling (ROADMAP 4.1)](#list-scrolling-roadmap-41)
+- [Column view scrolling (ROADMAP 4.2)](#column-view-scrolling-roadmap-42)
+- [Grid scrolling (ROADMAP 4.4)](#grid-scrolling-roadmap-44)
+- [Image decoding (ROADMAP 5.1)](#image-decoding-roadmap-51)
+- [Thumbnails (ROADMAP 5.2)](#thumbnails-roadmap-52)
+- [Quick Look (ROADMAP 5.3)](#quick-look-roadmap-53)
+- [Status bar (ROADMAP 5.11)](#status-bar-roadmap-511)
+- [Breadcrumb (ROADMAP 5.10)](#breadcrumb-roadmap-510)
+- [Context menu: Open With (ROADMAP 6.4b)](#context-menu-open-with-roadmap-64b)
+- [Trash (ROADMAP 6.4)](#trash-roadmap-64)
+- [Deleting permanently (ROADMAP 6.4d)](#deleting-permanently-roadmap-64d)
+- [Giving decoded photos back (ROADMAP 6.3c)](#giving-decoded-photos-back-roadmap-63c)
+- [Memory with photos (ROADMAP 6.3b)](#memory-with-photos-roadmap-63b)
+- [Copy and move (ROADMAP 6.3)](#copy-and-move-roadmap-63)
+- [Renaming in place (ROADMAP 6.2)](#renaming-in-place-roadmap-62)
+- [Sidebar (ROADMAP 5.9)](#sidebar-roadmap-59)
+- [Info pane preview (ROADMAP 5.8)](#info-pane-preview-roadmap-58)
+- [Info pane (ROADMAP 5.7)](#info-pane-roadmap-57)
+- [Details view (ROADMAP 5.6)](#details-view-roadmap-56)
+- [Text previews (ROADMAP 5.5)](#text-previews-roadmap-55)
+- [Raw previews (ROADMAP 5.4)](#raw-previews-roadmap-54)
+- [MIME detection (ROADMAP 3.2)](#mime-detection-roadmap-32)
+- [Default applications (ROADMAP 6.1)](#default-applications-roadmap-61)
+- [Desktop portal at start (ROADMAP 7.4)](#desktop-portal-at-start-roadmap-74)
+
+</details>
 
 ## Machine
 

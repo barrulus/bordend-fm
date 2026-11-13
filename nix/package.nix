@@ -17,6 +17,9 @@
   libwebp,
   ffmpeg,
   libjxl,
+  libheif,
+  libde265,
+  lcms2,
   zlib,
   sdbus-cpp_2,
   shared-mime-info,
@@ -83,6 +86,11 @@ stdenv.mkDerivation {
     tomlplusplus
     libwebp
     libjxl
+    # nixpkgs includes the built-in libde265 HEVC decoder in libheif.
+    # Sandboxed helper tests verify that it is available at runtime.
+    libheif
+    libde265
+    lcms2
     zlib
     sdbus-cpp_2
   ]
