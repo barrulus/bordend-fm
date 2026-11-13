@@ -1,5 +1,12 @@
 # SVG renderer acceptance
 
+[Documentation](README.md) · [Development](development.md) · [Security model](security.md)
+
+This is the active SVG renderer validation policy, including its explicitly
+recorded changes. The [original brief](svg-renderer-brief.md) is historical; do not
+reinstate superseded acceptance thresholds from it. Results in this document are
+dated evidence and must be rerun for a renderer change.
+
 On 2026-11-10 the author approved ending the pixel-parity effort, returning stroke
 expansion to FreeType, and judging a fixed set of icons at native size alongside
 geometric correctness and performance tests. This supersedes the original stage-3

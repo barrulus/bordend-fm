@@ -1,27 +1,49 @@
-# Compatibility
+# Desktop compatibility
 
-How rummage behaves outside Noctalia and Umbriel (ROADMAP 7.4). One column per desktop, filled
-in by the author's tests; "expected" is what the protocols each compositor offers should give,
-*to be verified* until tested.
+[Documentation](README.md) · [Installation](install.md) · [File picker](file-picker.md)
 
-## What depends on the compositor
+rummage requires a Linux Wayland session with xdg-shell and EGL/OpenGL ES 3.0.
+Optional protocols and services provide desktop integration with the fallbacks
+below. The test matrix later on is a **dated record**, not a current certification
+of every compositor/version. Those sessions were not rerun for this documentation update.
 
-| Need | Protocol | Without it |
-|------|----------|------------|
-| Title bar | `xdg-decoration` in server-side mode | rummage draws its own (client-side) |
-| Cursor shapes | `cursor-shape-v1` | rummage draws them from the xcursor theme (`XCURSOR_THEME`, `XCURSOR_SIZE`) |
-| Sharp fractional scaling | `fractional-scale-v1` + `viewporter` | renders at scale 1 |
-| Copy and paste, drag and drop with other apps | `wl_data_device_manager` | inside rummage only |
-| Focus for the apps it opens | `xdg-activation-v1` | they may open without focus |
-| The desktop's colours, without `colors.toml` | the freedesktop portal, `org.freedesktop.appearance` (`color-scheme`, `accent-color`) | rummage's own default palette |
+## Protocols and fallbacks
 
-Icons need nothing: the Tabler subset is compiled into the program.
+| Feature | Protocol/service | Without it |
+| --- | --- | --- |
+| Title bar | xdg-decoration in server-side mode | rummage draws client-side decorations |
+| Cursor shapes | cursor-shape-v1 | Xcursor theme fallback using `XCURSOR_THEME` / `XCURSOR_SIZE` |
+| Fractional scaling | fractional-scale-v1 and viewporter | No fractional-scale path; renders at scale 1 |
+| Desktop clipboard and drag/drop | wl_data_device_manager | No cross-application file exchange through that protocol |
+| Focus for launched applications | xdg-activation-v1 | Applications may open without focus |
+| Desktop colours | Settings portal, `org.freedesktop.appearance` | Built-in palette unless `colors.toml` is supplied |
+| Picker parent attachment | xdg-foreign-v2 | Independent picker window |
+| Picker modal hint | xdg-dialog-v1 | Parenting can work without the modal hint |
+| Device mount/eject | udisks2 | No udisks2 operations; mounted-volume discovery remains separate |
+| Action popups | Desktop notifications D-Bus service | Completion status still appears in rummage |
 
-Two variables try rummage's own paths on a compositor that would not need them:
-`RUMMAGE_FORCE_CSD=1` asks for client-side decorations through xdg-decoration (the compositor
-has the last word), `RUMMAGE_FORCE_XCURSOR=1` draws the cursor from the xcursor theme.
+The built-in icon font is compiled into the application; external themes are
+optional. Application file dialogs require separate
+[FileChooser backend selection](file-picker.md), not just a Wayland protocol.
 
-## Expected
+`RUMMAGE_FORCE_CSD=1` requests the client-side title bar (the compositor decides
+whether to honor it). `RUMMAGE_FORCE_XCURSOR=1` forces the cursor fallback. These
+are useful for testing paths that a compositor would normally bypass.
+
+## Check a new desktop session
+
+Run the original checklist below and also check current additions:
+
+- Desktop colour changes with no palette override, and an explicit icon theme.
+- File-picker standalone mode, application portal selection, parent attachment,
+  cancellation and concurrent requests.
+- Custom-action notifications and external launch focus.
+- Multiple outputs/scales, keyboard navigation and clipboard interoperability.
+
+Record the exact compositor/version, GPU/driver, scale, build revision and date.
+Mark untested paths explicitly; successful rendering alone does not test input.
+
+## Historical protocol expectations
 
 | | Umbriel | GNOME | Plasma | niri | weston |
 |---|---|---|---|---|---|
@@ -42,7 +64,7 @@ For each desktop: build in the VM (or on the host for Umbriel), then `./build/ru
 7. Enter on a photo, a PDF, a text file opens them in their apps, which get the focus.
 8. At a fractional scale (125 %, 150 %), text and icons are sharp.
 
-## Results
+## Recorded results: 2026-10-30 and 2026-10-31
 
 | Step | Umbriel | GNOME | Plasma | niri | weston (headless) |
 |------|---------|-------|--------|------|-------------------|
@@ -58,15 +80,16 @@ For each desktop: build in the VM (or on the host for Umbriel), then `./build/ru
 Umbriel: the author's desktop (pinned commit), tested by the author on 2026-10-31.
 
 GNOME: 48.7 (mutter 48.7) in the Void VM `rummage-dev` (virtio without 3D, Mesa llvmpipe),
-tested by the author on 2026-10-31; 249 tests pass in the VM. The colours are rummage's defaults,
-not GNOME's: following the desktop's light/dark and accent is planned in 7.4. Fractional scaling
+tested by the author on 2026-10-31; 249 tests passed in that VM run. The initial
+pass used rummage's default colours; the later desktop-colour test below supersedes
+that limitation. Fractional scaling
 in GNOME 48 is experimental:
 `gsettings set org.gnome.mutter experimental-features "['scale-monitor-framebuffer']"`, then log
 in again.
 
-Plasma: 6.7.5 (KWin 6.7.5) in the same VM, tested by the author on 2026-10-31. The title bar and
-the task bar show the generic Wayland icon: no desktop entry matches the app id `rummage` yet
-(to add with the 0.1.0 package, 7.8).
+Plasma: 6.7.5 (KWin 6.7.5) in the same VM, tested by the author on 2026-10-31.
+That test predates the installed desktop entry and recorded a generic Wayland icon.
+Current installs include `rummage.desktop` and the matching app icon.
 
 Desktop colours (without `colors.toml`): light/dark and the accent followed live on GNOME and
 Plasma, tested by the author on 2026-10-31; Umbriel keeps Noctalia's colours.
