@@ -12,9 +12,11 @@ on:
 permissions:
   contents: read
 
+# A pull request's newer push replaces its older run; every commit on main keeps its own run
+# (a release is tagged on one of them).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Build tools and Nordend's libraries (packaging/void/nordend/template), then what the tests
