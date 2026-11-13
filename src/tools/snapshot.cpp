@@ -390,8 +390,8 @@ int main(int argc, char** argv) {
             core::WorkerPool pool{loop};
             // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
             {
-                auto registry = std::make_shared<const engines::Registry>(
-                    engines::Registry::load(engines::default_directory(), engines::locate_program));
+                auto registry =
+                    std::make_shared<const engines::Registry>(engines::Registry::load_installed());
                 isolate::use_engines(*registry);
                 engines::set_installed(std::move(registry));
             }

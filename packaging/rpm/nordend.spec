@@ -31,6 +31,10 @@ BuildRequires:  pkgconfig(tomlplusplus)
 BuildRequires:  pkgconfig(libwebp)
 BuildRequires:  pkgconfig(libwebpdemux)
 BuildRequires:  pkgconfig(libjxl)
+BuildRequires:  pkgconfig(libavformat) >= 61
+BuildRequires:  pkgconfig(libavcodec) >= 61
+BuildRequires:  pkgconfig(libavutil) >= 59
+BuildRequires:  pkgconfig(libswscale)
 BuildRequires:  pkgconfig(zlib)
 BuildRequires:  pkgconfig(sdbus-c++) >= 2
 Requires:       shared-mime-info
@@ -40,6 +44,14 @@ Requires:       hicolor-icon-theme
 A file manager with column and grid views, isolated previews, configurable
 custom actions and an optional desktop file chooser portal.
 
+%package media
+Summary:        Optional video thumbnails and still previews for Nordend
+Requires:       %{name} = %{version}-%{release}
+
+%description media
+Isolated video decoding using system FFmpeg shared libraries. No command-line
+FFmpeg tools are required. This package does not provide playback.
+
 %prep
 %autosetup -n nordend-checkout
 
@@ -47,11 +59,11 @@ custom actions and an optional desktop file chooser portal.
 %if 0%{?suse_version}
 %define __builder ninja
 %endif
-%cmake -G Ninja -DBUILD_SHARED_LIBS=OFF -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
+%cmake -G Ninja -DNORDEND_MEDIA=ON -DBUILD_SHARED_LIBS=OFF -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF
 %if 0%{?suse_version}
-%cmake_build nordend nordend-preview
+%cmake_build nordend nordend-preview nordend-media
 %else
-%cmake_build --target nordend nordend-preview
+%cmake_build --target nordend nordend-preview nordend-media
 %endif
 
 %install
@@ -67,9 +79,16 @@ install -Dm644 third_party/wuffs/LICENSE-APACHE %{buildroot}%{_datadir}/licenses
 %license %{_datadir}/licenses/%{name}/*-LICENSE*
 %doc THIRD_PARTY.md
 %{_bindir}/nordend
-%{_libexecdir}/nordend/
+%dir %{_libexecdir}/nordend
+%{_libexecdir}/nordend/nordend-preview
 %{_datadir}/nordend/
+%exclude %{_datadir}/nordend/engines/media.toml
 %{_datadir}/applications/nordend.desktop
 %{_datadir}/icons/hicolor/scalable/apps/nordend.svg
 %{_datadir}/xdg-desktop-portal/portals/nordend.portal
 %{_datadir}/dbus-1/services/org.freedesktop.impl.portal.desktop.nordend.service
+
+%files media
+%license LICENSE
+%{_libexecdir}/nordend/nordend-media
+%{_datadir}/nordend/engines/media.toml

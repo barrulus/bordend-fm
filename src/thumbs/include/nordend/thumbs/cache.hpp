@@ -8,6 +8,10 @@
 #include "nordend/core/file.hpp"
 #include "nordend/picture/image.hpp"
 
+namespace nordend::core {
+class CancelToken;
+}
+
 namespace nordend::thumbs {
 
 // The sizes of the freedesktop thumbnail spec (0.9): a thumbnail fits in a square of that side.
@@ -62,15 +66,20 @@ public:
 
     // The thumbnail of file at size: the cached one when valid, else made from the file and
     // stored. Blocking (reads, decodes, writes): call it on a worker.
-    [[nodiscard]] Thumbnail get(const std::filesystem::path& file, Size size) const;
+    [[nodiscard]] Thumbnail get(const std::filesystem::path& file, Size size,
+                                std::string_view mime = {},
+                                const core::CancelToken* cancel = nullptr) const;
 
     // Like get(), but never from the cache, and a remembered failure is tried again.
-    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size) const;
+    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size,
+                                 std::string_view mime = {},
+                                 const core::CancelToken* cancel = nullptr) const;
 
 private:
-    [[nodiscard]] std::filesystem::path fail_path(const std::filesystem::path& file) const;
-    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size,
-                                 std::int64_t mtime) const;
+    [[nodiscard]] std::filesystem::path fail_path(const std::filesystem::path& file,
+                                                  std::string_view mime) const;
+    [[nodiscard]] Thumbnail make(const std::filesystem::path& file, Size size, std::int64_t mtime,
+                                 std::string_view mime, const core::CancelToken* cancel) const;
 
     std::filesystem::path root_;
     std::string app_;

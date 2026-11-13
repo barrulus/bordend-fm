@@ -37,11 +37,11 @@ class DownloadsTest(unittest.TestCase):
             if kind != 'void':
                 (root / 'input/source.tar.gz').write_bytes(b'source')
         for kind, names in {
-            'void': ['nordend-0.5.0_1.x86_64.xbps', 'x86_64-repodata'],
-            'arch': ['nordend-0.5.0-1-x86_64.pkg.tar.zst', 'nordend-debug-0.5.0-1-x86_64.pkg.tar.zst'],
-            'tumbleweed': ['nordend-0.5.0-1.1.x86_64.rpm'],
-            'deb': ['nordend_0.5.0_amd64.deb', 'nordend-dbgsym_0.5.0_amd64.deb'],
-            'rpm': ['nordend-0.5.0.x86_64.rpm', 'nordend-debuginfo-0.5.0.x86_64.rpm', 'nordend-0.5.0.src.rpm'],
+            'void': ['nordend-media-0.5.0_1.x86_64.xbps', 'nordend-0.5.0_1.x86_64.xbps', 'x86_64-repodata'],
+            'arch': ['nordend-media-0.5.0-1-x86_64.pkg.tar.zst', 'nordend-0.5.0-1-x86_64.pkg.tar.zst', 'nordend-debug-0.5.0-1-x86_64.pkg.tar.zst'],
+            'tumbleweed': ['nordend-media-0.5.0-1.1.x86_64.rpm', 'nordend-0.5.0-1.1.x86_64.rpm'],
+            'deb': ['nordend-media_0.5.0_amd64.deb', 'nordend_0.5.0_amd64.deb', 'nordend-dbgsym_0.5.0_amd64.deb'],
+            'rpm': ['nordend-media-0.5.0.x86_64.rpm', 'nordend-0.5.0.x86_64.rpm', 'nordend-debuginfo-0.5.0.x86_64.rpm', 'nordend-0.5.0.src.rpm'],
         }.items():
             for name in names:
                 (self.roots[kind] / 'packages' / name).write_bytes(name.encode())
@@ -66,7 +66,7 @@ class DownloadsTest(unittest.TestCase):
 
     def test_assets_and_instructions(self):
         self.prepare()
-        self.assertEqual(len(list(self.output.iterdir())), 10)
+        self.assertEqual(len(list(self.output.iterdir())), 14)
         self.assertEqual((self.output / 'nordend-debian13-amd64.deb').read_bytes(), b'nordend_0.5.0_amd64.deb')
         self.assertEqual((self.output / 'nordend-fedora44-x86_64.rpm').read_bytes(), b'nordend-0.5.0.x86_64.rpm')
         self.assertEqual((self.output / 'nordend-arch-x86_64.pkg.tar.zst').read_bytes(), b'nordend-0.5.0-1-x86_64.pkg.tar.zst')
@@ -79,7 +79,13 @@ class DownloadsTest(unittest.TestCase):
         for line in (self.output / 'SHA256SUMS').read_text().splitlines():
             digest, filename = line.split('  ')
             self.assertEqual(digest, hashlib.sha256((self.output / filename).read_bytes()).hexdigest())
+        self.assertEqual((self.output / 'nordend-media-debian13-amd64.deb').read_bytes(), b'nordend-media_0.5.0_amd64.deb')
         self.assertIn('Install me.', (self.output / 'release-notes.md').read_text())
+
+    def test_missing_media_rejected(self):
+        (self.roots['deb'] / 'packages/nordend-media_0.5.0_amd64.deb').unlink()
+        with self.assertRaisesRegex(ValueError, 'nordend-media'):
+            self.prepare()
 
     def test_mixed_source_rejected(self):
         self.identity['commit'] = 'b' * 40
@@ -146,7 +152,7 @@ elif args[0] == 'api' and '/compare/' in args[1]:
         result, calls = self.publish('existing')
         self.assertEqual(result.returncode, 0, result.stderr)
         uploads = [c for c in calls if c[:2] == ['release', 'upload']]
-        self.assertEqual(len(uploads), 9)
+        self.assertEqual(len(uploads), 13)
         self.assertTrue(uploads[-1][3].endswith('/SHA256SUMS'))
         self.assertTrue(any('sha=' + COMMIT in c for c in calls))
 

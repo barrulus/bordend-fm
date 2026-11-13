@@ -92,6 +92,16 @@ add_subdirectory(src/formats)   # the families of files read in the helper (imag
 add_subdirectory(src/thumbs)    # freedesktop thumbnail cache
 add_subdirectory(src/preview)   # Quick Look providers: images, text, information
 add_subdirectory(src/isolate)   # preview helpers: the parsers in separate processes (2b)
+option(NORDEND_MEDIA "Build the optional FFmpeg video preview helper" OFF)
+if(NORDEND_MEDIA)
+    pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat>=61)
+    pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec>=61)
+    pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil>=59)
+    pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
+    add_subdirectory(src/media)
+else()
+    file(REMOVE "${PROJECT_BINARY_DIR}/engines/media.toml")
+endif()
 add_subdirectory(src/platform)  # default applications (freedesktop), launching processes
 add_subdirectory(src/views)     # column view and grid
 

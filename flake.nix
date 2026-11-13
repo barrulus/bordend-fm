@@ -19,11 +19,16 @@
 
       packages = forEachSystem (system: {
         nordend = nixpkgs.legacyPackages.${system}.callPackage ./nix/package.nix { };
+        nordend-with-media = self.packages.${system}.nordend.override { withMedia = true; };
+        nordend-media = self.packages.${system}.nordend-with-media.media;
         default = self.packages.${system}.nordend;
       });
 
       checks = forEachSystem (system: {
-        tests = self.packages.${system}.nordend.override { withTests = true; };
+        tests = self.packages.${system}.nordend.override {
+          withTests = true;
+          withMedia = true;
+        };
         nixos-module = import ./nix/module-check.nix { inherit self nixpkgs system; };
         smoke = nixpkgs.legacyPackages.${system}.callPackage ./nix/smoke-test.nix {
           package = self.packages.${system}.nordend;
@@ -43,6 +48,7 @@
               doctest
               gdb
               git
+              ffmpeg
               libjpeg_turbo
               nixfmt
             ];

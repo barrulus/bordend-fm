@@ -49,7 +49,9 @@ GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryW
 }
 
 void GridView::show(std::shared_ptr<Folder> folder) {
-    if (folder) { folder->set_entry_filter(entry_filter_); }
+    if (folder) {
+        folder->set_entry_filter(entry_filter_);
+    }
     folder_ = std::move(folder);
     if (folder_) {
         folder_->set_order(order_);
@@ -346,21 +348,41 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
             const ui::Texture* thumbnail = nullptr;
             const engines::Family* family =
                 entry.is_directory() ? nullptr : engines->find(*mime_, typed.mime);
-            if (thumbnails_ != nullptr && family != nullptr && family->thumbnails) {
-                thumbnail =
-                    thumbnails_->get(folder_->path_of(entry), entry.modified_ns, thumbnail_size);
+            const bool video = mime_->name(typed.mime).starts_with("video/");
+            if (thumbnails_ != nullptr && (video || (family != nullptr && family->thumbnails))) {
+                thumbnail = thumbnails_->get(folder_->path_of(entry), entry.modified_ns,
+                                             thumbnail_size, mime_->name(typed.mime));
             }
             if (thumbnail != nullptr) {
-                // Fitted in the icon's square, proportions kept, centered.
+                // Film rails are UI decoration; the shared cache retains clean pixels.
+                const float rail = video ? std::clamp(icon * 0.045F, 3.0F, 12.0F) : 0.0F;
                 const float fit =
-                    icon / static_cast<float>(std::max(thumbnail->width(), thumbnail->height()));
+                    std::min((icon - 2.0F * rail) / static_cast<float>(thumbnail->width()),
+                             icon / static_cast<float>(thumbnail->height()));
                 const float shown_width = static_cast<float>(thumbnail->width()) * fit;
                 const float shown_height = static_cast<float>(thumbnail->height()) * fit;
-                renderer.draw_image(
-                    *thumbnail,
-                    {x + ((cell_width_ - shown_width) / 2.0F),
-                     y + kIconTop + ((icon - shown_height) / 2.0F), shown_width, shown_height},
-                    ui::Corners::all(kThumbnailRadius), cut ? kCutOpacity : 1.0F);
+                const ui::Rect frame{x + ((cell_width_ - shown_width) / 2.0F),
+                                     y + kIconTop + ((icon - shown_height) / 2.0F), shown_width,
+                                     shown_height};
+                const float alpha = cut ? kCutOpacity : 1.0F;
+                renderer.draw_image(*thumbnail, frame,
+                                    ui::Corners::all(video ? 0.0F : kThumbnailRadius), alpha);
+                if (video) {
+                    for (const float edge : {frame.x - rail, frame.x + frame.width}) {
+                        renderer.draw_box({edge, frame.y, rail, frame.height},
+                                          {.fill = ui::Color::rgb(0x222222).with_alpha(alpha)});
+                        if (icon >= 48.0F) {
+                            const float hole = rail * 0.5F;
+                            for (float top = frame.y + hole; top + hole <= frame.y + frame.height;
+                                 top += rail * 1.5F) {
+                                renderer.draw_box(
+                                    {edge + rail * 0.25F, top, hole, hole},
+                                    {.fill = ui::Color::rgb(0xdddddd).with_alpha(alpha),
+                                     .radius = ui::Corners::all(1.0F)});
+                            }
+                        }
+                    }
+                }
             } else {
                 icons.draw_file(renderer, (*mime_).name(typed.mime), fs::icon_name(*mime_, typed),
                                 x + ((cell_width_ - icon) / 2.0F), y + kIconTop, icon, style.icon,

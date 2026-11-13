@@ -96,7 +96,7 @@ PYDEB
         chown -R builder:builder /build/arch
         cd /build/arch
         runuser -u builder -- makepkg --printsrcinfo > /build/arch.SRCINFO
-        mapfile -t dependencies < <(awk '$1 == "depends" || $1 == "makedepends" {print $3}' /build/arch.SRCINFO)
+        mapfile -t dependencies < <(awk '($1 == "depends" || $1 == "makedepends") && $3 !~ /^nordend([=<>]|$)/ {print $3}' /build/arch.SRCINFO)
         pacman -S --noconfirm --needed "${dependencies[@]}"
         runuser -u builder -- env CI_JOBS="${CI_JOBS:-2}" makepkg --noconfirm
         cp /build/arch/*.pkg.tar.zst /output/packages/

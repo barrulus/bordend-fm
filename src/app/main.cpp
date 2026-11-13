@@ -240,7 +240,7 @@ int print_about() {
     std::ranges::move(platform::system_about(), std::back_inserter(lines));
     // The engines found, and where their programs are: an installation in one line.
     const std::filesystem::path directory = engines::default_directory();
-    const engines::Registry registry = engines::Registry::load(directory, engines::locate_program);
+    const engines::Registry registry = engines::Registry::load_installed();
     std::string found;
     for (const engines::Engine& engine : registry.engines()) {
         found += std::format("{}{} ({})", found.empty() ? "" : ", ", engine.manifest.name,
@@ -497,8 +497,8 @@ int main(int argc, char** argv) {
         core::WorkerPool pool{loop};
         // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
         {
-            auto registry = std::make_shared<const engines::Registry>(
-                engines::Registry::load(engines::default_directory(), engines::locate_program));
+            auto registry =
+                std::make_shared<const engines::Registry>(engines::Registry::load_installed());
             isolate::use_engines(*registry);
             engines::set_installed(std::move(registry));
         }

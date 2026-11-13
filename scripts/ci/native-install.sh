@@ -39,6 +39,17 @@ for executable in /usr/bin/nordend /usr/libexec/nordend/nordend-preview; do
     printf '%s\n' "$libraries"
     if grep -F 'not found' <<< "$libraries"; then exit 1; fi
 done
+# The base package must work before the optional media package is installed.
+test ! -e /usr/libexec/nordend/nordend-media
+case "$format" in
+    deb) apt-get install -y --no-install-recommends /packages/nordend-media_*.deb ;;
+    rpm) dnf install -y /packages/nordend-media-[0-9]*.x86_64.rpm ;;
+    tumbleweed) zypper --non-interactive install --no-recommends --allow-unsigned-rpm /packages/nordend-media-[0-9]*.x86_64.rpm ;;
+    arch) pacman -U --noconfirm /packages/nordend-media-[0-9]*-x86_64.pkg.tar.zst ;;
+esac
+libraries=$(ldd /usr/libexec/nordend/nordend-media)
+printf '%s\n' "$libraries"
+if grep -F 'not found' <<< "$libraries"; then exit 1; fi
 case "$format" in
     deb) apt-get install -y --no-install-recommends desktop-file-utils ;;
     rpm) dnf install -y desktop-file-utils ;;
