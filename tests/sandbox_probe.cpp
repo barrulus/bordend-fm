@@ -7,11 +7,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <netinet/in.h>
 #include <string_view>
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <system_error>
 #include <unistd.h>
 
 #include "sandbox.hpp"
@@ -48,11 +50,19 @@ int main(int argc, char** argv) {
     const std::string_view what{
         argv[1]};  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     if (what == "landlock") {
+        // A file sure to exist on any system (no /etc/hostname in Nix's build sandbox): the
+        // probe itself, so landlock refuses it rather than the lookup failing first.
+        std::error_code error;
+        const std::filesystem::path self = std::filesystem::read_symlink("/proc/self/exe", error);
+        if (error) {
+            say("no /proc/self/exe");
+            return 1;
+        }
         if (isolate::restrict_file_system_and_network() == 0) {
             say("no landlock");
             return 0;
         }
-        say_errno(::open("/etc/hostname", O_RDONLY | O_CLOEXEC));
+        say_errno(::open(self.c_str(), O_RDONLY | O_CLOEXEC));
         const int tcp = ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
         sockaddr_in address{};
         address.sin_family = AF_INET;

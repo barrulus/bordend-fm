@@ -4,6 +4,25 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — Sorting by type when the name gives several types; tests that pass in Nix's sandbox
+
+**Done.** shared-mime-info 2.5 (NixOS has it, Void still 2.4) also gives `*.md` to Sega ROMs
+(`application/x-genesis-rom`, `x-sega-pico-rom`, weight 10, against Markdown's 50). A name with
+several types is not decided by the name alone, as in GLib: the content is sniffed when the row
+is drawn, and opening a file checks it again, so icons and opening were right. Sorting by type
+was not: it only knew the types the name decides, so such files went after the unknown ones,
+even once sniffed. Entries now keep the name's best guess (`Entry::name_guess`, the highest
+weight) and sorting by type uses it; `Entry` stays 64 bytes.
+
+Two tests depended on the system they ran on, found by building a Nix package in Nix's build
+sandbox (with its tests): the Enter test checked a type nothing had sniffed (tests do not draw;
+it now asks as a draw would), and the landlock probe opened `/etc/hostname`, which the sandbox
+does not have (it now opens the probe itself). The Enter test and the sort test were two of the
+failures reported on NixOS on 2026-11-12: reading the MIME database found at build time had not
+been enough.
+
+---
+
 ## 2026-11-12 — CI on every push and pull request, and clang (quality step, Q3 and Q4)
 
 **Q3, clang 21.** The whole tree (Nordend, the helper, the tools, the tests) builds with clang 21

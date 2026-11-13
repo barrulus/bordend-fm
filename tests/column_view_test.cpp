@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -357,6 +358,16 @@ TEST_CASE("browser: Enter on a file hands the selected files to the open handler
     CHECK(opened.size() == 1);
     f.press(XKB_KEY_Left);
     f.press(XKB_KEY_End);  // readme.md
+    // A type the name leaves open (shared-mime-info 2.5 also gives *.md to Sega ROMs) is sniffed
+    // from the content as the rows are drawn; nothing draws here, so ask as a draw would.
+    const std::shared_ptr<Folder> top = f.view.focused_folder();
+    REQUIRE(top != nullptr);
+    top->sniff(0, top->entries().size());
+    REQUIRE(run_until(f.loop, [&] {
+        return std::ranges::none_of(top->entries(), [&](const nordend::fs::Entry& entry) {
+            return !entry.is_directory() && top->mime_of(entry) == nordend::fs::kUnknownMime;
+        });
+    }));
     f.press(XKB_KEY_2, {.ctrl = true});
     f.press(XKB_KEY_a, {.ctrl = true});  // everything; the cursor stays on readme.md
     f.press(XKB_KEY_KP_Enter);
