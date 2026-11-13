@@ -1,4 +1,4 @@
-#include "nordend/views/shortcuts_overlay.hpp"
+#include "rummage/views/shortcuts_overlay.hpp"
 
 #include <algorithm>
 #include <string_view>
@@ -6,9 +6,9 @@
 #include <vector>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "nordend/views/shortcuts.hpp"
+#include "rummage/views/shortcuts.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kMaxCardWidth = 960.0F;
@@ -273,4 +273,4 @@ void ShortcutsOverlay::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     renderer.pop_clip();
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

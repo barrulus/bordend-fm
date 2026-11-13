@@ -1,4 +1,4 @@
-#include "nordend/fs/places.hpp"
+#include "rummage/fs/places.hpp"
 
 #include <algorithm>
 #include <array>
@@ -13,11 +13,11 @@
 #include <unistd.h>
 #include <utility>
 
-#include "nordend/core/file.hpp"
-#include "nordend/core/log.hpp"
-#include "nordend/fs/trash.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/core/log.hpp"
+#include "rummage/fs/trash.hpp"
 
-namespace nordend::fs {
+namespace rummage::fs {
 namespace {
 
 struct UserDirKind {
@@ -433,4 +433,4 @@ void PlacesWatcher::reload() {
     }
 }
 
-}  // namespace nordend::fs
+}  // namespace rummage::fs

@@ -15,7 +15,7 @@
 
 #include "protocol.hpp"
 
-namespace protocol = nordend::isolate::protocol;
+namespace protocol = rummage::isolate::protocol;
 
 int main(int argc, char** argv) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)

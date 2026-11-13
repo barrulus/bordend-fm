@@ -1,4 +1,4 @@
-#include "nordend/views/shortcuts.hpp"
+#include "rummage/views/shortcuts.hpp"
 
 #include <algorithm>
 #include <deque>
@@ -6,7 +6,7 @@
 #include <optional>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr ui::Modifiers kCtrl{.ctrl = true};
@@ -801,4 +801,4 @@ bool listed(const ui::KeyEvent& event, std::uint16_t where) {
     });
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

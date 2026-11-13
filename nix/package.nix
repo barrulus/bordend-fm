@@ -34,7 +34,7 @@
 }:
 
 stdenv.mkDerivation {
-  pname = "nordend";
+  pname = "rummage";
   version = "0.5.0";
   outputs = [ "out" ] ++ lib.optional withMedia "media";
 
@@ -89,9 +89,9 @@ stdenv.mkDerivation {
   ++ lib.optional withMedia ffmpeg;
 
   cmakeFlags = [
-    "-DNORDEND_WERROR=OFF"
-    "-DNORDEND_MEDIA=${if withMedia then "ON" else "OFF"}"
-    "-DNORDEND_BUILD_TESTS=${if withTests then "ON" else "OFF"}"
+    "-DRUMMAGE_WERROR=OFF"
+    "-DRUMMAGE_MEDIA=${if withMedia then "ON" else "OFF"}"
+    "-DRUMMAGE_BUILD_TESTS=${if withTests then "ON" else "OFF"}"
   ];
 
   doCheck = withTests;
@@ -126,14 +126,14 @@ stdenv.mkDerivation {
 
   postInstall =
     lib.optionalString withMedia ''
-      mkdir -p "$media/libexec/nordend" "$media/share/nordend/engines"
-      mv "$out/libexec/nordend/nordend-media" "$media/libexec/nordend/"
-      mv "$out/share/nordend/engines/media.toml" "$media/share/nordend/engines/"
+      mkdir -p "$media/libexec/rummage" "$media/share/rummage/engines"
+      mv "$out/libexec/rummage/rummage-media" "$media/libexec/rummage/"
+      mv "$out/share/rummage/engines/media.toml" "$media/share/rummage/engines/"
     ''
     + ''
-      install -Dm644 "$src/LICENSE" "$out/share/licenses/nordend/LICENSE"
-      wrapProgram "$out/bin/nordend" \
-        ${lib.optionalString withMedia "--suffix NORDEND_ENGINE_PATH : $media/share/nordend/engines"} \
+      install -Dm644 "$src/LICENSE" "$out/share/licenses/rummage/LICENSE"
+      wrapProgram "$out/bin/rummage" \
+        ${lib.optionalString withMedia "--suffix RUMMAGE_ENGINE_PATH : $media/share/rummage/engines"} \
         --set-default XDG_DATA_DIRS /usr/local/share:/usr/share \
         --suffix XDG_DATA_DIRS : "${
           lib.makeSearchPath "share" [
@@ -145,9 +145,9 @@ stdenv.mkDerivation {
 
   meta = {
     description = "Native file manager for Wayland";
-    homepage = "https://github.com/pankaspe/nordend-fm";
+    homepage = "https://github.com/barrulus/bordend-fm";
     license = lib.licenses.mit;
-    mainProgram = "nordend";
+    mainProgram = "rummage";
     platforms = [
       "x86_64-linux"
       "aarch64-linux"

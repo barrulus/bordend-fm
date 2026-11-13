@@ -11,23 +11,23 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory_watcher.hpp"
-#include "nordend/fs/mime.hpp"
-#include "nordend/views/browser.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/views/browser.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::core::WorkerPool;
-using nordend::fs::DirectoryWatcher;
-using nordend::test::TempDir;
-using nordend::views::Browser;
-using nordend::views::Column;
-using nordend::views::ColumnView;
-using nordend::views::Folder;
-using nordend::views::GridView;
-using nordend::views::SelectMode;
+using rummage::core::EventLoop;
+using rummage::core::WorkerPool;
+using rummage::fs::DirectoryWatcher;
+using rummage::test::TempDir;
+using rummage::views::Browser;
+using rummage::views::Column;
+using rummage::views::ColumnView;
+using rummage::views::Folder;
+using rummage::views::GridView;
+using rummage::views::SelectMode;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -52,7 +52,7 @@ bool run_until(EventLoop& loop, const std::function<bool()>& done) {
 void write(const fs::path& file, std::string_view text) { std::ofstream{file} << text; }
 
 std::string cursor_name(const Folder& folder) {
-    const nordend::fs::Entry* entry = folder.cursor_entry();
+    const rummage::fs::Entry* entry = folder.cursor_entry();
     return entry == nullptr ? std::string{} : entry->name;
 }
 
@@ -67,8 +67,8 @@ struct Fixture {
     WorkerPool pool{loop, 2};
     DirectoryWatcher watcher{loop};
     Browser browser{loop,    pool,
-                    watcher, nordend::fs::MimeDatabase::load(),
-                    [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
+                    watcher, rummage::fs::MimeDatabase::load(),
+                    [] {},   [](rummage::ui::CursorShape /*shape*/) {}};
     ColumnView& view = browser.columns();
     GridView& grid = browser.grid();
 
@@ -84,8 +84,8 @@ struct Fixture {
         return run_until(loop, [this] { return !browser.loading(); });
     }
 
-    void press(xkb_keysym_t key, nordend::ui::Modifiers modifiers = {}) {
-        nordend::ui::KeyEvent event;
+    void press(xkb_keysym_t key, rummage::ui::Modifiers modifiers = {}) {
+        rummage::ui::KeyEvent event;
         event.keysym = key;
         event.modifiers = modifiers;
         browser.key(event, Browser::Clock::now());
@@ -188,7 +188,7 @@ TEST_CASE("column view: Shift extends the selection, which closes the next colum
 
     f.press(XKB_KEY_End, {.shift = true});  // from the anchor (alpha) to readme.md
     CHECK(column.selected_names() == std::vector<std::string>{"alpha", "gamma", "readme.md"});
-    const nordend::views::SelectionSummary& summary = column.summary();
+    const rummage::views::SelectionSummary& summary = column.summary();
     CHECK(summary.folders == 2);
     CHECK(summary.files == 1);
     CHECK(summary.bytes == 4);  // "# hi"
@@ -329,11 +329,11 @@ TEST_CASE("browser: Enter on a file hands the selected files to the open handler
     Fixture f;
     std::vector<std::pair<fs::path, std::vector<std::string>>> opened;
     f.browser.set_open_handler(
-        [&](const fs::path& directory, std::vector<nordend::fs::Entry> files) {
+        [&](const fs::path& directory, std::vector<rummage::fs::Entry> files) {
             std::vector<std::string> names;
-            for (const nordend::fs::Entry& file : files) {
+            for (const rummage::fs::Entry& file : files) {
                 CHECK_FALSE(file.is_directory());
-                CHECK(file.mime != nordend::fs::kUnknownMime);  // the type the view knows
+                CHECK(file.mime != rummage::fs::kUnknownMime);  // the type the view knows
                 names.push_back(file.name);
             }
             opened.emplace_back(directory, std::move(names));
@@ -365,8 +365,8 @@ TEST_CASE("browser: Enter on a file hands the selected files to the open handler
     REQUIRE(top != nullptr);
     top->sniff(0, top->entries().size());
     REQUIRE(run_until(f.loop, [&] {
-        return std::ranges::none_of(top->entries(), [&](const nordend::fs::Entry& entry) {
-            return !entry.is_directory() && top->mime_of(entry) == nordend::fs::kUnknownMime;
+        return std::ranges::none_of(top->entries(), [&](const rummage::fs::Entry& entry) {
+            return !entry.is_directory() && top->mime_of(entry) == rummage::fs::kUnknownMime;
         });
     }));
     f.press(XKB_KEY_2, {.ctrl = true});
@@ -408,18 +408,18 @@ TEST_CASE("grid: Ctrl+plus, Ctrl+minus and Ctrl+0 change the cell size within it
     f.view.open(f.root);
     REQUIRE(f.settle());
     f.press(XKB_KEY_2, {.ctrl = true});
-    const auto standard = nordend::views::kGridIconSizes.at(nordend::views::kUsualGridSize);
+    const auto standard = rummage::views::kGridIconSizes.at(rummage::views::kUsualGridSize);
     CHECK(f.grid.icon_size() == standard);
     f.press(XKB_KEY_plus, {.ctrl = true});
     CHECK(f.grid.icon_size() > standard);
     for (int i = 0; i < 10; ++i) {
         f.press(XKB_KEY_minus, {.ctrl = true});
     }
-    CHECK(f.grid.icon_size() == nordend::views::kGridIconSizes.front());
+    CHECK(f.grid.icon_size() == rummage::views::kGridIconSizes.front());
     for (int i = 0; i < 10; ++i) {
         f.press(XKB_KEY_KP_Add, {.ctrl = true});
     }
-    CHECK(f.grid.icon_size() == nordend::views::kGridIconSizes.back());
+    CHECK(f.grid.icon_size() == rummage::views::kGridIconSizes.back());
     f.press(XKB_KEY_0, {.ctrl = true});
     CHECK(f.grid.icon_size() == standard);
     f.press(XKB_KEY_plus);  // without Ctrl: nothing

@@ -1,4 +1,4 @@
-#include "nordend/core/config.hpp"
+#include "rummage/core/config.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -14,9 +14,9 @@
 #include <vector>
 
 #include "config_template.hpp"
-#include "nordend/core/file.hpp"
+#include "rummage/core/file.hpp"
 
-namespace nordend::core {
+namespace rummage::core {
 namespace {
 
 const char* type_name(const toml::node& node) {
@@ -529,11 +529,11 @@ std::filesystem::path default_config_path() {
     const char* xdg = std::getenv("XDG_CONFIG_HOME");  // NOLINT(concurrency-mt-unsafe)
     // The XDG base directory spec ignores relative paths.
     if (xdg != nullptr && xdg[0] == '/') {
-        return std::filesystem::path{xdg} / "nordend" / "config.toml";
+        return std::filesystem::path{xdg} / "rummage" / "config.toml";
     }
     const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
     if (home != nullptr && home[0] != '\0') {
-        return std::filesystem::path{home} / ".config" / "nordend" / "config.toml";
+        return std::filesystem::path{home} / ".config" / "rummage" / "config.toml";
     }
     return {};
 }
@@ -585,4 +585,4 @@ ConfigResult load_config(const std::filesystem::path& path) {
     return parse_config(file.text, path.string());
 }
 
-}  // namespace nordend::core
+}  // namespace rummage::core

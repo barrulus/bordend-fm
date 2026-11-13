@@ -1,4 +1,4 @@
-#include "nordend/platform/archives.hpp"
+#include "rummage/platform/archives.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -10,16 +10,16 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/platform/action_handoff.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/platform/action_handoff.hpp"
 #include "temp_dir.hpp"
 
 namespace {
 namespace fs = std::filesystem;
 using namespace std::chrono_literals;
-using nordend::core::ActionContext;
-using nordend::platform::ActionHandoff;
-using nordend::platform::ArchiveBackend;
+using rummage::core::ActionContext;
+using rummage::platform::ActionHandoff;
+using rummage::platform::ArchiveBackend;
 
 std::string read(const fs::path& path) {
     std::ifstream input{path, std::ios::binary};
@@ -27,9 +27,9 @@ std::string read(const fs::path& path) {
 }
 
 struct Fixture {
-    nordend::test::TempDir dir;
-    nordend::core::EventLoop loop;
-    nordend::platform::Environment environment;
+    rummage::test::TempDir dir;
+    rummage::core::EventLoop loop;
+    rummage::platform::Environment environment;
     fs::path bin = dir.path / "bin";
     fs::path destination = dir.path / "destination";
     std::vector<std::string> errors;
@@ -42,8 +42,8 @@ struct Fixture {
     }
 
     bool install(const std::string& program) {
-        const auto real = nordend::platform::find_program(
-            program, nordend::platform::Environment::from_environment().path);
+        const auto real = rummage::platform::find_program(
+            program, rummage::platform::Environment::from_environment().path);
         if (!real) {
             MESSAGE(program << " is not installed; integration test skipped");
             return false;
@@ -53,8 +53,8 @@ struct Fixture {
     }
 
     void fake(const std::string& name, const std::string& body) {
-        const auto shell = nordend::platform::find_program(
-            "sh", nordend::platform::Environment::from_environment().path);
+        const auto shell = rummage::platform::find_program(
+            "sh", rummage::platform::Environment::from_environment().path);
         REQUIRE(shell);
         const auto program = bin / name;
         std::ofstream{program} << "#!" << shell->string() << "\n" << body;
@@ -69,7 +69,7 @@ struct Fixture {
 
     fs::path archive(const std::string& fixture, const std::string& name) {
         const auto out = dir.path / name;
-        fs::copy_file(fs::path{NORDEND_TEST_DATA} / "archives" / fixture, out);
+        fs::copy_file(fs::path{RUMMAGE_TEST_DATA} / "archives" / fixture, out);
         return out;
     }
 
@@ -115,29 +115,29 @@ TEST_CASE("archives: format selection only offers installed capable programs") {
     const auto program = f.dir.write("fake", "program");
     fs::permissions(program, fs::perms::owner_all);
     const auto add = [&](const std::string& name) { fs::create_symlink(program, f.bin / name); };
-    const nordend::core::ActionTarget zip{f.dir.path / "a.zip", "application/zip"};
-    const nordend::core::ActionTarget gz{f.dir.path / "a.gz", "application/gzip"};
-    const nordend::core::ActionTarget tgz{f.dir.path / "a.tar.gz", "application/gzip"};
-    CHECK_FALSE(nordend::platform::archive_backend(zip, f.environment));
+    const rummage::core::ActionTarget zip{f.dir.path / "a.zip", "application/zip"};
+    const rummage::core::ActionTarget gz{f.dir.path / "a.gz", "application/gzip"};
+    const rummage::core::ActionTarget tgz{f.dir.path / "a.tar.gz", "application/gzip"};
+    CHECK_FALSE(rummage::platform::archive_backend(zip, f.environment));
     add("gzip");
-    CHECK(nordend::platform::archive_backend(gz, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(gz, f.environment)->kind ==
           ArchiveBackend::Kind::gzip);
-    CHECK_FALSE(nordend::platform::archive_backend(tgz, f.environment));
-    CHECK_FALSE(nordend::platform::archive_backend(zip, f.environment));
+    CHECK_FALSE(rummage::platform::archive_backend(tgz, f.environment));
+    CHECK_FALSE(rummage::platform::archive_backend(zip, f.environment));
     add("7z");
-    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(zip, f.environment)->kind ==
           ArchiveBackend::Kind::seven_zip);
-    CHECK(nordend::platform::archive_backend(tgz, f.environment)->tar_layer);
+    CHECK(rummage::platform::archive_backend(tgz, f.environment)->tar_layer);
     add("unzip");
-    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(zip, f.environment)->kind ==
           ArchiveBackend::Kind::seven_zip);
     add("tar");
-    CHECK(nordend::platform::archive_backend(tgz, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(tgz, f.environment)->kind ==
           ArchiveBackend::Kind::tar);
     add("file-roller");
-    CHECK(nordend::platform::archive_backend(zip, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(zip, f.environment)->kind ==
           ArchiveBackend::Kind::seven_zip);
-    CHECK(nordend::platform::archive_backend(tgz, f.environment)->kind ==
+    CHECK(rummage::platform::archive_backend(tgz, f.environment)->kind ==
           ArchiveBackend::Kind::file_roller);
 }
 
@@ -146,13 +146,13 @@ TEST_CASE("archives: unzip handles literal wildcards and never overwrites destin
     if (!f.install("unzip"))
         return;
     const auto archive = f.archive("sample.zip", "a*[1]? 'quoted'.zip");
-    const auto name = nordend::platform::archive_output_name(archive);
+    const auto name = rummage::platform::archive_output_name(archive);
     fs::create_directory(f.dir.path / name);
     std::ofstream{f.dir.path / name / "keep"} << "existing";
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     const ActionContext context{.directory = f.dir.path, .targets = {{archive, "application/zip"}}};
-    REQUIRE(handoff.available(nordend::core::action_registry()[1], context));
-    handoff.run(nordend::core::action_registry()[1], context);
+    REQUIRE(handoff.available(rummage::core::action_registry()[1], context));
+    handoff.run(rummage::core::action_registry()[1], context);
     REQUIRE(f.wait());
     CHECK(f.errors.empty());
     CHECK(read(f.dir.path / name / "keep") == "existing");
@@ -172,7 +172,7 @@ TEST_CASE("archives: gzip keeps its source and uses the selected destination") {
             choose = std::move(done);
         }};
     ActionContext context{.directory = f.dir.path, .targets = {{archive, "application/gzip"}}};
-    handoff.run(nordend::core::action_registry()[2], context);
+    handoff.run(rummage::core::action_registry()[2], context);
     REQUIRE(choose);
     context.targets.clear();  // changing tabs/selection does not redirect a pending extraction
     choose(f.destination);
@@ -191,7 +191,7 @@ TEST_CASE("archives: destination cancellation creates nothing") {
     const auto archive = f.archive("message.txt.gz", "message.txt.gz");
     ActionHandoff handoff{
         f.loop, f.environment, f.report(), {}, [](const auto&, auto done) { done(std::nullopt); }};
-    handoff.run(nordend::core::action_registry()[2],
+    handoff.run(rummage::core::action_registry()[2],
                 {.directory = f.dir.path, .targets = {{archive, "application/gzip"}}});
     CHECK(f.messages.empty());
     CHECK(f.errors.empty());
@@ -205,7 +205,7 @@ TEST_CASE("archives: tar unpacks both gzip and tar layers") {
         return;
     const auto archive = f.archive("sample.tar.gz", "sample.tar.gz");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.dir.path, .targets = {{archive, "application/x-compressed-tar"}}});
     REQUIRE(f.wait());
     for (const auto& error : f.errors)
@@ -222,7 +222,7 @@ TEST_CASE("archives: 7z extracts 7z and both layers of compressed tar without ta
     const auto seven = f.archive("sample.7z", "seven.7z");
     const auto tar = f.archive("sample.tar.gz", "tarball.tar.gz");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.dir.path,
                  .targets = {{seven, "application/x-7z-compressed"},
                              {tar, "application/x-compressed-tar"}}});
@@ -241,7 +241,7 @@ TEST_CASE("archives: corrupt and encrypted archives report errors without publis
         return;
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     const auto corrupt = f.dir.write("broken.gz", "not a gzip file");
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.dir.path, .targets = {{corrupt, "application/gzip"}}});
     REQUIRE(f.wait());
     REQUIRE_FALSE(f.errors.empty());
@@ -249,7 +249,7 @@ TEST_CASE("archives: corrupt and encrypted archives report errors without publis
     CHECK(fs::exists(corrupt));
     f.errors.clear();
     const auto encrypted = f.archive("encrypted.7z", "secret.7z");
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.dir.path, .targets = {{encrypted, "application/x-7z-compressed"}}});
     REQUIRE(f.wait());
     CHECK_FALSE(f.errors.empty());
@@ -259,8 +259,8 @@ TEST_CASE("archives: corrupt and encrypted archives report errors without publis
 
 TEST_CASE("archives: File Roller remains a supported handoff with literal selected paths") {
     Fixture f;
-    const auto shell = nordend::platform::find_program(
-        "sh", nordend::platform::Environment::from_environment().path);
+    const auto shell = rummage::platform::find_program(
+        "sh", rummage::platform::Environment::from_environment().path);
     REQUIRE(shell);
     const auto program = f.bin / "file-roller";
     std::ofstream{program} << "#!" << shell->string()
@@ -268,7 +268,7 @@ TEST_CASE("archives: File Roller remains a supported handoff with literal select
     fs::permissions(program, fs::perms::owner_all);
     const auto zip = f.archive("sample.zip", "a*[x] space.zip");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[2],
+    handoff.run(rummage::core::action_registry()[2],
                 {.directory = f.dir.path, .targets = {{zip, "application/zip"}}});
     REQUIRE(f.wait());
     CHECK(read(f.dir.path / "called") == std::string{"--extract"} + '\0' + zip.string() + '\0');
@@ -286,8 +286,8 @@ TEST_CASE("archives: unsupported mixed selections do not start partial batches")
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     const ActionContext context{.directory = f.dir.path,
                                 .targets = {{gzip, "application/gzip"}, {zip, "application/zip"}}};
-    CHECK_FALSE(handoff.available(nordend::core::action_registry()[1], context));
-    handoff.run(nordend::core::action_registry()[1], context);
+    CHECK_FALSE(handoff.available(rummage::core::action_registry()[1], context));
+    handoff.run(rummage::core::action_registry()[1], context);
     CHECK(f.errors.size() == 1);
     CHECK(f.messages.empty());
     CHECK_FALSE(fs::exists(f.dir.path / "message.txt (extracting)"));
@@ -305,13 +305,13 @@ TEST_CASE("archives: canonical bzip2 tar MIME unpacks both layers with tar or 7z
     }
     // No extension: backend classification must use the canonical MIME too.
     const auto archive = f.archive("sample.tar.bz2", "bzip-tar");
-    const auto backend = nordend::platform::archive_backend(
+    const auto backend = rummage::platform::archive_backend(
         {archive, "application/x-bzip2-compressed-tar"}, f.environment);
     REQUIRE(backend);
     CHECK((backend->kind == ArchiveBackend::Kind::tar || backend->tar_layer));
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     handoff.run(
-        nordend::core::action_registry()[1],
+        rummage::core::action_registry()[1],
         {.directory = f.dir.path, .targets = {{archive, "application/x-bzip2-compressed-tar"}}});
     REQUIRE(f.wait());
     CHECK(f.errors.empty());
@@ -325,16 +325,16 @@ TEST_CASE("archives: ZIP RAR and 7z prefer password-capable CLI backends") {
         Fixture f;
         const auto fake = f.dir.write("fake", "program");
         fs::permissions(fake, fs::perms::owner_all);
-        const nordend::core::ActionTarget target{f.dir.path / "archive", mime};
+        const rummage::core::ActionTarget target{f.dir.path / "archive", mime};
         for (const auto* program : {"file-roller", "7z", "7zz"}) {
             fs::create_symlink(fake, f.bin / program);
-            const auto backend = nordend::platform::archive_backend(target, f.environment);
+            const auto backend = rummage::platform::archive_backend(target, f.environment);
             REQUIRE(backend);
             CHECK(backend->program.filename() == program);
         }
         fs::create_symlink(fake, f.bin / "unrar");
         const bool rar = std::string_view{mime}.find("rar") != std::string_view::npos;
-        CHECK(nordend::platform::archive_backend(target, f.environment)->program.filename() ==
+        CHECK(rummage::platform::archive_backend(target, f.environment)->program.filename() ==
               (rar ? "unrar" : "7zz"));
     }
 }
@@ -376,7 +376,7 @@ TEST_CASE("archives: encrypted ZIP RAR and 7z prompt and retry without File Roll
             const auto mime =
                 rar ? "application/vnd.rar"
                     : (extension == ".zip" ? "application/zip" : "application/x-7z-compressed");
-            handoff.run(nordend::core::action_registry()[1],
+            handoff.run(rummage::core::action_registry()[1],
                         {.directory = f.dir.path, .targets = {{archive, mime}}});
             REQUIRE(f.wait());
             for (const auto& error : f.errors)
@@ -412,7 +412,7 @@ TEST_CASE("archives: password cancellation and concurrent prompts are isolated")
         paths.push_back(path);
         prompts.push_back(std::move(done));
     });
-    handoff.run(nordend::core::action_registry()[2],
+    handoff.run(rummage::core::action_registry()[2],
                 {.directory = f.dir.path,
                  .targets = {{first, "application/x-7z-compressed"},
                              {second, "application/x-7z-compressed"}}});
@@ -445,7 +445,7 @@ TEST_CASE("archives: cancelling ZIP RAR or 7z passwords creates no output") {
             rar ? "application/vnd.rar"
                 : (fs::path{fixture}.extension() == ".zip" ? "application/zip"
                                                            : "application/x-7z-compressed");
-        handoff.run(nordend::core::action_registry()[2],
+        handoff.run(rummage::core::action_registry()[2],
                     {.directory = f.dir.path, .targets = {{archive, mime}}});
         REQUIRE(f.until([&] { return !f.messages.empty() || !f.errors.empty(); }));
         CHECK(f.errors.empty());
@@ -472,7 +472,7 @@ TEST_CASE("archives: a ZIP RAR and 7z batch extracts without a GUI backend") {
         ++prompts;
         done(path.extension() == ".rar" ? "password" : "archive test");
     });
-    handoff.run(nordend::core::action_registry()[2],
+    handoff.run(rummage::core::action_registry()[2],
                 {.directory = f.dir.path,
                  .targets = {{zip, "application/zip"},
                              {rar, "application/vnd.rar"},
@@ -489,8 +489,8 @@ TEST_CASE("archives: a mixed 7z and tar selection keeps each chosen backend") {
     Fixture f;
     if (!f.install("7z"))
         return;
-    const auto shell = nordend::platform::find_program(
-        "sh", nordend::platform::Environment::from_environment().path);
+    const auto shell = rummage::platform::find_program(
+        "sh", rummage::platform::Environment::from_environment().path);
     REQUIRE(shell);
     const auto program = f.bin / "file-roller";
     std::ofstream{program} << "#!" << shell->string() << "\nprintf '%s\\0' \"$@\" > called\n";
@@ -499,7 +499,7 @@ TEST_CASE("archives: a mixed 7z and tar selection keeps each chosen backend") {
     const auto seven = f.archive("encrypted-content.7z", "seven.7z");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     handoff.set_password_prompt([](const auto&, bool, auto done) { done("archive test"); });
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.dir.path,
                  .targets = {{seven, "application/x-7z-compressed"},
                              {tar, "application/x-compressed-tar"}}});
@@ -515,7 +515,7 @@ TEST_CASE("archives: missing backends explain how to install a suitable extracto
                              "application/x-7z-compressed", "application/x-bzip2-compressed-tar"}) {
         Fixture f;
         ActionHandoff handoff{f.loop, f.environment, f.report()};
-        handoff.run(nordend::core::action_registry()[1],
+        handoff.run(rummage::core::action_registry()[1],
                     {.directory = f.destination, .targets = {{f.dir.path / "archive", mime}}});
         REQUIRE(f.errors.size() == 1);
         CHECK(f.errors[0].find("Install ") != std::string::npos);
@@ -528,7 +528,7 @@ TEST_CASE("archives: missing backends explain how to install a suitable extracto
 }
 
 TEST_CASE("archives: failure reports distinguish causes and preserve useful context") {
-    const nordend::core::ActionTarget target{"/source/archive.rar", "application/vnd.rar"};
+    const rummage::core::ActionTarget target{"/source/archive.rar", "application/vnd.rar"};
     const ArchiveBackend backend{.kind = ArchiveBackend::Kind::seven_zip, .program = "/bin/7zz"};
     for (const auto& [diagnostic, guidance] : std::vector<std::pair<std::string, std::string>>{
              {"ERROR: Unsupported Method", "Install unrar"},
@@ -542,7 +542,7 @@ TEST_CASE("archives: failure reports distinguish causes and preserve useful cont
              {"", "did not provide diagnostic output"}}) {
         CAPTURE(diagnostic);
         const auto message =
-            nordend::platform::archive_failure(target, backend, "extract", 2, 0, diagnostic,
+            rummage::platform::archive_failure(target, backend, "extract", 2, 0, diagnostic,
                                                "/output", "/output/archive (extracting)");
         CHECK(message.find(guidance) != std::string::npos);
         CHECK(message.find("Archive: /source/archive.rar") != std::string::npos);
@@ -553,13 +553,13 @@ TEST_CASE("archives: failure reports distinguish causes and preserve useful cont
               std::string::npos);
     }
     const auto interrupted =
-        nordend::platform::archive_failure(target, backend, "inspect", 0, 15, "");
+        rummage::platform::archive_failure(target, backend, "inspect", 0, 15, "");
     CHECK(interrupted.find("stopped by a signal") != std::string::npos);
     CHECK(interrupted.find("signal: 15") != std::string::npos);
     CHECK(interrupted.find("No extraction output was created") != std::string::npos);
-    CHECK_FALSE(nordend::platform::archive_password_error(
+    CHECK_FALSE(rummage::platform::archive_password_error(
         backend, 2, "Unsupported encryption. Wrong password?"));
-    const auto redacted = nordend::platform::archive_failure(
+    const auto redacted = rummage::platform::archive_failure(
         target, backend, "decrypt", 2, 0,
         "Wrong password: private-secret\nRepeated: private-secret\033", {}, {}, "private-secret");
     CHECK(redacted.find("private-secret") == std::string::npos);
@@ -574,7 +574,7 @@ TEST_CASE("archives: a RAR-incapable 7z gives installation guidance without a pa
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     handoff.set_password_prompt(
         [](const auto&, bool, auto) { FAIL("must not request a password for a missing decoder"); });
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.destination, .targets = {{archive, "application/vnd.rar"}}});
     REQUIRE(f.wait());
     REQUIRE(f.errors.size() == 1);
@@ -601,7 +601,7 @@ exit 7
         done("private-secret");
     });
     handoff.run(
-        nordend::core::action_registry()[1],
+        rummage::core::action_registry()[1],
         {.directory = f.destination, .targets = {{archive, "application/x-7z-compressed"}}});
     REQUIRE(f.wait());
     REQUIRE(f.errors.size() == 1);
@@ -619,7 +619,7 @@ TEST_CASE("archives: long diagnostics retain the final error and output location
            "printf '" + std::string(10000, 'x') + "\\nNo space left on device\\n' >&2\nexit 1\n");
     const auto archive = f.archive("message.txt.gz", "message.txt.gz");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.destination, .targets = {{archive, "application/gzip"}}});
     REQUIRE(f.wait());
     REQUIRE(f.errors.size() == 1);
@@ -637,7 +637,7 @@ TEST_CASE("archives: silent and interrupted extractors still provide actionable 
         const auto archive = f.archive("sample.7z", "sample.7z");
         ActionHandoff handoff{f.loop, f.environment, f.report()};
         handoff.run(
-            nordend::core::action_registry()[1],
+            rummage::core::action_registry()[1],
             {.directory = f.destination, .targets = {{archive, "application/x-7z-compressed"}}});
         REQUIRE(f.wait());
         REQUIRE(f.errors.size() == 1);
@@ -656,7 +656,7 @@ TEST_CASE("archives: missing source and invalid destination retain filesystem di
         return;
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     const auto missing = f.dir.path / "missing.gz";
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.destination, .targets = {{missing, "application/gzip"}}});
     REQUIRE(f.errors.size() == 1);
     CHECK(f.errors[0].find(missing.string()) != std::string::npos);
@@ -665,7 +665,7 @@ TEST_CASE("archives: missing source and invalid destination retain filesystem di
     f.errors.clear();
     const auto file = f.dir.write("not-a-directory", "existing");
     const auto archive = f.archive("message.txt.gz", "message.txt.gz");
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = file, .targets = {{archive, "application/gzip"}}});
     REQUIRE(f.errors.size() == 1);
     CHECK(f.errors[0].find(file.string()) != std::string::npos);
@@ -679,7 +679,7 @@ TEST_CASE("archives: encrypted ZIP with only unzip explains the password-capable
         return;
     const auto archive = f.archive("encrypted-zipcrypto.zip", "encrypted.zip");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.destination, .targets = {{archive, "application/zip"}}});
     REQUIRE(f.wait());
     REQUIRE(f.errors.size() == 1);
@@ -693,7 +693,7 @@ TEST_CASE("archives: File Roller failures retain its diagnostic and RAR installa
            "printf '%s\\n' 'libarchive: RAR encryption support unavailable' >&2\nexit 2\n");
     const auto archive = f.archive("encrypted-headers.rar", "secret.rar");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
-    handoff.run(nordend::core::action_registry()[1],
+    handoff.run(rummage::core::action_registry()[1],
                 {.directory = f.destination, .targets = {{archive, "application/vnd.rar"}}});
     REQUIRE(f.wait());
     REQUIRE(f.errors.size() == 1);
@@ -708,12 +708,12 @@ TEST_CASE("archives: File Roller failures retain its diagnostic and RAR installa
 TEST_CASE("archives: an extractor that cannot start reports its path and system error") {
     Fixture f;
     const auto program = f.bin / "7z";
-    std::ofstream{program} << "#!/nordend-test-nonexistent-interpreter\n";
+    std::ofstream{program} << "#!/rummage-test-nonexistent-interpreter\n";
     fs::permissions(program, fs::perms::owner_all);
     const auto archive = f.archive("sample.7z", "sample.7z");
     ActionHandoff handoff{f.loop, f.environment, f.report()};
     handoff.run(
-        nordend::core::action_registry()[1],
+        rummage::core::action_registry()[1],
         {.directory = f.destination, .targets = {{archive, "application/x-7z-compressed"}}});
     REQUIRE(f.errors.size() == 1);
     CHECK(f.errors[0].find("Cannot start " + program.string()) != std::string::npos);

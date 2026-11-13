@@ -1,10 +1,12 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Nordend
+Upstream-Name: rummage
 Source: https://github.com/barrulus/bordend-fm
 Comment:
+ rummage is a fork of Nordend by pankaspe: https://github.com/pankaspe/nordend-fm
+ The original upstream MIT copyright notice is retained in LICENSE.
  Files patterns below refer to paths in the source package, not paths installed
- by the binary package. Bundled code and icon fonts are compiled into nordend
- or nordend-preview; their original source files need not be installed beside
+ by the binary package. Bundled code and icon fonts are compiled into rummage
+ or rummage-preview; their original source files need not be installed beside
  the executables for their copyright notices to apply.
 
 Files: *
@@ -25,7 +27,7 @@ Copyright: 2014 John Hawthorn
 License: Expat
 Comment:
  The fzy 1.1 matcher, from https://github.com/jhawthorn/fzy, is compiled into
- Nordend for command-palette fuzzy matching.
+ rummage for command-palette fuzzy matching.
 
 Files: third_party/tabler-icons/*
 Copyright: 2020-2026 Paweł Kuna
@@ -34,7 +36,7 @@ Comment:
  Subsets of the Tabler Icons 3.50.0 webfonts from
  https://github.com/tabler/tabler-icons are embedded in the application.
 
-Files: src/theme/include/nordend/theme/palette.hpp
+Files: src/theme/include/rummage/theme/palette.hpp
 Copyright: 2026 pankaspe
            2026 noctalia-dev
 License: Expat

@@ -1,4 +1,4 @@
-#include "nordend/views/state.hpp"
+#include "rummage/views/state.hpp"
 
 #include <algorithm>
 #include <array>
@@ -11,10 +11,10 @@
 #include <toml++/toml.hpp>
 #include <utility>
 
-#include "nordend/core/file.hpp"
-#include "nordend/core/log.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/core/log.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr std::array kModes{std::pair{"columns", State::Mode::columns},
@@ -196,11 +196,11 @@ std::filesystem::path default_state_path() {
     const char* xdg = std::getenv("XDG_STATE_HOME");  // NOLINT(concurrency-mt-unsafe)
     // The XDG base directory spec ignores relative paths.
     if (xdg != nullptr && xdg[0] == '/') {
-        return std::filesystem::path{xdg} / "nordend" / "state.toml";
+        return std::filesystem::path{xdg} / "rummage" / "state.toml";
     }
     const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
     if (home != nullptr && home[0] != '\0') {
-        return std::filesystem::path{home} / ".local" / "state" / "nordend" / "state.toml";
+        return std::filesystem::path{home} / ".local" / "state" / "rummage" / "state.toml";
     }
     return {};
 }
@@ -435,7 +435,7 @@ std::string format_state(const State& s) {
             tabs += "shown = true\n";
     }
     return std::format(
-               "# How Nordend was left, read at start. Written by Nordend: no need to edit it.\n"
+               "# How rummage was left, read at start. Written by rummage: no need to edit it.\n"
                "\n"
                "[view]\n"
                "mode = \"{}\"\n"
@@ -558,4 +558,4 @@ void StateKeeper::flush() {
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

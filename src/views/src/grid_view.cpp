@@ -1,4 +1,4 @@
-#include "nordend/views/grid_view.hpp"
+#include "rummage/views/grid_view.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -10,12 +10,12 @@
 
 #include "draw_helpers.hpp"
 #include "item_style.hpp"
-#include "nordend/engines/engines.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/ui/text_field.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/engines/engines.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/ui/text_field.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 constexpr float kPadding = 16.0F;          // around the grid
@@ -720,4 +720,4 @@ std::optional<std::pair<float, float>> GridView::cursor_anchor() const {
     return std::pair{x, y};
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

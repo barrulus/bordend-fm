@@ -1,4 +1,4 @@
-#include "nordend/views/error_dialog.hpp"
+#include "rummage/views/error_dialog.hpp"
 
 #include <algorithm>
 #include <format>
@@ -6,7 +6,7 @@
 #include <utility>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 constexpr float kTextSize = 13;
 constexpr float kLineHeight = 20;
@@ -182,4 +182,4 @@ void ErrorDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

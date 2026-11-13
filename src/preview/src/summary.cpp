@@ -2,10 +2,10 @@
 #include <string_view>
 #include <utility>
 
-#include "nordend/picture/load.hpp"
-#include "nordend/preview/preview.hpp"
+#include "rummage/picture/load.hpp"
+#include "rummage/preview/preview.hpp"
 
-namespace nordend::preview {
+namespace rummage::preview {
 
 Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind kind,
                   const core::CancelToken& cancel) {
@@ -27,4 +27,4 @@ Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind
     return summary;
 }
 
-}  // namespace nordend::preview
+}  // namespace rummage::preview

@@ -1,4 +1,4 @@
-#include "nordend/fs/sort.hpp"
+#include "rummage/fs/sort.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -7,7 +7,7 @@
 #include <unordered_set>
 #include <utility>
 
-namespace nordend::fs {
+namespace rummage::fs {
 namespace {
 
 bool is_digit(char c) noexcept { return c >= '0' && c <= '9'; }
@@ -174,4 +174,4 @@ Listing::Moved Listing::set_filter(bool show_hidden, std::string keep) {
     return moved;
 }
 
-}  // namespace nordend::fs
+}  // namespace rummage::fs

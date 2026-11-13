@@ -1,4 +1,4 @@
-#include "nordend/views/properties_dialog.hpp"
+#include "rummage/views/properties_dialog.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -6,12 +6,12 @@
 #include <sys/stat.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-#include "nordend/fs/directory.hpp"
-#include "nordend/fs/folder_icon.hpp"
-#include "nordend/fs/icon.hpp"
-#include "nordend/views/format.hpp"
+#include "rummage/fs/directory.hpp"
+#include "rummage/fs/folder_icon.hpp"
+#include "rummage/fs/icon.hpp"
+#include "rummage/views/format.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 std::string lower(std::string text) {
     for (char& c : text)
@@ -586,4 +586,4 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
     }
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

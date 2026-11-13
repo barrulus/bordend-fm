@@ -1,4 +1,4 @@
-#include "nordend/views/file_picker.hpp"
+#include "rummage/views/file_picker.hpp"
 
 #include <algorithm>
 #include <fnmatch.h>
@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 using Mode = core::PickerRequest::Mode;
 
@@ -545,4 +545,4 @@ void FilePicker::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
     menu_.draw(renderer, bounds, palette);
     confirm_.draw(renderer, bounds, palette);
 }
-}  // namespace nordend::views
+}  // namespace rummage::views

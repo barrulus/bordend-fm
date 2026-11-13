@@ -1,4 +1,4 @@
-#include "nordend/core/config.hpp"
+#include "rummage/core/config.hpp"
 
 #include <cstdlib>
 #include <filesystem>
@@ -8,16 +8,44 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/file.hpp"
+#include "rummage/core/file.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::Config;
-using nordend::core::ConfigResult;
-using nordend::core::default_config_path;
-using nordend::core::load_config;
-using nordend::core::parse_config;
+using rummage::core::Config;
+using rummage::core::ConfigResult;
+using rummage::core::default_config_path;
+using rummage::core::load_config;
+using rummage::core::parse_config;
 
-using nordend::test::TempDir;
+using rummage::test::TempDir;
+
+TEST_CASE("rename: migrate Nordend settings without replacing files or symlinks") {
+    TempDir dir;
+    const auto old = dir.path / "nordend";
+    const auto current = dir.path / "rummage";
+    std::filesystem::create_directories(old);
+    for (const auto* name : {"config.toml", "colors.toml", "state.toml"}) {
+        const std::string content = std::string{"# original "} + name + "\n";
+        REQUIRE_FALSE(rummage::core::write_file_atomically(old / name, content));
+        CHECK(rummage::core::migrate_nordend_file(current / name).empty());
+        CHECK(rummage::core::read_text_file(current / name).text == content);
+        CHECK(rummage::core::read_text_file(old / name).text == content);
+        REQUIRE_FALSE(rummage::core::write_file_atomically(current / name, "# new settings\n"));
+        CHECK(rummage::core::migrate_nordend_file(current / name).empty());
+        CHECK(rummage::core::read_text_file(current / name).text == "# new settings\n");
+    }
+    CHECK(rummage::core::migrate_nordend_file(current / "missing.toml").empty());
+    CHECK_FALSE(std::filesystem::exists(current / "missing.toml"));
+    std::filesystem::create_directory(old / "bad.toml");
+    CHECK_FALSE(rummage::core::migrate_nordend_file(current / "bad.toml").empty());
+    CHECK_FALSE(std::filesystem::exists(current / "bad.toml"));
+    REQUIRE_FALSE(rummage::core::write_file_atomically(old / "link.toml", "# legacy\n"));
+    std::filesystem::create_symlink(dir.path / "absent", current / "link.toml");
+    CHECK(rummage::core::migrate_nordend_file(current / "link.toml").empty());
+    CHECK(std::filesystem::is_symlink(current / "link.toml"));
+    CHECK_FALSE(std::filesystem::exists(dir.path / "absent"));
+    CHECK(rummage::core::migrate_nordend_file({}).empty());
+}
 
 TEST_CASE("context menu config: nested layouts and per-context overrides") {
     const auto result = parse_config(R"(
@@ -337,7 +365,7 @@ TEST_CASE("load_config: missing file, real file, directory") {
 }
 
 TEST_CASE("the example config parses clean and matches the defaults") {
-    const ConfigResult result = load_config(NORDEND_EXAMPLE_CONFIG);
+    const ConfigResult result = load_config(RUMMAGE_EXAMPLE_CONFIG);
     CHECK(result.from_file);
     CHECK(result.problems.empty());
     check_defaults(result.config);
@@ -347,15 +375,15 @@ TEST_CASE("default_config_path follows XDG_CONFIG_HOME, then HOME") {
     const ScopedEnv home{"HOME", "/home/someone"};
     {
         const ScopedEnv xdg{"XDG_CONFIG_HOME", "/tmp/xdg"};
-        CHECK(default_config_path() == "/tmp/xdg/nordend/config.toml");
+        CHECK(default_config_path() == "/tmp/xdg/rummage/config.toml");
     }
     {
         const ScopedEnv xdg{"XDG_CONFIG_HOME", "relative/ignored"};
-        CHECK(default_config_path() == "/home/someone/.config/nordend/config.toml");
+        CHECK(default_config_path() == "/home/someone/.config/rummage/config.toml");
     }
     {
         const ScopedEnv xdg{"XDG_CONFIG_HOME", nullptr};
-        CHECK(default_config_path() == "/home/someone/.config/nordend/config.toml");
+        CHECK(default_config_path() == "/home/someone/.config/rummage/config.toml");
         const ScopedEnv no_home{"HOME", nullptr};
         CHECK(default_config_path().empty());
     }
@@ -386,24 +414,24 @@ TEST_CASE("config: keybindings accept overrides and disabling") {
 
 TEST_CASE("first run creates the full reference and preserves existing configs") {
     TempDir dir;
-    const auto path = dir.path / "nested" / "nordend" / "config.toml";
-    REQUIRE_FALSE(nordend::core::create_default_config(path));
-    const auto created = nordend::core::read_text_file(path);
-    CHECK(created.text == nordend::core::read_text_file(NORDEND_EXAMPLE_CONFIG).text);
+    const auto path = dir.path / "nested" / "rummage" / "config.toml";
+    REQUIRE_FALSE(rummage::core::create_default_config(path));
+    const auto created = rummage::core::read_text_file(path);
+    CHECK(created.text == rummage::core::read_text_file(RUMMAGE_EXAMPLE_CONFIG).text);
     const auto loaded = load_config(path);
     CHECK(loaded.from_file);
     CHECK(loaded.problems.empty());
     check_defaults(loaded.config);
 
     for (const std::string content : {"", "[font]\nfamily = 'Custom'\n", "invalid ["}) {
-        REQUIRE_FALSE(nordend::core::write_file_atomically(path, content));
-        REQUIRE_FALSE(nordend::core::create_default_config(path));
-        CHECK(nordend::core::read_text_file(path).text == content);
+        REQUIRE_FALSE(rummage::core::write_file_atomically(path, content));
+        REQUIRE_FALSE(rummage::core::create_default_config(path));
+        CHECK(rummage::core::read_text_file(path).text == content);
         // Exercise the publication race: another process has already created the target.
-        REQUIRE_FALSE(nordend::core::write_file_atomically(path, "replacement", false));
-        CHECK(nordend::core::read_text_file(path).text == content);
+        REQUIRE_FALSE(rummage::core::write_file_atomically(path, "replacement", false));
+        CHECK(rummage::core::read_text_file(path).text == content);
     }
-    CHECK_FALSE(nordend::core::create_default_config({}));
+    CHECK_FALSE(rummage::core::create_default_config({}));
 }
 
 TEST_CASE("first run preserves symlinks and reports creation failures") {
@@ -411,15 +439,15 @@ TEST_CASE("first run preserves symlinks and reports creation failures") {
     const auto target = dir.write("settings.toml", "# user settings\n");
     const auto link = dir.path / "config.toml";
     std::filesystem::create_symlink(target, link);
-    CHECK_FALSE(nordend::core::create_default_config(link));
+    CHECK_FALSE(rummage::core::create_default_config(link));
     CHECK(std::filesystem::is_symlink(link));
-    CHECK(nordend::core::read_text_file(target).text == "# user settings\n");
+    CHECK(rummage::core::read_text_file(target).text == "# user settings\n");
 
     const auto missing = dir.path / "missing.toml";
     const auto dangling = dir.path / "dangling.toml";
     std::filesystem::create_symlink(missing, dangling);
-    CHECK_FALSE(nordend::core::create_default_config(dangling));
+    CHECK_FALSE(rummage::core::create_default_config(dangling));
     CHECK(std::filesystem::is_symlink(dangling));
     CHECK_FALSE(std::filesystem::exists(missing));
-    CHECK(nordend::core::create_default_config(target / "config.toml"));
+    CHECK(rummage::core::create_default_config(target / "config.toml"));
 }

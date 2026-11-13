@@ -13,13 +13,13 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "nordend/ui/seat.hpp"
-#include "nordend/views/browser.hpp"
-#include "nordend/views/command_palette.hpp"
-#include "nordend/views/file_clipboard.hpp"
-#include "nordend/views/shortcuts.hpp"
+#include "rummage/ui/seat.hpp"
+#include "rummage/views/browser.hpp"
+#include "rummage/views/command_palette.hpp"
+#include "rummage/views/file_clipboard.hpp"
+#include "rummage/views/shortcuts.hpp"
 
-namespace nordend::views {
+namespace rummage::views {
 namespace {
 
 // The keys shown for a command: its shortcut line's first chord ("Alt+←" of "Alt+←  Alt+→").
@@ -266,7 +266,7 @@ std::vector<PaletteItem> Browser::palette_items() {
         }
     }
 
-    // Nordend.
+    // rummage.
     if (folder && !in_trash) {
         command(Command::filter_names, "filter_names", "Filter Names…");
         command(Command::find_files, "find_files", "Find Files…");
@@ -435,4 +435,4 @@ void Browser::settle_found(Clock::time_point now) {
     redraw_();
 }
 
-}  // namespace nordend::views
+}  // namespace rummage::views

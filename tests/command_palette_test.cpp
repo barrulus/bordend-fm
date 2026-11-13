@@ -1,4 +1,4 @@
-#include "nordend/views/command_palette.hpp"
+#include "rummage/views/command_palette.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -18,30 +18,30 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory_watcher.hpp"
-#include "nordend/fs/mime.hpp"
-#include "nordend/fs/places.hpp"
-#include "nordend/ui/seat.hpp"
-#include "nordend/views/browser.hpp"
-#include "nordend/views/fuzzy.hpp"
-#include "nordend/views/shortcuts.hpp"
-#include "nordend/views/state.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/fs/places.hpp"
+#include "rummage/ui/seat.hpp"
+#include "rummage/views/browser.hpp"
+#include "rummage/views/fuzzy.hpp"
+#include "rummage/views/shortcuts.hpp"
+#include "rummage/views/state.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::test::TempDir;
-using nordend::ui::CursorShape;
-using nordend::ui::KeyEvent;
-using nordend::ui::Modifiers;
-using nordend::views::Browser;
-using nordend::views::Command;
-using nordend::views::CommandPalette;
-using nordend::views::fuzzy_positions;
-using nordend::views::fuzzy_score;
-using nordend::views::PaletteItem;
-using nordend::views::State;
+using rummage::core::EventLoop;
+using rummage::test::TempDir;
+using rummage::ui::CursorShape;
+using rummage::ui::KeyEvent;
+using rummage::ui::Modifiers;
+using rummage::views::Browser;
+using rummage::views::Command;
+using rummage::views::CommandPalette;
+using rummage::views::fuzzy_positions;
+using rummage::views::fuzzy_score;
+using rummage::views::PaletteItem;
+using rummage::views::State;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
@@ -233,10 +233,10 @@ struct Fixture {
     fs::path a = dir.path / "a";
     fs::path b = dir.path / "b";
     EventLoop loop;
-    nordend::core::WorkerPool pool{loop, 2};
-    nordend::fs::DirectoryWatcher watcher{loop};
+    rummage::core::WorkerPool pool{loop, 2};
+    rummage::fs::DirectoryWatcher watcher{loop};
     Browser browser{loop,    pool,
-                    watcher, nordend::fs::MimeDatabase::load(),
+                    watcher, rummage::fs::MimeDatabase::load(),
                     [] {},   [](CursorShape /*shape*/) {}};
 
     Fixture() {
@@ -244,7 +244,7 @@ struct Fixture {
         fs::create_directories(b);
         std::ofstream{a / "one.txt"} << "1";
         browser.set_home_trash(dir.path / "Trash");
-        browser.set_places({{.section = nordend::fs::Place::Section::places,
+        browser.set_places({{.section = rummage::fs::Place::Section::places,
                              .label = "Bee",
                              .path = b,
                              .icon = "folder",
@@ -372,7 +372,7 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::copy_other_pane, "copy_other_pane"},
         {Command::move_other_pane, "move_other_pane"},
     };
-    for (const nordend::views::Shortcut& shortcut : nordend::views::shortcuts()) {
+    for (const rummage::views::Shortcut& shortcut : rummage::views::shortcuts()) {
         if (not_in_palette.contains(shortcut.command)) {
             continue;
         }
@@ -418,7 +418,7 @@ TEST_CASE("palette in the browser: an item does what its key does") {
     f.run("tab 1");
     CHECK(f.browser.active_tab() == 0);
     f.run("sort size");
-    CHECK(f.browser.sort_order().key == nordend::fs::SortKey::size);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::size);
     f.run("go to bee");
     REQUIRE(f.browser.columns().column_count() > 0);
     CHECK(f.browser.state().palette_recent.front() == "go:" + f.b.string());
@@ -453,8 +453,8 @@ TEST_CASE("palette in the browser: the recently used come back first, and in sta
 
     // Through state.toml and back.
     const State state = f.browser.state();
-    const nordend::views::StateResult read =
-        nordend::views::parse_state(nordend::views::format_state(state), "state.toml");
+    const rummage::views::StateResult read =
+        rummage::views::parse_state(rummage::views::format_state(state), "state.toml");
     CHECK(read.problems.empty());
     CHECK(read.state.palette_recent == recent);
     Fixture g;
@@ -467,12 +467,12 @@ TEST_CASE("state: palette.recent keeps strings only, ten at most") {
     for (int i = 0; i < 12; ++i) {
         list += std::format("\"id{}\", ", i);
     }
-    const nordend::views::StateResult read =
-        nordend::views::parse_state("[palette]\nrecent = [" + list + "3, \"\"]\n", "s.toml");
+    const rummage::views::StateResult read =
+        rummage::views::parse_state("[palette]\nrecent = [" + list + "3, \"\"]\n", "s.toml");
     CHECK(read.state.palette_recent.size() == State::kMaxRecent);
     CHECK(read.state.palette_recent.front() == "id0");
-    const nordend::views::StateResult wrong =
-        nordend::views::parse_state("[palette]\nrecent = \"id\"\n", "s.toml");
+    const rummage::views::StateResult wrong =
+        rummage::views::parse_state("[palette]\nrecent = \"id\"\n", "s.toml");
     CHECK(wrong.state.palette_recent.empty());
     CHECK(wrong.problems.size() == 1);
 }

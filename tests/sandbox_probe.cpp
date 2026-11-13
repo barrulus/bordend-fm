@@ -18,7 +18,7 @@
 
 #include "sandbox.hpp"
 
-namespace isolate = nordend::isolate;
+namespace isolate = rummage::isolate;
 
 namespace {
 

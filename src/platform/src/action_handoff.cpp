@@ -1,4 +1,4 @@
-#include "nordend/platform/action_handoff.hpp"
+#include "rummage/platform/action_handoff.hpp"
 
 #include <algorithm>
 #include <array>
@@ -12,9 +12,9 @@
 #include <unistd.h>
 #include <utility>
 
-#include "nordend/fs/operations.hpp"
+#include "rummage/fs/operations.hpp"
 
-namespace nordend::platform {
+namespace rummage::platform {
 namespace {
 
 struct Descriptor {
@@ -34,7 +34,7 @@ struct Descriptor {
 using SharedFd = std::shared_ptr<Descriptor>;
 
 SharedFd channel() {
-    return std::make_shared<Descriptor>(memfd_create("nordend-action-output", MFD_CLOEXEC));
+    return std::make_shared<Descriptor>(memfd_create("rummage-action-output", MFD_CLOEXEC));
 }
 
 std::string diagnostic(int fd) {
@@ -232,9 +232,9 @@ void ActionHandoff::launch(const core::Action& action, const core::ActionContext
     }
 }
 
-}  // namespace nordend::platform
+}  // namespace rummage::platform
 
-namespace nordend::platform {
+namespace rummage::platform {
 namespace {
 
 bool contains_encrypted_entry(int fd, bool rar) {
@@ -400,7 +400,7 @@ void ActionHandoff::choose_path(const core::PickerRequest& request, DirectoryCho
         const auto error =
             lookup_error ? lookup_error : std::error_code{errno, std::generic_category()};
         report_("Cannot open the destination picker: " + error.message() +
-                    ". Reopen Bordend and try again.\nInitial folder: " + request.folder,
+                    ". Reopen rummage and try again.\nInitial folder: " + request.folder,
                 true);
         chosen(std::nullopt);
         return;
@@ -450,7 +450,7 @@ void ActionHandoff::choose_path(const core::PickerRequest& request, DirectoryCho
             output->fd, errors->fd);
         if (error) {
             report_("Could not open destination picker: " + error.message() +
-                        ". Reopen Bordend and try again.\nInitial folder: " + request.folder,
+                        ". Reopen rummage and try again.\nInitial folder: " + request.folder,
                     true);
             chosen(std::nullopt);
         }
@@ -599,7 +599,7 @@ void ActionHandoff::ask_password(std::shared_ptr<Extraction> job) {
     if (!password_) {
         archive_problem(
             job, "This archive requires a password, but no password dialog is available.",
-            "Reopen Bordend and try again, or open the archive in another archive manager.");
+            "Reopen rummage and try again, or open the archive in another archive manager.");
         return;
     }
     passwords_.push_back(std::move(job));
@@ -756,4 +756,4 @@ void ActionHandoff::extract_step(std::shared_ptr<Extraction> job, bool second_pa
     }
 }
 
-}  // namespace nordend::platform
+}  // namespace rummage::platform

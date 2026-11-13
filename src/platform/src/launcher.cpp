@@ -1,4 +1,4 @@
-#include "nordend/platform/launcher.hpp"
+#include "rummage/platform/launcher.hpp"
 
 #include <csignal>
 #include <fcntl.h>
@@ -9,11 +9,11 @@
 #include <unistd.h>
 #include <utility>
 
-#include "nordend/core/log.hpp"
+#include "rummage/core/log.hpp"
 
 extern char** environ;  // NOLINT(readability-redundant-declaration): unistd.h hides it in C++
 
-namespace nordend::platform {
+namespace rummage::platform {
 namespace {
 
 // posix_spawn's attributes and file actions, released on every path.
@@ -37,7 +37,7 @@ struct SpawnSetup {
     posix_spawn_file_actions_t actions{};
 };
 
-// Nordend's environment with env's variables replacing or added to it.
+// rummage's environment with env's variables replacing or added to it.
 std::vector<std::string> child_environment(std::span<const std::string> env) {
     const auto name_of = [](std::string_view variable) {
         return variable.substr(0, variable.find('='));
@@ -73,7 +73,7 @@ std::vector<char*> c_array(std::vector<std::string>& strings) {
 Launcher::Launcher(core::EventLoop& loop) : loop_{loop} {}
 
 Launcher::~Launcher() {
-    // The children go on; Nordend only stops listening.
+    // The children go on; rummage only stops listening.
     for (auto& [pidfd, child] : children_) {
         loop_.remove(child.source);
         close(pidfd);
@@ -160,4 +160,4 @@ void Launcher::reap(int pidfd) {
     }
 }
 
-}  // namespace nordend::platform
+}  // namespace rummage::platform

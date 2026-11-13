@@ -1,4 +1,4 @@
-#include "nordend/fs/trash.hpp"
+#include "rummage/fs/trash.hpp"
 
 #include <algorithm>
 #include <array>
@@ -19,11 +19,11 @@
 #include <utility>
 #include <vector>
 
-#include "nordend/core/file.hpp"
-#include "nordend/fs/operations.hpp"
-#include "nordend/fs/places.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/fs/operations.hpp"
+#include "rummage/fs/places.hpp"
 
-namespace nordend::fs {
+namespace rummage::fs {
 namespace {
 
 constexpr std::string_view kInfoSuffix = ".trashinfo";
@@ -1055,4 +1055,4 @@ void prune_directory_sizes(const std::filesystem::path& trash) {
     }
 }
 
-}  // namespace nordend::fs
+}  // namespace rummage::fs

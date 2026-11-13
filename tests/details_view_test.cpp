@@ -10,21 +10,21 @@
 
 #include <doctest/doctest.h>
 
-#include "nordend/core/event_loop.hpp"
-#include "nordend/core/worker_pool.hpp"
-#include "nordend/fs/directory_watcher.hpp"
-#include "nordend/fs/mime.hpp"
-#include "nordend/views/browser.hpp"
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/views/browser.hpp"
 #include "temp_dir.hpp"
 
-using nordend::core::EventLoop;
-using nordend::core::WorkerPool;
-using nordend::fs::DirectoryWatcher;
-using nordend::fs::SortKey;
-using nordend::test::TempDir;
-using nordend::views::Browser;
-using nordend::views::DetailsView;
-using nordend::views::Folder;
+using rummage::core::EventLoop;
+using rummage::core::WorkerPool;
+using rummage::fs::DirectoryWatcher;
+using rummage::fs::SortKey;
+using rummage::test::TempDir;
+using rummage::views::Browser;
+using rummage::views::DetailsView;
+using rummage::views::Folder;
 using Field = DetailsView::Field;
 using namespace std::chrono_literals;
 namespace fs = std::filesystem;
@@ -51,13 +51,13 @@ void write(const fs::path& file, std::size_t bytes) {
 }
 
 std::string cursor_name(const Folder& folder) {
-    const nordend::fs::Entry* entry = folder.cursor_entry();
+    const rummage::fs::Entry* entry = folder.cursor_entry();
     return entry == nullptr ? std::string{} : entry->name;
 }
 
 std::vector<std::string> names(const Folder& folder) {
     std::vector<std::string> out;
-    for (const nordend::fs::Entry& entry : folder.entries()) {
+    for (const rummage::fs::Entry& entry : folder.entries()) {
         out.push_back(entry.name);
     }
     return out;
@@ -71,8 +71,8 @@ struct Fixture {
     WorkerPool pool{loop, 2};
     DirectoryWatcher watcher{loop};
     Browser browser{loop,    pool,
-                    watcher, nordend::fs::MimeDatabase::load(),
-                    [] {},   [](nordend::ui::CursorShape /*shape*/) {}};
+                    watcher, rummage::fs::MimeDatabase::load(),
+                    [] {},   [](rummage::ui::CursorShape /*shape*/) {}};
     DetailsView& details = browser.details();
 
     Fixture() {
@@ -89,8 +89,8 @@ struct Fixture {
         return run_until(loop, [this] { return !browser.loading(); });
     }
 
-    void press(xkb_keysym_t key, nordend::ui::Modifiers modifiers = {}) {
-        nordend::ui::KeyEvent event;
+    void press(xkb_keysym_t key, rummage::ui::Modifiers modifiers = {}) {
+        rummage::ui::KeyEvent event;
         event.keysym = key;
         event.modifiers = modifiers;
         browser.key(event, Browser::Clock::now());
@@ -248,8 +248,8 @@ TEST_CASE("info pane: Ctrl+I hides and shows it in the grid and the details; not
 
 TEST_CASE("info pane: its width stays within limits and leaves the view room") {
     Fixture f;
-    nordend::views::InfoPane& pane = f.browser.info_pane();
-    using nordend::views::InfoPane;
+    rummage::views::InfoPane& pane = f.browser.info_pane();
+    using rummage::views::InfoPane;
     CHECK(pane.width() == InfoPane::kWidth);
     pane.set_width(5000.0F);
     CHECK(pane.width() == InfoPane::kMaxWidth);
