@@ -174,13 +174,25 @@ available in the trash.
   was shot, without the black bars some cameras put on their thumbnails; a preview the camera
   stored broken is passed over for the next one. Formats with no preview rummage can read (Sigma
   X3F, old Panasonic RAW) say so in Quick Look.
-- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), binary PGM and PPM
+- **Images:** PNG, JPEG and GIF (wuffs), WebP (libwebp), JPEG XL (libjxl), HEIC/HEIF still images
+  (libheif with libde265 for HEVC), binary PGM and PPM
   (8 and 16 bits), and **TIFF** with rummage's own reader (BigTIFF too; uncompressed, LZW,
   Deflate, PackBits, JPEG; 1 to 16-bit and floating-point samples; grey, RGB, YCbCr, palette,
   CMYK, alpha; strips and tiles), with EXIF orientation. The format is told by the file's bytes, not its name
   (a PNG called `.jpg` still shows), and only camera files are searched for stored previews.
-- **Pictures made apart:** the code that reads photos (libwebp, libjxl, wuffs, and rummage's own
-  TIFF, DNG and camera-file readers) run in small `rummage-preview` processes, not in rummage: a file that crashes or hangs
+- **HEIC phone photos:** the primary still image appears in Quick Look, image previews and
+  thumbnails, including tiled images, container rotation/mirroring, clean aperture crops and
+  transparency. Container transforms are applied once; EXIF orientation is not reapplied.
+  RGB ICC profiles (including Display P3) and common NCLX profiles are converted to 8-bit sRGB,
+  with straight alpha. Untagged/unspecified colour is assumed sRGB. PQ uses 203-nit SDR white;
+  HLG uses a fixed 1000-nit display and system gamma 1.2, mapped to the same SDR white.
+  Highlights above SDR white and colours outside sRGB clip: there is no adaptive tone mapping,
+  gain-map reconstruction, full HDR output or display-profile management. Sequences, depth and
+  other auxiliary images are not displayed. HEIF containers using codecs other than HEVC are
+  not supported by this reader. Invalid files, unsupported profiles/codecs and resource-limit
+  failures report a preview error.
+- **Pictures made apart:** the code that reads photos (libwebp, libjxl, libheif/libde265, Little CMS,
+  wuffs, and rummage's own TIFF, DNG and camera-file readers) run in small `rummage-preview` processes, not in rummage: a file that crashes or hangs
   one costs only its preview ("Preview unavailable"), and rummage carries on. Each one lives in
   a cage of rummage's own (seccomp and landlock, no library): it cannot open a file, reach the
   network, start a program or signal another one, and has at most 4 GiB of memory. They start when a

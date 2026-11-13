@@ -54,6 +54,8 @@ std::string_view format_name(Format format) noexcept {
             return "WebP";
         case Format::jxl:
             return "JPEG XL";
+        case Format::heif:
+            return "HEIF";
         case Format::pnm:
             return "PNM";
         case Format::tiff:
@@ -79,6 +81,14 @@ Format sniff(std::span<const std::uint8_t> head) noexcept {
     }
     if (starts_with(head, kJxlCodestream) || starts_with(head, kJxlContainer)) {
         return Format::jxl;
+    }
+    // Still-image HEIF brands. Sequence brands, AVIF and Canon CR3 are not claimed.
+    if (head.size() >= 12 && std::memcmp(head.data() + 4, "ftyp", 4) == 0) {
+        const std::string_view brand{reinterpret_cast<const char*>(head.data() + 8), 4};
+        if (brand == "heic" || brand == "heix" || brand == "heim" || brand == "heis" ||
+            brand == "mif1") {
+            return Format::heif;
+        }
     }
     // "P5" or "P6" and whitespace: binary PGM or PPM.
     if (head.size() >= 3 && head[0] == 'P' && (head[1] == '5' || head[1] == '6') &&
@@ -127,6 +137,9 @@ Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options)
         case Format::jxl:
             detail::decode_jxl(data, options, result);
             break;
+        case Format::heif:
+            detail::decode_heif(data, options, result);
+            break;
         case Format::pnm:
             detail::decode_pnm(data, options, result);
             break;
@@ -140,7 +153,10 @@ Decoded decode(std::span<const std::uint8_t> data, const DecodeOptions& options)
     }
     if (!result.error.empty()) {
         result.image = {};
-        result.problem = result.error == detail::kTooLarge ? Problem::too_large : Problem::damaged;
+        if (result.problem == Problem::none) {
+            result.problem =
+                result.error == detail::kTooLarge ? Problem::too_large : Problem::damaged;
+        }
         return result;
     }
     if (options.apply_orientation) {
