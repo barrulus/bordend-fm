@@ -9,8 +9,14 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/readme-screenshot.webp" alt="rummage's column view with photos, tabs, a context menu and the information pane" width="100%">
+  <img src="docs/images/readme-dual-panes.png" alt="rummage with two browsing panes: video thumbnails on the left, wallpaper images on the right, and a selected image's preview and metadata" width="100%">
+  <br>
+  <sub>Two panes with independent tabs, video and image thumbnails, and the information pane.</sub>
 </p>
+
+| Column view with a video still preview | Video thumbnails in the grid |
+| --- | --- |
+| ![Recordings in column view with a selected video's still preview and metadata](docs/images/readme-column-preview.png) | ![A grid of recordings with filmstrip thumbnails and a selected video's information pane](docs/images/readme-video-grid.png) |
 
 rummage provides three views of your files, two persistent panes, tabs, recursive
 filename search, a command palette, Quick Look, and file operations with conflict handling, trash and undo. It
