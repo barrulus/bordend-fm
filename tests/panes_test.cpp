@@ -765,3 +765,73 @@ TEST_CASE("panes: horizontal column scrollbar drags independently of files and d
     draw(now + 5s);
     CHECK(view.scroll_offset() == 0);  // drawing must not glide back to the focused column
 }
+
+TEST_CASE("panes: folder preferences and last location follow the active pane") {
+    Fixture f;
+    f.browser.set_mode(Browser::Mode::grid);
+    f.browser.set_grid_size(4);
+    f.browser.toggle_split();
+    f.browser.open(f.b);
+    REQUIRE(f.settle());
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.set_sort(rummage::fs::SortKey::modified, true);
+    f.browser.set_list_size(3);
+    CHECK(f.browser.state().last_folder == f.b);
+    f.browser.focus_pane(0);
+    CHECK(f.browser.state().last_folder == f.a);
+    CHECK(f.browser.mode() == Browser::Mode::grid);
+    f.browser.open(f.b);
+    REQUIRE(f.settle());
+    CHECK(f.browser.mode() == Browser::Mode::details);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::modified);
+    CHECK(f.browser.details().list_size() == 3);
+    f.browser.open(f.a);
+    REQUIRE(f.settle());
+    CHECK(f.browser.mode() == Browser::Mode::grid);
+    CHECK(f.browser.grid().size_index() == 4);
+    const auto saved = f.browser.state();
+    Browser again{
+        f.loop, f.pool, f.watcher, rummage::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
+    again.apply(saved);
+    REQUIRE(again.restore_session(saved));
+    REQUIRE(run_until(f.loop, [&] { return !again.loading(); }));
+    CHECK(again.state().last_folder == f.a);
+    again.focus_pane(1);
+    CHECK(again.state().last_folder == f.b);
+    CHECK(again.mode() == Browser::Mode::details);
+    CHECK(again.details().list_size() == 3);
+}
+
+TEST_CASE("panes: unchanged views of the same folder share saved preferences across frames") {
+    const auto surface = offscreen();
+    if (!surface)
+        return;
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
+    Fixture f;
+    f.browser.set_mode(Browser::Mode::grid);
+    f.browser.toggle_split();
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.set_list_size(3);
+    REQUIRE(f.settle());
+    const auto draw = [&] {
+        renderer.begin_frame(kWidth, kHeight, 1, {});
+        f.browser.draw(renderer, {0, 0, kWidth, kHeight}, rummage::theme::Palette{}, icons,
+                       Browser::Clock::now());
+        renderer.end_frame();
+    };
+    draw();
+    const auto saved = f.browser.state();
+    for (int frame = 0; frame < 3; ++frame) {
+        draw();
+        const auto current = f.browser.state();
+        CHECK(&current.folders.entries() == &saved.folders.entries());
+    }
+    f.browser.focus_pane(0);
+    const auto focused = f.browser.state();
+    REQUIRE(focused.folders.find(f.a));
+    CHECK(focused.folders.find(f.a)->mode == rummage::views::State::Mode::grid);
+    draw();
+    CHECK(&f.browser.state().folders.entries() == &focused.folders.entries());
+}

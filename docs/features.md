@@ -54,6 +54,9 @@ current capabilities. SVG **theme icons** have their own in-process renderer.
 
 ## Desktop integration and customization
 
+- Folder-jump shortcuts, configurable startup locations, and per-folder view/sort/zoom
+  preferences for up to 512 recent folders.
+
 - Wayland input, clipboard, drag/drop, activation and fractional scaling where protocols exist.
 - Server-side decorations or rummage's title bar; cursor-shape or Xcursor fallback.
 - Desktop light/dark/accent settings, Noctalia palette template and live palette changes.

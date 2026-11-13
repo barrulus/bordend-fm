@@ -14,7 +14,7 @@ rummage --help
 
 | Argument | Effect |
 | --- | --- |
-| `DIR` | Open one directory; without it, Home or restored multiple tabs |
+| `DIR` | Open one directory; without it, follow `startup.mode` (default: Home or restored tabs/panes) |
 | `--config FILE` | Select a settings file; does not relocate state or palette |
 | `--check-config` | Validate settings, actions, menus and bindings without a window |
 | `--version` | Print the compiled project version |

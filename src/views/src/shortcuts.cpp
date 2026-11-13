@@ -6,6 +6,8 @@
 #include <optional>
 #include <xkbcommon/xkbcommon-keysyms.h>
 
+#include "rummage/core/config.hpp"
+
 namespace rummage::views {
 namespace {
 
@@ -713,6 +715,26 @@ std::vector<std::string> configure_shortcuts(const std::map<std::string, std::st
     }
     std::vector<std::string> errors;
     std::vector<std::size_t> changed;
+    for (const auto& [name, chord] : bindings) {
+        if (!name.starts_with("go:"))
+            continue;
+        const auto folder = core::expand_folder_path(std::string_view{name}.substr(3));
+        if (folder.empty()) {
+            errors.push_back(
+                std::format("keybindings.{}: expected an absolute path or ~/ path", name));
+            continue;
+        }
+        next.labels.push_back(folder.string());
+        Shortcut entry;
+        entry.folder_path = next.labels.back();
+        next.labels.push_back("Go to " + name.substr(3));
+        entry.action = next.labels.back();
+        next.labels.push_back(name);
+        entry.action_id = next.labels.back();
+        entry.group = "Moving";
+        entry.scope = scope::kViews | scope::kSidebar | scope::kQuickLook;
+        next.entries.push_back(entry);
+    }
     // Split combined help rows when either half has been customized.
     if (bindings.contains("back") || bindings.contains("forward")) {
         auto& back = next.entries[*binding_index("back")];
@@ -819,7 +841,7 @@ Command command_for(const ui::KeyEvent& event) {
 
 std::string action_for(const ui::KeyEvent& event) {
     for (const auto& entry : active.entries) {
-        if (!entry.action_id.empty() && entry.matches(event)) {
+        if (!entry.action_id.empty() && entry.folder_path.empty() && entry.matches(event)) {
             return std::string{entry.action_id};
         }
     }
@@ -829,6 +851,14 @@ std::string action_for(const ui::KeyEvent& event) {
 std::string keys_for_action(std::string_view id) {
     const auto found = std::ranges::find(active.entries, id, &Shortcut::action_id);
     return found == active.entries.end() ? std::string{} : std::string{found->keys};
+}
+
+std::string folder_for(const ui::KeyEvent& event) {
+    for (const auto& entry : active.entries) {
+        if (!entry.folder_path.empty() && entry.matches(event))
+            return std::string{entry.folder_path};
+    }
+    return {};
 }
 
 bool listed(const ui::KeyEvent& event, std::uint16_t where) {

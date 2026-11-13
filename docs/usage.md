@@ -98,8 +98,9 @@ Open in New Tab as well.
 
 Each tab keeps its location, view, zoom, sort order, hidden visibility, filename
 filter and session history. The sidebar and information pane are shared by the
-window. New tabs inherit view/zoom/sort/hidden settings and start with an empty
-filter. Pane/tab restoration is described in [saved state](configuration.md#saved-state).
+window. New tabs initially inherit view/zoom/sort/hidden settings and start with an empty
+filter. Saved folder preferences take precedence when navigating: view mode, sort,
+zoom and details-column widths are remembered for up to 512 recent locations. Pane/tab restoration is described in [saved state](configuration.md#saved-state).
 
 ## Two persistent browsing panes
 

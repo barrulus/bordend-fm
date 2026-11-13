@@ -14,7 +14,7 @@ your changes, or copy the
 | --- | --- | --- |
 | Settings | `~/.config/rummage/config.toml` | Edited by you |
 | Palette | `~/.config/rummage/colors.toml` | Written by Noctalia or edited by you |
-| Window/tab state | `~/.local/state/rummage/state.toml` | Written by rummage |
+| Window/tab/folder state | `~/.local/state/rummage/state.toml` | Written by rummage |
 | Thumbnail cache | `~/.cache/thumbnails/` | Shared freedesktop cache |
 | Bookmarks | `~/.config/gtk-3.0/bookmarks` | Shared with GTK file managers |
 | User folder definitions | `~/.config/user-dirs.dirs` | Desktop/XDG user-directory setup |
@@ -50,6 +50,8 @@ rename = "Ctrl+r"
 
 | Key | Default | Accepted value / behavior |
 | --- | --- | --- |
+| `startup.mode` | `"session"` | `"home"`, `"folder"`, `"last"`, or `"session"`; next launch |
+| `startup.folder` | `"~"` | Absolute path or `~/` path, used with mode `"folder"` |
 | `appearance.background_opacity` | `1.0` | Number from 0 to 1; background only |
 | `status_bar.text_size` | `12.0` | Number from 8 to 32 logical pixels; applies live |
 | `font.family` | `"sans-serif"` | Fontconfig pattern for interface text |
@@ -87,6 +89,7 @@ uses defaults, so verify the printed path if a check unexpectedly succeeds.
 | --- | --- |
 | Background opacity, status text size, pointer timing, icon theme/place icons/accent behavior | Live |
 | Actions, menu layout and keybindings | Live, accepted together as a valid set |
+| Startup folder/mode | Next application start |
 | Interface and monospace font | Next application start |
 | `colors.toml` palette | Live |
 | Desktop icon-theme discovery | At startup; explicit `icon.theme` edits reload live |
@@ -108,11 +111,40 @@ info-pane settings and command-palette history. Each pane retains its tabs,
 locations, active tab, views, zoom, sorting, hidden visibility and filename filters.
 Back/forward history and details-tree expansion are not saved across restarts.
 
-Without a directory argument, multiple tabs or a previously created second pane
-restore both pane sessions, including which pane is active and whether one is
-hidden. Missing locations are skipped; an empty restored pane falls back to Home.
-A single tab that has never been split starts at Home. An explicit directory
-starts there instead. Picker windows do not overwrite browser state.
+View mode, sort key/direction, row size, grid icon size and details-column widths
+are remembered per folder. Revisiting a folder restores them; a folder without
+saved settings initially inherits the current view. Sorting one tab does not
+change other tabs. Existing tabs retain their own view and zoom until navigation;
+when the same folder is used in several tabs, the last-used settings are saved
+for future visits.
+
+The folder history is capped at **512 entries**, with the least recently used
+removed first. It stores paths and small settings records, never directory listings
+or thumbnails, and adds no folder files, scanning or watchers. State snapshots
+share the folder records until a setting or recency changes. Writes use the existing
+one-second debounce on a worker and flush on exit. Settings are keyed by path; a renamed or moved folder gets a new entry.
+
+Starting with an explicit directory always opens that directory. Otherwise,
+`startup.mode` controls startup:
+
+| Mode | Behavior |
+| --- | --- |
+| `"session"` (default) | Restore saved tabs and panes (including a hidden pane); otherwise open Home |
+| `"home"` | Open Home in one tab and one pane |
+| `"folder"` | Open `startup.folder` in one tab and one pane |
+| `"last"` | Open the last active browser folder in one tab and one pane, including after a single-tab session |
+
+```toml
+[startup]
+mode = "folder"
+folder = "~/Projects"
+```
+
+For last-location startup, use `mode = "last"`. Missing configured/last folders
+fall back to Home; session restore skips vanished tabs and uses Home for an empty restored pane. Trash does not replace the
+last ordinary location. Picker windows use their requested location and do not
+write browser state. Paths support `~` and `~/`, without environment-variable or
+shell expansion.
 
 State is application-managed, not an extra settings API. To reset it, close all
 rummage windows, move `state.toml` aside and restart. Keep the copy to restore the

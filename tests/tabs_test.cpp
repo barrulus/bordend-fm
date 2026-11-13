@@ -184,7 +184,8 @@ TEST_CASE("tabs: each has its view and history; sorting and hidden files are ind
     // Back in the second tab goes through its own history only.
     f.browser.select_tab(1);
     CHECK(f.press(key(XKB_KEY_Left, kAlt)));
-    CHECK(f.browser.details().folder()->path() == f.a);
+    CHECK(f.browser.mode() == Browser::Mode::grid);
+    CHECK(f.browser.grid().folder()->path() == f.a);
     f.browser.select_tab(0);
     CHECK(f.browser.history_index() == 0);
 }
@@ -528,4 +529,74 @@ TEST_CASE("zoom: the lists grow and shrink together, in every tab; the cursor's 
     again.select_tab(0);
     CHECK(again.details().list_size() == 0);
     CHECK(static_cast<std::int32_t>(again.grid().icon_size()) == zoomed);
+}
+
+TEST_CASE("folders: view, sort, zoom and widths follow navigation and survive restart") {
+    Fixture f;
+    f.browser.set_mode(Browser::Mode::grid);
+    f.browser.set_sort(rummage::fs::SortKey::modified, true);
+    f.browser.set_grid_size(4);
+    f.browser.set_list_size(3);
+    f.browser.details().set_widths({80, 170, 240});
+    f.browser.open(f.b);
+    REQUIRE(f.settle());
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.set_sort(rummage::fs::SortKey::size, false);
+    f.browser.set_grid_size(0);
+    f.browser.set_list_size(0);
+    f.browser.details().set_widths({90, 180, 250});
+    f.browser.back();
+    REQUIRE(f.settle());
+    CHECK(f.browser.mode() == Browser::Mode::grid);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::modified);
+    CHECK(f.browser.sort_order().descending);
+    CHECK(f.browser.grid().size_index() == 4);
+    CHECK(f.browser.details().list_size() == 3);
+    CHECK(f.browser.details().widths() == std::array<float, 3>{80, 170, 240});
+    f.browser.forward();
+    REQUIRE(f.settle());
+    CHECK(f.browser.mode() == Browser::Mode::details);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::size);
+    CHECK_FALSE(f.browser.sort_order().descending);
+    CHECK(f.browser.grid().size_index() == 0);
+    CHECK(f.browser.details().list_size() == 0);
+    CHECK(f.browser.details().widths() == std::array<float, 3>{90, 180, 250});
+    const auto saved =
+        rummage::views::parse_state(rummage::views::format_state(f.browser.state()), "state.toml");
+    REQUIRE(saved.problems.empty());
+    CHECK(saved.state.last_folder == f.b);
+    Browser again{
+        f.loop, f.pool, f.watcher, rummage::fs::MimeDatabase::load(), [] {}, [](CursorShape) {}};
+    again.apply(saved.state);
+    again.open(f.a);
+    CHECK(again.mode() == Browser::Mode::grid);
+    CHECK(again.grid().size_index() == 4);
+    CHECK(again.sort_order().key == rummage::fs::SortKey::modified);
+    again.open(f.b);
+    CHECK(again.mode() == Browser::Mode::details);
+    CHECK(again.details().list_size() == 0);
+    CHECK(again.state().last_folder == f.b);
+}
+
+TEST_CASE("folders: closing a tab retains its settings and reveals preserve the folder left") {
+    Fixture f;
+    f.browser.set_mode(Browser::Mode::grid);
+    f.browser.set_grid_size(5);
+    f.browser.open_tab(f.b, true);
+    REQUIRE(f.settle());
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.set_sort(rummage::fs::SortKey::size, true);
+    f.browser.close_tab(1);
+    f.browser.open(f.b);
+    REQUIRE(f.settle());
+    CHECK(f.browser.mode() == Browser::Mode::details);
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::size);
+    f.browser.reveal(f.a, f.a / "one.txt");
+    REQUIRE(f.settle());
+    const auto saved = f.browser.state();  // completes the asynchronous location change
+    REQUIRE(saved.folders.find(f.b));
+    CHECK(saved.folders.find(f.b)->mode == rummage::views::State::Mode::details);
+    CHECK(f.browser.mode() == Browser::Mode::grid);
+    CHECK(f.browser.grid().size_index() == 5);
+    CHECK(f.browser.grid().folder()->path() == f.a);
 }

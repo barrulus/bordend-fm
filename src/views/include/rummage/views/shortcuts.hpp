@@ -89,7 +89,8 @@ struct Shortcut {
     bool any_shift{false};
     std::array<xkb_keysym_t, 8> keysyms{};  // unused slots are 0 (XKB_KEY_NoSymbol)
     Command command{Command::none};
-    std::string_view action_id{};  // registry actions; storage owned by the active bindings
+    std::string_view folder_path{};  // go:<path> bindings; owned by active bindings
+    std::string_view action_id{};    // registry actions; storage owned by the active bindings
 
     [[nodiscard]] bool matches(const ui::KeyEvent& event) const;
 };
@@ -110,6 +111,7 @@ struct Shortcut {
 // The browser's command for event; Command::none when it has none.
 [[nodiscard]] Command command_for(const ui::KeyEvent& event);
 
+[[nodiscard]] std::string folder_for(const ui::KeyEvent& event);
 [[nodiscard]] std::string action_for(const ui::KeyEvent& event);
 [[nodiscard]] std::string keys_for_action(std::string_view id);
 

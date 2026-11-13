@@ -1,5 +1,6 @@
 #include "rummage/views/shortcuts.hpp"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -565,4 +566,42 @@ TEST_CASE("shortcuts: pane commands without defaults can be bound and disabled")
     REQUIRE(configure_shortcuts({{"toggle_split", ""}, {"switch_pane", ""}}).empty());
     CHECK(command_for(chord(XKB_KEY_F3, {})) == Command::none);
     CHECK(command_for(chord(XKB_KEY_Tab, {})) == Command::none);
+}
+
+TEST_CASE("shortcuts: folder jumps validate, reload and navigate within the current tab") {
+    ResetBindings reset;
+    Fixture f;
+    f.reset(Browser::Mode::columns);
+    using rummage::views::configure_shortcuts;
+    const auto destination = f.root / "sub";
+    const auto binding = "go:" + destination.string();
+    const auto event = chord(XKB_KEY_j, {.ctrl = true, .alt = true});
+    REQUIRE(configure_shortcuts({{binding, "Ctrl+Alt+j"}}).empty());
+    CHECK(rummage::views::folder_for(event) == destination.string());
+    CHECK(rummage::views::action_for(event).empty());
+    const auto groups = rummage::views::overlay_groups();
+    for (const auto& shortcut : shortcuts()) {
+        if (!shortcut.folder_path.empty()) {
+            CHECK(std::find(groups.begin(), groups.end(), shortcut.group) != groups.end());
+        }
+    }
+    CHECK_FALSE(configure_shortcuts({{"go:relative", "Ctrl+Alt+j"}}).empty());
+    CHECK_FALSE(configure_shortcuts({{binding, "Ctrl+c"}}).empty());
+    CHECK_FALSE(configure_shortcuts({{binding, "Ctrl+q"}}).empty());
+    CHECK(rummage::views::folder_for(event) == destination.string());
+    f.browser.sidebar().set_focused(true);
+    CHECK(f.browser.key(event, Browser::Clock::now()));
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.folder()->path() == destination);
+    CHECK(f.browser.tab_count() == 1);
+    CHECK_FALSE(f.browser.sidebar().focused());
+    f.browser.back();
+    REQUIRE(run_until(f.loop, [&] { return !f.browser.loading(); }));
+    CHECK(f.folder()->path() == f.root);
+    REQUIRE(configure_shortcuts({{"go:" + (f.root / "missing").string(), "Ctrl+Alt+j"}}).empty());
+    CHECK(f.browser.key(event, Browser::Clock::now()));
+    CHECK(f.folder()->path() == f.root);
+    CHECK(f.browser.status_bar().message().starts_with("Folder unavailable:"));
+    REQUIRE(configure_shortcuts({{binding, ""}}).empty());
+    CHECK(rummage::views::folder_for(event).empty());
 }
