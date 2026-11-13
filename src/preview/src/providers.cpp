@@ -16,16 +16,23 @@ public:
 
     [[nodiscard]] bool can_handle(const fs::MimeDatabase& mime, fs::MimeId type) const override {
         const engines::Family* family = engines::installed()->find(mime, type);
-        return family != nullptr && family->shows == engines::Shows::picture;
+        return mime.name(type).starts_with("video/") ||
+               (family != nullptr && family->shows == engines::Shows::picture);
     }
 
     [[nodiscard]] Content load(const Request& request,
-                               const core::CancelToken& /*cancel*/) const override {
-        picture::Loaded loaded = picture::load_picture(
-            {.path = request.path, .max_width = request.width, .max_height = request.height});
+                               const core::CancelToken& cancel) const override {
+        picture::Loaded loaded = picture::load_picture({.path = request.path,
+                                                        .max_width = request.width,
+                                                        .max_height = request.height,
+                                                        .mime = request.mime,
+                                                        .cancel = &cancel});
         if (loaded.failure != picture::Failure::none) {
             log::debug("preview: {}: {} ({})", request.path.string(), loaded.error(),
                        loaded.detail);
+        }
+        if (request.mime.starts_with("video/") && loaded.failure != picture::Failure::none) {
+            return read_info(request.path, cancel);
         }
         return loaded;
     }

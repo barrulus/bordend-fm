@@ -13,7 +13,9 @@ python3 - "$assets/source.json" "$commit" <<'PY'
 import json, sys
 assert json.load(open(sys.argv[1]))['commit'] == sys.argv[2]
 PY
-files=(nordend-debian13-amd64.deb nordend-fedora44-x86_64.rpm
+files=(nordend-media-debian13-amd64.deb nordend-media-fedora44-x86_64.rpm
+       nordend-media-arch-x86_64.pkg.tar.zst nordend-media-tumbleweed-x86_64.rpm
+       nordend-debian13-amd64.deb nordend-fedora44-x86_64.rpm
        nordend-arch-x86_64.pkg.tar.zst nordend-tumbleweed-x86_64.rpm
        nordend-void-glibc-x86_64.tar.gz nordend-source.tar.gz nordend-debian-source.tar.gz source.json SHA256SUMS)
 for file in "${files[@]}"; do test -s "$assets/$file"; done

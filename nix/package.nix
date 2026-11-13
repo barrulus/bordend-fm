@@ -15,6 +15,7 @@
   fontconfig,
   tomlplusplus,
   libwebp,
+  ffmpeg,
   libjxl,
   zlib,
   sdbus-cpp_2,
@@ -29,11 +30,13 @@
   unzip,
   writeShellScriptBin,
   withTests ? false,
+  withMedia ? false,
 }:
 
 stdenv.mkDerivation {
   pname = "nordend";
   version = "0.5.0";
+  outputs = [ "out" ] ++ lib.optional withMedia "media";
 
   src = lib.fileset.toSource {
     root = ../.;
@@ -82,10 +85,12 @@ stdenv.mkDerivation {
     libjxl
     zlib
     sdbus-cpp_2
-  ];
+  ]
+  ++ lib.optional withMedia ffmpeg;
 
   cmakeFlags = [
     "-DNORDEND_WERROR=OFF"
+    "-DNORDEND_MEDIA=${if withMedia then "ON" else "OFF"}"
     "-DNORDEND_BUILD_TESTS=${if withTests then "ON" else "OFF"}"
   ];
 
@@ -119,17 +124,24 @@ stdenv.mkDerivation {
     runHook postCheck
   '';
 
-  postInstall = ''
-    install -Dm644 "$src/LICENSE" "$out/share/licenses/nordend/LICENSE"
-    wrapProgram "$out/bin/nordend" \
-      --set-default XDG_DATA_DIRS /usr/local/share:/usr/share \
-      --suffix XDG_DATA_DIRS : "${
-        lib.makeSearchPath "share" [
-          shared-mime-info
-          hicolor-icon-theme
-        ]
-      }"
-  '';
+  postInstall =
+    lib.optionalString withMedia ''
+      mkdir -p "$media/libexec/nordend" "$media/share/nordend/engines"
+      mv "$out/libexec/nordend/nordend-media" "$media/libexec/nordend/"
+      mv "$out/share/nordend/engines/media.toml" "$media/share/nordend/engines/"
+    ''
+    + ''
+      install -Dm644 "$src/LICENSE" "$out/share/licenses/nordend/LICENSE"
+      wrapProgram "$out/bin/nordend" \
+        ${lib.optionalString withMedia "--suffix NORDEND_ENGINE_PATH : $media/share/nordend/engines"} \
+        --set-default XDG_DATA_DIRS /usr/local/share:/usr/share \
+        --suffix XDG_DATA_DIRS : "${
+          lib.makeSearchPath "share" [
+            shared-mime-info
+            hicolor-icon-theme
+          ]
+        }"
+    '';
 
   meta = {
     description = "Native file manager for Wayland";

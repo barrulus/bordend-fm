@@ -31,7 +31,7 @@ string(APPEND warm_up_text "const WarmUpPicture kWarmUp[] = {${warm_up_list}};\n
 string(APPEND warm_up_text "const std::size_t kWarmUpCount = ${index};\n}\n")
 file(CONFIGURE OUTPUT "${warm_up_source}" CONTENT "${warm_up_text}")
 
-add_executable(nordend-preview src/helper_main.cpp src/protocol.cpp src/sandbox.cpp
+add_executable(nordend-preview src/base_backend.cpp src/helper_main.cpp src/protocol.cpp src/sandbox.cpp
                                "${warm_up_source}")
 target_include_directories(nordend-preview PRIVATE src)
 # Generated, not ours to lint.

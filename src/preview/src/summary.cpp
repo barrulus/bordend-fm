@@ -11,7 +11,7 @@ Summary summarize(const std::filesystem::path& path, std::string_view mime, Kind
                   const core::CancelToken& cancel) {
     Summary summary;
     summary.info = read_info(path, cancel);
-    if (kind == Kind::image) {
+    if (kind == Kind::image && !mime.starts_with("video/")) {
         summary.photo = picture::load_photo_info(path);
     } else if (kind == Kind::text) {
         // A few kilobytes are enough for the lines the pane has room for.

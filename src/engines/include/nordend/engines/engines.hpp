@@ -84,6 +84,9 @@ public:
     [[nodiscard]] static Registry load(const std::filesystem::path& directory,
                                        const Locate& locate);
 
+    // Base installation plus optional colon-separated NORDEND_ENGINE_PATH directories.
+    [[nodiscard]] static Registry load_installed();
+
     // Adds an engine; false (and nothing added) when a type it lists is already shown by
     // another engine's family.
     bool add(Engine engine);

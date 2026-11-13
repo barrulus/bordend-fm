@@ -213,6 +213,33 @@ For **this fork’s current checkout**, use the [CI package builder](docs/ci-pac
 instead of the upstream release recipe above. It builds an XBPS snapshot from the exact Git
 commit and installs it in a fresh Void container before checking it.
 
+### Optional video previews
+
+Install the matching `nordend-media` package for video thumbnails and still previews in the
+information pane and Space Quick Look. The grid draws cinema filmstrip borders; cached images
+and larger previews stay undecorated. This is still-frame preview, not video playback.
+
+The helper uses system FFmpeg 7 or newer shared libraries (`libavformat`, `libavcodec`,
+`libavutil`, `libswscale`); it does not execute `ffmpeg`, `ffprobe`, or `ffmpegthumbnailer`.
+Your package manager reuses compatible installed libraries. Some distributions package these
+libraries together with the FFmpeg commands. Codec availability follows the distribution build.
+
+The main package has no FFmpeg dependency. Without the media helper, videos retain their file
+icons and information cards; existing valid cached thumbnails remain usable. Enter opens the
+selected video in its default application. Missing helpers/libraries are retried after restarting
+Nordend and do not create permanent failed-thumbnail records.
+
+For a source build, add `-DNORDEND_MEDIA=ON` with the four libraries' development packages
+installed. It defaults to OFF. `cmake --install build --component media` installs only the helper
+and its manifest; `--component Unspecified` installs the core application. The helper uses the
+existing seccomp/Landlock sandbox, reads only the supplied descriptor, and has bounded decoding,
+output dimensions, concurrency and time. Thumbnail selection tries beyond dark opening frames.
+
+For Nix, `nix build .#nordend-with-media` builds the application configured with the optional
+helper; `.#nordend-media` selects its separate helper output. The normal default remains free of
+FFmpeg. Separate custom prefixes can be registered through `NORDEND_ENGINE_PATH`, a colon-separated
+list of absolute `share/nordend/engines` directories. Restart after changing the installed engines.
+
 ### With Nix
 
 From a checkout, with Nix flakes enabled:

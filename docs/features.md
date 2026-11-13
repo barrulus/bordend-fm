@@ -511,3 +511,11 @@ An optional XDG FileChooser portal backend for OpenFile, SaveFile and SaveFiles:
 multiple files and folders, filename entry, glob/MIME filters, application choices, overwrite
 confirmation and cancellation. Picker windows reuse the three views and previews without
 changing the file manager's saved tabs. See [setup and usage](file-picker.md).
+
+## Optional video thumbnails and still previews
+
+The separate `nordend-media` package uses system FFmpeg shared libraries in the isolated preview
+helper. Grid thumbnails have cinema film rails; information-pane and Quick Look stills are clean.
+There is no playback or autoplay. Without the helper or compatible libraries, the application
+continues normally and can display existing cached thumbnails. Missing dependencies do not poison
+the thumbnail failure cache. Decoder support depends on the installed FFmpeg build.

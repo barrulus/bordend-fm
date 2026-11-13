@@ -163,9 +163,11 @@ QuickLook::Slot& QuickLook::ensure(const fs::Entry& entry, bool current) {
         !slot.thumbnail_job && !slot.thumbnail_pixels && !slot.thumbnail_texture) {
         slot.thumbnail_job = pool_.submit(
             core::Priority::visible,
-            [cache = thumbnails_, path = slot.path](const core::CancelToken& /*token*/) {
+            [cache = thumbnails_, path = slot.path,
+             mime = std::string{mime_->name(folder_->mime_of(entry))}](
+                const core::CancelToken& token) {
                 return std::make_shared<picture::Image>(
-                    cache->get(path, thumbs::Size::large).image);
+                    cache->get(path, thumbs::Size::large, mime, &token).image);
             },
             [this, alive = alive_, key](std::shared_ptr<picture::Image> pixels) {
                 if (!*alive) {
@@ -472,6 +474,12 @@ void QuickLook::draw_image(ui::Renderer& renderer, const ui::Rect& area,
         caption += std::format("   {} × {}", loaded->full_width, loaded->full_height);
     }
     caption += "   " + format_size(entry.size);
+    if (texture == nullptr && slot.content) {
+        if (const auto* info = std::get_if<preview::Info>(slot.content.get())) {
+            draw_card(renderer, area, palette, icons, entry, info, fade);
+            return;
+        }
+    }
     if (texture == nullptr) {
         // Nothing yet (or it failed): the file's icon, and why when there is a reason.
         fs::Entry typed = entry;

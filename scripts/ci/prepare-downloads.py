@@ -85,19 +85,28 @@ def prepare(artifacts, output, commit, repository, run_id, readme):
     rpm = only(roots['rpm'] / 'packages', 'nordend-[0-9]*.x86_64.rpm')
     arch = only(roots['arch'] / 'packages', 'nordend-[0-9]*-x86_64.pkg.tar.zst')
     tumbleweed = only(roots['tumbleweed'] / 'packages', 'nordend-[0-9]*.x86_64.rpm')
-    void = only(roots['void'] / 'packages', 'nordend-*.x86_64.xbps')
+    void = only(roots['void'] / 'packages', 'nordend-[0-9]*.x86_64.xbps')
+    media_void = only(roots['void'] / 'packages', 'nordend-media-*.x86_64.xbps')
+    media_assets = {
+        'nordend-media-debian13-amd64.deb': only(roots['deb'] / 'packages', 'nordend-media_*_amd64.deb'),
+        'nordend-media-fedora44-x86_64.rpm': only(roots['rpm'] / 'packages', 'nordend-media-[0-9]*.x86_64.rpm'),
+        'nordend-media-arch-x86_64.pkg.tar.zst': only(roots['arch'] / 'packages', 'nordend-media-[0-9]*-x86_64.pkg.tar.zst'),
+        'nordend-media-tumbleweed-x86_64.rpm': only(roots['tumbleweed'] / 'packages', 'nordend-media-[0-9]*.x86_64.rpm'),
+    }
     index = roots['void'] / 'packages/x86_64-repodata'
     if not index.is_file() or index.stat().st_size == 0:
         raise ValueError('Void repository index is missing')
     instructions = readme.read_text().split('<!-- development-downloads:start -->', 1)[1].split(
         '<!-- development-downloads:end -->', 1)[0].strip()
     output.mkdir(parents=True, exist_ok=True)
+    for name, source in media_assets.items():
+        shutil.copyfile(source, output / name)
     shutil.copyfile(deb, output / 'nordend-debian13-amd64.deb')
     shutil.copyfile(rpm, output / 'nordend-fedora44-x86_64.rpm')
     shutil.copyfile(arch, output / 'nordend-arch-x86_64.pkg.tar.zst')
     shutil.copyfile(tumbleweed, output / 'nordend-tumbleweed-x86_64.rpm')
     with tarfile.open(output / 'nordend-void-glibc-x86_64.tar.gz', 'w:gz') as archive:
-        for source in (void, index):
+        for source in (void, media_void, index):
             archive.add(source, arcname=f'nordend-void-x86_64/packages/{source.name}')
         archive.add(roots['void'] / 'source.json', arcname='nordend-void-x86_64/source.json')
     with tarfile.open(output / 'nordend-debian-source.tar.gz', 'w:gz') as archive:

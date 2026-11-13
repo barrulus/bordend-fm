@@ -41,7 +41,8 @@ int main(int argc, char** argv) {
     // started here).
     nordend::engines::set_installed(std::make_shared<const nordend::engines::Registry>(
         nordend::engines::Registry::load(NORDEND_ENGINES, [](std::string_view program) {
-            return std::filesystem::path{program};
+            return program == "nordend-preview" ? std::filesystem::path{program}
+                                                : std::filesystem::path{};
         })));
     // Pictures made in this process, by the image family itself (Nordend sends them to its
     // isolated helpers instead; tests/helpers_test.cpp covers that path).
