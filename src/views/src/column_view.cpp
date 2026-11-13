@@ -50,8 +50,10 @@ std::unique_ptr<Column> ColumnView::make_column(const std::filesystem::path& dir
 
 void ColumnView::set_entry_filter(fs::Listing::Predicate filter) {
     entry_filter_ = std::move(filter);
-    for (const auto& slot : columns_) {
-        slot.column->folder().set_entry_filter(entry_filter_);
+    // Filtering can remove the selection and synchronously truncate later columns through
+    // on_cursor_changed(). Recheck the size instead of retaining invalidated iterators.
+    for (std::size_t i = 0; i < columns_.size(); ++i) {
+        columns_[i].column->folder().set_entry_filter(entry_filter_);
     }
     redraw_();
 }
