@@ -26,8 +26,9 @@ TEST_CASE("memory report: the process, malloc and the lines for the log") {
     CHECK(during.anonymous >= before.anonymous + size);
 #else
     // The sanitizer's allocator gives freed memory back on its own, between the two reads too
-    // (after the whole suite it holds some 500 MB): the block shows, not to the byte.
-    CHECK(during.anonymous >= before.anonymous + (size / 2));
+    // (135 MB once in the CI, more than the block): no difference holds, only that the process
+    // holds the block.
+    CHECK(during.anonymous >= size);
 #endif
 
     const std::vector<std::string> lines = nordend::core::describe(during);
