@@ -42,14 +42,15 @@ public:
     Launcher& operator=(Launcher&&) = delete;
 
     // Optional stream descriptors (>= 3) are duplicated into the child; ownership stays with
-    // the caller. -1 redirects to /dev/null.
+    // the caller. -1 redirects to /dev/null. archive_fd, when supplied, is mapped to fd 3
+    // after streams are duplicated, leaving stdin available for archive passwords.
     // Starts argv (argv[0] looked up in the PATH) in directory (empty: Nordend's), with env added
     // to Nordend's environment ("NAME=value", replacing a variable of the same name). An error
     // when the program cannot be started (not found, not executable); on_exit is then not called.
     std::error_code spawn(const std::vector<std::string>& argv,
                           const std::filesystem::path& directory, std::span<const std::string> env,
                           std::function<void(Exit)> on_exit, int stdout_fd = -1, int stderr_fd = -1,
-                          int stdin_fd = -1);
+                          int stdin_fd = -1, int archive_fd = -1);
 
     // Children started and not yet reaped (tests).
     [[nodiscard]] std::size_t running() const noexcept { return children_.size(); }

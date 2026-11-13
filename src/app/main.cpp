@@ -534,7 +534,8 @@ int main(int argc, char** argv) {
             if (loaded.actions_valid && loaded.context_menu_valid) {
                 const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
                 for (const auto& problem : problems) {
-                    log::warn("config: {}; keeping previous actions, keybindings and menus", problem);
+                    log::warn("config: {}; keeping previous actions, keybindings and menus",
+                              problem);
                 }
                 if (problems.empty() && columns) {
                     columns->set_actions(fresh.actions);
@@ -598,11 +599,16 @@ int main(int argc, char** argv) {
             action_handoff = std::make_unique<platform::ActionHandoff>(
                 loop, platform::Environment::from_environment(),
                 [&](std::string message, bool error) {
-                    columns->show_message(std::move(message), error);
+                    columns->show_action_result(std::move(message), error);
                 },
                 [&](std::function<void(std::string)> done) {
                     activation.request(display.seat(), seat.input_serial(), window.surface(),
                                        std::move(done));
+                });
+            action_handoff->set_password_prompt(
+                [&](const std::filesystem::path& path, bool retry, auto done) {
+                    columns->password_dialog().open_password(path.filename().string(), retry,
+                                                             std::move(done));
                 });
             columns->set_action_handoff(
                 [&](const core::Action& action, const core::ActionContext& context) {

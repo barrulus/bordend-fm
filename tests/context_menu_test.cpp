@@ -1083,3 +1083,42 @@ TEST_CASE("properties: keyboard search selects a themed icon and custom artwork 
     f.press(key(XKB_KEY_Escape));
     CHECK(read_file(f.photos / "sub/.directory").find("Icon=folder-blue") != std::string::npos);
 }
+
+TEST_CASE("actions: missing archive tools remain actionable to explain installation") {
+    Fixture f;
+    f.dir.write("archive.zip", std::string{"PK\005\006"} + std::string(18, '\0'));
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    f.select({"archive.zip"});
+    unsigned launched = 0;
+    f.browser.set_action_handoff([&](const auto&, const auto&) { ++launched; },
+                                 [](const auto&, const auto&) { return false; });
+    f.browser.open_menu(100, 100, false);
+    const auto item = std::ranges::find(f.menu().items(), "action:extract_here", &MenuItem::id);
+    REQUIRE(item != f.menu().items().end());
+    CHECK(item->enabled);
+    CHECK(item->label.find("setup required") != std::string::npos);
+    f.choose("action:extract_here");
+    CHECK(launched == 1);
+    const auto items = f.browser.palette_items();
+    const auto to = std::ranges::find(items, "action:extract_to", &nordend::views::PaletteItem::id);
+    REQUIRE(to != items.end());
+    to->action();
+    CHECK(launched == 2);
+}
+
+TEST_CASE("actions: errors remain queued and copyable when a later archive succeeds") {
+    Fixture f;
+    f.browser.show_action_result("First archive failed\nInstall unrar", true);
+    f.browser.show_action_result("Second archive failed\nDisk full", true);
+    f.browser.show_action_result("Extracted third archive", false);
+    auto& errors = f.browser.action_errors();
+    CHECK(errors.pending() == 2);
+    CHECK(errors.detail() == "First archive failed\nInstall unrar");
+    CHECK(f.browser.has_overlay());
+    errors.key({.keysym = XKB_KEY_Return, .text = {}});
+    CHECK(errors.pending() == 1);
+    CHECK(errors.detail() == "Second archive failed\nDisk full");
+    errors.key({.keysym = XKB_KEY_Escape, .text = {}});
+    CHECK_FALSE(errors.is_open());
+}

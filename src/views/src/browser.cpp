@@ -67,6 +67,8 @@ Browser::Browser(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryWat
               [this](std::string problem) { show_message(std::move(problem), true); }},
       conflict_{redraw},
       confirm_{redraw},
+      password_{redraw},
+      errors_{redraw, [this](std::string text) { copy_text(std::move(text)); }},
       properties_{pool, mime, redraw},
       menu_{std::move(redraw)},
       palette_{redraw_},
@@ -551,6 +553,8 @@ void Browser::paste_text() {
         return;
     }
     const std::vector<std::string> types = system_.types();
+    const bool for_password = password_.is_open();
+    const auto password_generation = password_.generation();
     const bool for_properties = properties_.is_open();
     const auto properties_generation = properties_.generation();
     for (const std::string_view type : kTextTypes) {
@@ -558,32 +562,36 @@ void Browser::paste_text() {
             continue;
         }
         ++operations_;
-        system_.read(std::string{type},
-                     [this, alive = alive_, for_properties,
-                      properties_generation](const std::optional<std::string>& text) {
-                         if (!*alive) {
-                             return;
-                         }
-                         --operations_;
-                         if (!text) {
-                             return;
-                         }
-                         if (for_properties) {
-                             if (properties_.is_open() &&
-                                 properties_.generation() == properties_generation)
-                                 properties_.paste(*text);
-                             return;
-                         }
-                         if (palette_.is_open()) {
-                             palette_.paste(*text);
-                         } else if (filter_focused_) {
-                             filter_field_.insert(
-                                 std::string_view{*text}.substr(0, text->find_first_of("\r\n")));
-                             apply_filters();
-                         } else {
-                             editor_.paste(*text);
-                         }
-                     });
+        system_.read(std::string{type}, [this, alive = alive_, for_password, password_generation,
+                                         for_properties, properties_generation](
+                                            const std::optional<std::string>& text) {
+            if (!*alive) {
+                return;
+            }
+            --operations_;
+            if (!text) {
+                return;
+            }
+            if (for_password) {
+                if (password_.is_open() && password_.generation() == password_generation)
+                    password_.paste(*text);
+                return;
+            }
+            if (for_properties) {
+                if (properties_.is_open() && properties_.generation() == properties_generation)
+                    properties_.paste(*text);
+                return;
+            }
+            if (palette_.is_open()) {
+                palette_.paste(*text);
+            } else if (filter_focused_) {
+                filter_field_.insert(
+                    std::string_view{*text}.substr(0, text->find_first_of("\r\n")));
+                apply_filters();
+            } else {
+                editor_.paste(*text);
+            }
+        });
         return;
     }
 }
@@ -1748,9 +1756,9 @@ void Browser::open_menu(float x, float y, bool keyboard) {
         empty.action = [this] { empty_trash(); };
         items.push_back(std::move(empty));
     }
-    const auto& layout = folder->is_trash() ? menu_layout_.trash
+    const auto& layout = folder->is_trash()          ? menu_layout_.trash
                          : !targets(*folder).empty() ? menu_layout_.entry
-                                                    : menu_layout_.background;
+                                                     : menu_layout_.background;
     items = configured_menu(std::move(items), layout);
     if (items.empty()) {
         menu_loaders_.clear();
@@ -2343,6 +2351,8 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     properties_.draw(renderer, bounds, palette, icons);
     conflict_.draw(renderer, bounds, palette);  // last: over everything else
     confirm_.draw(renderer, bounds, palette);
+    errors_.draw(renderer, bounds, palette);
+    password_.draw(renderer, bounds, palette);
     if (thumbnails_) {
         thumbnails_->end_frame();
     }
@@ -2441,6 +2451,10 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     using Shape = ui::CursorShape;
     const auto hand = [](bool clickable) { return clickable ? Shape::pointer : Shape::standard; };
     // What takes the pointer first, as take_pointer() hands it out.
+    if (password_.is_open())
+        return hand(password_.clickable_at(x, y));
+    if (errors_.is_open())
+        return hand(errors_.clickable_at(x, y));
     if (conflict_.is_open()) {
         return hand(conflict_.clickable_at(x, y));
     }
@@ -2487,13 +2501,22 @@ void Browser::take_pointer(const ui::PointerEvent& event, Clock::time_point now)
         found_after_.reset();
     }
     if (event.kind == ui::PointerEvent::Kind::release &&
-        (conflict_.is_open() || confirm_.is_open() || properties_.is_open() || palette_.is_open() ||
-         menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open())) {
+        (errors_.is_open() || password_.is_open() || conflict_.is_open() || confirm_.is_open() ||
+         properties_.is_open() || palette_.is_open() || menu_.is_open() || shortcuts_.is_open() ||
+         quick_look_.is_open())) {
         // Taken by what the press opened (a menu from a right click): the button is up all the
         // same, and the next press finds its target again.
         button_held_ = false;
         band_press_.reset();
         end_band();
+    }
+    if (password_.is_open()) {
+        password_.pointer(event);
+        return;
+    }
+    if (errors_.is_open()) {
+        errors_.pointer(event);
+        return;
     }
     if (conflict_.is_open()) {
         conflict_.pointer(event);  // the question first: nothing under it reacts
@@ -3403,6 +3426,16 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
         drag_ended();
         return true;
     }
+    if (password_.is_open()) {
+        if (event.modifiers == ui::Modifiers{.ctrl = true} &&
+            (event.keysym == XKB_KEY_v || event.keysym == XKB_KEY_V))
+            paste_text();
+        else
+            password_.key(event);
+        return true;
+    }
+    if (errors_.is_open())
+        return errors_.key(event);
     if (conflict_.is_open()) {
         return conflict_.key(event);  // a copy waits for the answer: every key is the card's
     }

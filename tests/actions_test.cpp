@@ -60,6 +60,17 @@ TEST_CASE("actions: bundled extraction requires only supported archive types") {
     CHECK_FALSE(action_matches(action_registry(std::vector{replacement})[1], context));
 }
 
+TEST_CASE("actions: bzip2 tar canonical MIME and legacy alias both expose extraction") {
+    for (const auto* mime :
+         {"application/x-bzip2-compressed-tar", "application/x-bzip-compressed-tar"}) {
+        for (const auto* name : {"archive.tar.bz2", "archive.tbz2"}) {
+            const ActionContext context{.directory = "/tmp", .targets = {{name, mime}}};
+            CHECK(action_matches(action_registry()[1], context));
+            CHECK(action_matches(action_registry()[2], context));
+        }
+    }
+}
+
 TEST_CASE("actions: config validates the entire action set") {
     const std::string valid = R"(
 [[actions]]

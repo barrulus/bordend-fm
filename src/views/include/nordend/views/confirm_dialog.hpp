@@ -6,11 +6,13 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "nordend/theme/palette.hpp"
 #include "nordend/ui/geometry.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/seat.hpp"
+#include "nordend/ui/text_field.hpp"
 
 namespace nordend::views {
 
@@ -30,6 +32,13 @@ public:
     // changed later by set_detail); action: the button that does it ("Delete").
     void open(std::string title, std::string detail, std::string action, Answer answer,
               std::string warning = "Nothing goes to the trash: this cannot be undone.");
+
+    // A separate instance can be used for archive passwords without replacing a confirmation.
+    void open_password(std::string name, bool retry,
+                       std::function<void(std::optional<std::string>)> answer);
+    void paste(std::string_view text);
+
+    [[nodiscard]] std::size_t generation() const { return generation_; }
 
     void set_detail(std::string detail);
 
@@ -69,6 +78,9 @@ private:
     std::string action_;
     std::string warning_;
     Answer answer_;
+    bool password_mode_{false};
+    ui::TextField password_field_;
+    std::size_t generation_{0};
     std::array<ui::Rect, kButtons> buttons_{};  // as last drawn
     std::optional<std::size_t> hovered_;
 };
