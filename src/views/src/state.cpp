@@ -192,6 +192,45 @@ const char* word_of(const std::array<std::pair<const char*, T>, N>& words, T val
 
 }  // namespace
 
+const State::FolderSettings* State::Folders::find(const std::filesystem::path& path) const {
+    const auto found = std::ranges::find(*entries_, path, &Entries::value_type::first);
+    return found == entries_->end() ? nullptr : &found->second;
+}
+
+void State::Folders::remember(const std::filesystem::path& path, const FolderSettings& settings,
+                              bool visited) {
+    if (!path.is_absolute())
+        return;
+    const auto found = std::ranges::find(*entries_, path, &Entries::value_type::first);
+    if (found != entries_->end() && found->second == settings &&
+        (!visited || std::next(found) == entries_->end()))
+        return;
+    auto next = std::make_shared<Entries>(*entries_);
+    std::erase_if(*next, [&](const auto& entry) { return entry.first == path; });
+    next->emplace_back(path, settings);
+    if (next->size() > kLimit)
+        next->erase(next->begin());
+    entries_ = std::move(next);
+}
+
+StartupLocation startup_location(const core::Config::Startup& startup, const State& state,
+                                 const std::filesystem::path& explicit_folder) {
+    if (!explicit_folder.empty())
+        return {.folder = explicit_folder};
+    using Mode = core::Config::Startup::Mode;
+    if (startup.mode == Mode::session)
+        return {.folder = {}, .restore_tabs = true};
+    std::filesystem::path folder;
+    if (startup.mode == Mode::folder)
+        folder = core::expand_folder_path(startup.folder);
+    if (startup.mode == Mode::last)
+        folder = state.last_folder;
+    std::error_code error;
+    if (!folder.empty() && !std::filesystem::is_directory(folder, error))
+        folder.clear();
+    return {.folder = std::move(folder)};
+}
+
 std::filesystem::path default_state_path() {
     const char* xdg = std::getenv("XDG_STATE_HOME");  // NOLINT(concurrency-mt-unsafe)
     // The XDG base directory spec ignores relative paths.
@@ -250,6 +289,68 @@ StateResult parse_state(std::string_view text, std::string_view source) {
             result.problems.push_back(
                 std::format("{}:{}:{}: 'view.grid_icon' must be one of {}; using the default",
                             source, where.line, where.column, grid_size_choices()));
+        }
+    }
+
+    const auto path_problem = [&](const toml::node& node, std::string_view key) {
+        const auto where = node.source().begin;
+        result.problems.push_back(std::format("{}:{}:{}: '{}' must be an absolute path; ignored",
+                                              source, where.line, where.column, key));
+    };
+    const auto absolute_path = [](const toml::node* node) -> std::filesystem::path {
+        if (!node)
+            return {};
+        const auto value = node->value<std::string_view>();
+        if (!value || value->empty() || value->front() != '/' ||
+            value->find('\0') != std::string_view::npos)
+            return {};
+        return std::filesystem::path{*value}.lexically_normal();
+    };
+    if (const auto* last = root.at_path("location.last_folder").node()) {
+        s.last_folder = absolute_path(last);
+        if (s.last_folder.empty())
+            path_problem(*last, "location.last_folder");
+    }
+    if (const auto* folders = root.get("folder")) {
+        if (const auto* list = folders->as_array()) {
+            for (const auto& node : *list) {
+                const auto* table = node.as_table();
+                const auto path = absolute_path(table ? table->get("path") : nullptr);
+                if (path.empty()) {
+                    path_problem(node, "folder.path");
+                    continue;
+                }
+                State::FolderSettings settings;
+                Reader folder_read{*table, source};
+                folder_read.word("mode", kModes, settings.mode);
+                folder_read.word("sort", kSortKeys, settings.sort_key);
+                folder_read.flag("descending", settings.sort_descending);
+                folder_read.word("list_size", kListSizeWords, settings.list_size);
+                folder_read.number("size_width", kColumnMin, kColumnMax,
+                                   settings.details_widths[0]);
+                folder_read.number("modified_width", kColumnMin, kColumnMax,
+                                   settings.details_widths[1]);
+                folder_read.number("type_width", kColumnMin, kColumnMax,
+                                   settings.details_widths[2]);
+                auto problems = folder_read.take();
+                result.problems.insert(result.problems.end(), problems.begin(), problems.end());
+                if (const auto* grid = table->get("grid_icon")) {
+                    const auto pixels = grid->value<std::int64_t>();
+                    if (pixels &&
+                        std::ranges::find(kGridIconSizes, *pixels) != kGridIconSizes.end()) {
+                        settings.grid_icon = static_cast<std::int32_t>(*pixels);
+                    } else {
+                        const auto where = grid->source().begin;
+                        result.problems.push_back(
+                            std::format("{}:{}:{}: invalid folder.grid_icon; using default", source,
+                                        where.line, where.column));
+                    }
+                }
+                s.folders.remember(path, settings, true);
+            }
+        } else {
+            result.problems.push_back(
+                std::format("{}: 'folder' must be an array of tables; ignored", source));
         }
     }
 
@@ -434,6 +535,23 @@ std::string format_state(const State& s) {
         if (index == (tab.pane == 0 ? s.shown_tab : s.other_shown_tab))
             tabs += "shown = true\n";
     }
+    std::string folders;
+    if (!s.last_folder.empty() && valid_utf8(s.last_folder.string())) {
+        folders +=
+            std::format("\n[location]\nlast_folder = {}\n", toml_string(s.last_folder.string()));
+    }
+    for (const auto& [path, settings] : s.folders.entries()) {
+        if (!valid_utf8(path.string()))
+            continue;
+        folders += std::format(
+            "\n[[folder]]\npath = {}\nmode = \"{}\"\nsort = \"{}\"\ndescending = {}\n"
+            "list_size = \"{}\"\ngrid_icon = {}\nsize_width = {}\nmodified_width = {}\ntype_width "
+            "= {}\n",
+            toml_string(path.string()), word_of(kModes, settings.mode),
+            word_of(kSortKeys, settings.sort_key), flag(settings.sort_descending),
+            word_of(kListSizeWords, settings.list_size), settings.grid_icon,
+            settings.details_widths[0], settings.details_widths[1], settings.details_widths[2]);
+    }
     return std::format(
                "# How rummage was left, read at start. Written by rummage: no need to edit it.\n"
                "\n"
@@ -477,7 +595,7 @@ std::string format_state(const State& s) {
                "\n[panes]\nvisible = {}\ninitialized = {}\nstacked = {}\nratio = {}\nactive = {}\n",
                flag(s.split_visible), flag(s.panes_initialized), flag(s.stacked), s.split_ratio,
                s.active_pane) +
-           tabs;
+           tabs + folders;
 }
 
 // Writes in generation order: one older than the last written is dropped.
@@ -535,8 +653,10 @@ void StateKeeper::write() {
     writing_ = true;
     pool_.submit(
         core::Priority::prefetch,
-        [file = file_, generation = generation_, text = format_state(current_)](
-            const core::CancelToken& /*token*/) { return file->write(generation, text); },
+        [file = file_, generation = generation_,
+         state = current_](const core::CancelToken& /*token*/) {
+            return file->write(generation, format_state(state));
+        },
         [this](const std::string& error) {
             writing_ = false;
             if (!error.empty()) {

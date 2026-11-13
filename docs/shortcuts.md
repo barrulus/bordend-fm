@@ -125,3 +125,20 @@ through this table. Choose chords that do not collide with them.
 Unknown IDs, invalid chords and conflicting bindings reject the binding set.
 Actions, menus and bindings reload together; the prior valid set survives an
 invalid reload. Run `rummage --check-config` and check F1 after editing.
+
+## Jump to a folder
+
+Use a quoted `go:<path>` key in the existing `[keybindings]` table:
+
+```toml
+[keybindings]
+"go:~/Downloads" = "Ctrl+Alt+d"
+"go:/srv/projects" = "Ctrl+Alt+p"
+```
+
+The shortcut opens the folder in the active pane’s current tab and preserves back/forward
+history. It works from the views, sidebar and Quick Look; editors and dialogs keep
+their input. Missing destinations show a message and leave the current folder in
+place. Absolute paths, `~` and `~/` paths are supported, without shell or variable
+expansion. Bindings reload live and appear in F1; the usual chord-conflict checks
+and empty-string disabling apply.

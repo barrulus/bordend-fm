@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,6 +19,7 @@
 #include "rummage/views/details_view.hpp"
 #include "rummage/views/grid_view.hpp"
 #include "rummage/views/info_pane.hpp"
+#include "rummage/views/state.hpp"
 #include "rummage/views/thumbnails.hpp"
 
 namespace rummage::views {
@@ -47,6 +49,8 @@ struct Pane {
     fs::Listing::Predicate entry_filter;
     bool show_hidden{false};
     ViewMode mode{ViewMode::columns};
+    std::filesystem::path settings_folder;  // whose preferences are applied
+    std::optional<State::FolderSettings> remembered_settings;
     std::vector<HistoryStep> history;
     std::size_t here{0};  // where history is now
 };

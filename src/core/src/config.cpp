@@ -293,6 +293,34 @@ void read_document(const toml::table& root, Reader& reader, ConfigResult& result
     for (const auto& [key, node] : root) {
         if (key.str() == "actions") {
             result.actions_valid = read_actions(node, reader, config.actions);
+        } else if (key.str() == "startup") {
+            reader.read_section(
+                node, "startup",
+                {{"mode",
+                  [&](const toml::node& value, const std::string& path) {
+                      const auto mode = value.value<std::string_view>();
+                      using Mode = Config::Startup::Mode;
+                      if (mode == "home")
+                          config.startup.mode = Mode::home;
+                      else if (mode == "folder")
+                          config.startup.mode = Mode::folder;
+                      else if (mode == "last")
+                          config.startup.mode = Mode::last;
+                      else if (mode == "session")
+                          config.startup.mode = Mode::session;
+                      else
+                          reader.report(
+                              value.source(),
+                              path + " must be home, folder, last or session; using session");
+                  }},
+                 {"folder", [&](const toml::node& value, const std::string& path) {
+                      const auto folder = value.value<std::string_view>();
+                      if (folder && !expand_folder_path(*folder).empty())
+                          config.startup.folder = *folder;
+                      else
+                          reader.report(value.source(),
+                                        path + " must be an absolute path or ~/ path; using Home");
+                  }}});
         } else if (key.str() == "appearance") {
             reader.read_section(
                 node, "appearance",
@@ -548,6 +576,23 @@ std::error_code create_default_config(const std::filesystem::path& path) {
         return error;
     }
     return write_file_atomically(path, kDefaultConfig, false);
+}
+
+std::filesystem::path expand_folder_path(std::string_view path) {
+    if (path.empty() || path.find('\0') != std::string_view::npos)
+        return {};
+    std::filesystem::path folder;
+    if (path.front() == '/') {
+        folder = path;
+    } else if (path == "~" || path.starts_with("~/")) {
+        const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
+        if (home && home[0] == '/') {
+            folder = std::filesystem::path{home} / std::string{path.substr(path == "~" ? 1 : 2)};
+        }
+    }
+    folder = folder.lexically_normal();
+    // A trailing separator should not give Home (or any shortcut target) another settings key.
+    return folder.has_relative_path() && folder.filename().empty() ? folder.parent_path() : folder;
 }
 
 ConfigResult parse_config(std::string_view text, std::string_view source) {

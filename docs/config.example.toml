@@ -18,6 +18,12 @@ background_opacity = 1.0
 # The bar grows to fit larger text. Use 15 to match the large file-list text.
 text_size = 12.0
 
+# Startup applies on the next launch. An explicit DIR always takes precedence.
+[startup]
+mode = "session"  # session (saved tabs), home, folder, or last (last active folder)
+folder = "~"      # used by mode = "folder"; absolute path or ~/ path
+# Missing configured/last folders fall back to Home. Picker launches use their own folder.
+
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
 family = "sans-serif"
@@ -119,6 +125,9 @@ follow_accent = true
 # previous_tab = "Ctrl+Shift+Tab"
 
 # File operations
+# Jump to a folder in the current tab; paths are quoted keys, not shell commands.
+# "go:~/Downloads" = "Ctrl+Alt+d"
+# "go:/srv/projects" = "Ctrl+Alt+p"
 # rename = "F2"                 # Rename the focused file
 # new_folder = "Ctrl+Shift+n"
 # copy = "Ctrl+c"               # Copy selected files

@@ -16,6 +16,12 @@
 namespace rummage::core {
 
 struct Config {
+    struct Startup {
+        enum class Mode { home, folder, last, session };
+        Mode mode{Mode::session};
+        std::string folder{"~"};
+    };
+
     struct Font {
         std::string family{"sans-serif"};    // fontconfig pattern, e.g. "Inter" or "Inter:size=11"
         std::string monospace{"monospace"};  // text previews, e.g. "JetBrains Mono"
@@ -48,6 +54,7 @@ struct Config {
     MenuLayout context_menu;
 
     Appearance appearance;
+    Startup startup;
     StatusBar status_bar;
     Font font;
     Pointer pointer;
@@ -76,5 +83,8 @@ struct ConfigResult {
 
 // Reads and parses a file. A missing file is not a problem: defaults, from_file = false.
 [[nodiscard]] ConfigResult load_config(const std::filesystem::path& path);
+
+// Absolute paths and ~/ paths only; no shell expansion. Empty means invalid or no HOME.
+[[nodiscard]] std::filesystem::path expand_folder_path(std::string_view path);
 
 }  // namespace rummage::core

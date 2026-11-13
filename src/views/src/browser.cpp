@@ -172,6 +172,7 @@ Pane& Browser::add_pane(std::size_t at) {
 }
 
 void Browser::leave_pane() {
+    remember_folder(pane());
     filter_focused_ = false;
     quick_look_.close();
     if (menu_.is_open()) {
@@ -189,6 +190,9 @@ void Browser::leave_pane() {
 }
 
 void Browser::enter_pane() {
+    note_location();
+    if (!pane().settings_folder.empty())
+        folder_settings_.remember(pane().settings_folder, folder_settings(pane()), true);
     if (pointer_inside_ && !button_held_) {
         dispatch_pointer({.kind = ui::PointerEvent::Kind::motion, .x = pointer_x_, .y = pointer_y_},
                          Clock::now());
@@ -246,6 +250,7 @@ void Browser::close_tab(std::size_t index) {
     if (area().tabs.size() <= 1 || index >= area().tabs.size()) {
         return;  // the last tab stays: Ctrl+W does nothing then
     }
+    remember_folder(*area().tabs[index]);
     const bool shown = index == area().active;
     if (shown) {
         leave_pane();
@@ -1869,6 +1874,7 @@ void Browser::rename(const std::shared_ptr<Folder>& folder, const std::string& f
 }
 
 void Browser::open(const std::filesystem::path& directory) {
+    remember_folder(pane());
     pane().columns.open(directory);
     if (pane().mode == Mode::grid) {
         pane().columns.suspend();
@@ -1881,9 +1887,54 @@ void Browser::open(const std::filesystem::path& directory) {
 }
 
 void Browser::reveal(const std::filesystem::path& root, const std::filesystem::path& target) {
+    remember_folder(pane());
+    pane().settings_folder.clear();  // unfolding columns does not change the folder left
     set_mode(Mode::columns);
     pane().columns.reveal(root, target);
     note_location();
+}
+
+State::FolderSettings Browser::folder_settings(const Pane& each) {
+    return {.mode = static_cast<State::Mode>(each.mode),
+            .sort_key = each.details.order().key,
+            .sort_descending = each.details.order().descending,
+            .details_widths = each.details.widths(),
+            .list_size = each.details.list_size(),
+            .grid_icon = static_cast<std::int32_t>(each.grid.icon_size())};
+}
+
+void Browser::remember_folder(Pane& each) {
+    if (each.settings_folder.empty())
+        return;
+    const auto settings = folder_settings(each);
+    // Two visible panes may show the same folder with different settings. Only actual
+    // changes in this pane update the shared record; drawing cannot alternate it every frame.
+    if (each.remembered_settings != settings) {
+        folder_settings_.remember(each.settings_folder, settings);
+        each.remembered_settings = settings;
+    }
+}
+
+void Browser::restore_folder(const std::filesystem::path& path) {
+    if (pane().settings_folder == path)
+        return;
+    const auto normalized = path.lexically_normal();
+    if (pane().settings_folder == normalized)
+        return;
+    remember_folder(pane());
+    pane().settings_folder = normalized;
+    pane().remembered_settings.reset();
+    if (const auto* saved = folder_settings_.find(normalized)) {
+        const auto settings = *saved;
+        set_sort(settings.sort_key, settings.sort_descending);
+        set_list_size(settings.list_size);
+        set_grid_size(grid_index(settings.grid_icon));
+        pane().details.set_widths(settings.details_widths);
+        set_mode(static_cast<Mode>(settings.mode));
+    }
+    const auto settings = folder_settings(pane());
+    folder_settings_.remember(normalized, settings, true);
+    pane().remembered_settings = settings;
 }
 
 void Browser::note_location() {
@@ -1895,6 +1946,15 @@ void Browser::note_location() {
     if (!shown) {
         return;
     }
+    if (!shown->is_trash()) {
+        restore_folder(shown->path());
+        if (context_area_ == active_area_)
+            last_folder_ = shown->path();
+    } else {
+        remember_folder(pane());
+        pane().settings_folder.clear();
+    }
+    remember_folder(pane());
     const fs::Entry* const cursor = shown->cursor_entry();
     if (!pane().history.empty() && pane().history[pane().here].folder == shown->path()) {
         if (cursor != nullptr) {
@@ -2092,8 +2152,14 @@ static_assert(static_cast<int>(State::Mode::columns) == static_cast<int>(Browser
               static_cast<int>(State::Mode::grid) == static_cast<int>(Browser::Mode::grid) &&
               static_cast<int>(State::Mode::details) == static_cast<int>(Browser::Mode::details));
 
-State Browser::state() const {
+State Browser::state() {
+    const auto context = context_area_;
+    context_area_ = active_area_;
+    note_location();
+    context_area_ = context;
     State state;
+    state.folders = folder_settings_;
+    state.last_folder = last_folder_;
     state.mode = static_cast<State::Mode>(pane().mode);
     state.show_hidden = pane().show_hidden;
     state.sidebar_visible = sidebar_visible_;
@@ -2179,6 +2245,14 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
         }
         area().active = restored;
         pane().mode = static_cast<Mode>(tab.mode);
+        set_list_size(tab.list_size.value_or(window_list));
+        set_grid_size(tab.grid_icon ? grid_index(*tab.grid_icon) : window_grid);
+        pane().settings_folder = tab.folder.lexically_normal();
+        pane().remembered_settings.reset();
+        if (const auto* settings = folder_settings_.find(pane().settings_folder)) {
+            set_sort(settings->sort_key, settings->sort_descending);
+            pane().details.set_widths(settings->details_widths);
+        }
         const std::filesystem::path relative = tab.folder.lexically_relative(tab.root);
         if (pane().mode == Mode::columns && folder_there(tab.root) && !relative.empty() &&
             *relative.begin() != "..") {
@@ -2192,8 +2266,6 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
                 opened->select_name(tab.cursor);
             }
         }
-        set_list_size(tab.list_size.value_or(window_list));
-        set_grid_size(tab.grid_icon ? grid_index(*tab.grid_icon) : window_grid);
         set_sort(tab.sort_key.value_or(pane().details.order().key),
                  tab.sort_key ? tab.sort_descending : pane().details.order().descending);
         set_show_hidden(tab.show_hidden.value_or(pane().show_hidden), false);
@@ -2210,6 +2282,12 @@ bool Browser::restore_tabs(const std::vector<State::Tab>& tabs, std::size_t show
 }
 
 void Browser::apply(const State& state) {
+    folder_settings_ = state.folders;
+    last_folder_ = state.last_folder;
+    for (const auto& each : area().tabs) {
+        each->settings_folder.clear();
+        each->remembered_settings.reset();
+    }
     pane().show_hidden = state.show_hidden;
     palette_recent_ = state.palette_recent;
     for (const std::unique_ptr<Pane>& each : area().tabs) {
@@ -2359,6 +2437,7 @@ void Browser::toolbar_pointer(const ui::PointerEvent& event) {
 void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                    ui::IconSet& icons, Clock::time_point now) {
     context_area_ = active_area_;
+    note_location();
     const float sidebar_width = sidebar_visible_ ? sidebar_.width_in(bounds.width) : 0.0F;
     sidebar_drawn_ = sidebar_width > 0.0F;
     info_pane_.forget_layout();
@@ -2474,6 +2553,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
 
 void Browser::draw_area(ui::Renderer& renderer, const ui::Rect& bounds,
                         const theme::Palette& palette, ui::IconSet& icons, Clock::time_point now) {
+    note_location();  // includes asynchronous reveals in either visible pane
     area().bounds = bounds;
     ui::Rect view = bounds;
     const auto folder = current_folder();
@@ -4039,6 +4119,17 @@ bool Browser::take_key(const ui::KeyEvent& event, Clock::time_point now) {
             shortcuts_.key(event);
         }
         return true;  // nothing under them reacts meanwhile
+    }
+    if (const auto folder = folder_for(event); !folder.empty()) {
+        std::error_code error;
+        if (!std::filesystem::is_directory(folder, error)) {
+            show_message(std::format("Folder unavailable: {}", folder), true);
+        } else {
+            quick_look_.close();
+            sidebar_.set_focused(false);
+            open(folder);
+        }
+        return true;
     }
     if (command == Command::select_tab) {
         // Alt+1…9: the keysyms 1 to 9 follow each other.

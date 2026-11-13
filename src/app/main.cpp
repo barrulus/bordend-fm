@@ -757,11 +757,13 @@ int main(int argc, char** argv) {
             }
             columns->set_panes_enabled(!picker_request);
             columns->apply(remembered.state);
-            // Without a folder (Super+E) the tabs come back as they were left; with one
-            // (xdg-open, "Show in folder") a single tab on it (ROADMAP 9.1d).
-            if (picker_request || !start_dir.empty() ||
-                !columns->restore_session(remembered.state)) {
+            const auto launch_location =
+                views::startup_location(config.startup, remembered.state, start_dir);
+            if (picker_request) {
                 columns->open(start_folder(start_dir));
+            } else if (!launch_location.restore_tabs ||
+                       !columns->restore_session(remembered.state)) {
+                columns->open(start_folder(launch_location.folder));
             }
             if (picker_request) {
                 columns->set_open_with_handlers({}, {});
@@ -1029,6 +1031,7 @@ int main(int argc, char** argv) {
         }
         const int code = loop.run();
         if (!picker_request) {
+            note_state();
             keeper.flush();
         }
         if (picker_request) {

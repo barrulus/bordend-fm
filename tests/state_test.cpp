@@ -159,7 +159,13 @@ TEST_CASE("state: the browser gives back what it was given") {
     wanted.window_width = State{}.window_width;
     wanted.window_height = State{}.window_height;
     wanted.maximized = false;
-    CHECK(browser.state() == wanted);
+    auto observed = browser.state();
+    CHECK(observed.last_folder == dir.path);
+    REQUIRE(observed.folders.entries().size() == 1);
+    CHECK(observed.folders.find(dir.path)->mode == State::Mode::details);
+    observed.last_folder.clear();
+    observed.folders = {};
+    CHECK(observed == wanted);
 
     // Narrower than a column's minimum: the view keeps its minimum.
     State narrow = wanted;
@@ -418,4 +424,92 @@ TEST_CASE("state: sidebar zoom defaults and validation are independent of the vi
     CHECK(bad.state.sidebar_size == 1);
     REQUIRE(bad.problems.size() == 1);
     CHECK(bad.problems[0].find("sidebar.list_size") != std::string::npos);
+}
+
+TEST_CASE("state: folder preferences round trip, stay bounded and share unchanged snapshots") {
+    State state;
+    State::FolderSettings settings{.mode = State::Mode::grid,
+                                   .sort_key = SortKey::modified,
+                                   .sort_descending = true,
+                                   .details_widths = {80, 170, 240},
+                                   .list_size = 3,
+                                   .grid_icon = 192};
+    state.last_folder = "/folder with \"quotes\"/é";
+    state.folders.remember(state.last_folder, settings);
+    const State snapshot = state;
+    CHECK(&snapshot.folders.entries() == &state.folders.entries());
+    state.folders.remember(state.last_folder, settings);
+    CHECK(&snapshot.folders.entries() == &state.folders.entries());
+    const auto read = parse(format_state(state));
+    CHECK(read.problems.empty());
+    CHECK(read.state == state);
+    for (std::size_t i = 0; i < State::Folders::kLimit; ++i) {
+        state.folders.remember(std::format("/folder/{}", i), settings);
+    }
+    CHECK(state.folders.entries().size() == State::Folders::kLimit);
+    CHECK(state.folders.find(state.last_folder) == nullptr);
+    CHECK(snapshot.folders.find(state.last_folder) != nullptr);
+    state.folders.remember("/folder/0", settings, true);
+    state.folders.remember("/one-more", settings);
+    CHECK(state.folders.find("/folder/0") != nullptr);
+    CHECK(state.folders.find("/folder/1") == nullptr);
+    const auto bounded = parse(format_state(state));
+    CHECK(bounded.problems.empty());
+    CHECK(bounded.state == state);
+}
+
+TEST_CASE("state: malformed folder preferences preserve defaults and valid neighbors") {
+    const auto result = parse(R"(
+[location]
+last_folder = "relative"
+[[folder]]
+path = "relative"
+[[folder]]
+path = "/good"
+mode = "nonsense"
+sort = 3
+list_size = "huge"
+grid_icon = 97
+size_width = -1
+[[folder]]
+path = "/also-good"
+mode = "details"
+)");
+    CHECK(result.state.last_folder.empty());
+    CHECK(result.problems.size() == 7);
+    REQUIRE(result.state.folders.entries().size() == 2);
+    CHECK(*result.state.folders.find("/good") == State::FolderSettings{});
+    CHECK(result.state.folders.find("/also-good")->mode == State::Mode::details);
+}
+
+TEST_CASE("state: startup selection honors explicit folders, modes and vanished locations") {
+    const TempDir dir;
+    const auto fixed = dir.path / "fixed";
+    const auto last = dir.path / "last";
+    std::filesystem::create_directory(fixed);
+    std::filesystem::create_directory(last);
+    State state;
+    state.last_folder = last;
+    rummage::core::Config::Startup config;
+    using Mode = rummage::core::Config::Startup::Mode;
+    using rummage::views::startup_location;
+    CHECK(startup_location(config, state).restore_tabs);
+    for (const auto mode : {Mode::home, Mode::folder, Mode::last, Mode::session}) {
+        config.mode = mode;
+        const auto explicit_start = startup_location(config, state, "/explicit");
+        CHECK(explicit_start.folder == "/explicit");
+        CHECK_FALSE(explicit_start.restore_tabs);
+    }
+    config.mode = Mode::folder;
+    config.folder = fixed.string();
+    CHECK(startup_location(config, state).folder == fixed);
+    config.mode = Mode::last;
+    CHECK(startup_location(config, state).folder == last);
+    std::filesystem::remove(last);
+    CHECK(startup_location(config, state).folder.empty());
+    config.mode = Mode::home;
+    CHECK(startup_location(config, state).folder.empty());
+    config.mode = Mode::folder;
+    config.folder = (dir.path / "missing").string();
+    CHECK(startup_location(config, state).folder.empty());
 }

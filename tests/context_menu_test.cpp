@@ -360,14 +360,18 @@ TEST_CASE("context menu: Sort By sorts every view, and the folders they open lat
     CHECK(names(*f.browser.columns().focused_folder()) == Names{"deeper", "big", "small"});
     CHECK(f.browser.details().order().key == rummage::fs::SortKey::size);
 
-    // A click on a title of the details sorts the other views too.
+    // A details header sorts this folder; returning restores the parent's own order.
     f.browser.set_mode(Browser::Mode::details);
     f.browser.details().sort_by(rummage::views::DetailsView::Field::name);  // name, ascending
     f.browser.set_mode(Browser::Mode::grid);
+    CHECK(names(*f.browser.grid().folder()) == Names{"deeper", "big", "small"});
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::name);
     f.browser.open(f.photos);
     REQUIRE(f.settle());
     CHECK(names(*f.browser.grid().folder()) ==
-          Names{"sub", "a.txt", "b.txt", "P1.ORF", "P1.ORF.xmp"});
+          Names{"sub", "a.txt", "P1.ORF", "P1.ORF.xmp", "b.txt"});
+    CHECK(f.browser.sort_order().key == rummage::fs::SortKey::size);
+    CHECK(f.browser.sort_order().descending);
 }
 
 TEST_CASE("context menu: Open With lists the applications and opens the selection with one") {

@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "rummage/core/config.hpp"
 #include "rummage/core/event_loop.hpp"
 #include "rummage/core/worker_pool.hpp"
 #include "rummage/fs/sort.hpp"
@@ -39,6 +40,40 @@ struct State {
     // pixels (one of kGridIconSizes).
     std::size_t list_size{1};
     std::int32_t grid_icon{kGridIconSizes[kUsualGridSize]};
+
+    struct FolderSettings {
+        Mode mode{Mode::columns};
+        fs::SortKey sort_key{fs::SortKey::name};
+        bool sort_descending{false};
+        std::array<float, 3> details_widths{96.0F, 150.0F, 220.0F};
+        std::size_t list_size{1};
+        std::int32_t grid_icon{96};
+        bool operator==(const FolderSettings&) const = default;
+    };
+
+    // Bounded, least recently visited first. Immutable snapshots make frame/state comparisons
+    // cheap; a copy is made only when a folder's settings or recency actually changes.
+    class Folders {
+    public:
+        using Entries = std::vector<std::pair<std::filesystem::path, FolderSettings>>;
+        static constexpr std::size_t kLimit = 512;
+
+        [[nodiscard]] const Entries& entries() const { return *entries_; }
+
+        [[nodiscard]] const FolderSettings* find(const std::filesystem::path& path) const;
+        void remember(const std::filesystem::path& path, const FolderSettings& settings,
+                      bool visited = false);
+
+        bool operator==(const Folders& other) const {
+            return entries_ == other.entries_ || *entries_ == *other.entries_;
+        }
+
+    private:
+        std::shared_ptr<const Entries> entries_{std::make_shared<const Entries>()};
+    };
+
+    Folders folders;
+    std::filesystem::path last_folder;
     // The window's size when it was last neither maximized, fullscreen nor tiled; logical pixels.
     std::int32_t window_width{960};
     std::int32_t window_height{640};
@@ -102,6 +137,16 @@ struct StateResult {
 [[nodiscard]] StateResult load_state(const std::filesystem::path& path);
 
 [[nodiscard]] std::string format_state(const State& state);
+
+struct StartupLocation {
+    std::filesystem::path folder;  // empty: Home
+    bool restore_tabs{false};
+};
+
+// Explicit launch locations win. Missing remembered/configured folders fall back to Home.
+[[nodiscard]] StartupLocation startup_location(const core::Config::Startup& startup,
+                                               const State& state,
+                                               const std::filesystem::path& explicit_folder = {});
 
 // Keeps state.toml current: a change is written a moment after the last one (a dragged edge
 // writes once), on a worker, one write at a time so an older state never lands after a newer

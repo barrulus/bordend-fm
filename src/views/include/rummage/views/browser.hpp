@@ -258,7 +258,7 @@ public:
     [[nodiscard]] ui::CursorShape cursor_at(float x, float y) const;
 
     // What is remembered from one start to the next (ROADMAP 7.5a); the window's part is main's.
-    [[nodiscard]] State state() const;
+    [[nodiscard]] State state();
     // Before open(): the view comes up in the remembered mode; afterwards, as if chosen.
     void apply(const State& state);
     // At a start without a folder, after apply() and instead of open(): the tabs as they were
@@ -680,6 +680,10 @@ private:
     void stop_auto_scroll();
     // The folder shown into the history: a new step when it changed, else its cursor.
     void note_location();
+    void remember_folder(Pane& pane);
+    void restore_folder(const std::filesystem::path& path);
+    [[nodiscard]] static State::FolderSettings folder_settings(const Pane& pane);
+
     // Goes through the history by direction (-1 back, 1 forward).
     void travel(int direction);
     void trash_done(const fs::TransferResult& result);
@@ -806,6 +810,8 @@ private:
         ui::Rect toolbar_bounds{}, filter_bounds{}, clear_filter_bounds{}, new_folder_bounds{};
     };
 
+    State::Folders folder_settings_;
+    std::filesystem::path last_folder_;
     std::array<std::unique_ptr<BrowsingArea>, 2> areas_;
     std::size_t active_area_{0};
     // Rendering and pointer dispatch may address an inactive area without changing focus.

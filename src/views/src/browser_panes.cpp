@@ -81,6 +81,9 @@ void Browser::focus_pane(std::size_t index) {
     button_held_ = false;
     pointer_area_ = index;
     pointer_target_ = Target::view;
+    note_location();
+    if (!pane().settings_folder.empty())
+        folder_settings_.remember(pane().settings_folder, folder_settings(pane()), true);
     redraw_();
 }
 

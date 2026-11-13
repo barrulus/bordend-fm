@@ -451,3 +451,28 @@ TEST_CASE("first run preserves symlinks and reports creation failures") {
     CHECK_FALSE(std::filesystem::exists(missing));
     CHECK(rummage::core::create_default_config(target / "config.toml"));
 }
+
+TEST_CASE("startup config: modes, paths and invalid values") {
+    using Mode = Config::Startup::Mode;
+    for (const auto& [word, mode] :
+         {std::pair{"home", Mode::home}, std::pair{"folder", Mode::folder},
+          std::pair{"last", Mode::last}, std::pair{"session", Mode::session}}) {
+        const auto read =
+            parse_config(std::string{"[startup]\nmode = '"} + word + "'\nfolder = '/some folder'\n",
+                         "test.toml");
+        CHECK(read.problems.empty());
+        CHECK(read.config.startup.mode == mode);
+        CHECK(read.config.startup.folder == "/some folder");
+    }
+    for (const auto* bad : {"mode = 'bad'", "mode = 1", "folder = ''", "folder = 'relative'",
+                            "folder = '~someone/path'", "folder = 42", "unknown = true"}) {
+        const auto read = parse_config(std::string{"[startup]\n"} + bad, "test.toml");
+        CHECK_FALSE(read.problems.empty());
+        CHECK(read.config.startup.mode == Mode::session);
+        CHECK(read.config.startup.folder == "~");
+    }
+    CHECK(rummage::core::expand_folder_path("/a/../b") == "/b");
+    CHECK(rummage::core::expand_folder_path("/a/") == "/a");
+    CHECK(rummage::core::expand_folder_path("/") == "/");
+    CHECK(rummage::core::expand_folder_path(std::string{"/a\0b", 4}).empty());
+}
