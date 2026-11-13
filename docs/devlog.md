@@ -4,6 +4,19 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — Nordend 0.5.1
+
+A patch release of what `main` gained since 0.5.0, before the file chooser: grid thumbnails up
+to 512 px (barrulus's PR #2), hardened builds (the quality step: FORTIFY=3, stack protection,
+full RELRO, the standard library's index checks), sorting by type for names with several types,
+and the Nix flake. No parser changed since 0.5.0, so no new fuzz run. CMake version, README
+(badge, note, install notes, Versions, What's next now with the file chooser first, At a glance:
+nordend 4.01 MB / 3.35 stripped, the helper 1.15 / 1.03, `readelf -d` NEEDED 17 and 8 as before,
+51 400 + 17 600 lines, 422 tests; memory unchanged at 25 MB) and features say so. The engine
+protocol is still 4.
+
+---
+
 ## 2026-11-13 — A Nix package, with a flake
 
 **Done.** Nordend has a second package of its own, after Void's: `flake.nix` at the top and the

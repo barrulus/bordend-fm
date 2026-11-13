@@ -425,10 +425,12 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-0.5.0 is out (text previews with syntax colours, selecting and copying, logs from their end; the
-helper became the first engine), after 0.4.0 (image previews read by Nordend's own code in caged
+0.5.1 is out (grid thumbnails up to 512 px, hardened builds, a Nix flake, sorting by type for
+names with several types), after 0.5.0 (text previews with syntax colours, selecting and
+copying, logs from their end; the helper became the first engine), 0.4.0 (image previews read by Nordend's own code in caged
 helpers: DNG, TIFF, raw previews and EXIF without exiv2), 0.3.1 (more raw previews), 0.3.0 (the
 command palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, zoom in the
-lists) and the first release, 0.1.0. Coming, roughly in this order: other common formats, colour
-labels and ratings, a Quick Look for photographers, a dual pane. See the README's
+lists) and the first release, 0.1.0. Coming, roughly in this order: a file chooser for other
+applications, other common formats, colour labels and ratings, a Quick Look for photographers, a
+dual pane. See the README's
 [What's next](../README.md#whats-next).
