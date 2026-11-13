@@ -64,6 +64,13 @@ public:
     StatusBar(StatusBar&&) = delete;
     StatusBar& operator=(StatusBar&&) = delete;
 
+    // Logical pixels (8-32). The bar grows to fit the selected font's line height.
+    void set_text_size(float size);
+
+    [[nodiscard]] float text_size() const noexcept { return text_size_; }
+
+    [[nodiscard]] float height(ui::Renderer& renderer) const;
+
     // view: the index of the view shown.
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
               ui::IconSet& icons, const Folder& folder, std::size_t view);
@@ -128,6 +135,7 @@ private:
     core::EventLoop::SourceId message_timer_{0};
 
     ui::Rect bounds_{};
+    float text_size_{12.0F};
     std::array<ui::Rect, kViews + 1> buttons_{};  // as last drawn
     std::optional<std::size_t> hovered_;
     // False once destroyed: results still on their way find out here.
