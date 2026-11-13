@@ -145,7 +145,7 @@ stdenv.mkDerivation {
 
   meta = {
     description = "Native file manager for Wayland";
-    homepage = "https://github.com/barrulus/bordend-fm";
+    homepage = "https://github.com/barrulus/rummage";
     license = lib.licenses.mit;
     mainProgram = "rummage";
     platforms = [

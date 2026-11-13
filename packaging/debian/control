@@ -9,7 +9,7 @@ Build-Depends: debhelper-compat (= 13), cmake, ninja-build, g++, pkg-config,
  libwebp-dev, libjxl-dev, zlib1g-dev, libsdbus-c++-dev (>= 2)
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
-Homepage: https://github.com/barrulus/bordend-fm
+Homepage: https://github.com/barrulus/rummage
 
 Package: rummage
 Architecture: any

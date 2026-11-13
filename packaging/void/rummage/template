@@ -17,7 +17,7 @@ depends="shared-mime-info hicolor-icon-theme"
 short_desc="Fast, native file manager for Wayland, made for photographers"
 maintainer="rummage maintainers <barrulus@users.noreply.github.com>"
 license="MIT"
-homepage="https://github.com/barrulus/bordend-fm"
+homepage="https://github.com/barrulus/rummage"
 distfiles="https://invalid.invalid/local-checkout/rummage-source.tar.gz"
 checksum=CHECKOUT_SHA256
 
