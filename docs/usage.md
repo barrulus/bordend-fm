@@ -171,6 +171,22 @@ disk unmounts its partitions and powers it off when supported. Busy or read-only
 devices report errors in the status bar. Encrypted-device unlocking is not
 implemented. Already mounted volumes can still appear without udisks2.
 
+## Network folders
+
+`smb://`, `sftp://`, `ftp://` and `dav://`/`davs://` (WebDAV) bookmarks in the GTK
+bookmarks file appear in the sidebar too, dimmed until mounted. A click mounts one
+through gvfs on the session bus (no GLib in rummage) and opens its gvfs FUSE folder.
+A server asking for credentials gets a card with user, domain, a masked password,
+Anonymous where allowed, and Remember the password (stored by gvfs in the keyring).
+A mounted share has an eject icon; its context menu mounts, unmounts and removes
+the bookmark. Without a running gvfs the status bar says so.
+
+**Ctrl+L** opens a card for one location: a folder (`/data`, `~/Pictures`,
+`file://…`) or a server (`smb://server/share`, `sftp://user@host/path`,
+`ftp://host`, `davs://host/path`, or a Windows share `\\server\share`). A server
+is added to the sidebar unless unticked, then mounted. An invalid address keeps
+the card open with the reason. Remote paths are resolved within the server's root.
+
 ## Sidebar zoom and properties
 
 Use Ctrl+wheel over the sidebar, or F6 then Ctrl+plus/minus/0, to adjust its zoom

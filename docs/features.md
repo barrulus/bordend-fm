@@ -14,10 +14,11 @@ in the linked guides. The fork develops beyond upstream Nordend 0.5.0; see [rele
 - Sorting by name, size, modified date or type; hidden-file toggle; live directory updates.
 - Keyboard and mouse selection, rubber bands, smooth scrolling and adjustable zoom.
 - Breadcrumb, history, places, GTK bookmarks and removable-device integration.
+- Network bookmarks (smb, sftp, ftp, WebDAV) mounted through gvfs; Ctrl+L to go to a folder or server.
 - Fuzzy command palette and recursive filename/path search with cancellation.
 
 See [Using rummage](usage.md) and the [shortcut reference](shortcuts.md).
-Search is not content search; remote browsing, encrypted-volume unlocking and
+Search is not content search; remote browsing without gvfs, encrypted-volume unlocking and
 bookmark reordering are not implemented. Name sorting is natural and ASCII
 case-insensitive, not locale collation.
 

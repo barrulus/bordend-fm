@@ -63,7 +63,7 @@ files, and **F1** for the active shortcuts.
 | Find | Fuzzy filename/path search under the current folder; command palette with places and tabs |
 | Preview | Images including HEIC/HEIF, camera previews, DNG development and text with syntax colours; optional video thumbnails/stills |
 | Manage | Copy, move, rename, create, trash, restore, permanent delete, undo/redo and darktable sidecar handling |
-| Integrate | Desktop applications, Open With, terminals, bookmarks, removable disks, clipboard and drag and drop |
+| Integrate | Desktop applications, Open With, terminals, bookmarks, network shares (gvfs), removable disks, clipboard and drag and drop |
 | Customize | Fonts, icons, colours, transparency, shortcuts, external actions and nested context menus |
 | Pick files | Standalone selection commands and an optional XDG FileChooser portal backend |
 

@@ -2,16 +2,20 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cerrno>
+#include <charconv>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <format>
 #include <optional>
 #include <poll.h>
 #include <string_view>
 #include <system_error>
 #include <unistd.h>
 #include <utility>
+#include <vector>
 
 #include "rummage/core/file.hpp"
 #include "rummage/core/log.hpp"
@@ -38,6 +42,9 @@ constexpr std::array<UserDirKind, 6> kUserDirs{{
 }};
 
 constexpr std::array<std::string_view, 3> kMountRoots{"/run/media/", "/media/", "/mnt/"};
+
+// The remote bookmarks the sidebar lists: the schemes gvfs mounts that rummage maps to a mount.
+constexpr std::array<std::string_view, 5> kRemoteSchemes{"smb", "sftp", "ftp", "dav", "davs"};
 
 std::string_view trim(std::string_view text) {
     const std::size_t first = text.find_first_not_of(" \t\r");
@@ -85,6 +92,58 @@ std::string percent_decode(std::string_view text) {
             }
         }
         out += text[i];
+    }
+    return out;
+}
+
+// A decoded remote path with "." and ".." resolved, never above the root: "/a/../../etc" is
+// "/etc". Empty components are dropped; a trailing slash stays.
+std::string normalize_remote_path(std::string_view path) {
+    std::vector<std::string_view> parts;
+    std::string_view rest = path;
+    while (!rest.empty()) {
+        const std::size_t slash = rest.find('/');
+        const std::string_view part = rest.substr(0, slash);
+        rest = slash == std::string_view::npos ? std::string_view{} : rest.substr(slash + 1);
+        if (part.empty() || part == ".") {
+            continue;
+        }
+        if (part == "..") {
+            if (!parts.empty()) {
+                parts.pop_back();
+            }
+            continue;
+        }
+        parts.push_back(part);
+    }
+    std::string out;
+    for (const std::string_view part : parts) {
+        out += '/';
+        out += part;
+    }
+    if (out.empty()) {
+        return "/";
+    }
+    if (path.ends_with('/')) {
+        out += '/';
+    }
+    return out;
+}
+
+// Each byte outside the unreserved set and "/" as "%XX": a folder name made safe for a URI.
+std::string percent_encode_path(std::string_view text) {
+    static constexpr std::string_view kHex = "0123456789ABCDEF";
+    std::string out;
+    out.reserve(text.size());
+    for (const char c : text) {
+        const auto byte = static_cast<unsigned char>(c);
+        if (std::isalnum(byte) != 0 || c == '-' || c == '.' || c == '_' || c == '~' || c == '/') {
+            out += c;
+        } else {
+            out += '%';
+            out += kHex[byte >> 4U];
+            out += kHex[byte & 0x0FU];
+        }
     }
     return out;
 }
@@ -170,26 +229,114 @@ std::vector<UserDir> parse_user_dirs(std::string_view text, const std::filesyste
     return dirs;
 }
 
+std::optional<RemoteUri> parse_remote_uri(std::string_view uri) {
+    if (uri.find('\0') != std::string_view::npos) {
+        return std::nullopt;
+    }
+    const std::size_t separator = uri.find("://");
+    if (separator == std::string_view::npos) {
+        return std::nullopt;
+    }
+    RemoteUri out;
+    for (const char c : uri.substr(0, separator)) {
+        out.scheme += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (std::ranges::find(kRemoteSchemes, out.scheme) == kRemoteSchemes.end()) {
+        return std::nullopt;
+    }
+    std::string_view rest = uri.substr(separator + 3);
+    rest = rest.substr(0, rest.find_first_of("?#"));
+    const std::size_t slash = rest.find('/');
+    std::string_view authority = rest.substr(0, slash);
+    const std::string_view path =
+        slash == std::string_view::npos ? std::string_view{} : rest.substr(slash);
+    if (const std::size_t at = authority.rfind('@'); at != std::string_view::npos) {
+        out.user = percent_decode(authority.substr(0, at));
+        authority.remove_prefix(at + 1);
+    }
+    std::string_view host = authority;
+    std::string_view port;
+    if (authority.starts_with('[')) {  // an IPv6 literal: [::1]:22
+        const std::size_t close = authority.find(']');
+        if (close == std::string_view::npos) {
+            return std::nullopt;
+        }
+        host = authority.substr(1, close - 1);
+        const std::string_view after = authority.substr(close + 1);
+        if (!after.empty()) {
+            if (after.front() != ':') {
+                return std::nullopt;
+            }
+            port = after.substr(1);
+        }
+    } else if (const std::size_t colon = authority.rfind(':'); colon != std::string_view::npos) {
+        host = authority.substr(0, colon);
+        port = authority.substr(colon + 1);
+    }
+    out.host = percent_decode(host);
+    if (out.host.empty()) {
+        return std::nullopt;
+    }
+    if (!port.empty()) {
+        int number = 0;
+        const auto [end, error] = std::from_chars(port.data(), port.data() + port.size(), number);
+        if (error != std::errc{} || end != port.data() + port.size() || number < 1 ||
+            number > 65535) {
+            return std::nullopt;
+        }
+        out.port = number;
+    }
+    out.path = percent_decode(path);
+    // Filesystem and gvfs byte-string APIs terminate at NUL. Reject it before normalization
+    // can hide a component, or a decoded "..%00" can become a local parent traversal.
+    if (out.user.find('\0') != std::string::npos || out.host.find('\0') != std::string::npos ||
+        out.path.find('\0') != std::string::npos) {
+        return std::nullopt;
+    }
+    out.path = normalize_remote_path(out.path);
+    return out;
+}
+
+std::string remote_label(const RemoteUri& uri) {
+    std::string_view path = uri.path;
+    while (path.size() > 1 && path.back() == '/') {
+        path.remove_suffix(1);
+    }
+    const std::string_view name = path.substr(path.rfind('/') + 1);
+    return name.empty() ? uri.host : std::format("{} on {}", name, uri.host);
+}
+
 std::vector<Place> parse_bookmarks(std::string_view text) {
     std::vector<Place> places;
     for_each_line(text, [&](std::string_view line) {
         line = trim(line);
-        if (!line.starts_with("file://")) {
-            return;
-        }
         const std::size_t space = line.find(' ');
         const std::string_view uri = line.substr(0, space);
+        const std::string_view label =
+            space == std::string_view::npos ? std::string_view{} : trim(line.substr(space + 1));
+        if (!uri.starts_with("file://")) {
+            if (const std::optional<RemoteUri> remote = parse_remote_uri(uri)) {
+                // Not mounted yet: gvfs mounts it when chosen, and gives it a path then.
+                places.push_back(
+                    {.section = Place::Section::bookmarks,
+                     .label = label.empty() ? remote_label(*remote) : std::string{label},
+                     .path = {},
+                     .icon = "server",
+                     .disk = {.volume = {}, .mounted = false, .ejectable = false},
+                     .uri = std::string{uri}});
+            }
+            return;
+        }
         const std::string path = percent_decode(uri.substr(7));
         if (path.empty() || path.front() != '/') {
             return;  // file://host/path: not ours
         }
-        const std::string_view label =
-            space == std::string_view::npos ? std::string_view{} : trim(line.substr(space + 1));
         places.push_back({.section = Place::Section::bookmarks,
                           .label = label.empty() ? label_of(path) : std::string{label},
                           .path = path,
                           .icon = "bookmark",
-                          .disk = {}});
+                          .disk = {},
+                          .uri = {}});
     });
     return places;
 }
@@ -254,6 +401,95 @@ std::optional<std::string> remove_bookmark(std::string_view text,
         const std::string_view line = text.substr(0, std::min(end + 1, text.size()));
         const std::optional<std::filesystem::path> path = bookmark_folder(text.substr(0, end));
         if (path && same_folder(*path, folder)) {
+            removed = true;
+        } else {
+            out += line;
+        }
+        text.remove_prefix(line.size());
+    }
+    if (!removed) {
+        return std::nullopt;
+    }
+    return out;
+}
+
+std::optional<std::string> add_remote_bookmark(std::string_view text, std::string_view uri) {
+    if (!parse_remote_uri(uri)) {
+        return std::nullopt;
+    }
+    bool present = false;
+    for_each_line(text, [&](std::string_view line) {
+        line = trim(line);
+        present = present || line.substr(0, line.find(' ')) == uri;
+    });
+    if (present) {
+        return std::nullopt;
+    }
+    std::string out{text};
+    if (!out.empty() && out.back() != '\n') {
+        out += '\n';
+    }
+    out += uri;
+    out += '\n';
+    return out;
+}
+
+std::optional<Location> parse_location(std::string_view text, const std::filesystem::path& home) {
+    text = trim(text);
+    if (text.empty()) {
+        return std::nullopt;
+    }
+    if (text.starts_with("\\\\")) {  // \\server\share\dir
+        std::string unc;
+        for (const char c : text.substr(2)) {
+            unc += c == '\\' ? '/' : c;
+        }
+        // Encoded: "Reports#2026" is a folder, not a fragment, and "My Files" stays one name
+        // in the bookmarks file.
+        std::string uri = "smb://" + percent_encode_path(unc);
+        if (!parse_remote_uri(uri)) {
+            return std::nullopt;
+        }
+        return Location{.folder = {}, .uri = std::move(uri)};
+    }
+    if (text.starts_with("file://")) {
+        std::string path = percent_decode(text.substr(7));
+        if (path.empty() || path.front() != '/') {
+            return std::nullopt;
+        }
+        return Location{.folder = std::move(path), .uri = {}};
+    }
+    if (text.find("://") != std::string_view::npos) {
+        if (!parse_remote_uri(text)) {
+            return std::nullopt;
+        }
+        // A space typed in a URI is the folder's: the bookmarks file ends the URI at one.
+        std::string uri;
+        for (const char c : text) {
+            uri += c == ' ' ? std::string_view{"%20"} : std::string_view{&c, 1};
+        }
+        return Location{.folder = {}, .uri = std::move(uri)};
+    }
+    if (text == "~") {
+        return Location{.folder = home, .uri = {}};
+    }
+    if (text.starts_with("~/")) {
+        return Location{.folder = home / std::string{text.substr(2)}, .uri = {}};
+    }
+    if (text.starts_with('/')) {
+        return Location{.folder = std::string{text}, .uri = {}};
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> remove_remote_bookmark(std::string_view text, std::string_view uri) {
+    std::string out;
+    bool removed = false;
+    while (!text.empty()) {
+        const std::size_t end = std::min(text.find('\n'), text.size());
+        const std::string_view line = text.substr(0, std::min(end + 1, text.size()));
+        const std::string_view entry = trim(text.substr(0, end));
+        if (!uri.empty() && entry.substr(0, entry.find(' ')) == uri) {
             removed = true;
         } else {
             out += line;

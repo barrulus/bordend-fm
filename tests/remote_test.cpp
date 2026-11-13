@@ -1,0 +1,736 @@
+#include <chrono>
+#include <filesystem>
+#include <functional>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+#include <xkbcommon/xkbcommon-keysyms.h>
+
+#include <doctest/doctest.h>
+
+#include "rummage/core/event_loop.hpp"
+#include "rummage/core/file.hpp"
+#include "rummage/core/worker_pool.hpp"
+#include "rummage/fs/directory_watcher.hpp"
+#include "rummage/fs/mime.hpp"
+#include "rummage/fs/places.hpp"
+#include "rummage/platform/gvfs.hpp"
+#include "rummage/ui/seat.hpp"
+#include "rummage/ui/text_field.hpp"
+#include "rummage/views/browser.hpp"
+#include "rummage/views/location_dialog.hpp"
+#include "rummage/views/password_dialog.hpp"
+#include "temp_dir.hpp"
+
+using rummage::core::EventLoop;
+using rummage::fs::parse_remote_uri;
+using rummage::fs::Place;
+using rummage::fs::RemoteUri;
+using rummage::platform::gvfs_location;
+using rummage::platform::GvfsLocation;
+using rummage::platform::GvfsMount;
+using rummage::platform::GvfsMountSpec;
+using rummage::test::TempDir;
+using rummage::views::Browser;
+using rummage::views::Login;
+using rummage::views::LoginRequest;
+using rummage::views::Remotes;
+using namespace std::chrono_literals;
+namespace fs = std::filesystem;
+
+namespace {
+
+bool run_until(EventLoop& loop, const std::function<bool()>& done) {
+    bool ok = false;
+    const auto poll = loop.add_timer(1ms, 1ms, [&] {
+        if (done()) {
+            ok = true;
+            loop.quit(0);
+        }
+    });
+    const auto watchdog = loop.add_timer(5s, 0ms, [&loop] { loop.quit(1); });
+    loop.run();
+    loop.remove(poll);
+    loop.remove(watchdog);
+    return ok;
+}
+
+rummage::ui::KeyEvent key(xkb_keysym_t keysym, std::string text = {}, bool shift = false) {
+    rummage::ui::KeyEvent event;
+    event.keysym = keysym;
+    event.text = std::move(text);
+    event.modifiers.shift = shift;
+    return event;
+}
+
+void type(rummage::views::PasswordDialog& dialog, std::string_view text) {
+    for (const char c : text) {
+        dialog.key(key(static_cast<xkb_keysym_t>(c), std::string(1, c)));
+    }
+}
+
+void type_into(rummage::views::LocationDialog& dialog, std::string_view text) {
+    for (const char c : text) {
+        dialog.key(key(static_cast<xkb_keysym_t>(c), std::string(1, c)));
+    }
+}
+
+// gvfs_location of a URI that parses.
+GvfsLocation location_of(std::string_view uri) {
+    const std::optional<RemoteUri> remote = parse_remote_uri(uri);
+    REQUIRE(remote);
+    const std::optional<GvfsLocation> location = gvfs_location(remote.value_or(RemoteUri{}));
+    REQUIRE(location);
+    return location.value_or(GvfsLocation{});
+}
+
+GvfsMount share_mount(std::string server, std::string share, fs::path fuse) {
+    return {.dbus_id = ":1.42",
+            .object_path = "/org/gtk/vfs/mount/1",
+            .name = share + " on " + server,
+            .fuse = std::move(fuse),
+            .spec = {.type = "smb-share",
+                     .items = {{"server", std::move(server)}, {"share", std::move(share)}},
+                     .prefix = "/"}};
+}
+
+}  // namespace
+
+TEST_CASE("remote: URIs a bookmark names, decoded, with user, port and IPv6 hosts") {
+    CHECK(parse_remote_uri("smb://fileshare.example/Public") ==
+          RemoteUri{.scheme = "smb",
+                    .user = "",
+                    .host = "fileshare.example",
+                    .port = -1,
+                    .path = "/Public"});
+    CHECK(
+        parse_remote_uri("SMB://WORK;me@nas:4450/My%20Files/") ==
+        RemoteUri{
+            .scheme = "smb", .user = "WORK;me", .host = "nas", .port = 4450, .path = "/My Files/"});
+    CHECK(parse_remote_uri("sftp://me@[fd00::1]:2222") ==
+          RemoteUri{.scheme = "sftp", .user = "me", .host = "fd00::1", .port = 2222, .path = "/"});
+    CHECK(parse_remote_uri("smb://nas/share?query#fragment")->path == "/share");
+    CHECK_FALSE(parse_remote_uri("file:///home/me"));
+    CHECK(parse_remote_uri("davs://me@cloud.example/remote.php/dav") ==
+          RemoteUri{.scheme = "davs",
+                    .user = "me",
+                    .host = "cloud.example",
+                    .port = -1,
+                    .path = "/remote.php/dav"});
+    CHECK_FALSE(parse_remote_uri("afp://host/pub"));  // not one rummage maps to a mount
+    CHECK_FALSE(parse_remote_uri("smb:///share"));    // no host
+    CHECK_FALSE(parse_remote_uri("smb://nas:99999/share"));
+    CHECK_FALSE(parse_remote_uri("smb://nas:port/share"));
+    CHECK_FALSE(parse_remote_uri("smb://[fd00::1/share"));
+    CHECK_FALSE(parse_remote_uri("not a uri"));
+}
+
+TEST_CASE("remote: NUL bytes are rejected before normalization and mount lookup") {
+    for (const std::string_view uri :
+         {"sftp://host/..%00/ignored", "sftp://host/bad%00/../etc", "smb://nas/share%00/dir",
+          "sftp://user%00@host/path", "sftp://host%00/path", "davs://host/team%00/report"}) {
+        CAPTURE(uri);
+        CHECK_FALSE(parse_remote_uri(uri));
+        CHECK_FALSE(rummage::fs::parse_location(uri, "/home/me"));
+        CHECK(rummage::fs::parse_bookmarks(std::string{uri} + "\n").empty());
+    }
+    const std::string raw = std::string{"sftp://host/.."} + '\0' + "/ignored";
+    CHECK_FALSE(parse_remote_uri(raw));
+    // An escaped percent is a literal filename, not a second decoding pass.
+    REQUIRE(parse_remote_uri("sftp://host/%2500"));
+    CHECK(parse_remote_uri("sftp://host/%2500")->path == "/%00");
+
+    // Also protect callers constructing a location directly, bypassing the URI parser.
+    GvfsLocation location = location_of("sftp://host/");
+    location.path = std::string{"/.."} + '\0' + "/ignored";
+    const GvfsMount mount{.dbus_id = ":1.42",
+                          .object_path = "/org/gtk/vfs/mount/1",
+                          .name = "host",
+                          .fuse = "/run/user/1000/gvfs/sftp:host=host",
+                          .spec = location.spec};
+    CHECK(rummage::platform::local_path(mount, location).empty());
+}
+
+TEST_CASE("remote: the label of a remote bookmark without one") {
+    CHECK(rummage::fs::remote_label(*parse_remote_uri("smb://fileshare.example/Public")) ==
+          "Public on fileshare.example");
+    CHECK(rummage::fs::remote_label(*parse_remote_uri("smb://nas/Media/Photos/")) ==
+          "Photos on nas");
+    CHECK(rummage::fs::remote_label(*parse_remote_uri("sftp://me@host")) == "host");
+}
+
+TEST_CASE("remote: bookmarks listed without a path, removed by their URI, the rest kept") {
+    const std::string text =
+        "smb://fileshare.example/Dokumente\n"
+        "file:///tmp/a A\n"
+        "smb://fileshare.example/DMS-Input Scanner\n"
+        "afp://host/pub\n"
+        "sftp://me@host/srv\n";
+    const std::vector<Place> places = rummage::fs::parse_bookmarks(text);
+    REQUIRE(places.size() == 4);
+    CHECK(places[0].label == "Dokumente on fileshare.example");
+    CHECK(places[0].uri == "smb://fileshare.example/Dokumente");
+    CHECK(places[0].icon == "server");
+    CHECK(places[0].path.empty());
+    CHECK_FALSE(places[0].disk.mounted);
+    CHECK(places[1].path == "/tmp/a");
+    CHECK(places[2].label == "Scanner");
+    CHECK(places[3].label == "srv on host");
+
+    CHECK(rummage::fs::remove_remote_bookmark(text, "smb://fileshare.example/DMS-Input") ==
+          std::optional<std::string>{"smb://fileshare.example/Dokumente\n"
+                                     "file:///tmp/a A\n"
+                                     "afp://host/pub\n"
+                                     "sftp://me@host/srv\n"});
+    CHECK_FALSE(rummage::fs::remove_remote_bookmark(text, "smb://fileshare.example/DMS"));
+    CHECK_FALSE(rummage::fs::remove_remote_bookmark(text, ""));
+    // A local folder's removal leaves remote lines alone.
+    CHECK(rummage::fs::remove_bookmark(text, "/tmp/a")
+              .value_or("")
+              .starts_with("smb://fileshare.example/Dokumente\nsmb://"));
+}
+
+TEST_CASE("gvfs: the mount of an smb URI, as gvfs's own mapper makes it") {
+    // A share: server and share case-folded, the rest the path inside.
+    CHECK(location_of("smb://FileShare.Example/Public/Scans/2026/") ==
+          GvfsLocation{.spec = {.type = "smb-share",
+                                .items = {{"server", "fileshare.example"}, {"share", "public"}},
+                                .prefix = "/"},
+                       .path = "/Scans/2026/"});
+    CHECK(location_of("smb://nas/Public").path == "/");
+    // "DOMAIN;user" split; the default port left out, another kept.
+    CHECK(location_of("smb://WORK;me@nas:445/share").spec.items ==
+          std::map<std::string, std::string>{
+              {"server", "nas"}, {"share", "share"}, {"domain", "WORK"}, {"user", "me"}});
+    CHECK(location_of("smb://;me@nas:4450/share").spec.items ==
+          std::map<std::string, std::string>{
+              {"server", "nas"}, {"share", "share"}, {"user", "me"}, {"port", "4450"}});
+    // The server alone lists its shares.
+    CHECK(location_of("smb://nas/").spec ==
+          GvfsMountSpec{.type = "smb-server", .items = {{"server", "nas"}}, .prefix = "/"});
+}
+
+TEST_CASE("gvfs: the mount of an sftp or ftp URI: host case-folded, the default port left out") {
+    CHECK(location_of("sftp://me@Host:2222/srv/www") ==
+          GvfsLocation{.spec = {.type = "sftp",
+                                .items = {{"host", "host"}, {"user", "me"}, {"port", "2222"}},
+                                .prefix = "/"},
+                       .path = "/srv/www"});
+    CHECK(location_of("sftp://host:22").spec.items ==
+          std::map<std::string, std::string>{{"host", "host"}});
+    CHECK(location_of("ftp://anonymous@FTP.example:21/pub") ==
+          GvfsLocation{.spec = {.type = "ftp",
+                                .items = {{"host", "ftp.example"}, {"user", "anonymous"}},
+                                .prefix = "/"},
+                       .path = "/pub"});
+    CHECK(location_of("ftp://ftp.example:2121").spec.items ==
+          std::map<std::string, std::string>{{"host", "ftp.example"}, {"port", "2121"}});
+}
+
+TEST_CASE("gvfs: the mount of a WebDAV URI: one type, ssl for davs, the path kept") {
+    CHECK(
+        location_of("davs://me@cloud.example/remote.php/dav/files/me") ==
+        GvfsLocation{.spec = {.type = "dav",
+                              .items = {{"ssl", "true"}, {"host", "cloud.example"}, {"user", "me"}},
+                              .prefix = "/"},
+                     .path = "/remote.php/dav/files/me"});
+    CHECK(location_of("davs://cloud.example:443/").spec.items ==
+          std::map<std::string, std::string>{{"ssl", "true"}, {"host", "cloud.example"}});
+    CHECK(location_of("dav://nas:8080/share").spec.items ==
+          std::map<std::string, std::string>{{"ssl", "false"}, {"host", "nas"}, {"port", "8080"}});
+
+    // Mounted under a prefix (where the share starts on the server): the folder inside it.
+    const GvfsLocation wanted = location_of("davs://cloud.example/remote.php/dav/files/me/Photos");
+    GvfsMount mount{.dbus_id = ":1.43",
+                    .object_path = "/org/gtk/vfs/mount/2",
+                    .name = "WebDAV on cloud.example",
+                    .fuse = "/run/user/1000/gvfs/dav:host=cloud.example,ssl=true",
+                    .spec = location_of("davs://cloud.example/").spec};
+    mount.spec.prefix = "/remote.php/dav/files/me";
+    const std::vector<GvfsMount> mounts{mount};
+    const GvfsMount* const holding = rummage::platform::mount_holding(mounts, wanted);
+    REQUIRE(holding != nullptr);
+    CHECK(rummage::platform::local_path(*holding, wanted) ==
+          "/run/user/1000/gvfs/dav:host=cloud.example,ssl=true/Photos");
+    CHECK(rummage::platform::mount_holding(mounts, location_of("davs://cloud.example/other")) ==
+          nullptr);
+}
+
+TEST_CASE("remote: dot-dot never climbs above the server's root, and stays in the mount") {
+    CHECK(parse_remote_uri("sftp://host/../../etc")->path == "/etc");
+    CHECK(parse_remote_uri("sftp://host/a/./b/../c/")->path == "/a/c/");
+    CHECK(parse_remote_uri("sftp://host/%2E%2E/%2e%2e/etc")->path == "/etc");
+    CHECK(parse_remote_uri("smb://nas/Public/../Private")->path == "/Private");
+    CHECK(location_of("smb://nas/Public/../Private").spec.items.at("share") == "private");
+
+    const GvfsMount mount{.dbus_id = ":1.43",
+                          .object_path = "/org/gtk/vfs/mount/3",
+                          .name = "host",
+                          .fuse = "/run/user/1000/gvfs/sftp:host=host",
+                          .spec = location_of("sftp://host/").spec};
+    CHECK(rummage::platform::local_path(mount, location_of("sftp://host/../../etc")) ==
+          "/run/user/1000/gvfs/sftp:host=host/etc");
+    // A location made by hand with ".." in it gets no local folder at all.
+    GvfsLocation raw = location_of("sftp://host/");
+    raw.path = "/../../etc";
+    CHECK(rummage::platform::local_path(mount, raw).empty());
+}
+
+TEST_CASE("gvfs: a WebDAV prefix holds only whole folder names") {
+    GvfsMount mount{.dbus_id = ":1.44",
+                    .object_path = "/org/gtk/vfs/mount/4",
+                    .name = "team",
+                    .fuse = "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam",
+                    .spec = location_of("davs://nas/").spec};
+    mount.spec.prefix = "/team";
+    const std::vector<GvfsMount> mounts{mount};
+    CHECK(rummage::platform::mount_holding(mounts, location_of("davs://nas/team-old/report")) ==
+          nullptr);
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team-old/report")).empty());
+    REQUIRE(rummage::platform::mount_holding(mounts, location_of("davs://nas/team/report")) !=
+            nullptr);
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team/report")) ==
+          "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam/report");
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team")) == mount.fuse);
+    mount.spec.prefix = "/team/";  // with a trailing slash, the same
+    CHECK(rummage::platform::local_path(mount, location_of("davs://nas/team/report")) ==
+          "/run/user/1000/gvfs/dav:host=nas,ssl=true,prefix=%2Fteam/report");
+}
+
+TEST_CASE("gvfs: a mount matches when it has every key wanted, and gives the local folder") {
+    const GvfsLocation wanted = location_of("smb://fileshare.example/Public/Scans");
+    GvfsMount mount = share_mount("fileshare.example", "public",
+                                  "/run/user/1000/gvfs/smb-share:server=fileshare.example,"
+                                  "share=public");
+    mount.spec.items.emplace("user", "me");  // who logged in: more keys still match
+    CHECK(rummage::platform::spec_matches(wanted.spec, mount.spec));
+    CHECK_FALSE(rummage::platform::spec_matches(mount.spec, wanted.spec));
+    CHECK_FALSE(rummage::platform::spec_matches(
+        location_of("smb://fileshare.example/Dokumente").spec, mount.spec));
+    CHECK_FALSE(
+        rummage::platform::spec_matches(location_of("sftp://fileshare.example").spec, mount.spec));
+
+    const std::vector<GvfsMount> mounts{share_mount("other", "public", "/x"), mount};
+    const GvfsMount* const holding = rummage::platform::mount_holding(mounts, wanted);
+    REQUIRE(holding != nullptr);
+    CHECK(rummage::platform::local_path(*holding, wanted) ==
+          "/run/user/1000/gvfs/smb-share:server=fileshare.example,share=public/Scans");
+    CHECK(rummage::platform::local_path(*holding, location_of("smb://fileshare.example/public/")) ==
+          "/run/user/1000/gvfs/smb-share:server=fileshare.example,share=public");
+    // Without gvfsd-fuse there is no local folder.
+    mount.fuse.clear();
+    CHECK(rummage::platform::local_path(mount, wanted).empty());
+    CHECK(rummage::platform::mount_holding({}, wanted) == nullptr);
+}
+
+TEST_CASE("gvfs: remote bookmarks get their folder while mounted, and an eject icon") {
+    std::vector<Place> places = rummage::fs::parse_bookmarks(
+        "file:///tmp/a\n"
+        "smb://fileshare.example/Public\n"
+        "smb://fileshare.example/Dokumente/Steuer Steuer\n");
+    const std::vector<GvfsMount> mounts{share_mount("fileshare.example", "dokumente", "/fuse/d")};
+    places = rummage::platform::with_remote_mounts(std::move(places), mounts);
+    REQUIRE(places.size() == 3);
+    CHECK(places[0].path == "/tmp/a");
+    CHECK(places[0].disk.mounted);  // a local one stays as it is
+    CHECK(places[1].path.empty());
+    CHECK_FALSE(places[1].disk.mounted);
+    CHECK_FALSE(places[1].disk.ejectable);
+    CHECK(places[2].path == "/fuse/d/Steuer");
+    CHECK(places[2].disk.mounted);
+    CHECK(places[2].disk.ejectable);
+    // Unmounted elsewhere: back without a path.
+    places = rummage::platform::with_remote_mounts(std::move(places), {});
+    CHECK(places[2].path.empty());
+    CHECK_FALSE(places[2].disk.mounted);
+}
+
+TEST_CASE("text field: a masked one draws dots and does not move by words") {
+    rummage::ui::TextField field{"pass word"};
+    field.set_masked(true);
+    CHECK(field.masked());
+    rummage::ui::KeyEvent left = key(XKB_KEY_Left);
+    left.modifiers.ctrl = true;
+    field.key(left);
+    CHECK(field.caret() == 0);  // to the start, not to "word"
+    rummage::ui::KeyEvent back = key(XKB_KEY_BackSpace);
+    back.modifiers.ctrl = true;
+    field.key(key(XKB_KEY_End));
+    field.key(back);
+    CHECK(field.text().empty());
+}
+
+TEST_CASE("password dialog: the fields asked, Tab between them, Enter answers") {
+    rummage::views::PasswordDialog dialog{[] {}};
+    std::optional<std::optional<Login>> answered;
+    dialog.open("Connect to “Public on nas”",
+                {.message = "Password required for share public on nas",
+                 .user = "",
+                 .domain = "WORKGROUP",
+                 .ask_user = true,
+                 .ask_domain = true,
+                 .ask_password = true,
+                 .anonymous = true,
+                 .saving = true},
+                [&](std::optional<Login> login) { answered = std::move(login); });
+    REQUIRE(dialog.is_open());
+    CHECK(dialog.focused() == "user");  // no name yet: it comes first
+    type(dialog, "me");
+    dialog.key(key(XKB_KEY_Tab));
+    CHECK(dialog.focused() == "domain");
+    dialog.key(key(XKB_KEY_Tab));
+    CHECK(dialog.focused() == "password");
+    dialog.paste("s3cret\nnot this line");
+    dialog.key(key(XKB_KEY_Tab));
+    CHECK(dialog.focused() == "remember");
+    dialog.key(key(XKB_KEY_space));
+    dialog.key(key(XKB_KEY_ISO_Left_Tab, {}, true));
+    CHECK(dialog.focused() == "password");
+    dialog.key(key(XKB_KEY_Return));
+    CHECK_FALSE(dialog.is_open());
+    REQUIRE(answered);
+    REQUIRE(answered->has_value());
+    const Login& login = answered->value();
+    CHECK(login.user == "me");
+    CHECK(login.domain == "WORKGROUP");
+    CHECK(login.password == "s3cret");
+    CHECK(login.remember);
+    CHECK_FALSE(login.anonymous);
+}
+
+TEST_CASE("password dialog: anonymous, Escape and a close without an answer") {
+    rummage::views::PasswordDialog dialog{[] {}};
+    std::optional<std::optional<Login>> answered;
+    const LoginRequest request{.message = "Password required",
+                               .user = "me",
+                               .domain = "",
+                               .ask_user = true,
+                               .ask_domain = false,
+                               .ask_password = true,
+                               .anonymous = true,
+                               .saving = false};
+    const auto answer = [&](std::optional<Login> login) { answered = std::move(login); };
+    dialog.open("Connect", request, answer);
+    CHECK(dialog.focused() == "password");  // the name is there already
+    dialog.key(key(XKB_KEY_ISO_Left_Tab, {}, true));
+    dialog.key(key(XKB_KEY_ISO_Left_Tab, {}, true));
+    CHECK(dialog.focused() == "mode");
+    dialog.key(key(XKB_KEY_Right));
+    CHECK(dialog.anonymous());
+    dialog.key(key(XKB_KEY_Tab));
+    CHECK(dialog.focused() == "mode");  // the fields are gone
+    dialog.key(key(XKB_KEY_KP_Enter));
+    REQUIRE(answered);
+    CHECK(answered->value_or(Login{}).anonymous);
+    CHECK(answered->value_or(Login{}).user.empty());
+
+    answered.reset();
+    dialog.open("Connect", request, answer);
+    CHECK_FALSE(dialog.anonymous());  // each time as a registered user first
+    dialog.key(key(XKB_KEY_Escape));
+    REQUIRE(answered);
+    CHECK_FALSE(answered->has_value());
+
+    answered.reset();
+    dialog.open("Connect", request, answer);
+    dialog.close();
+    CHECK_FALSE(dialog.is_open());
+    CHECK_FALSE(answered);
+}
+
+namespace {
+
+// A browser with a fake gvfs: a share that mounts into a folder of the test.
+struct Fixture {
+    TempDir dir;
+    fs::path share = dir.path / "gvfs" / "smb-share:server=nas,share=public";
+    EventLoop loop;
+    rummage::core::WorkerPool pool{loop, 2};
+    rummage::fs::DirectoryWatcher watcher{loop};
+    Browser browser{loop,    pool,
+                    watcher, rummage::fs::MimeDatabase::load(),
+                    [] {},   [](rummage::ui::CursorShape /*shape*/) {}};
+    std::vector<std::string> calls;
+    bool ask{true};      // the next mount asks for a password
+    std::string answer;  // what the next call answers: empty, "cancelled", another error
+    std::optional<Login> login;
+
+    Fixture() {
+        fs::create_directories(share / "Scans");
+        browser.set_home_trash(dir.path / "Trash");
+        browser.set_remotes({
+            .mount =
+                [this](const std::string& uri, Remotes::Prompts prompts, Remotes::Mounted done) {
+                    calls.push_back("mount " + uri);
+                    const auto finish = [this, done](const std::string& error) {
+                        loop.post([this, done, error] {
+                            done(error.empty() ? share / "Scans" : fs::path{}, error);
+                        });
+                    };
+                    if (!ask) {
+                        finish(answer);
+                        return;
+                    }
+                    loop.post([this, prompts = std::move(prompts), finish] {
+                        prompts.login({.message = "Password required for share public on nas",
+                                       .user = "",
+                                       .domain = "",
+                                       .ask_user = true,
+                                       .ask_domain = false,
+                                       .ask_password = true,
+                                       .anonymous = false,
+                                       .saving = false},
+                                      [this, finish](std::optional<Login> given) {
+                                          login = std::move(given);
+                                          finish(login ? answer : std::string{"cancelled"});
+                                      });
+                    });
+                },
+            .unmount =
+                [this](const std::string& uri, Remotes::Done done) {
+                    calls.push_back("unmount " + uri);
+                    loop.post([this, done = std::move(done)] { done(answer); });
+                },
+        });
+    }
+
+    [[nodiscard]] Place place(bool mounted) const {
+        return {.section = Place::Section::bookmarks,
+                .label = "Scans",
+                .path = mounted ? share / "Scans" : fs::path{},
+                .icon = "server",
+                .disk = {.volume = {}, .mounted = mounted, .ejectable = mounted},
+                .uri = "smb://nas/public/Scans"};
+    }
+
+    bool settle() {
+        return run_until(loop, [this] { return !browser.loading(); });
+    }
+
+    [[nodiscard]] std::string message() { return browser.status_bar().message(); }
+
+    [[nodiscard]] fs::path shown() { return browser.columns().focused_folder()->path(); }
+};
+
+}  // namespace
+
+TEST_CASE("remote: a bookmark not mounted asks for a password on a card, then opens") {
+    Fixture f;
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    f.browser.open_place(f.place(false));
+    REQUIRE(run_until(f.loop, [&f] { return f.browser.mount_password_dialog().is_open(); }));
+    CHECK(f.calls == std::vector<std::string>{"mount smb://nas/public/Scans"});
+    CHECK(f.browser.mount_password_dialog().title() == "Connect to “Scans”");
+    // The card takes the keys meanwhile.
+    for (const char c : std::string_view{"me"}) {
+        CHECK(f.browser.key(key(static_cast<xkb_keysym_t>(c), std::string(1, c)), {}));
+    }
+    f.browser.key(key(XKB_KEY_Tab), {});
+    for (const char c : std::string_view{"pw"}) {
+        f.browser.key(key(static_cast<xkb_keysym_t>(c), std::string(1, c)), {});
+    }
+    f.browser.key(key(XKB_KEY_Return), {});
+    REQUIRE(f.settle());
+    CHECK_FALSE(f.browser.mount_password_dialog().is_open());
+    REQUIRE(f.login);
+    CHECK(f.login->user == "me");
+    CHECK(f.login->password == "pw");
+    CHECK(f.shown() == f.share / "Scans");
+    CHECK(f.message() == "“Scans” mounted");
+}
+
+TEST_CASE("remote: giving up, an error, and unmounting say how it went") {
+    Fixture f;
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    f.browser.open_place(f.place(false));
+    REQUIRE(run_until(f.loop, [&f] { return f.browser.mount_password_dialog().is_open(); }));
+    f.browser.key(key(XKB_KEY_Escape), {});
+    REQUIRE(f.settle());
+    CHECK(f.message() == "Not connected to “Scans”");
+    CHECK(f.shown() == f.dir.path);
+
+    f.ask = false;
+    f.answer = "Anonymous access denied";
+    f.browser.mount_remote(f.place(false), true);
+    REQUIRE(f.settle());
+    CHECK(f.message() == "“Scans” could not be mounted: Anonymous access denied");
+
+    // Unmounting leaves the folder first; the eject icon does the same.
+    f.answer.clear();
+    f.browser.open(f.share / "Scans");
+    REQUIRE(f.settle());
+    f.calls.clear();
+    f.browser.eject_place(f.place(true));
+    REQUIRE(f.settle());
+    CHECK(f.calls == std::vector<std::string>{"unmount smb://nas/public/Scans"});
+    CHECK(f.shown() != f.share / "Scans");
+    CHECK(f.message() == "“Scans” unmounted");
+    f.answer = "in use";
+    f.browser.unmount_remote(f.place(true));
+    REQUIRE(f.settle());
+    CHECK(f.message() == "“Scans” is in use: close the files open from it");
+
+    // A mounted one opens as any other place.
+    f.calls.clear();
+    f.browser.open_place(f.place(true));
+    REQUIRE(f.settle());
+    CHECK(f.calls.empty());
+    CHECK(f.shown() == f.share / "Scans");
+}
+
+TEST_CASE("remote: without gvfs a remote bookmark says so") {
+    TempDir dir;
+    EventLoop loop;
+    rummage::core::WorkerPool pool{loop, 2};
+    rummage::fs::DirectoryWatcher watcher{loop};
+    Browser browser{loop,    pool,
+                    watcher, rummage::fs::MimeDatabase::load(),
+                    [] {},   [](rummage::ui::CursorShape /*shape*/) {}};
+    browser.set_home_trash(dir.path / "Trash");
+    browser.open(dir.path);
+    REQUIRE(run_until(loop, [&] { return !browser.loading(); }));
+    browser.open_place({.section = Place::Section::bookmarks,
+                        .label = "Public on nas",
+                        .path = {},
+                        .icon = "server",
+                        .disk = {.volume = {}, .mounted = false, .ejectable = false},
+                        .uri = "smb://nas/Public"});
+    CHECK(browser.status_bar().message() ==
+          "“Public on nas” could not be mounted: gvfs is not available");
+    CHECK(browser.columns().focused_folder()->path() == dir.path);
+}
+
+TEST_CASE("gvfs: the real session bus answers without starting gvfsd (reads only)") {
+    EventLoop loop;
+    rummage::platform::Gvfs gvfs{loop, [] {}};
+    if (!gvfs.available()) {
+        MESSAGE("no session bus: skipped");
+        return;
+    }
+    // The first answers come back through the loop; most of the time nothing is mounted.
+    const auto stop = loop.add_timer(300ms, 0ms, [&loop] { loop.quit(0); });
+    loop.run();
+    loop.remove(stop);
+    for (const GvfsMount& mount : gvfs.mounts()) {
+        CHECK_FALSE(mount.spec.type.empty());
+        MESSAGE(mount.name << " (" << mount.spec.type << ") at " << mount.fuse.string());
+    }
+}
+
+TEST_CASE("location: paths, home, file URIs, servers and Windows shares") {
+    using rummage::fs::Location;
+    using rummage::fs::parse_location;
+    const fs::path home{"/home/me"};
+    CHECK(parse_location("  /data/fotos ", home) == Location{.folder = "/data/fotos", .uri = {}});
+    CHECK(parse_location("~", home) == Location{.folder = "/home/me", .uri = {}});
+    CHECK(parse_location("~/Bilder", home) == Location{.folder = "/home/me/Bilder", .uri = {}});
+    CHECK(parse_location("file:///tmp/with%20space", home) ==
+          Location{.folder = "/tmp/with space", .uri = {}});
+    CHECK(parse_location("smb://fileshare.example/Public", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare.example/Public"});
+    CHECK(parse_location("sftp://me@host/srv", home) ==
+          Location{.folder = {}, .uri = "sftp://me@host/srv"});
+    CHECK(parse_location("\\\\fileshare\\Dokumente\\Steuer", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/Dokumente/Steuer"});
+    // Windows shares percent-encoded: "#", "%" and spaces stay part of the folder's name.
+    CHECK(parse_location("\\\\fileshare\\Reports#2026", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/Reports%232026"});
+    CHECK(parse_location("\\\\fileshare\\100%20done", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/100%2520done"});
+    CHECK(parse_location("\\\\fileshare\\My Files", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/My%20Files"});
+    CHECK(parse_location("smb://fileshare/My Files", home) ==
+          Location{.folder = {}, .uri = "smb://fileshare/My%20Files"});
+    CHECK(parse_remote_uri("smb://fileshare/Reports%232026")->path == "/Reports#2026");
+    CHECK(parse_remote_uri("smb://fileshare/100%2520done")->path == "/100%20done");
+    CHECK_FALSE(parse_location("", home));
+    CHECK_FALSE(parse_location("fileshare/Public", home));  // no way to tell what it is
+    CHECK(parse_location("ftp://host/pub", home) ==
+          Location{.folder = {}, .uri = "ftp://host/pub"});
+    CHECK(parse_location("davs://host/remote.php/dav", home) ==
+          Location{.folder = {}, .uri = "davs://host/remote.php/dav"});
+    CHECK_FALSE(parse_location("gopher://host/pub", home));
+    CHECK_FALSE(parse_location("file://host/path", home));
+    CHECK_FALSE(parse_location("\\\\", home));
+}
+
+TEST_CASE("remote: a server added to the bookmarks once, the rest kept") {
+    const std::string text = "file:///tmp/a A";  // no newline at the end
+    CHECK(rummage::fs::add_remote_bookmark(text, "smb://nas/Public") ==
+          std::optional<std::string>{"file:///tmp/a A\nsmb://nas/Public\n"});
+    CHECK_FALSE(rummage::fs::add_remote_bookmark("smb://nas/Public Daten\n", "smb://nas/Public"));
+    CHECK_FALSE(rummage::fs::add_remote_bookmark(text, "/tmp/b"));  // only servers
+}
+
+TEST_CASE("location dialog: Enter goes, a wrong address stays with what is wrong") {
+    rummage::views::LocationDialog dialog{[] {}};
+    std::vector<std::pair<std::string, bool>> asked;
+    dialog.open("/home/me", [&](const std::string& text, bool add) {
+        asked.emplace_back(text, add);
+        return text.starts_with("smb://") ? std::string{} : std::string{"wrong"};
+    });
+    REQUIRE(dialog.is_open());
+    CHECK(dialog.add());
+    type_into(dialog, "nas/x");  // replaces the folder, all selected
+    CHECK(dialog.text() == "nas/x");
+    dialog.key(key(XKB_KEY_Return));
+    CHECK(dialog.is_open());
+    CHECK(dialog.error() == "wrong");
+    // Tab to "Add to the sidebar", Space unticks it, Tab back.
+    dialog.key(key(XKB_KEY_Tab));
+    dialog.key(key(XKB_KEY_space));
+    CHECK_FALSE(dialog.add());
+    dialog.key(key(XKB_KEY_Tab));
+    dialog.key(key(XKB_KEY_Home));
+    type_into(dialog, "smb://");
+    CHECK(dialog.error().empty());  // typing again clears it
+    dialog.paste("\nnot this");
+    dialog.key(key(XKB_KEY_KP_Enter));
+    CHECK_FALSE(dialog.is_open());
+    REQUIRE(asked.size() == 2);
+    CHECK(asked[1] == std::pair<std::string, bool>{"smb://nas/x", false});
+
+    dialog.open("/", [](const std::string& /*text*/, bool /*add*/) { return std::string{}; });
+    dialog.key(key(XKB_KEY_Escape));
+    CHECK_FALSE(dialog.is_open());
+}
+
+TEST_CASE("remote: Ctrl+L goes to a folder, or adds a server to the sidebar and mounts it") {
+    Fixture f;
+    f.ask = false;
+    const fs::path bookmarks = f.dir.path / "bookmarks";
+    f.browser.set_bookmarks_file(bookmarks);
+    f.browser.open(f.dir.path);
+    REQUIRE(f.settle());
+    rummage::ui::KeyEvent ctrl_l = key(XKB_KEY_l, "l");
+    ctrl_l.modifiers.ctrl = true;
+    f.browser.key(ctrl_l, {});
+    REQUIRE(f.browser.location_dialog().is_open());
+    CHECK(f.browser.location_dialog().text() == f.dir.path.string());
+
+    CHECK(f.browser.go_to("relative/path", true) ==
+          "Not a folder or a server: start with /, ~, smb:// or sftp://");
+    CHECK(f.browser.go_to((f.dir.path / "nothing").string(), true).starts_with("There is no"));
+    CHECK(f.browser.go_to(f.share.string(), true).empty());
+    REQUIRE(f.settle());
+    CHECK(f.shown() == f.share);
+
+    f.browser.location_dialog().close();
+    CHECK(f.browser.go_to("smb://nas/public/Scans", true).empty());
+    REQUIRE(f.settle());
+    CHECK(f.calls == std::vector<std::string>{"mount smb://nas/public/Scans"});
+    CHECK(f.shown() == f.share / "Scans");
+    CHECK(rummage::core::read_text_file(bookmarks).text == "smb://nas/public/Scans\n");
+    // Again: mounted, not added twice.
+    CHECK(f.browser.go_to("smb://nas/public/Scans", true).empty());
+    REQUIRE(f.settle());
+    CHECK(rummage::core::read_text_file(bookmarks).text == "smb://nas/public/Scans\n");
+    // Without adding.
+    CHECK(f.browser.go_to("\\\\nas\\public\\Other", false).empty());
+    REQUIRE(f.settle());
+    CHECK(f.calls.back() == "mount smb://nas/public/Other");
+    CHECK(rummage::core::read_text_file(bookmarks).text == "smb://nas/public/Scans\n");
+}

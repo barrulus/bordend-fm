@@ -374,6 +374,7 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::same_other_pane, "same_other_pane"},
         {Command::copy_other_pane, "copy_other_pane"},
         {Command::move_other_pane, "move_other_pane"},
+        {Command::go_to, "go_to"},
     };
     for (const rummage::views::Shortcut& shortcut : rummage::views::shortcuts()) {
         if (not_in_palette.contains(shortcut.command)) {
