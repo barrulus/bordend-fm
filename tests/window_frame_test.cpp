@@ -155,7 +155,8 @@ TEST_CASE("window frame: translucent content does not reveal the outline or shad
                     CHECK(pixel[0] == 0);
                     CHECK(pixel[1] == pixel[3]);
                     CHECK(pixel[2] == 0);
-                    CHECK(pixel[3] == doctest::Approx(opacity * 255).epsilon(0.005));
+                    CHECK(pixel[3] ==
+                          doctest::Approx(static_cast<double>(opacity) * 255).epsilon(0.005));
                 }
                 CHECK(
                     pixels.at(m + static_cast<int>(22 * scale), m + static_cast<int>(14 * scale)) ==

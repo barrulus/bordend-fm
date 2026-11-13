@@ -345,9 +345,9 @@ TEST_CASE("header: opacity preserves the header palette and sidebar background")
             CHECK(sidebar[0] == 0);
             CHECK(sidebar[1] == sidebar[3]);
             CHECK(sidebar[2] == 0);
-            CHECK(sidebar[3] == doctest::Approx(opacity * 255).epsilon(0.005));
+            CHECK(sidebar[3] == doctest::Approx(static_cast<double>(opacity) * 255).epsilon(0.005));
         }
-        CHECK(header[3] == doctest::Approx(opacity * 255).epsilon(0.005));
+        CHECK(header[3] == doctest::Approx(static_cast<double>(opacity) * 255).epsilon(0.005));
         CHECK(glGetError() == GL_NO_ERROR);
     }
 }

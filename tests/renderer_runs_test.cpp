@@ -112,7 +112,8 @@ TEST_CASE("renderer: background alpha does not accumulate or fade foreground con
             const auto green = pixel(60);
             const auto clear = pixel(230);
             for (const auto rgba : {blue, green, clear}) {
-                CHECK(static_cast<float>(rgba[3]) == doctest::Approx(opacity * 255).epsilon(0.005));
+                CHECK(static_cast<float>(rgba[3]) ==
+                      doctest::Approx(static_cast<double>(opacity) * 255).epsilon(0.005));
             }
             CHECK(blue[0] == 0);
             CHECK(blue[1] == 0);

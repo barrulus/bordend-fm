@@ -160,13 +160,7 @@ private:
 
 void read_document(const toml::table& root, Reader& reader, Config& config) {
     for (const auto& [key, node] : root) {
-        if (key.str() == "appearance") {
-            reader.read_section(
-                node, "appearance",
-                {{"background_opacity", [&](const toml::node& value, const std::string& path) {
-                      reader.read_opacity(value, path, config.appearance.background_opacity);
-                  }}});
-        } else if (key.str() == "font") {
+        if (key.str() == "font") {
             reader.read_section(
                 node, "font",
                 {{"family",
@@ -189,7 +183,8 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
         } else if (key.str() == "window") {
             reader.read_section(
                 node, "window",
-                {{"title_bar", [&](const toml::node& value, const std::string& path) {
+                {{"title_bar",
+                  [&](const toml::node& value, const std::string& path) {
                       std::string choice{"integrated"};  // also what a wrong type keeps
                       reader.read_string(value, path, choice);
                       if (choice == "integrated") {
@@ -202,6 +197,9 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
                                                     "\"compositor\"; using \"integrated\"",
                                                     path));
                       }
+                  }},
+                 {"background_opacity", [&](const toml::node& value, const std::string& path) {
+                      reader.read_opacity(value, path, config.window.background_opacity);
                   }}});
         } else if (key.str() == "icon") {
             reader.read_section(

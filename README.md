@@ -217,17 +217,6 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
 
-For a transparent background with solid text, icons and thumbnails, add to Nordend's config:
-
-```toml
-[appearance]
-background_opacity = 0.70
-```
-
-Transparency is disabled by default (`background_opacity = 1.0`). This reloads live; `1.0` is fully opaque and `0.0` fully transparent. Keep the compositor's
-**window opacity at `1.0`** (or remove its opacity rule), since that fades the entire window.
-Compositor blur can remain enabled; Nordend supplies transparency but does not apply blur itself.
-
 ## Versions
 
 Nordend stays at 0.x while it is young. A new **minor** version (0.2.0, 0.3.0…) brings features

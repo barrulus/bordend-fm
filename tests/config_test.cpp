@@ -24,7 +24,7 @@ ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml
 
 void check_defaults(const Config& config) {
     const Config defaults;
-    CHECK(config.appearance.background_opacity == defaults.appearance.background_opacity);
+    CHECK(config.window.background_opacity == defaults.window.background_opacity);
     CHECK(config.font.family == defaults.font.family);
     CHECK(config.font.monospace == defaults.font.monospace);
     CHECK(config.pointer.double_click_ms == defaults.pointer.double_click_ms);
@@ -238,14 +238,16 @@ TEST_CASE("default_config_path follows XDG_CONFIG_HOME, then HOME") {
 
 TEST_CASE("background opacity accepts finite numbers from zero to one") {
     for (const std::string value : {"0", "1", "0.7", "1.0", "0.0"}) {
-        const auto result = parse("[appearance]\nbackground_opacity = " + value);
+        const auto result = parse("[window]\nbackground_opacity = " + value);
         CHECK(result.problems.empty());
-        CHECK(result.config.appearance.background_opacity == doctest::Approx(std::stof(value)));
+        CHECK(result.config.window.background_opacity == doctest::Approx(std::stod(value)));
     }
     for (const std::string value : {"-0.1", "1.1", "nan", "inf", "-inf", "true", "\"0.7\""}) {
-        const auto result = parse("[appearance]\nbackground_opacity = " + value);
+        const auto result = parse("[window]\nbackground_opacity = " + value);
         CAPTURE(value);
-        CHECK(result.problems.size() == 1);
-        CHECK(result.config.appearance.background_opacity == 1.0F);
+        REQUIRE(result.problems.size() == 1);
+        CHECK(contains(result.problems[0],
+                       "'window.background_opacity' must be a number between 0 and 1"));
+        CHECK(result.config.window.background_opacity == 1.0F);
     }
 }
