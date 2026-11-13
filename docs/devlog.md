@@ -4,6 +4,62 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — Colours from the user's theme, by themselves (ROADMAP 3½)
+
+**Tested by the author** (2026-11-13, installed build, the `nordend` user template taken out of
+his Noctalia config and his old `colors.toml` moved aside): "funziona tutto, cambia colore insieme
+al tema"; the sidebar follows too, no `colors.toml` written again. With `NORDEND_FORCE_CSD=1`
+Umbriel leaves the decoration to Nordend (its own bar, no minimize: Umbriel offers none), so an
+integrated header is possible there (next).
+
+**Decision** (with the author, in place of the `nordend` template and a pull request to
+Noctalia's community templates): Nordend follows the user's theme with nothing to set up, as GTK
+apps do. Thunar and Strata (GTK4) follow Noctalia only because GTK loads the user's `gtk.css`,
+where Noctalia's GTK theming writes its colours; Nordend now reads the same file. No code knows a
+desktop by name: Noctalia, Stylix, matugen and a hand-written `gtk.css` all work. The template
+(`data/noctalia/nordend`, installed in `share/nordend/noctalia/`) and the README's "On Noctalia"
+are gone; `colors.toml` stays as the override for exact colours (in `config.example.toml`).
+
+**Done**
+- `theme/gtk.{hpp,cpp}`: `parse_gtk_css` (the `@define-color` and `@import` statements, rules,
+  blocks, comments and strings skipped), `parse_gtk_color` (`#rgb`, `#rgba`, `#rrggbb`,
+  `#rrggbbaa`, `rgb()`/`rgba()` in numbers or percentages, `transparent`, `white`, `black`,
+  `@references`; computed values such as `shade()` and `alpha()` left out), `load_gtk_colors`
+  (`$XDG_CONFIG_HOME/gtk-4.0/gtk.css`, else `gtk-3.0/gtk.css`, the first that defines a colour;
+  imports in order, relative to their file, a later definition winning, references looked up
+  at the end; bounded: 1 MiB a file, 32 files, 8 levels of imports, 16 of references, cycles
+  ended), `gtk_palette` (below).
+- The mapping: the view's background (else the window's) is the surface; the sidebar's (else the
+  header bar's) the sidebar, tabs and title bar; the card's the info pane and Quick Look; the
+  popover's (else the dialog's) the menus and dialogs; the view's text (else the window's) the
+  text, with the secondary text and outlines mixed toward the background but kept readable
+  (4.5 and 3 to 1); the accent and its text; the error colour and its text. Translucent colours
+  (Adwaita's dark card) are drawn over the window. Dark or light from the background's
+  lightness. The levels GTK does not name come from the desktop palette, moved by as much as the
+  real background is from the derived one, in its hue. An accent alone still gives a palette
+  (light or dark from the portal); a background without its text gives none.
+- `Theme`: colors.toml, then GTK's colours, then the portal's look, then the default palette;
+  `reload_gtk()` on any change of `gtk.css` or a file it imports (Noctalia rewrites
+  `noctalia.css` by a rename), the watchers rebuilt when the imports change. `FileWatcher` got
+  `Directory::existing`: GTK's folders are watched only when they exist, never created.
+- `nordend-snapshot --gtk FILE` draws with a `gtk.css`'s colours.
+- Tests (`tests/gtk_colors_test.cpp`, 9 cases, and one in `file_watcher_test.cpp`): parsing,
+  values, imports and their order, gtk-4.0 before gtk-3.0, cycles, Noctalia's and Adwaita's
+  colours on their roles with contrast checks, an accent alone, the order of the sources, a
+  live change through a rename of an imported file.
+
+**Measured**: reading the author's GTK colours (gtk.css, noctalia.css, noctalia-extensions.css:
+37 colours) 68 µs and making the palette 9 µs (2 000 runs each, Release). The first version took
+1.5 ms: each file was read into a 1 MiB buffer whatever its size (mine; now its own size).
+Snapshots: the author's colours from GTK look like his colors.toml (the same greys, accent and
+sidebar), Adwaita's light colours like GNOME Files.
+
+**Corrected**: the 2026-11-10 note that a `colors.toml` written after start into a new
+`~/.config/nordend` was seen only at the next start was wrong: the watcher has created that
+folder since the first commit (`eda590a`), checked under a headless weston today.
+
+---
+
 ## 2026-11-13 — Nordend 0.5.1
 
 A patch release of what `main` gained since 0.5.0, before the file chooser: grid thumbnails up

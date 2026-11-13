@@ -33,6 +33,8 @@
 // "hover-maximize", "press-close" for the pointer over a button.
 // --desktop draws with the palette made from a desktop's look, as without colors.toml under GNOME
 // or Plasma: LOOK is "dark" or "light", with an accent after a comma: "dark,#3584e4".
+// --gtk draws with the palette made from a gtk.css's colours (and what it imports), as Nordend
+// reads the user's; read only.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -74,6 +76,7 @@
 #include "nordend/platform/opener.hpp"
 #include "nordend/preview/preview.hpp"
 #include "nordend/theme/desktop.hpp"
+#include "nordend/theme/gtk.hpp"
 #include "nordend/theme/palette.hpp"
 #include "nordend/thumbs/cache.hpp"
 #include "nordend/ui/clipboard.hpp"
@@ -238,6 +241,7 @@ int main(int argc, char** argv) {
     std::vector<float> band;  // x1, y1, x2, y2
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
+    std::optional<std::string> gtk_css;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -309,6 +313,8 @@ int main(int argc, char** argv) {
             csd = args[2];
         } else if (option == "--desktop") {
             desktop = args[2];
+        } else if (option == "--gtk") {
+            gtk_css = args[2];
         } else if (option == "--walk") {
             walk_frames = std::stoi(args[2]);
         } else if (option == "--bench") {
@@ -324,7 +330,7 @@ int main(int argc, char** argv) {
             "CACHE] [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--band X1,Y1,X2,Y2] [--fake-disks] [--memory [--trim] "
-            "[--default-malloc]]] [--csd STATE] [--desktop LOOK] "
+            "[--default-malloc]]] [--csd STATE] [--desktop LOOK] [--gtk FILE] "
             "<out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
@@ -353,6 +359,15 @@ int main(int argc, char** argv) {
                     std::stoul(hex.substr(hex.starts_with('#') ? 1 : 0), nullptr, 16)));
             }
             palette.palette = nordend::theme::desktop_palette(wanted);
+        }
+        if (gtk_css) {
+            const std::optional<nordend::theme::Palette> made = nordend::theme::gtk_palette(
+                nordend::theme::load_gtk_colors({std::filesystem::path{*gtk_css}}), true);
+            if (!made) {
+                log::error("{}: no usable GTK colours", *gtk_css);
+                return 1;
+            }
+            palette.palette = *made;
         }
         for (const std::string& problem : palette.problems) {
             log::warn("{}", problem);

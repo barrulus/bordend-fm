@@ -3,6 +3,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <system_error>
 
 #include <doctest/doctest.h>
 
@@ -72,4 +73,13 @@ TEST_CASE("file watcher creates a missing directory") {
     std::ofstream{file} << "x";
     run_for(loop, 150ms);
     CHECK(calls == 1);
+}
+
+TEST_CASE("file watcher: another program's directory is never created") {
+    const TempDir dir;
+    const std::filesystem::path file = dir.path / "gtk-4.0" / "gtk.css";
+    EventLoop loop;
+    CHECK_THROWS_AS(
+        FileWatcher(loop, file, [] {}, 20ms, FileWatcher::Directory::existing), std::system_error);
+    CHECK_FALSE(std::filesystem::exists(file.parent_path()));
 }

@@ -240,5 +240,3 @@ install(TARGETS nordend-preview RUNTIME DESTINATION libexec/nordend)
 install(FILES data/nordend.desktop DESTINATION share/applications)
 # Its icon, named after the app id (the desktop entry's Icon=nordend).
 install(FILES data/nordend.svg DESTINATION share/icons/hicolor/scalable/apps)
-# The Noctalia template that writes ~/.config/nordend/colors.toml (README, "On Noctalia").
-install(FILES data/noctalia/nordend DESTINATION share/nordend/noctalia)

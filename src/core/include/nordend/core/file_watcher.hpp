@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -11,7 +12,8 @@ namespace nordend::core {
 
 // Calls a handler on the loop thread when one file changes: written and closed, replaced by a
 // rename, or removed. It watches the parent directory through inotify, so the file may not exist
-// yet and atomic replacements are seen; the directory is created when missing. Events are
+// yet and atomic replacements are seen; the directory is created when missing (unless told not
+// to: another program's folder, such as GTK's, is never made by Nordend). Events are
 // coalesced: the handler runs once, settle after the last one, so a writer that saves in several
 // steps is read only when it is done.
 //
@@ -22,8 +24,14 @@ public:
 
     static constexpr std::chrono::milliseconds kDefaultSettle{50};
 
+    enum class Directory : std::uint8_t {
+        create,    // made when missing
+        existing,  // must exist: std::system_error otherwise
+    };
+
     FileWatcher(EventLoop& loop, const std::filesystem::path& file, Handler handler,
-                std::chrono::milliseconds settle = kDefaultSettle);
+                std::chrono::milliseconds settle = kDefaultSettle,
+                Directory directory = Directory::create);
     ~FileWatcher();
 
     FileWatcher(const FileWatcher&) = delete;

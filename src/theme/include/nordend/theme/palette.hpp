@@ -7,16 +7,17 @@
 
 #include "nordend/ui/color.hpp"
 
-// The color palette, in Noctalia's (Material) role names. Noctalia renders it to
-// ~/.config/nordend/colors.toml through the nordend template:
+// The color palette, in Noctalia's (Material) role names. Made from the user's GTK colours or the
+// desktop's look (theme.hpp), or read whole from ~/.config/nordend/colors.toml, the override for
+// exact colours:
 //
 //   mode = "dark"
 //   [colors]
 //   primary = "#fff59b"
 //   ...
 //
-// The template writes every token Noctalia has; Nordend reads the roles below and ignores the
-// rest, so the template does not change when Nordend starts using another role.
+// Nordend reads the roles below and ignores other keys, so a file written by a Noctalia template
+// with every token it has still works.
 namespace nordend::theme {
 
 using ui::Color;

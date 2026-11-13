@@ -369,7 +369,7 @@ int main(int argc, char** argv) {
         startup.mark("fonts");
         theme::Theme theme{theme::default_colors_path()};
         theme.watch(loop);
-        // Without colors.toml, the desktop's light/dark and accent (ROADMAP 7.4).
+        // Without colors.toml or GTK's colours, the desktop's light/dark and accent (ROADMAP 7.4).
         std::unique_ptr<platform::DesktopPortal> portal;
         const auto follow_desktop = [&] {
             if (!portal->available()) {

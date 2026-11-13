@@ -18,6 +18,7 @@ add_executable(nordend-tests
     dng_test.cpp
     event_loop_test.cpp
     file_watcher_test.cpp
+    gtk_colors_test.cpp
     format_test.cpp
     icon_test.cpp
     helpers_test.cpp

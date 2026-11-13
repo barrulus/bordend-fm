@@ -1,6 +1,7 @@
 add_library(nordend_theme
     src/app_icon.cpp
     src/desktop.cpp
+    src/gtk.cpp
     src/oklch.cpp
     src/palette.cpp
     src/syntax.cpp

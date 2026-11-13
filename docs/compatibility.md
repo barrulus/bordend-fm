@@ -13,7 +13,8 @@ in by the author's tests; "expected" is what the protocols each compositor offer
 | Sharp fractional scaling | `fractional-scale-v1` + `viewporter` | renders at scale 1 |
 | Copy and paste, drag and drop with other apps | `wl_data_device_manager` | inside Nordend only |
 | Focus for the apps it opens | `xdg-activation-v1` | they may open without focus |
-| The desktop's colours, without `colors.toml` | the freedesktop portal, `org.freedesktop.appearance` (`color-scheme`, `accent-color`) | Nordend's own default palette |
+| The theme's colours | GTK's named colours in `~/.config/gtk-4.0/gtk.css` or `gtk-3.0/gtk.css` (any desktop; Noctalia writes them with its GTK theming on) | the portal below |
+| The desktop's colours, without GTK's | the freedesktop portal, `org.freedesktop.appearance` (`color-scheme`, `accent-color`) | Nordend's own default palette |
 
 Icons need nothing: the Tabler subset is compiled into the program.
 
@@ -68,8 +69,9 @@ Plasma: 6.7.5 (KWin 6.7.5) in the same VM, tested by the author on 2026-10-31. T
 the task bar show the generic Wayland icon: no desktop entry matches the app id `nordend` yet
 (to add with the 0.1.0 package, 7.8).
 
-Desktop colours (without `colors.toml`): light/dark and the accent followed live on GNOME and
-Plasma, tested by the author on 2026-10-31; Umbriel keeps Noctalia's colours.
+Desktop colours (without GTK colours): light/dark and the accent followed live on GNOME and
+Plasma, tested by the author on 2026-10-31. GTK colours: Noctalia's (its `gtk4` template) and
+Adwaita's light colours checked in snapshots on 2026-11-13.
 
 niri: 26.04, nested in Umbriel on the host (in the VM niri needs virgl, BUG-017 of
 void-noctalia), minimal config without `prefer-no-csd`, tested by the author on 2026-10-31.

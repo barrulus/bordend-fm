@@ -4,26 +4,29 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <vector>
 
 #include "nordend/core/event_loop.hpp"
 #include "nordend/core/file_watcher.hpp"
 #include "nordend/theme/desktop.hpp"
+#include "nordend/theme/gtk.hpp"
 #include "nordend/theme/palette.hpp"
 
 namespace nordend::theme {
 
-// The current palette: loaded from colors.toml, reloaded when the file changes (Noctalia rewrites
-// it on every theme change). A missing file means the default palette; a file that does not parse
-// keeps the palette in use, so a half-written or hand-broken file never flashes the default
-// colors. Problems are logged. Without the file, the desktop's look (set_desktop) when known,
-// otherwise the default palette.
+// The current palette, from the first of: colors.toml (an override with every role; a file that
+// does not parse keeps the palette in use, so a half-written or hand-broken file never flashes
+// other colours), the user's GTK colours (gtk.css, as GTK apps follow them), the desktop's look
+// (set_desktop: light or dark, accent), the default palette. Each source is followed live.
+// Problems are logged.
 class Theme {
 public:
     using ChangeHandler = std::function<void()>;
 
-    explicit Theme(std::filesystem::path path);
+    explicit Theme(std::filesystem::path path,
+                   std::vector<std::filesystem::path> gtk_css = default_gtk_css_paths());
 
-    // Starts following the file. The theme must not outlive the loop.
+    // Starts following the files. The theme must not outlive the loop.
     void watch(core::EventLoop& loop);
 
     // What the desktop says about its look; nullopt when it says nothing (no portal). Used while
@@ -42,17 +45,27 @@ public:
     // Reads the file again; public so the reload rules can be tested without inotify.
     void reload();
 
+    // Reads the GTK colours again; public for the same reason.
+    void reload_gtk();
+
 private:
     // The palette when colors.toml is missing.
     [[nodiscard]] Palette fallback() const;
+    [[nodiscard]] std::optional<Palette> from_gtk() const;
     void changed();
+    // Follows every stylesheet the GTK colours came from, and the gtk.css that could appear.
+    void watch_gtk();
 
     std::filesystem::path path_;
+    std::vector<std::filesystem::path> gtk_css_;
     bool from_file_{false};
+    GtkColors gtk_;
     std::optional<Desktop> desktop_;
     Palette palette_;
     ChangeHandler change_handler_;
+    core::EventLoop* loop_{nullptr};
     std::unique_ptr<core::FileWatcher> watcher_;
+    std::vector<std::unique_ptr<core::FileWatcher>> gtk_watchers_;
 };
 
 }  // namespace nordend::theme

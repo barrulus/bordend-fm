@@ -25,7 +25,7 @@ constexpr std::uint32_t kEvents =
 }  // namespace
 
 FileWatcher::FileWatcher(EventLoop& loop, const std::filesystem::path& file, Handler handler,
-                         std::chrono::milliseconds settle)
+                         std::chrono::milliseconds settle, Directory directory)
     : loop_{loop},
       name_{file.filename().string()},
       handler_{std::move(handler)},
@@ -34,14 +34,16 @@ FileWatcher::FileWatcher(EventLoop& loop, const std::filesystem::path& file, Han
     if (fd_ < 0) {
         throw std::system_error{errno, std::generic_category(), "inotify_init1"};
     }
-    const std::filesystem::path directory = file.parent_path();
-    std::error_code error;
-    std::filesystem::create_directories(directory, error);
-    if (inotify_add_watch(fd_, directory.c_str(), kEvents) < 0) {
+    const std::filesystem::path folder = file.parent_path();
+    if (directory == Directory::create) {
+        std::error_code error;
+        std::filesystem::create_directories(folder, error);
+    }
+    if (inotify_add_watch(fd_, folder.c_str(), kEvents) < 0) {
         const int saved = errno;
         close(fd_);
         throw std::system_error{saved, std::generic_category(),
-                                "inotify_add_watch " + directory.string()};
+                                "inotify_add_watch " + folder.string()};
     }
     source_ = loop_.add_fd(fd_, POLLIN, [this](short /*revents*/) { on_readable(); });
 }

@@ -10,8 +10,8 @@ README's [What's next](../README.md#whats-next).
 - A file manager written from scratch in C++20 for Wayland: its own OpenGL ES renderer for
   boxes, text, icons and images. **No GTK, no Qt, no GLib.**
 - Its own project, at home on any Wayland desktop. On Noctalia (Noctalia Shell, the Umbriel
-  compositor) it wears the Noctalia theme and the same line icons, and Umbriel draws its title
-  bar; elsewhere (GNOME, weston) Nordend draws its own.
+  compositor) it follows the Noctalia theme by itself and has the same line icons, and Umbriel
+  draws its title bar; elsewhere (GNOME, weston) Nordend draws its own.
 - One window thread, a pool of workers for everything that touches the disk, and **zero CPU when
   nothing moves**: no frame is drawn unless something changed (0 ticks in 30 s, measured).
 
@@ -403,12 +403,19 @@ go back to the system.
   programs running, never of another copy) and the GPU (from a surfaceless OpenGL context), one
   "Label: value" line each, ready to paste into a bug report; and the engines found, with
   their programs.
-- Colors come from Noctalia (`~/.config/nordend/colors.toml`, written by Noctalia from the
-  `nordend` template, installed at `share/nordend/noctalia/nordend`; the README's "On Noctalia"
-  says how to enable it). Without the file, Nordend follows the desktop through the freedesktop portal (GNOME,
-  Plasma): light or dark, and the accent colour for the selection, icons and links, with
-  neutral surfaces and text kept readable (WCAG AA contrast, tested for 15 accents). Without a
-  portal either, a built-in default palette is used.
+- Colors follow the user's theme with nothing to set up, as GTK apps do: GTK's named colours
+  (`@define-color`) from `~/.config/gtk-4.0/gtk.css`, else `gtk-3.0/gtk.css`, with what they
+  import, read again live when any of those files changes (written by Noctalia's GTK theming,
+  Stylix, matugen, or by hand). The window, view, sidebar, card, popover, text, accent and
+  error colours go to the places that show them; the other levels are derived around them
+  (OKLCH), text kept readable. Values as GTK writes them: `#hex`, `rgb()`/`rgba()`
+  (translucent ones drawn over the window), references; computed ones (`shade()`, `alpha()`)
+  are left out. GTK's folders are only read, never created. Without GTK colours, Nordend
+  follows the desktop through the freedesktop portal (GNOME, Plasma): light or dark, and the
+  accent colour for the selection, icons and links, with neutral surfaces and text kept
+  readable (WCAG AA contrast, tested for 15 accents). Without a portal either, a built-in
+  default palette is used. `~/.config/nordend/colors.toml` (every role by name, as the
+  Noctalia palette names them) still overrides all of them, for whoever wants exact colours.
 - **Remembered from one start to the next** (`~/.local/state/nordend/state.toml`, written by
   Nordend): the view, the details' order and column widths, hidden files shown or not, the
   sidebar and the info pane (shown, width, "More details"), the window's size and whether it was

@@ -36,9 +36,9 @@
 ## Why Nordend
 
 Nordend talks to the compositor directly, with **no toolkit at all**: text, icons, scrolling and
-animations come from its own renderer. It takes your desktop's light or dark style and accent
-colour; on Noctalia (Noctalia Shell, the Umbriel compositor) it wears your Noctalia theme, live,
-once Noctalia is told to write it ([two steps](#on-noctalia)).
+animations come from its own renderer. It follows your theme by itself, as GTK apps do: the
+colours in your GTK settings (what Noctalia, Stylix or matugen write there), else the desktop's
+light or dark style and accent, live ([Colours](#colours)).
 
 - **Fast.** The first frame in about 65 ms, a 10 000-file folder in 0.7 ms, a raw photo in
   Quick Look in under 100 ms. Every figure is measured, with the tool to measure it again.
@@ -93,8 +93,8 @@ every shortcut.
   in any folder (<kbd>F4</kbd>)
 - **Always current:** folders follow changes on disk (inotify); history with
   <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>→</kbd> and the mouse's side buttons
-- **Looks:** Noctalia's theme live (through [a template](#on-noctalia)), or the desktop's
-  light/dark style and accent (GNOME, Plasma);
+- **Looks:** your theme's colours live, read like a GTK app reads them (Noctalia, Stylix,
+  matugen, a hand-made `gtk.css`), or the desktop's light/dark style and accent (GNOME, Plasma);
   its icon follows the accent; fractional scaling; its own title bar where needed
 - **Remembers** views, order, tabs and window size; a short `config.toml`, reloaded live
 
@@ -202,29 +202,14 @@ xdg-mime default nordend.desktop inode/directory
 "Mod+E" = { action = "spawn nordend", repeat = false }
 ```
 
-### On Noctalia
+### Colours
 
-Nordend takes its colours from `~/.config/nordend/colors.toml`, and Noctalia writes that file
-through a template, on every theme change. Noctalia does not have the template yet, so tell it
-once:
-
-```sh
-mkdir -p ~/.config/noctalia/templates ~/.config/nordend
-cp /usr/share/nordend/noctalia/nordend ~/.config/noctalia/templates/
-# installed in ~/.local or not at all: ~/.local/share/nordend/noctalia/nordend, or
-# data/noctalia/nordend in this repository
-```
-
-```toml
-# ~/.config/noctalia/config.toml
-[theme.templates.user.nordend]
-input_path  = "templates/nordend"
-output_path = "~/.config/nordend/colors.toml"
-```
-
-Then pick a theme in Noctalia (or the same one again): Nordend changes with it, live. Without
-`colors.toml`, Nordend follows the desktop's light or dark style and accent instead, where the
-desktop's portal offers them (GNOME, Plasma), else its own default palette.
+Nothing to set up: Nordend follows your theme by itself, as GTK apps such as Thunar do. It
+reads the colours of your GTK settings (`~/.config/gtk-4.0/gtk.css`, else `gtk-3.0`, and what
+they import) and changes with them, live. Whatever themes GTK writes them there: on Noctalia,
+its GTK theming (the built-in `gtk4` and `gtk3` templates); Stylix, matugen, or your own
+`gtk.css`. Without them, Nordend takes the desktop's light or dark style and accent, where its
+portal offers them (GNOME, Plasma), else its own default palette.
 
 Configuration: every key, with its default, in [docs/config.example.toml](docs/config.example.toml)
 (copy it to `~/.config/nordend/config.toml`; `nordend --check-config` reports any problem). The

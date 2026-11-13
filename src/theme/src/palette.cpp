@@ -133,7 +133,7 @@ void read_colors(const toml::node& node, Problems& problems, Palette& palette) {
         }
         palette.*role.member = *color;
     }
-    // Other keys are fine: the template writes every Noctalia token, Nordend uses some.
+    // Other keys are fine: a Noctalia template writes every token it has, Nordend uses some.
     if (!missing.empty()) {
         problems.report(node.source(),
                         std::format("missing colors, defaults used for: {}", missing));
