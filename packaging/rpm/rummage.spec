@@ -31,12 +31,20 @@ BuildRequires:  pkgconfig(tomlplusplus)
 BuildRequires:  pkgconfig(libwebp)
 BuildRequires:  pkgconfig(libwebpdemux)
 BuildRequires:  pkgconfig(libjxl)
+BuildRequires:  pkgconfig(libheif) >= 1.23
+BuildRequires:  pkgconfig(lcms2)
 BuildRequires:  pkgconfig(libavformat) >= 60.16.100
 BuildRequires:  pkgconfig(libavcodec) >= 60.31.102
 BuildRequires:  pkgconfig(libavutil) >= 58.29.100
 BuildRequires:  pkgconfig(libswscale)
 BuildRequires:  pkgconfig(zlib)
 BuildRequires:  pkgconfig(sdbus-c++) >= 2
+# The decoder uses versioned option fields, so require the same minimum at runtime.
+%if 0%{?suse_version}
+Requires:       libheif1 >= 1.23
+%else
+Requires:       libheif >= 1.23
+%endif
 Requires:       shared-mime-info
 Requires:       hicolor-icon-theme
 

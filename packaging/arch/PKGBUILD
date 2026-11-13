@@ -7,7 +7,7 @@ arch=('x86_64')
 url='https://github.com/barrulus/rummage'
 license=('MIT' 'Apache-2.0')
 depends=('glibc' 'gcc-libs' 'wayland' 'libglvnd' 'libxkbcommon' 'harfbuzz'
-         'freetype2' 'fontconfig' 'tomlplusplus' 'libwebp' 'libjxl' 'zlib'
+         'freetype2' 'fontconfig' 'tomlplusplus' 'libwebp' 'libjxl' 'libheif>=1.23' 'lcms2' 'zlib'
          'sdbus-cpp>=2' 'shared-mime-info' 'hicolor-icon-theme')
 makedepends=('ffmpeg' 'cmake' 'ninja' 'pkgconf' 'wayland-protocols')
 source=('rummage-source.tar.gz')
