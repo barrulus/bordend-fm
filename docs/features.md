@@ -26,6 +26,7 @@ case-insensitive, not locale collation.
 - Copy/move with progress, cancellation and conflict choices; rename and create from templates.
 - Freedesktop Trash across filesystems, restore, confirmed permanent deletion and undo/redo.
 - Clipboard exchange and drag/drop with desktop applications.
+- Mounting internal partitions and removable disks through udisks2, with authorization when required.
 - Properties and a folder-icon picker, sharing `.directory` metadata with Dolphin.
 - Default applications and Open With from desktop MIME associations; terminal launching.
 - darktable sidecars follow supported photo operations.
@@ -40,7 +41,7 @@ not implemented.
 ## Previews
 
 - Isolated image and text decoding through `rummage-preview`.
-- PNG, JPEG, GIF, WebP, JPEG XL, TIFF/BigTIFF and binary PGM/PPM previews.
+- PNG, JPEG, GIF, WebP, JPEG XL, HEIC/HEIF (HEVC), TIFF/BigTIFF and binary PGM/PPM previews.
 - Camera raw embedded previews and development of supported DNG data when needed.
 - Photo metadata, orientation/crop handling and shared freedesktop thumbnail caching.
 - Quick Look for pictures and text, with file-to-file navigation.

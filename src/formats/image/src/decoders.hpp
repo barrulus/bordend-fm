@@ -18,6 +18,9 @@ void decode_wuffs(std::span<const std::uint8_t> data, const DecodeOptions& optio
 // WebP, still or the first frame of an animation, with libwebp.
 void decode_webp(std::span<const std::uint8_t> data, const DecodeOptions& options, Decoded& result);
 
+// HEIC/HEIF primary still image; libheif applies container transforms itself.
+void decode_heif(std::span<const std::uint8_t> data, const DecodeOptions& options, Decoded& result);
+
 // Binary PGM and PPM (P5, P6), 8 or 16 bits a sample, ours.
 void decode_pnm(std::span<const std::uint8_t> data, const DecodeOptions& options, Decoded& result);
 

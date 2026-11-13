@@ -17,7 +17,7 @@ features. Include the commit and whether the source has local changes in reports
 ## The build fails or tests are missing
 
 Check [build dependencies](install.md#build-dependencies), including recent Wayland protocol XML
-files. FFmpeg 6.1+ development libraries are needed only with `RUMMAGE_MEDIA=ON`. `nix develop` supplies
+files, libheif 1.23+, libde265 and Little CMS 2. FFmpeg 6.1+ development libraries are needed only with `RUMMAGE_MEDIA=ON`. `nix develop` supplies
 the tree's declared dependency environment.
 
 If CMake reports doctest missing, it skips the main test targets. A `ctest` result
@@ -93,7 +93,8 @@ tree they sit beside the application and in `engines/` respectively. Copying onl
 the main binary loses discovery. A protocol mismatch or missing helper is logged.
 
 Check [supported formats](previews.md). Not every raw file has a readable embedded
-preview. Images exceeding decoder
+preview. HEIC needs libheif’s libde265 decoder, loaded before the preview sandbox.
+Images exceeding decoder
 limits, damaged inputs or helper timeouts produce a reason rather than a picture.
 Video stills need the optional media helper and compatible FFmpeg libraries.
 Check engine registration and restart after installation; see [previews](previews.md).

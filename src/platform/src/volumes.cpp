@@ -42,9 +42,6 @@ std::vector<Volume> volumes_from(const std::vector<UdisksObject>& objects) {
             (drive->removable || drive->ejectable || drive->connection_bus == "usb" ||
              drive->connection_bus == "sdio" || drive->connection_bus == "ieee1394");
         const bool mounted = !object.mount_points.empty();
-        if (object.hint_system && !external && !mounted) {
-            continue;  // another system's partition, the EFI one...
-        }
         volumes.push_back(
             {.object = object.path,
              .device = object.device,

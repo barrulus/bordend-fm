@@ -55,7 +55,7 @@ files, and **F1** for the active shortcuts.
 | --- | --- |
 | Browse | Columns, grid, expandable details, dual panes, tabs, filters, sorting and zoom |
 | Find | Fuzzy filename/path search under the current folder; command palette with places and tabs |
-| Preview | Images, camera previews, DNG development and text with syntax colours; optional video thumbnails/stills |
+| Preview | Images including HEIC/HEIF, camera previews, DNG development and text with syntax colours; optional video thumbnails/stills |
 | Manage | Copy, move, rename, create, trash, restore, permanent delete, undo/redo and darktable sidecar handling |
 | Integrate | Desktop applications, Open With, terminals, bookmarks, removable disks, clipboard and drag and drop |
 | Customize | Fonts, icons, colours, transparency, shortcuts, external actions and nested context menus |

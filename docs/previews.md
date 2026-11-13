@@ -14,6 +14,7 @@ Opening a file with Enter uses its desktop application, independent of preview s
 | PNG, JPEG, GIF | wuffs decoding in the preview helper | A picture preview, not an animation player |
 | WebP | libwebp in the helper | Still preview |
 | JPEG XL | libjxl in the helper | Still preview |
+| HEIC / HEIF | libheif with libde265 for HEVC; Little CMS for RGB ICC conversion | Primary still only; HEVC containers, not arbitrary HEIF codecs |
 | TIFF / BigTIFF | rummage's TIFF reader | Compression/sample limits below |
 | PGM / PPM | rummage's binary PNM reader | 8- and 16-bit samples; not every Netpbm format |
 | Camera raw | Embedded previews; some DNGs developed by rummage | Support depends on the file's container, preview and compression |
@@ -32,6 +33,22 @@ reach an appropriate provider; system MIME data matters.
 TIFF supports uncompressed, LZW, Deflate, PackBits and JPEG data, strips and tiles,
 BigTIFF, integer and floating-point samples, and common grey, RGB, YCbCr, palette,
 CMYK and alpha layouts. Unsupported or excessive inputs report a preview error.
+
+### HEIC and HEIF phone photos
+
+The primary still appears in Quick Look, the information pane and thumbnails,
+including tiled images, container rotation/mirroring, clean aperture crops and
+transparency. Container transforms apply once; EXIF orientation is not reapplied.
+RGB ICC profiles (including Display P3) and common NCLX profiles convert to 8-bit
+sRGB with straight alpha. Untagged/unspecified colour is assumed sRGB.
+
+PQ uses 203-nit SDR white; HLG uses a fixed 1000-nit display and system gamma 1.2,
+mapped to the same SDR white. Highlights above SDR white and colours outside
+sRGB clip. There is no adaptive tone mapping, gain-map reconstruction, full HDR
+output or display-profile management. Sequences, depth and other auxiliary images
+are not displayed. HEIF codecs other than HEVC are unsupported by this reader.
+Invalid inputs, unsupported profiles/codecs and resource limits produce a preview
+error. See [build dependencies](install.md#build-dependencies) for codec requirements.
 
 ### Camera raw and DNG
 

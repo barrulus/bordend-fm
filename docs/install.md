@@ -220,10 +220,15 @@ Ninja (for the examples), and pkg-config. Required library/module names are:
 | Protocol generation | `wayland-scanner`, `wayland-protocols` including xdg-dialog-v1 and stable tablet-v2 XML |
 | Text | `harfbuzz`, `freetype2`, `fontconfig` |
 | Configuration | `tomlplusplus` |
-| Images | `libwebp`, `libwebpdemux`, `libjxl`, `zlib` |
+| Images | `libwebp`, `libwebpdemux`, `libjxl`, `libheif >= 1.23`, `lcms2`, `zlib` |
 | Desktop services | `sdbus-c++` |
 | Optional media helper | FFmpeg 6.1+ development libraries: `libavformat`, `libavcodec`, `libavutil`, `libswscale`; enable `RUMMAGE_MEDIA` |
 | Tests | `doctest`; `dbus-run-session` for portal/notification integration tests |
+
+HEIC decoding requires libheif's **libde265** decoder at runtime (built in or
+installed as a codec plugin) and Little CMS 2. The Nix development shell/package
+supplies them. The preview helper initializes codecs and decodes a trusted HEIC
+fixture before entering its sandbox; later decoding adds no sandbox permissions.
 
 Optional reference dependencies are libjpeg-turbo for the JPEG benchmark, LibRaw
 for DNG comparison tests, and exiv2 for metadata comparison tests/benchmarks.

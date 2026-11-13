@@ -9,7 +9,8 @@ See [installation](install.md#development-downloads) for package/source identity
 
 ## Current rummage additions
 
-The fork includes system icon themes and SVG rendering, optional isolated video
+The fork includes system icon themes and SVG rendering, HEIC/HEIF still previews,
+visibility of unmounted internal partitions, optional isolated video
 previews, configurable shortcuts/actions/menus, destination pickers and completion
 notifications, archive password handling, expandable details, two persistent panes,
 filename filtering, properties/folder icons, independent sidebar zoom, status text

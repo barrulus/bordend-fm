@@ -34,7 +34,7 @@ constexpr std::size_t kHead = std::size_t{64} * 1024;
 
 // What a file is, from its first bytes.
 enum class Kind : std::uint8_t {
-    image,       // PNG, GIF, WebP, JPEG XL, PGM/PPM: decoded whole, never a stored preview
+    image,       // PNG, GIF, WebP, JPEG XL, HEIF, PGM/PPM: decoded whole, never a stored preview
     jpeg,        // decoded whole; a camera's (with EXIF) may carry a larger preview first
     container,   // TIFF and the raw formats built like it, RAF, CR3: previews only
     plain_tiff,  // a TIFF that is not a camera raw: decoded here, read piece by piece
@@ -56,6 +56,7 @@ Kind kind_of(std::span<const std::uint8_t> head) {
         case Format::gif:
         case Format::webp:
         case Format::jxl:
+        case Format::heif:
         case Format::pnm:
             return Kind::image;
         case Format::tiff:  // a raw or a plain TIFF: told apart in load(), which has the file

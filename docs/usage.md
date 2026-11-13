@@ -159,8 +159,9 @@ folders onto the BOOKMARKS heading or the end of its list also adds them. A
 right-click removes a bookmark. rummage shares the GTK bookmarks file and keeps
 unrelated entries and labels; reordering/renaming bookmarks is not implemented.
 
-With udisks2 available, unmounted devices appear in the sidebar. Click to mount
-and open; use the context menu to mount, unmount or eject. Ejecting an external
+With udisks2 available, unmounted internal partitions and removable disks appear
+in the sidebar without mounting themselves. Click to mount and open, with
+authorization requested when required; use the context menu to mount, unmount or eject. Ejecting an external
 disk unmounts its partitions and powers it off when supported. Busy or read-only
 devices report errors in the status bar. Encrypted-device unlocking is not
 implemented. Already mounted volumes can still appear without udisks2.
