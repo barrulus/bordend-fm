@@ -72,9 +72,9 @@ KeyEvent key(xkb_keysym_t keysym, Modifiers modifiers = {}) {
 constexpr Modifiers kCtrl{.ctrl = true};
 constexpr Modifiers kCtrlShift{.ctrl = true, .shift = true};
 
-std::unique_ptr<nordend::ui::Offscreen> offscreen() {
+std::unique_ptr<nordend::ui::Offscreen> offscreen(std::int32_t height = kHeight) {
     try {
-        return std::make_unique<nordend::ui::Offscreen>(kWidth, kHeight);
+        return std::make_unique<nordend::ui::Offscreen>(kWidth, height);
     } catch (const std::runtime_error& error) {
         MESSAGE("no offscreen OpenGL: " << error.what());
         return nullptr;
@@ -482,4 +482,76 @@ TEST_CASE("panes: an idle split does not schedule another frame while drawing") 
     draw();
     CHECK(f.redraws == redraws);
     CHECK_FALSE(f.browser.animating());
+}
+
+TEST_CASE("panes: split toolbars and status bar respect configured font metrics") {
+    Fixture f;
+    const auto gl = offscreen(kHeight * 2);
+    if (!gl)
+        return;
+    nordend::ui::FontSystem fonts;
+    nordend::ui::Renderer renderer{fonts};
+    nordend::ui::IconSet icons{fonts};
+    f.browser.set_sidebar_visible(false);
+    f.browser.set_info_visible(false);
+    f.browser.toggle_split();
+    REQUIRE(f.settle());
+    auto& status = f.browser.status_bar();
+    status.set_text_size(32);
+    for (const bool stacked : {false, true}) {
+        f.browser.set_stacked(stacked);
+        for (const float scale : {1.0F, 1.5F, 2.0F}) {
+            for (const std::size_t index : {0U, 1U}) {
+                f.browser.focus_pane(index);
+                f.browser.set_name_filter("one");
+                renderer.begin_frame(kWidth, kHeight * 2, scale, {});
+                const float bottom = kHeight * 2 / scale;
+                f.browser.draw(renderer, {0, 0, 600, bottom}, nordend::theme::Palette{}, icons,
+                               Browser::Clock::now());
+                renderer.end_frame();
+                const auto pane = f.browser.pane_bounds(index);
+                const auto field = f.browser.filter_bounds();
+                const auto button = f.browser.new_folder_bounds();
+                CHECK(field.x >= pane.x + 10 + fonts.layout("Filter", 13, scale).width / scale + 9);
+                CHECK(field.width >= 48);
+                CHECK(field.right() <= pane.right() - 10);
+                if (!button.empty()) {
+                    CHECK(field.right() + 8 <= button.x);
+                    CHECK(button.right() <= pane.right() - 10);
+                }
+                const float height = status.height(renderer);
+                CHECK(status.claims(20, bottom - height + 1));
+                CHECK_FALSE(status.claims(20, bottom - height - 1));
+            }
+        }
+    }
+}
+
+TEST_CASE("panes: archive dialogs capture keys and password paste without switching panes") {
+    Fixture f;
+    f.browser.toggle_split();
+    REQUIRE(f.settle());
+    const auto active = f.browser.active_pane();
+    nordend::views::SystemClipboard clipboard;
+    clipboard.types = [] { return std::vector<std::string>{"text/plain"}; };
+    clipboard.read = [](std::string, nordend::views::SystemClipboard::Done done) {
+        done("archive secret");
+    };
+    f.browser.set_system_clipboard(std::move(clipboard));
+    std::optional<std::string> answer;
+    f.browser.password_dialog().open_password("secret.7z", false,
+                                              [&](auto value) { answer = std::move(value); });
+    CHECK(f.browser.has_overlay());
+    f.press(key(XKB_KEY_v, kCtrl));
+    CHECK(f.browser.name_filter().empty());
+    f.press(key(XKB_KEY_Return));
+    CHECK(answer == "archive secret");
+    CHECK(f.browser.active_pane() == active);
+    f.browser.show_action_result("Archive failed\nInstall unrar", true);
+    f.press(key(XKB_KEY_Tab));
+    CHECK(f.browser.active_pane() == active);
+    f.press(key(XKB_KEY_Escape));
+    CHECK_FALSE(f.browser.has_overlay());
+    f.press(key(XKB_KEY_Tab));
+    CHECK(f.browser.active_pane() != active);
 }

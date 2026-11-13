@@ -36,6 +36,7 @@
 #include "nordend/views/cut_marks.hpp"
 #include "nordend/views/details_view.hpp"
 #include "nordend/views/drop_mark.hpp"
+#include "nordend/views/error_dialog.hpp"
 #include "nordend/views/file_clipboard.hpp"
 #include "nordend/views/file_finder.hpp"
 #include "nordend/views/grid_view.hpp"
@@ -189,9 +190,9 @@ public:
     [[nodiscard]] const ui::Rect& new_folder_bounds() const { return area().new_folder_bounds; }
 
     [[nodiscard]] bool has_overlay() const {
-        return conflict_.is_open() || confirm_.is_open() || palette_.is_open() || menu_.is_open() ||
-               editor_.active() || shortcuts_.is_open() || quick_look_.is_open() ||
-               properties_.is_open();
+        return errors_.is_open() || password_.is_open() || conflict_.is_open() ||
+               confirm_.is_open() || palette_.is_open() || menu_.is_open() || editor_.active() ||
+               shortcuts_.is_open() || quick_look_.is_open() || properties_.is_open();
     }
 
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
@@ -314,6 +315,14 @@ public:
         action_handoff_ = std::move(handoff);
         action_available_ = std::move(available);
     }
+
+    void show_action_result(std::string message, bool error) {
+        show_message(message.substr(0, message.find('\n')), error);
+        if (error)
+            errors_.push(std::move(message));
+    }
+
+    [[nodiscard]] ErrorDialog& action_errors() { return errors_; }
 
     void set_actions(std::span<const core::Action> custom);
     void set_context_menu(core::MenuLayout layout);
@@ -534,6 +543,8 @@ public:
     void empty_trash();
 
     [[nodiscard]] ConfirmDialog& confirm_dialog() noexcept { return confirm_; }
+
+    [[nodiscard]] ConfirmDialog& password_dialog() noexcept { return password_; }
 
     void show_properties();
 
@@ -775,6 +786,8 @@ private:
     NameEditor editor_;
     ConflictDialog conflict_;
     ConfirmDialog confirm_;
+    ConfirmDialog password_;
+    ErrorDialog errors_;
     PropertiesDialog properties_;
     ContextMenu menu_;
     CommandPalette palette_;

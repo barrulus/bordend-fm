@@ -98,6 +98,7 @@ ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml
 
 void check_defaults(const Config& config) {
     const Config defaults;
+    CHECK(config.status_bar.text_size == defaults.status_bar.text_size);
     CHECK(config.appearance.background_opacity == defaults.appearance.background_opacity);
     CHECK(config.font.family == defaults.font.family);
     CHECK(config.font.monospace == defaults.font.monospace);
@@ -105,6 +106,7 @@ void check_defaults(const Config& config) {
     CHECK(config.pointer.double_click_distance == defaults.pointer.double_click_distance);
     CHECK(config.icon.follow_accent == defaults.icon.follow_accent);
     CHECK(config.icon.theme == defaults.icon.theme);
+    CHECK(config.icon.places == defaults.icon.places);
 }
 
 bool contains(const std::string& text, std::string_view part) {
@@ -152,11 +154,50 @@ TEST_CASE("an empty file gives the defaults and no problems") {
     check_defaults(result.config);
 }
 
+TEST_CASE("status bar text size accepts finite logical pixels from 8 to 32") {
+    for (const std::string value : {"8", "12.0", "15", "15.5", "32"}) {
+        const auto result = parse("[status_bar]\ntext_size = " + value);
+        CAPTURE(value);
+        CHECK(result.problems.empty());
+        CHECK(result.config.status_bar.text_size == doctest::Approx(std::stof(value)));
+    }
+    for (const std::string value : {"7.9", "32.1", "nan", "inf", "-inf", "true", "\"15\""}) {
+        const auto result = parse("[status_bar]\ntext_size = " + value);
+        CAPTURE(value);
+        REQUIRE(result.problems.size() == 1);
+        CHECK(contains(result.problems.front(), "status_bar.text_size"));
+        CHECK(result.config.status_bar.text_size == 12.0F);
+    }
+    CHECK_FALSE(parse("status_bar = 15").problems.empty());
+    CHECK_FALSE(parse("[status_bar]\nsize = 15").problems.empty());
+}
+
 TEST_CASE("icon themes follow desktop settings, accept an override and can be disabled") {
     CHECK(parse("").config.icon.theme == "system");
     CHECK(parse("[icon]\ntheme = \"builtin\"").config.icon.theme == "builtin");
     CHECK_FALSE(parse("[icon]\ntheme = 42").problems.empty());
     CHECK_FALSE(parse("[icon]\ntheme = \"\"").problems.empty());
+}
+
+TEST_CASE("place icons: named icons and custom files are read independently") {
+    const auto result = parse(R"(
+[icon.places]
+home = "builtin:home"
+documents = "folder-documents"
+pictures = "/tmp/my pictures.svg"
+trash_full = "builtin:trash-filled"
+downloads = 42
+music = ""
+typo = "folder"
+)");
+    REQUIRE(result.config.icon.places.size() == 4);
+    CHECK(result.config.icon.places.at("home") == "builtin:home");
+    CHECK(result.config.icon.places.at("documents") == "folder-documents");
+    CHECK(result.config.icon.places.at("pictures") == "/tmp/my pictures.svg");
+    CHECK(result.config.icon.places.at("trash_full") == "builtin:trash-filled");
+    CHECK(result.problems.size() == 3);
+    CHECK_FALSE(parse("[icon]\nplaces = false").problems.empty());
+    CHECK(parse("").config.icon.places.empty());  // removing overrides restores defaults
 }
 
 TEST_CASE("every key is read") {

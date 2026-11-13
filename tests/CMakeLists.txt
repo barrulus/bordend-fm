@@ -137,3 +137,19 @@ if(DBUS_RUN_SESSION)
     add_test(NAME action-notifications COMMAND "${DBUS_RUN_SESSION}" -- $<TARGET_FILE:nordend-notification-tests>)
     set_tests_properties(action-notifications PROPERTIES TIMEOUT 15)
 endif()
+
+if(NORDEND_MEDIA)
+    add_executable(nordend-media-tests media_test.cpp)
+    target_link_libraries(nordend-media-tests PRIVATE doctest::doctest nordend::isolate
+        nordend::thumbs nordend::preview nordend::warnings)
+    target_compile_definitions(nordend-media-tests PRIVATE
+        NORDEND_MEDIA_HELPER="$<TARGET_FILE:nordend-media>"
+        NORDEND_BASE_HELPER="$<TARGET_FILE:nordend-preview>"
+        NORDEND_FAKE_HELPER="$<TARGET_FILE:nordend-fake-preview>"
+        NORDEND_MEDIA_DATA="${PROJECT_SOURCE_DIR}/tests/data/media"
+        NORDEND_IMAGE_DATA="${PROJECT_SOURCE_DIR}/tests/data/image"
+        NORDEND_ENGINE_DATA="${PROJECT_SOURCE_DIR}/data/engines")
+    add_dependencies(nordend-media-tests nordend-media nordend-preview nordend-fake-preview)
+    add_test(NAME media-tests COMMAND nordend-media-tests)
+    set_tests_properties(media-tests PROPERTIES TIMEOUT 60)
+endif()

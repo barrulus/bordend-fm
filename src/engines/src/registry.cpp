@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -68,6 +69,32 @@ Registry Registry::load(const std::filesystem::path& directory, const Locate& lo
         }
     }
     return registry;
+}
+
+Registry Registry::load_installed() {
+    Registry result = load(default_directory(), locate_program);
+    // Explicit trusted installation paths, never paths taken from a previewed file.
+    const char* value = std::getenv("NORDEND_ENGINE_PATH");
+    std::string_view paths = value != nullptr ? value : "";
+    while (!paths.empty()) {
+        const auto colon = paths.find(':');
+        const std::filesystem::path directory{paths.substr(0, colon)};
+        if (directory.is_absolute()) {
+            Registry extra = load(directory, [&](std::string_view program) {
+                const auto candidate = directory.parent_path().parent_path().parent_path() /
+                                       "libexec" / "nordend" / program;
+                return ::access(candidate.c_str(), X_OK) == 0 ? candidate : std::filesystem::path{};
+            });
+            for (const auto& engine : extra.engines()) {
+                static_cast<void>(result.add(engine));
+            }
+        }
+        if (colon == std::string_view::npos) {
+            break;
+        }
+        paths.remove_prefix(colon + 1);
+    }
+    return result;
 }
 
 bool Registry::add(Engine engine) {

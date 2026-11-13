@@ -12,6 +12,10 @@
 // How Nordend asks for a picture: what it asks (LoadRequest), what comes back (Loaded), why it
 // may fail (Failure), and where the asking goes (the loader: in Nordend, the isolated helpers).
 // Making the picture is the formats' job (formats/), never done here.
+namespace nordend::core {
+class CancelToken;
+}
+
 namespace nordend::picture {
 
 // Why a file gave no picture.
@@ -33,6 +37,8 @@ struct LoadRequest {
     // The picture fits in max_width x max_height pixels (scaled down, never up).
     std::uint32_t max_width{0};
     std::uint32_t max_height{0};
+    std::string mime{};  // Empty retains the default image engine for existing callers.
+    const core::CancelToken* cancel{nullptr};  // Valid for the blocking load call.
 };
 
 struct Loaded {

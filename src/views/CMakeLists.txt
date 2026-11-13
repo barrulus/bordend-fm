@@ -16,6 +16,7 @@ add_library(nordend_views
     src/column.cpp
     src/column_view.cpp
     src/command_palette.cpp
+    src/error_dialog.cpp
     src/confirm_dialog.cpp
     src/conflict_dialog.cpp
     src/context_menu.cpp

@@ -213,6 +213,33 @@ For **this fork’s current checkout**, use the [CI package builder](docs/ci-pac
 instead of the upstream release recipe above. It builds an XBPS snapshot from the exact Git
 commit and installs it in a fresh Void container before checking it.
 
+### Optional video previews
+
+Install the matching `nordend-media` package for video thumbnails and still previews in the
+information pane and Space Quick Look. The grid draws cinema filmstrip borders; cached images
+and larger previews stay undecorated. This is still-frame preview, not video playback.
+
+The helper uses system FFmpeg 7 or newer shared libraries (`libavformat`, `libavcodec`,
+`libavutil`, `libswscale`); it does not execute `ffmpeg`, `ffprobe`, or `ffmpegthumbnailer`.
+Your package manager reuses compatible installed libraries. Some distributions package these
+libraries together with the FFmpeg commands. Codec availability follows the distribution build.
+
+The main package has no FFmpeg dependency. Without the media helper, videos retain their file
+icons and information cards; existing valid cached thumbnails remain usable. Enter opens the
+selected video in its default application. Missing helpers/libraries are retried after restarting
+Nordend and do not create permanent failed-thumbnail records.
+
+For a source build, add `-DNORDEND_MEDIA=ON` with the four libraries' development packages
+installed. It defaults to OFF. `cmake --install build --component media` installs only the helper
+and its manifest; `--component Unspecified` installs the core application. The helper uses the
+existing seccomp/Landlock sandbox, reads only the supplied descriptor, and has bounded decoding,
+output dimensions, concurrency and time. Thumbnail selection tries beyond dark opening frames.
+
+For Nix, `nix build .#nordend-with-media` builds the application configured with the optional
+helper; `.#nordend-media` selects its separate helper output. The normal default remains free of
+FFmpeg. Separate custom prefixes can be registered through `NORDEND_ENGINE_PATH`, a colon-separated
+list of absolute `share/nordend/engines` directories. Restart after changing the installed engines.
+
 ### With Nix
 
 From a checkout, with Nix flakes enabled:
@@ -314,6 +341,10 @@ Configuration: every key, with its default, in [docs/config.example.toml](docs/c
 command line: `nordend [DIR]`, `--config FILE`, `--version`, and `--about` (what Nordend runs on,
 for a bug report).
 
+To enlarge the status bar text, add `[status_bar]` with `text_size = 15` to `config.toml`.
+Sizes from 8 to 32 logical pixels apply live, independently of list/sidebar zoom; the bar grows
+to fit larger text.
+
 For photo folders, switch to the grid with **Ctrl+2** and enlarge thumbnails with
 **Ctrl+mouse wheel** or **Ctrl++**; **Ctrl+-** shrinks them and **Ctrl+0** restores the usual size.
 The size is remembered per tab. The left sidebar zooms independently: use **Ctrl+mouse wheel**
@@ -349,6 +380,19 @@ theme = "candy-icons"
 ```
 
 Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
+
+Choose individual Places icons in the same config; changes reload live:
+
+```toml
+[icon.places]
+home = "builtin:home"
+documents = "folder-documents"
+pictures = "/home/you/.local/share/icons/my-pictures.svg"
+```
+
+Values accept names from the selected icon theme, `builtin:<name>` for bundled icons, or absolute
+SVG/PNG paths. Missing icons fall back to the defaults. All place keys and examples are in
+[config.example.toml](docs/config.example.toml).
 Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
 startup. SVG theme icons are rendered in-process using FreeType.
 

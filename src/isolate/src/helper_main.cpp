@@ -25,13 +25,10 @@
 #include <unistd.h>
 #include <vector>
 
-#include "nordend/formats/formats.hpp"
-#include "nordend/formats/text/read.hpp"
-#include "nordend/formats/text/syntax.hpp"
+#include "backend.hpp"
 #include "nordend/picture/load.hpp"
 #include "protocol.hpp"
 #include "sandbox.hpp"
-#include "warm_up.hpp"
 
 namespace isolate = nordend::isolate;
 namespace protocol = nordend::isolate::protocol;
@@ -70,7 +67,7 @@ int sealed_memfd(const char* name, std::span<const std::byte> bytes) {
 
 void answer_picture(int socket, int file, const protocol::Request& request) {
     const picture::Loaded loaded =
-        nordend::formats::make_picture(file, request.max_width, request.max_height);
+        isolate::backend::make_picture(file, request.max_width, request.max_height);
     protocol::Response response;
     response.failure = static_cast<std::uint8_t>(loaded.failure);
     response.from_preview = loaded.from_preview ? 1 : 0;
@@ -101,9 +98,9 @@ void answer_picture(int socket, int file, const protocol::Request& request) {
 }
 
 void answer_text(int socket, int file, const protocol::TextAsk& ask) {
-    nordend::text::Loaded loaded = nordend::formats::text::read(file, ask.limits);
+    nordend::text::Loaded loaded = isolate::backend::read_text(file, ask.limits);
     if (loaded.failure == nordend::text::Failure::none) {
-        nordend::formats::text::colour(loaded.text, ask.name, ask.mime);
+        isolate::backend::colour(loaded.text, ask.name, ask.mime);
     }
     protocol::TextResponse response;
     response.failure = static_cast<std::uint8_t>(loaded.failure);
@@ -148,43 +145,8 @@ void answer_text(int socket, int file, const protocol::TextAsk& ask) {
 }
 
 void answer_photo_info(int socket, int file) {
-    const std::vector<std::byte> bytes = protocol::encode_info(nordend::formats::photo_info(file));
+    const std::vector<std::byte> bytes = protocol::encode_info(isolate::backend::photo_info(file));
     static_cast<void>(protocol::send_packet(socket, bytes));
-}
-
-// A memfd holding bytes, for the warm-up; -1 on an error.
-int memfd_of(const isolate::WarmUpPicture& file) {
-    const int fd = ::memfd_create(file.name, MFD_CLOEXEC);
-    if (fd >= 0 && ::write(fd, file.data, file.size) != static_cast<ssize_t>(file.size)) {
-        ::close(fd);
-        return -1;
-    }
-    return fd;
-}
-
-// Each kind of picture once, from a memfd, before the cage closes: whatever the libraries load
-// on first use (libjxl's tables...) is loaded now. And one photo's information.
-void warm_up() {
-    const isolate::WarmUpPicture* photo = nullptr;
-    for (std::size_t i = 0; i < isolate::kWarmUpCount; ++i) {
-        const isolate::WarmUpPicture& file = isolate::kWarmUp[i];  // NOLINT: generated array
-        if (std::string_view{file.name} == "shot.jpg") {
-            photo = &file;
-        }
-        const int fd = memfd_of(file);
-        if (fd >= 0) {
-            static_cast<void>(nordend::formats::make_picture(fd, 64, 64));
-            ::close(fd);
-        }
-    }
-    if (photo != nullptr) {
-        const int fd = memfd_of(*photo);
-        if (fd >= 0) {
-            static_cast<void>(nordend::formats::photo_info(fd));
-            ::close(fd);
-        }
-    }
-    ::malloc_trim(0);
 }
 
 bool debug_log() {
@@ -212,7 +174,7 @@ int main(int argc, char** argv) {
     std::signal(SIGPIPE, SIG_IGN);  // NOLINT(cert-err33-c): nothing to check
 
     const pid_t pid = ::getpid();  // asked now: getpid is not allowed in the cage
-    warm_up();
+    isolate::backend::warm_up();
     const char* report = std::getenv("NORDEND_SANDBOX_REPORT");  // NOLINT(concurrency-mt-unsafe)
     const bool reporting = report != nullptr && std::string_view{report} == "1";
     const isolate::SandboxStatus sandbox =

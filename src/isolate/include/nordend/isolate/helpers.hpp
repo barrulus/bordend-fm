@@ -69,18 +69,20 @@ private:
     };
     enum class Outcome : std::uint8_t { done, again, failed };
 
-    [[nodiscard]] std::optional<Helper> take();
+    [[nodiscard]] std::optional<Helper> take(const core::CancelToken* cancel);
     void give_back(Helper helper);
     int discard(Helper helper);  // its wait status
     void close_idle();           // the reaper thread: closes and waits for helpers idle too long
     [[nodiscard]] std::optional<Helper> spawn() const;
     // One request and its reply; again: the helper had left (retry in a new one).
     Outcome exchange(Helper helper, std::span<const std::byte> request, std::span<const int> fds,
-                     protocol::Packet& reply, std::string& why) const;
+                     protocol::Packet& reply, std::string& why,
+                     const core::CancelToken* cancel) const;
     // The request to a helper (a new one if it had left), its reply handed to accept; false with
     // why when no helper answered in a way accept took.
     bool run(std::span<const std::byte> request, std::span<const int> fds,
-             const std::function<bool(protocol::Packet&, std::string&)>& accept, std::string& why);
+             const std::function<bool(protocol::Packet&, std::string&)>& accept, std::string& why,
+             const core::CancelToken* cancel = nullptr);
 
     HelperOptions options_;
     mutable std::mutex mutex_;
@@ -89,7 +91,8 @@ private:
     std::size_t count_{0};  // idle and busy
     std::condition_variable idle_changed_;
     bool stopping_{false};
-    std::thread reaper_;  // declared last: started once the rest is ready
+    bool unavailable_{false};  // Missing executable/libraries or sandbox: retry on next app start.
+    std::thread reaper_;       // declared last: started once the rest is ready
 };
 
 // Sends pictures, photo information and texts to the engines of registry that make them, each

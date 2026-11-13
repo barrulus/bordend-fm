@@ -15,6 +15,7 @@ std::vector<Action> action_registry(std::span<const Action> custom) {
                                             "application/x-tar",
                                             "application/x-compressed-tar",
                                             "application/x-bzip-compressed-tar",
+                                            "application/x-bzip2-compressed-tar",
                                             "application/x-xz-compressed-tar",
                                             "application/x-zstd-compressed-tar",
                                             "application/gzip",

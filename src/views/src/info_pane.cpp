@@ -278,7 +278,8 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         if (thumbnails_ != nullptr) {
             thumbnail = thumbnails_->get(
                 path, single->modified_ns,
-                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))));
+                thumbs::size_for(static_cast<std::uint32_t>(std::lround(box * renderer.scale()))),
+                mime.name(typed.mime));
         }
         if (thumbnail != nullptr) {
             const float fit =

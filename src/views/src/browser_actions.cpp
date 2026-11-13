@@ -12,8 +12,7 @@ void Browser::set_context_menu(core::MenuLayout layout) {
 }
 
 std::vector<MenuItem> Browser::configured_menu(
-    std::vector<MenuItem> items,
-    const std::optional<std::vector<core::MenuNode>>& specific) const {
+    std::vector<MenuItem> items, const std::optional<std::vector<core::MenuNode>>& specific) const {
     const auto& layout = specific ? specific : menu_layout_.items;
     return layout ? arrange_menu(items, *layout) : std::move(items);
 }
@@ -72,7 +71,11 @@ std::vector<MenuItem> Browser::action_items(const core::ActionContext& context) 
         item.enabled = action.kind == core::Action::Kind::copy_location || !action_available_ ||
                        action_available_(action, context);
         if (!item.enabled) {
-            item.label += " (not installed)";
+            const bool archive = action.kind == core::Action::Kind::extract_here ||
+                                 action.kind == core::Action::Kind::extract_to;
+            item.label += archive ? " (setup required)" : " (not installed)";
+            // Let built-in extraction explain which dependency is missing.
+            item.enabled = archive;
         }
         item.action = [this, action, context] { invoke_action(action, context); };
         if (action.placement == core::Action::Placement::menu) {
@@ -101,7 +104,8 @@ void Browser::invoke_action(const core::Action& action, const core::ActionContex
         }
         copy_text(context.targets.empty() ? context.directory.string() : std::move(text));
     } else if (action_handoff_) {
-        if (action_available_ && !action_available_(action, context)) {
+        if (action.kind == core::Action::Kind::external && action_available_ &&
+            !action_available_(action, context)) {
             show_message("No installed program supports this action and selection", true);
             return;
         }

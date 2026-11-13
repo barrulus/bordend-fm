@@ -6,11 +6,11 @@ version=0.5.0
 revision=1
 build_style=cmake
 # NORDEND_WERROR: a newer compiler's new warning must not break the package
-configure_args="-DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF"
+configure_args="-DNORDEND_MEDIA=ON -DNORDEND_BUILD_TESTS=OFF -DNORDEND_WERROR=OFF"
 hostmakedepends="pkgconf wayland-devel"
 makedepends="wayland-devel wayland-protocols libglvnd-devel libxkbcommon-devel
  harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
- libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel"
+ ffmpeg-devel libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel"
 # MIME types from shared-mime-info's database; udisks2 (disks in the sidebar)
 # and xdg-desktop-portal (desktop colours) are used when present
 depends="shared-mime-info hicolor-icon-theme"
@@ -23,4 +23,14 @@ checksum=ba1c06d2a7714f56d1b80d7375ac87f14e1e11beeb47affba350fc121bdaffd7
 
 post_install() {
 	vlicense LICENSE
+}
+
+nordend-media_package() {
+    depends="nordend-${version}_${revision}"
+    short_desc="Nordend optional video thumbnails and still previews"
+    pkg_install() {
+        vmove usr/libexec/nordend/nordend-media
+        vmove usr/share/nordend/engines/media.toml
+        vlicense LICENSE
+    }
 }

@@ -5,7 +5,7 @@
 //                    [--sort FIELDS] [--info-expanded] [--info-width W] [--bench FRAMES]
 //                    [--walk FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME]
 //                    [--memory [--trim] [--default-malloc]]] [--csd STATE] [--desktop LOOK]
-//                    <out.ppm>
+//                    [--font FAMILY] [--status-text-size SIZE] <out.ppm>
 //                    [logical-width logical-height scale [colors.toml]]
 //
 // KEYS are pressed in the column view before the snapshot: comma-separated xkb key names with
@@ -33,6 +33,7 @@
 // "hover-maximize", "press-close" for the pointer over a button.
 // --desktop draws with the palette made from a desktop's look, as without colors.toml under GNOME
 // or Plasma: LOOK is "dark" or "light", with an accent after a comma: "dark,#3584e4".
+// --font FAMILY and --status-text-size SIZE exercise UI font and status bar sizing.
 //
 // Uses a surfaceless EGL context (EGL_MESA_platform_surfaceless) and a framebuffer object, so
 // it never talks to the compositor and never opens a window: it is how rendering is checked
@@ -242,6 +243,8 @@ int main(int argc, char** argv) {
     std::optional<std::string> csd;
     std::optional<std::string> desktop;
     std::string icon_theme{"builtin"};
+    std::string font_family{"sans-serif"};
+    float status_text_size = 12.0F;
     std::optional<std::string> picker_mode;
     while (args.size() >= 2) {
         const std::string_view option{args[1]};
@@ -283,7 +286,11 @@ int main(int argc, char** argv) {
         if (args.size() < 3) {
             break;
         }
-        if (option == "--picker") {
+        if (option == "--font") {
+            font_family = args[2];
+        } else if (option == "--status-text-size") {
+            status_text_size = std::stof(args[2]);
+        } else if (option == "--picker") {
             picker_mode = args[2];
         } else if (option == "--columns") {
             columns_dir = args[2];
@@ -346,7 +353,7 @@ int main(int argc, char** argv) {
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--band X1,Y1,X2,Y2] [--fake-disks] [--memory [--trim] "
             "[--default-malloc]]] [--csd STATE] [--desktop LOOK] "
-            "<out.ppm> "
+            "[--font FAMILY] [--status-text-size SIZE] <out.ppm> "
             "[logical-width logical-height scale [colors.toml]]");
         return 2;
     }
@@ -385,7 +392,7 @@ int main(int argc, char** argv) {
         std::vector<std::uint8_t> pixels(static_cast<std::size_t>(buffer_width) *
                                          static_cast<std::size_t>(buffer_height) * 4);
         {
-            ui::FontSystem fonts;
+            ui::FontSystem fonts{font_family};
             ui::Renderer renderer{fonts};
             ui::IconSet icons{fonts};
             icons.set_theme(icon_theme);
@@ -393,8 +400,8 @@ int main(int argc, char** argv) {
             core::WorkerPool pool{loop};
             // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
             {
-                auto registry = std::make_shared<const engines::Registry>(
-                    engines::Registry::load(engines::default_directory(), engines::locate_program));
+                auto registry =
+                    std::make_shared<const engines::Registry>(engines::Registry::load_installed());
                 isolate::use_engines(*registry);
                 engines::set_installed(std::move(registry));
             }
@@ -486,6 +493,7 @@ int main(int argc, char** argv) {
                          .icon = "usb",
                          .disk = {.volume = "sdc1", .mounted = true, .ejectable = true}});
                 }
+                columns->status_bar().set_text_size(status_text_size);
                 columns->set_places(std::move(places));
                 opener = std::make_unique<nordend::platform::Opener>(
                     loop, pool, mime, nordend::platform::Environment::from_environment(),

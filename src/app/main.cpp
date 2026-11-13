@@ -240,7 +240,7 @@ int print_about() {
     std::ranges::move(platform::system_about(), std::back_inserter(lines));
     // The engines found, and where their programs are: an installation in one line.
     const std::filesystem::path directory = engines::default_directory();
-    const engines::Registry registry = engines::Registry::load(directory, engines::locate_program);
+    const engines::Registry registry = engines::Registry::load_installed();
     std::string found;
     for (const engines::Engine& engine : registry.engines()) {
         found += std::format("{}{} ({})", found.empty() ? "" : ", ", engine.manifest.name,
@@ -497,8 +497,8 @@ int main(int argc, char** argv) {
         core::WorkerPool pool{loop};
         // Pictures are made by the engines in their cages (ROADMAP 2b, 3a), never here.
         {
-            auto registry = std::make_shared<const engines::Registry>(
-                engines::Registry::load(engines::default_directory(), engines::locate_program));
+            auto registry =
+                std::make_shared<const engines::Registry>(engines::Registry::load_installed());
             isolate::use_engines(*registry);
             engines::set_installed(std::move(registry));
         }
@@ -516,6 +516,7 @@ int main(int argc, char** argv) {
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
         icons.set_theme(config.icon.theme);
+        icons.set_place_icons(config.icon.places);
         ui::Activation activation{display, loop};
         ui::Clipboard clipboard{display, loop};  // before the browser that uses it
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
@@ -527,6 +528,9 @@ int main(int argc, char** argv) {
         std::unique_ptr<core::FileWatcher> config_watcher;
         const auto apply_config = [&](const core::ConfigResult& loaded) {
             const auto& fresh = loaded.config;
+            if (columns) {
+                columns->status_bar().set_text_size(fresh.status_bar.text_size);
+            }
             if (loaded.actions_valid && loaded.context_menu_valid) {
                 const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
                 for (const auto& problem : problems) {
@@ -542,6 +546,7 @@ int main(int argc, char** argv) {
             }
             window.request_redraw();
             icons.set_theme(fresh.icon.theme);
+            icons.set_place_icons(fresh.icon.places);
             window.set_background_opacity(fresh.appearance.background_opacity);
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
@@ -589,15 +594,21 @@ int main(int argc, char** argv) {
                                        std::move(done));
                 });
             columns->set_actions(configured_actions);
+            columns->status_bar().set_text_size(config.status_bar.text_size);
             columns->set_context_menu(config.context_menu);
             action_handoff = std::make_unique<platform::ActionHandoff>(
                 loop, platform::Environment::from_environment(),
                 [&](std::string message, bool error) {
-                    columns->show_message(std::move(message), error);
+                    columns->show_action_result(std::move(message), error);
                 },
                 [&](std::function<void(std::string)> done) {
                     activation.request(display.seat(), seat.input_serial(), window.surface(),
                                        std::move(done));
+                });
+            action_handoff->set_password_prompt(
+                [&](const std::filesystem::path& path, bool retry, auto done) {
+                    columns->password_dialog().open_password(path.filename().string(), retry,
+                                                             std::move(done));
                 });
             columns->set_action_handoff(
                 [&](const core::Action& action, const core::ActionContext& context) {

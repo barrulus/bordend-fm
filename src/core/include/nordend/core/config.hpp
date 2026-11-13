@@ -31,10 +31,16 @@ struct Config {
         // Nordend's icon in the desktop's accent, written to ~/.local/share/icons (ROADMAP 9.2);
         // false takes it away and leaves the installed one.
         bool follow_accent{true};
+        // Per-place theme names, builtin:<glyph>, or absolute SVG/PNG paths.
+        std::map<std::string, std::string> places;
     };
 
     struct Appearance {
         float background_opacity{1.0F};  // background only; foreground content stays solid
+    };
+
+    struct StatusBar {
+        float text_size{12.0F};  // logical pixels, independent of file-list zoom
     };
 
     std::map<std::string, std::string> keybindings;
@@ -42,6 +48,7 @@ struct Config {
     MenuLayout context_menu;
 
     Appearance appearance;
+    StatusBar status_bar;
     Font font;
     Pointer pointer;
     Icon icon;

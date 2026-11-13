@@ -2,14 +2,19 @@
 # Every key is optional; the values below are the defaults. A bad value is reported in the log
 # and keeps its default. Check a file without starting Nordend: nordend --check-config
 # Created on first normal launch when no config exists; existing files are never replaced.
-# Nordend reads the file again when it changes: appearance, pointer, icons and keybindings at once,
-# fonts at the next start.
+# Nordend reads the file again when it changes: appearance, status bar, pointer, icons and
+# keybindings at once; fonts at the next start.
 
 [appearance]
 # Background only (0-1); text, icons and thumbnails retain their original opacity.
 # Transparency is disabled by default (1.0). Keep compositor window opacity at 1.0.
 # Compositor blur can still be enabled.
 background_opacity = 1.0
+
+[status_bar]
+# Text size in logical pixels (8-32); independent of list/sidebar zoom, applied live.
+# The bar grows to fit larger text. Use 15 to match the large file-list text.
+text_size = 12.0
 
 [font]
 # fontconfig pattern: a family name, optionally with properties ("Inter", "Inter:weight=medium").
@@ -32,6 +37,25 @@ theme = "system"
 # Nordend writes it to ~/.local/share/icons/hicolor/scalable/apps/nordend.svg, where the dock and
 # the launcher look first. false takes it away and leaves the installed icon.
 follow_accent = true
+
+# Optional icons for the Places sidebar; omitted keys keep their normal icons.
+# Values are names from the selected icon theme, "builtin:<name>" for a bundled Tabler icon,
+# or absolute paths to your own SVG/PNG files. Missing icons fall back to the normal icon.
+# Bundled names are listed in third_party/tabler-icons/icons.txt (filled names use -filled).
+# Changes reload live. Keys follow the folder's purpose even if you rename/move an XDG folder.
+# trash applies to both states unless trash_full is also set. Theme names require a theme
+# other than "builtin"; custom files and builtin:<name> work with any theme.
+[icon.places]
+# home = "user-home"
+# desktop = "user-desktop"
+# documents = "folder-documents"
+# downloads = "folder-download"
+# music = "folder-music"
+# pictures = "/home/you/.local/share/icons/my-pictures.svg"
+# videos = "folder-videos"
+# filesystem = "drive-harddisk"
+# trash = "builtin:trash"
+# trash_full = "builtin:trash-filled"
 
 [keybindings]
 # Defaults are listed below as commented examples. Leave them commented to keep
@@ -268,7 +292,7 @@ follow_accent = true
 # A desktop notification service must be running; without one, the status message still works.
 # Launch/exit failures appear in the status bar. Nordend watches the resulting file changes;
 # external operations are not added to Undo. Jobs and multi-step macros are not yet supported.
-# Missing programs are dimmed in the context menu and omitted from the palette. Programs
+# Missing custom-action programs are dimmed in the menu and omitted from the palette. Programs
 # are found on PATH, or you can supply an absolute executable path as the first argument.
 # Add enabled = false to a block to disable it without deleting it.
 #
@@ -276,15 +300,19 @@ follow_accent = true
 # on empty space. It cannot be replaced. Actions are not offered in the trash; external actions
 # are also unavailable in file-picker mode.
 # Extract Here and Extract To… automatically detect installed programs on PATH:
-#   file-roller, otherwise unzip (ZIP), gzip (single .gz), tar (tar / compressed tar),
+#   unrar for RAR, then 7zz/7z for ZIP/RAR/7z; otherwise file-roller, unzip (ZIP),
+#   gzip (single .gz), tar (tar / compressed tar),
 #   then 7zz or 7z for formats they support. gzip alone does not unpack .tar.gz contents.
 #   7z can unpack compressed tar in two passes when tar is unavailable.
 # File Roller owns its dialogs. CLI backends use Nordend's folder picker for Extract To….
 # CLI archives extract into a new archive-named folder; single compressed files become files.
 # Existing output gets a numbered sibling instead of being overwritten; originals are retained.
 # Keep Nordend open until CLI extraction finishes. Failed/interrupted output stays in a visible
-# '(extracting)' folder. CLI password prompts are not supported; use Open With for encryption.
-# All archive programs are optional; none is installed automatically.
+# '(extracting)' folder. The 7zz/7z and unrar backends prompt for passwords (including encrypted headers);
+# cancelling creates no output. Other CLI backends do not prompt; use Open With for encryption.
+# All archive programs are optional; none is installed automatically. Missing archive tools
+# show "setup required"; invoking extraction explains what to install. Archive failures remain
+# in a scrollable dialog with Copy Details, diagnostics and any retained output location.
 # Presets default to placement = "menu"; use "actions" to move extraction into the submenu.
 # Override a preset by ID; unspecified fields retain the preset's defaults. Setting argv opts
 # out of automatic backend selection and makes the preset an ordinary external handoff:
