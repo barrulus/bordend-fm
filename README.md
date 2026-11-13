@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.1"><img src="https://img.shields.io/badge/release-v0.5.1-2a6a9e" alt="release v0.5.1"></a>
+  <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.6.0"><img src="https://img.shields.io/badge/release-v0.6.0-2a6a9e" alt="release v0.6.0"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-438%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="438 tests, ASan, TSan">
@@ -21,8 +21,8 @@
 > **Young software, used every day by its author.** Since 0.5.0 Nordend opens **text files** in
 > Quick Look with **syntax colours** for over twenty languages (code, configuration, Markdown,
 > diffs), to select and copy; read, like pictures since 0.4.0, by Nordend's own code in a
-> **caged helper process**. 0.5.1 brings grid thumbnails up to 512 px, hardened builds and a
-> **Nix flake**.
+> **caged helper process**. 0.6.0 **follows your theme's colours by itself**, as GTK apps do,
+> and draws **one header**: the path, back and forward and the window's buttons in one row.
 > On Void Linux, [install it as a package](#on-void-linux); on NixOS or with Nix, from
 > [its flake](#on-nixos-and-with-nix); anywhere else, [build it from source](#from-source) in
 > about a minute.
@@ -146,7 +146,7 @@ cp -r /tmp/nordend-fm/packaging/void/nordend srcpkgs/
 sudo xbps-install -R hostdir/binpkgs nordend
 ```
 
-The package is the latest release, **0.5.1**. What `main` gains after it comes with the next
+The package is the latest release, **0.6.0**. What `main` gains after it comes with the next
 release; to have it at once, build from source.
 
 ### On NixOS and with Nix
@@ -226,7 +226,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | Colours from your theme with nothing to set up, read as GTK apps read them (Noctalia, Stylix, matugen, your own `gtk.css`), live; one header, as in a modern file manager: the sidebar to the top, back and forward, the path and the window's buttons in one row (`[window] title_bar = "compositor"` for the compositor's bar) |
+| [0.6.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.6.0), 2026-11-13 | Colours from your theme with nothing to set up, read as GTK apps read them (Noctalia, Stylix, matugen, your own `gtk.css`), live; one header, as in a modern file manager: the sidebar to the top, back and forward, the path and the window's buttons in one row (`[window] title_bar = "compositor"` for the compositor's bar), tried on Umbriel, GNOME and Plasma |
 | [0.5.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.1), 2026-11-13 | Grid thumbnails up to 512 px, sharp from the larger caches (icons stay at 256); builds hardened on every system (stack protection, full RELRO, `_FORTIFY_SOURCE=3`, the standard library's index checks); a Nix flake, built and tested in Nix's sandbox on every push; sorting by type puts a file whose name has several types (`.md` with shared-mime-info 2.5) among its likely type |
 | [0.5.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0), 2026-11-09 | Text previews: text files in Quick Look and the info pane, read in the caged helper (UTF-8, UTF-16, Latin-1) with syntax colours from your theme for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell (heredocs included), fish, CMake, Makefiles, JSON, TOML, YAML, INI files and desktop entries, `.gitignore` and `.gitattributes`, Markdown (code blocks in their own language) and diffs; select with the pointer, Ctrl+A, Ctrl+C; long lines scroll sideways; Home, End, Page Up and Page Down; a caption with the language, encoding and line ends; minified files shown plain; logs opened at their newest lines. The helper became the first engine, described by a manifest |
 | [0.4.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0), 2026-11-08 | Image previews read by Nordend's own code: DNG developed when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files) with the file's colour, tone curve, vignetting and lens corrections, read identically to LibRaw and 2-4 times faster; TIFF with its own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, CMYK, tiles, a scanner's scan in a SubIFD); raw files' previews and the info pane's EXIF without exiv2 (the same results, 3 to 100 times quicker); pictures made in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock), so a file that crashes or hangs one costs only its preview; one path for every picture, told by the file's bytes; a plain sentence when a file cannot be shown. Canon CRW and Minolta MRW get that sentence; darktable sidecars' ratings are no longer read (Nordend's own ratings come next) |
@@ -245,7 +245,8 @@ top, added only when it keeps those three.
 lists; 0.3.0 the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files
 (<kbd>Ctrl</kbd>+<kbd>F</kbd>); 0.3.1 more raw previews; 0.4.0 image previews read by Nordend's own
 code in caged helpers; 0.5.0 text previews with syntax colours, selecting and copying; 0.5.1
-grid thumbnails up to 512 px, hardened builds and a Nix flake. Coming, roughly in this order:
+grid thumbnails up to 512 px, hardened builds and a Nix flake; 0.6.0 the colours of your theme
+with nothing to set up and one header for the whole window. Coming, roughly in this order:
 **a file chooser for other applications** (the desktop portal's, with the grid and thumbnails);
 then **previews, one family at a time**: other common formats one by one (SVG, AVIF, fonts,
 archive contents, audio tags).

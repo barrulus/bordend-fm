@@ -4,6 +4,30 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — Nordend 0.6.0
+
+A minor release for ROADMAP 3½ and 3⅞: the colours of the user's GTK theme, read live with
+nothing to set up, and one integrated header. CMake version, README (badge, note, install note,
+Versions, What's next), features and compatibility say so. At a glance unchanged since the
+header's commit: nordend 4.09 MB / 3.41 stripped, the helper 1.15 / 1.03, `readelf -d` NEEDED
+17 and 8, 52 300 + 18 300 lines, 438 tests. The engine protocol is still 4; no parser changed,
+so no new fuzz run.
+
+**Tested by the author** (2026-11-13, VM `nordend-void`, the tree at `0b199b0` installed in
+`~/.local`): on GNOME 48 the header is Nordend's (no xdg-decoration); on Plasma KWin offers
+xdg-decoration and grants client-side, so no KWin bar: moving, double click, the buttons and
+resizing work on both. A `core` file in the VM's home was Xwayland's (GNOME starts it with
+`-core`), written when the author logged out; Nordend had closed cleanly.
+
+**Open**: with Nordend's header the window has square corners and no shadow on GNOME and Plasma
+(GTK apps draw both themselves). For 0.6.1: an alpha surface with a transparent margin for the
+shadow, `xdg_surface.set_window_geometry` around the window itself, rounded corners, resizing
+from the shadow as GTK does, none of it when maximized, tiled or fullscreen; together with
+barrulus's PR #3 (opacity), which needs the alpha surface too. To check on Umbriel: no second
+shadow from the compositor.
+
+---
+
 ## 2026-11-13 — One header, as a modern file manager (ROADMAP 3⅞)
 
 **Tested by the author** (2026-11-13, installed build, on Umbriel): "funziona tutto": the log

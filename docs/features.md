@@ -440,8 +440,9 @@ viewporter, cursor-shape and xdg-activation.
 
 ## Next
 
-0.5.1 is out (grid thumbnails up to 512 px, hardened builds, a Nix flake, sorting by type for
-names with several types), after 0.5.0 (text previews with syntax colours, selecting and
+0.6.0 is out (the colours of your GTK theme, read live with nothing to set up; one header for
+the whole window), after 0.5.1 (grid thumbnails up to 512 px, hardened builds, a Nix flake,
+sorting by type for names with several types), 0.5.0 (text previews with syntax colours, selecting and
 copying, logs from their end; the helper became the first engine), 0.4.0 (image previews read by Nordend's own code in caged
 helpers: DNG, TIFF, raw previews and EXIF without exiv2), 0.3.1 (more raw previews), 0.3.0 (the
 command palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, zoom in the

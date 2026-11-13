@@ -27,7 +27,7 @@ Two variables try Nordend's own paths on a compositor that would not need them:
 
 | | Umbriel | GNOME | Plasma | niri | weston |
 |---|---|---|---|---|---|
-| Title bar | Nordend's header (Umbriel accepts client-side, checked 2026-11-13) | Nordend's header | Nordend's header, if KWin accepts client-side (to be verified) | Nordend's header | Nordend's header |
+| Title bar | Nordend's header (Umbriel accepts client-side, checked 2026-11-13) | Nordend's header | Nordend's header (KWin accepts client-side, checked 2026-11-13) | Nordend's header | Nordend's header |
 | Cursor | cursor-shape-v1 | cursor-shape-v1 (recent GNOME) | cursor-shape-v1 | cursor-shape-v1 | xcursor |
 
 ## Checklist per session
@@ -49,7 +49,7 @@ For each desktop: build in the VM (or on the host for Umbriel), then `./build/no
 | Step | Umbriel | GNOME | Plasma | niri | weston (headless) |
 |------|---------|-------|--------|------|-------------------|
 | 1 start, icons | yes | yes | yes | yes | yes (2026-10-30, screenshot) |
-| 2 title bar | Umbriel's, one bar | Nordend's; move, double click, buttons, window menu: yes | KWin's (screenshot), one bar | Nordend's | drawn (screenshot); no pointer to try it |
+| 2 title bar | Nordend's header (2026-11-13) | Nordend's header; move, double click, buttons: yes (2026-11-13) | Nordend's header; move, double click, buttons, resize: yes (2026-11-13) | Nordend's | drawn (screenshot); no pointer to try it |
 | 3 resize | yes | yes | yes | yes | no pointer |
 | 4 cursor | yes (cursor-shape-v1) | yes, double arrow on dividers | yes | yes | no pointer |
 | 5 clipboard | yes, with foot and a second Nordend | yes, both ways with Nautilus | yes, both ways with Dolphin | yes, with foot and a second Nordend | no clipboard global |
@@ -73,6 +73,12 @@ the task bar show the generic Wayland icon: no desktop entry matches the app id 
 Desktop colours (without GTK colours): light/dark and the accent followed live on GNOME and
 Plasma, tested by the author on 2026-10-31. GTK colours: Noctalia's (its `gtk4` template) and
 Adwaita's light colours checked in snapshots on 2026-11-13.
+
+The integrated header (0.6.0): tested by the author on 2026-11-13 on Umbriel, and in the Void VM
+`nordend-void` on GNOME (no xdg-decoration: "decorations: client-side, the compositor draws
+none") and Plasma (KWin offers xdg-decoration and grants client-side: "decorations: Nordend's
+own (client-side)"). On both the window has square corners and no shadow (GTK apps draw their
+own): planned for 0.6.1.
 
 niri: 26.04, nested in Umbriel on the host (in the VM niri needs virgl, BUG-017 of
 void-noctalia), minimal config without `prefer-no-csd`, tested by the author on 2026-10-31.
