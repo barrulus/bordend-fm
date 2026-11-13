@@ -335,7 +335,7 @@ void ColumnView::layout() {
 }
 
 bool ColumnView::shows_info() const {
-    if (columns_.empty()) {
+    if (!info_visible_ || columns_.empty()) {
         return false;
     }
     const Folder& last = columns_.back().column->folder();

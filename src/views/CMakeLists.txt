@@ -10,6 +10,7 @@ endif()
 add_library(nordend_views
     src/breadcrumb.cpp
     src/browser_actions.cpp
+    src/browser_panes.cpp
     src/browser.cpp
     src/browser_palette.cpp
     src/column.cpp

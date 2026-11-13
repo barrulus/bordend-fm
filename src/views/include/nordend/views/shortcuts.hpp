@@ -63,6 +63,14 @@ enum class Command : std::uint8_t {
     command_palette,
     find_files,
     filter_names,
+    toggle_split,
+    switch_pane,
+    swap_panes,
+    orient_panes,
+    open_other_pane,
+    same_other_pane,
+    copy_other_pane,
+    move_other_pane,
 };
 
 // One line of the shortcuts overlay, and the key chords it stands for.

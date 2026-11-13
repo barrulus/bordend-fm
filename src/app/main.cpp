@@ -530,7 +530,8 @@ int main(int argc, char** argv) {
             if (loaded.actions_valid && loaded.context_menu_valid) {
                 const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
                 for (const auto& problem : problems) {
-                    log::warn("config: {}; keeping previous actions, keybindings and menus", problem);
+                    log::warn("config: {}; keeping previous actions, keybindings and menus",
+                              problem);
                 }
                 if (problems.empty() && columns) {
                     columns->set_actions(fresh.actions);
@@ -687,11 +688,12 @@ int main(int argc, char** argv) {
                     columns->drag_ended();
                 });
             }
+            columns->set_panes_enabled(!picker_request);
             columns->apply(remembered.state);
             // Without a folder (Super+E) the tabs come back as they were left; with one
             // (xdg-open, "Show in folder") a single tab on it (ROADMAP 9.1d).
             if (picker_request || !start_dir.empty() ||
-                !columns->restore_tabs(remembered.state.tabs, remembered.state.shown_tab)) {
+                !columns->restore_session(remembered.state)) {
                 columns->open(start_folder(start_dir));
             }
             if (picker_request) {

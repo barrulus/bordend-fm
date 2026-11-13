@@ -41,6 +41,7 @@ add_executable(nordend-tests
     places_test.cpp
     pointer_shapes_test.cpp
     tabs_test.cpp
+    panes_test.cpp
     text_test.cpp
     text_selection_test.cpp
     platform_test.cpp

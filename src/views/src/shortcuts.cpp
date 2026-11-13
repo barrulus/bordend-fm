@@ -51,7 +51,7 @@ constexpr std::array kShortcuts{
              .command = Command::quick_look},
     Shortcut{.group = "General",
              .keys = "Ctrl+I",
-             .action = "Info pane (grid, details)",
+             .action = "Info pane",
              .scope = scope::kViews | scope::kSidebar | scope::kQuickLook,
              .modifiers = kCtrl,
              .keysyms = {XKB_KEY_i, XKB_KEY_I},
@@ -236,6 +236,64 @@ constexpr std::array kShortcuts{
              .action = "Back to one entry",
              .scope = scope::kViews,
              .keysyms = {XKB_KEY_Escape}},
+
+    // Panes
+    Shortcut{.group = "Panes",
+             .keys = "F3",
+             .action = "Show two panes / active pane only",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_F3},
+             .command = Command::toggle_split},
+    Shortcut{.group = "Panes",
+             .keys = "Tab",
+             .action = "Switch pane",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_Tab},
+             .command = Command::switch_pane},
+    Shortcut{.group = "Panes",
+             .keys = "",
+             .action = "Swap panes",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_NoSymbol},
+             .command = Command::swap_panes},
+    Shortcut{.group = "Panes",
+             .keys = "",
+             .action = "Change pane orientation",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_NoSymbol},
+             .command = Command::orient_panes},
+    Shortcut{.group = "Panes",
+             .keys = "",
+             .action = "Open folder in other pane",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_NoSymbol},
+             .command = Command::open_other_pane},
+    Shortcut{.group = "Panes",
+             .keys = "",
+             .action = "Show same folder in other pane",
+             .scope = scope::kViews,
+             .modifiers = {},
+             .keysyms = {XKB_KEY_NoSymbol},
+             .command = Command::same_other_pane},
+    Shortcut{.group = "Panes",
+             .keys = "Ctrl+F5",
+             .action = "Copy to other pane",
+             .scope = scope::kViews,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_F5},
+             .command = Command::copy_other_pane},
+    Shortcut{.group = "Panes",
+             .keys = "Ctrl+F6",
+             .action = "Move to other pane",
+             .scope = scope::kViews,
+             .modifiers = kCtrl,
+             .keysyms = {XKB_KEY_F6},
+             .command = Command::move_other_pane},
 
     // Tabs
     Shortcut{.group = "Tabs",
@@ -461,6 +519,22 @@ Bindings active;
 
 std::optional<std::size_t> binding_index(std::string_view name) {
     Command command = Command::none;
+    if (name == "move_other_pane")
+        command = Command::move_other_pane;
+    if (name == "copy_other_pane")
+        command = Command::copy_other_pane;
+    if (name == "same_other_pane")
+        command = Command::same_other_pane;
+    if (name == "open_other_pane")
+        command = Command::open_other_pane;
+    if (name == "orient_panes")
+        command = Command::orient_panes;
+    if (name == "swap_panes")
+        command = Command::swap_panes;
+    if (name == "switch_pane")
+        command = Command::switch_pane;
+    if (name == "toggle_split")
+        command = Command::toggle_split;
     if (name == "columns_view")
         command = Command::columns_view;
     if (name == "grid_view")

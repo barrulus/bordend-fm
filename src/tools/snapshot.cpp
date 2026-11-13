@@ -221,6 +221,8 @@ int main(int argc, char** argv) {
     std::filesystem::path columns_dir;
     std::filesystem::path reveal;
     std::string keys;
+    std::string split_folder;
+    bool stacked_panes = false;
     std::filesystem::path thumbnails;
     std::string sort;
     int bench_frames = 0;
@@ -246,6 +248,11 @@ int main(int argc, char** argv) {
         if (option == "--icon-theme" && args.size() >= 3) {
             icon_theme = args[2];
             args = args.subspan(2);
+            continue;
+        }
+        if (option == "--stacked") {
+            stacked_panes = true;
+            args = args.subspan(1);
             continue;
         }
         if (option == "--info-expanded") {  // the info pane with "More details" open
@@ -282,6 +289,8 @@ int main(int argc, char** argv) {
             columns_dir = args[2];
         } else if (option == "--reveal") {
             reveal = args[2];
+        } else if (option == "--split") {
+            split_folder = args[2];
         } else if (option == "--keys") {
             keys = args[2];
         } else if (option == "--thumbnails") {
@@ -332,6 +341,7 @@ int main(int argc, char** argv) {
         log::error(
             "usage: nordend-snapshot [--columns DIR [--reveal PATH] [--keys KEYS] [--thumbnails "
             "CACHE] [--icon-theme NAME] [--sort FIELDS] [--info-expanded] [--info-width W] "
+            "[--split DIR] [--stacked] "
             "[--bench FRAMES] [--walk "
             "FRAMES] [--message TEXT] [--transfer TEXT] [--conflict NAME] [--drag NAME] "
             "[--drop-over X,Y] [--band X1,Y1,X2,Y2] [--fake-disks] [--memory [--trim] "
@@ -535,6 +545,12 @@ int main(int argc, char** argv) {
                     columns->conflict_dialog().open({.name = conflict, .destination = columns_dir},
                                                     columns_dir.filename(),
                                                     [](nordend::fs::Resolution, bool) {});
+                }
+                if (!split_folder.empty() && !picker) {
+                    columns->toggle_split();
+                    columns->open(split_folder);
+                    columns->set_stacked(stacked_panes);
+                    columns->focus_pane(0);
                 }
                 frame();  // lays out: keys need the viewport
                 // Each key finds what the one before loaded (Space, then Ctrl+A on the text).

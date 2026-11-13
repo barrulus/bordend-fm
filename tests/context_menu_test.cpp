@@ -252,7 +252,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     REQUIRE(f.menu().is_open());
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "copy", "cut", "-paste", "rename",
                                          "trash", "erase", "properties", "action:copy_location",
-                                         "sort"});
+                                         "sort", "panes"});
     CHECK(f.menu().items()[2].keys == "Ctrl+C");  // from the shortcuts table
     CHECK(f.menu().items()[6].keys == "Delete");
     CHECK(f.press(key(XKB_KEY_Escape)));
@@ -263,13 +263,14 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     f.browser.open_menu(100, 100, false);
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "copy", "cut", "-paste", "-rename",
                                          "trash", "erase", "-properties", "action:copy_location",
-                                         "sort"});
+                                         "sort", "panes"});
     f.menu().close();
     f.select({"sub"});
     CHECK(f.press(key(XKB_KEY_F10, {.shift = true})));
     CHECK(ids(f.menu().items()) == Names{"open", "open_with", "open_tab", "open_terminal",
                                          "add_bookmark", "copy", "cut", "-paste", "rename", "trash",
-                                         "erase", "properties", "action:copy_location", "sort"});
+                                         "erase", "properties", "action:copy_location", "sort",
+                                         "panes"});
 
     // Copy from the menu; then Paste can be chosen, here and on empty space.
     f.choose("copy");
@@ -279,7 +280,7 @@ TEST_CASE("context menu: the items for one entry, several, empty space; paste on
     CHECK(f.press(key(XKB_KEY_Menu)));
     CHECK(ids(f.menu().items()) == Names{"new_folder", "new_file", "paste", "add_bookmark",
                                          "open_terminal", "action:copy_location", "sort",
-                                         "properties"});
+                                         "properties", "panes"});
     REQUIRE(f.settle());  // the templates looked for: none
     CHECK(ids(f.menu().items()[1].children) == Names{"empty_file"});
 }
@@ -340,8 +341,10 @@ TEST_CASE("context menu: Sort By sorts every view, and the folders they open lat
           Names{"sub", "b.txt", "P1.ORF.xmp", "P1.ORF", "a.txt"});
     f.select({"a.txt"});
     f.browser.open_menu(100, 100, false);
-    CHECK(checked(f.menu().items().back()) == Names{"sort:size", "sort:ascending"});
-    f.menu().items().back().children.back().action();  // Descending
+    const auto sorted = std::ranges::find(f.menu().items(), "sort", &MenuItem::id);
+    REQUIRE(sorted != f.menu().items().end());
+    CHECK(checked(*sorted) == Names{"sort:size", "sort:ascending"});
+    sorted->children.back().action();  // Descending
     f.menu().close();
     CHECK(names(*f.browser.grid().folder()) ==
           Names{"sub", "a.txt", "P1.ORF", "P1.ORF.xmp", "b.txt"});

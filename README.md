@@ -321,6 +321,14 @@ over it, or press **F6** to focus it and use **Ctrl++**, **Ctrl+-**, or **Ctrl+0
 remembered across restarts. **Ctrl+I** hides the information pane to give large thumbnails
 more room. Grid thumbnails range from 48 to 512 px and fit the available window width.
 
+Use **F3** for two persistent panes, each with its own tabs. **Tab** switches the active pane;
+**Ctrl+F5** copies its selected files to the other pane and **Ctrl+F6** moves them. The pane
+headers show focus, and the command palette's transfer commands name the destination. Drag the
+divider to resize (double-click to equalize), or use **Top / bottom** and **Swap panes** above the
+views. F3 shows the active pane full-width without discarding the other pane's tabs. Both tab
+sets and the layout return when Nordend starts without an explicit folder. See
+[the pane workflow](docs/features.md#two-persistent-browsing-panes) for details.
+
 For a transparent background with solid text, icons and thumbnails, add to Nordend's config:
 
 ```toml
@@ -565,7 +573,7 @@ code in caged helpers; 0.5.0 text previews with syntax colours, selecting and co
 roughly in this order: **previews, one family at a time**: other common formats one by one (SVG,
 AVIF, fonts, archive contents, audio tags).
 After that: colour labels and star ratings of your own, not tied to any raw editor; a Quick Look
-for photographers (100 % zoom, EXIF, histogram, comparison); a dual pane, a queue of operations
+for photographers (100 % zoom, EXIF, histogram, comparison); a queue of operations
 and batch renaming; translations, plugins in Luau (one
 system, each plugin caged; heavy formats such as PDF and video, and local AI search, as separate
 engines).

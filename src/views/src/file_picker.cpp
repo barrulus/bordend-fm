@@ -157,6 +157,7 @@ FilePicker::FilePicker(Browser& browser, core::PickerRequest request,
       name_{request_.name},
       menu_{redraw_},
       confirm_{redraw_} {
+    browser_.set_panes_enabled(false);
     focus_ = request_.mode == Mode::save ? 1 : 0;
     if (focus_ == 1) {
         name_.select_all();

@@ -180,7 +180,11 @@ TEST_CASE("shortcuts: the groups are the overlay's") {
     for (const Shortcut& shortcut : shortcuts()) {
         CHECK_MESSAGE(expected.contains(shortcut.group), shortcut.group);
         CHECK(shortcut.scope != 0);
-        CHECK(!chords_of(shortcut).empty());
+        // Commands may intentionally have no default binding; they remain bindable.
+        if (chords_of(shortcut).empty()) {
+            CHECK(shortcut.keys.empty());
+            CHECK(shortcut.command != Command::none);
+        }
     }
 }
 
@@ -515,4 +519,22 @@ TEST_CASE("actions: external shortcuts use the same targets in all views and res
         CHECK(calls.size() == count);
         f.browser.key(chord(XKB_KEY_Escape, {}), Browser::Clock::now());
     }
+}
+
+TEST_CASE("shortcuts: pane commands without defaults can be bound and disabled") {
+    ResetBindings reset;
+    using nordend::views::command_for;
+    using nordend::views::configure_shortcuts;
+    REQUIRE(configure_shortcuts({{"swap_panes", "Ctrl+Shift+s"},
+                                 {"orient_panes", "Ctrl+Shift+F3"},
+                                 {"open_other_pane", "Ctrl+Shift+o"},
+                                 {"same_other_pane", "Ctrl+Shift+d"}})
+                .empty());
+    CHECK(command_for(chord(XKB_KEY_s, {.ctrl = true, .shift = true})) == Command::swap_panes);
+    CHECK(command_for(chord(XKB_KEY_F3, {.ctrl = true, .shift = true})) == Command::orient_panes);
+    CHECK(command_for(chord(XKB_KEY_o, {.ctrl = true, .shift = true})) == Command::open_other_pane);
+    CHECK(command_for(chord(XKB_KEY_d, {.ctrl = true, .shift = true})) == Command::same_other_pane);
+    REQUIRE(configure_shortcuts({{"toggle_split", ""}, {"switch_pane", ""}}).empty());
+    CHECK(command_for(chord(XKB_KEY_F3, {})) == Command::none);
+    CHECK(command_for(chord(XKB_KEY_Tab, {})) == Command::none);
 }

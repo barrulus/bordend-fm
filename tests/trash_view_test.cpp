@@ -330,8 +330,8 @@ TEST_CASE("trash folder: in the browser, Restore from the menu; nothing else is 
     CHECK(browser.status_bar().message() == "Restore it first to open it");
     folder->set_cursor(std::nullopt);
     CHECK(browser.key(key(XKB_KEY_Menu), Browser::Clock::now()));
-    REQUIRE(browser.context_menu().is_open());  // on empty space: only Empty Trash
-    REQUIRE(browser.context_menu().items().size() == 1);
+    REQUIRE(browser.context_menu().is_open());  // on empty space: Empty Trash and pane controls
+    REQUIRE(browser.context_menu().items().size() == 2);
     CHECK(browser.context_menu().items()[0].id == "empty_trash");
     CHECK(browser.key(key(XKB_KEY_Escape), Browser::Clock::now()));
 
@@ -339,7 +339,7 @@ TEST_CASE("trash folder: in the browser, Restore from the menu; nothing else is 
     folder->select_name("P1.ORF");
     CHECK(browser.key(key(XKB_KEY_Menu), Browser::Clock::now()));
     REQUIRE(browser.context_menu().is_open());
-    REQUIRE(browser.context_menu().items().size() == 3);
+    REQUIRE(browser.context_menu().items().size() == 4);
     CHECK(browser.context_menu().items()[0].id == "restore");
     CHECK(browser.context_menu().items()[1].id == "erase");
     CHECK(browser.key(key(XKB_KEY_Return), Browser::Clock::now()));

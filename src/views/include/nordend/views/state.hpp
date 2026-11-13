@@ -56,6 +56,12 @@ struct State {
         std::optional<std::size_t> list_size;
         std::optional<std::int32_t> grid_icon;
 
+        std::size_t pane{0};
+        std::optional<fs::SortKey> sort_key{};
+        bool sort_descending{false};
+        std::optional<bool> show_hidden{};
+        std::string filter{};
+
         bool operator==(const Tab&) const = default;
     };
 
@@ -63,6 +69,13 @@ struct State {
 
     std::vector<Tab> tabs;
     std::size_t shown_tab{0};  // which of tabs was shown
+
+    bool split_visible{false};
+    bool panes_initialized{false};
+    bool stacked{false};
+    float split_ratio{0.5F};
+    std::size_t active_pane{0};
+    std::size_t other_shown_tab{0};
 
     // The command palette's recently used items (their ids), most recent first (ROADMAP 8a).
     static constexpr std::size_t kMaxRecent = 10;

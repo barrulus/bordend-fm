@@ -172,6 +172,10 @@ std::vector<PaletteItem> Browser::palette_items() {
         }
     }
 
+    for (auto& item : pane_items()) {
+        add("command:" + item.id, item.label, item.keys, std::move(item.action));
+    }
+
     // Views.
     if (pane().mode != Mode::columns) {
         command(Command::columns_view, "columns_view", "Show Columns");
@@ -186,7 +190,7 @@ std::vector<PaletteItem> Browser::palette_items() {
         command(Command::quick_look, "quick_look",
                 quick_look_.is_open() ? "Close Quick Look" : "Quick Look");
     }
-    if (pane().mode != Mode::columns) {  // the columns always show it
+    if (split_visible_ || pane().mode != Mode::columns) {  // shared preview in a split
         command(Command::toggle_info, "toggle_info",
                 info_visible_ ? "Hide Info Pane" : "Show Info Pane");
     }
@@ -195,7 +199,7 @@ std::vector<PaletteItem> Browser::palette_items() {
     command(Command::focus_sidebar, "focus_sidebar",
             sidebar_.focused() ? "Back to the View" : "Move to the Sidebar");
     command(Command::toggle_hidden, "toggle_hidden",
-            show_hidden_ ? "Hide Hidden Files" : "Show Hidden Files");
+            pane().show_hidden ? "Hide Hidden Files" : "Show Hidden Files");
     const fs::SortOrder& order = sort_order();
 
     struct SortChoice {
@@ -229,13 +233,13 @@ std::vector<PaletteItem> Browser::palette_items() {
 
     // Tabs.
     command(Command::new_tab, "new_tab", "New Tab");
-    if (panes_.size() > 1) {
+    if (area().tabs.size() > 1) {
         command(Command::close_tab, "close_tab", "Close Tab");
         command(Command::next_tab, "next_tab", "Next Tab");
         command(Command::previous_tab, "previous_tab", "Previous Tab");
         const std::vector<std::string> titles = tab_titles();
-        for (std::size_t i = 0; i < panes_.size(); ++i) {
-            if (i == active_) {
+        for (std::size_t i = 0; i < area().tabs.size(); ++i) {
+            if (i == area().active) {
                 continue;
             }
             add(
@@ -349,7 +353,7 @@ void Browser::open_finder() {
             finder_->set_query(query);
         }
     });
-    finder_->start(root, show_hidden_);
+    finder_->start(root, pane().show_hidden);
     refresh_found();
 }
 
