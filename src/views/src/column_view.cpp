@@ -18,7 +18,6 @@ namespace rummage::views {
 namespace {
 
 constexpr float kDividerGrab = 4.0F;  // either side of a column edge
-constexpr float kScrollbarHeight = 4.0F;
 
 }  // namespace
 
@@ -365,7 +364,8 @@ std::optional<std::size_t> ColumnView::column_at(float x) const {
 
 std::optional<ViewHit> ColumnView::hit(float x, float y) const {
     if (y < area_.y || y >= area_.bottom() || x < area_.x || x >= area_.right() ||
-        divider_at(x, y) || (info_area_.width > 0.0F && x >= info_area_.x)) {
+        scrollbar_.hit(scroller_, x, y) || divider_at(x, y) ||
+        (info_area_.width > 0.0F && x >= info_area_.x)) {
         return std::nullopt;
     }
     const std::optional<std::size_t> index = column_at(x);
@@ -373,6 +373,8 @@ std::optional<ViewHit> ColumnView::hit(float x, float y) const {
         return std::nullopt;
     }
     const Column& column = *columns_[*index].column;
+    if (column.scrollbar().hit(column.scroller(), x, y))
+        return std::nullopt;
     const std::optional<std::size_t> row = column.row_at(x, y);
     return ViewHit{
         .folder = column.shared_folder(), .entry = row, .on_item = row && column.on_item(*row, x)};
@@ -426,9 +428,10 @@ void ColumnView::update_hover() {
     std::optional<std::size_t> column;
     std::optional<std::size_t> row;
     if (pointer_inside_ && !resizing_ && pointer_y_ >= area_.y && pointer_y_ < area_.bottom() &&
-        !divider_at(pointer_x_, pointer_y_)) {
+        !scrollbar_.hit(scroller_, pointer_x_, pointer_y_) && !divider_at(pointer_x_, pointer_y_)) {
         column = column_at(pointer_x_);
-        if (column) {
+        if (column && !columns_[*column].column->scrollbar().hit(
+                          columns_[*column].column->scroller(), pointer_x_, pointer_y_)) {
             row = columns_[*column].column->row_at(pointer_x_, pointer_y_);
         }
     }
@@ -498,14 +501,12 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
         info_pane_->draw(renderer, info_area_, palette, icons, columns_.back().column->folder(),
                          now);
     }
-    // Horizontal scrollbar, only when the columns do not fit.
-    if (scroller_.max_offset() > 0.0F) {
-        const float content = content_width();
-        const float thumb = std::max(24.0F, area_.width * area_.width / content);
-        const float thumb_x = area_.x + ((area_.width - thumb) * offset / scroller_.max_offset());
+    scrollbar_.layout(area_);
+    if (const ui::Rect thumb = scrollbar_.thumb(scroller_); !thumb.empty()) {
         renderer.draw_box(
-            {thumb_x, area_.bottom() - kScrollbarHeight - 2.0F, thumb, kScrollbarHeight},
-            {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
+            thumb,
+            {.fill = palette.on_surface_variant.with_alpha(scrollbar_.dragging() ? 0.75F : 0.45F),
+             .radius = {}});
     }
     renderer.pop_clip();
 
@@ -513,6 +514,36 @@ void ColumnView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const them
 }
 
 void ColumnView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
+    const auto consumed = [this] {
+        pointer_inside_ = false;
+        update_hover();
+        redraw_();
+    };
+    if (!resizing_) {
+        // Finish a captured vertical gesture before considering another column or the bottom bar.
+        for (Slot& slot : columns_) {
+            if (slot.column->scrollbar().dragging()) {
+                if (slot.column->scrollbar().pointer(event, slot.column->scroller())) {
+                    consumed();
+                    return;
+                }
+            }
+        }
+        if (scrollbar_.pointer(event, scroller_)) {
+            reveal_focus_ = false;
+            consumed();
+            return;
+        }
+        if (area_.contains(event.x, event.y)) {
+            if (const auto index = column_at(event.x); index) {
+                Column& column = *columns_[*index].column;
+                if (column.scrollbar().pointer(event, column.scroller())) {
+                    consumed();
+                    return;
+                }
+            }
+        }
+    }
     using Kind = ui::PointerEvent::Kind;
     switch (event.kind) {
         case Kind::enter:

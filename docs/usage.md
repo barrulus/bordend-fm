@@ -32,6 +32,11 @@ by dragging their edges; double-click an edge to reset its width. In details,
 drag header dividers to resize columns and click a header to sort by it; click
 again to reverse.
 
+Drag a scrollbar thumb to move quickly through a long folder without changing the
+selection. Each column, grid and details pane has its own vertical scrollbar;
+columns also have a horizontal scrollbar when they extend beyond the pane. Click
+the scrollbar track to jump to that position, then keep dragging to adjust.
+
 In every view, right-click and use **Sort By** for name, size, modified or type and
 ascending/descending order. Sort order belongs to the current tab and is saved. Folders
 are kept together; size sorting keeps folder names ordered, and unknown types

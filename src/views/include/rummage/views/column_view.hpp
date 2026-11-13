@@ -18,6 +18,7 @@
 #include "rummage/ui/geometry.hpp"
 #include "rummage/ui/icons.hpp"
 #include "rummage/ui/renderer.hpp"
+#include "rummage/ui/scrollbar.hpp"
 #include "rummage/ui/scroller.hpp"
 #include "rummage/ui/seat.hpp"
 #include "rummage/views/column.hpp"
@@ -226,7 +227,8 @@ private:
     std::size_t list_size_{kUsualListSize};
     float zoom_wheel_{0.0F};  // Ctrl+wheel notches not yet turned into a step
     std::function<void(std::size_t)> zoomed_;
-    ui::Scroller scroller_;     // horizontal
+    ui::Scroller scroller_;
+    ui::Scrollbar scrollbar_{ui::Scrollbar::Axis::horizontal};  // horizontal
     bool reveal_focus_{false};  // glide to show the focused column at the next draw
     float shift_{0.0F};         // added to the offset at the next draw (a column prepended)
 

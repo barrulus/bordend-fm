@@ -77,6 +77,7 @@ add_library(rummage_ui
     src/icons.cpp
     src/icon_theme.cpp
     src/offscreen.cpp
+    src/scrollbar.cpp
     src/scroller.cpp
     src/text.cpp
     src/text_field.cpp

@@ -11,6 +11,7 @@
 #include "rummage/ui/geometry.hpp"
 #include "rummage/ui/icons.hpp"
 #include "rummage/ui/renderer.hpp"
+#include "rummage/ui/scrollbar.hpp"
 #include "rummage/ui/scroller.hpp"
 #include "rummage/views/cut_marks.hpp"
 #include "rummage/views/drop_mark.hpp"
@@ -63,6 +64,10 @@ public:
 
     [[nodiscard]] const ui::Scroller& scroller() const noexcept { return scroller_; }
 
+    [[nodiscard]] ui::Scrollbar& scrollbar() noexcept { return scrollbar_; }
+
+    [[nodiscard]] const ui::Scrollbar& scrollbar() const noexcept { return scrollbar_; }
+
     // Row at a window point, from the last drawn bounds; nullopt outside the rows.
     [[nodiscard]] std::optional<std::size_t> row_at(float x, float y) const;
 
@@ -87,6 +92,7 @@ private:
 
     std::shared_ptr<Folder> folder_;
     ui::Scroller scroller_;
+    ui::Scrollbar scrollbar_;
     ui::Rect rows_area_{};  // where the rows were last drawn, for hit testing
     // Where the icon and name of each drawn row end (window x), from item_first_ on.
     std::vector<float> item_right_;
