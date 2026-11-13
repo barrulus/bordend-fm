@@ -31,7 +31,7 @@ using rummage::theme::AppIconTones;
 using rummage::theme::Color;
 using rummage::theme::Desktop;
 using rummage::theme::hex;
-using rummage::theme::kIceTones;
+using rummage::theme::kBaseTones;
 using rummage::theme::sync_app_icon;
 using rummage::theme::Theme;
 using rummage::theme::written_by_rummage;
@@ -53,36 +53,27 @@ TEST_CASE("app icon: without an accent it is the installed icon, byte for byte")
 }
 
 TEST_CASE("app icon: the installed front colour as accent gives back the installed tones") {
-    const AppIconTones tones = app_icon_tones(kIceTones.front);
-    CHECK(hex(tones.front) == "#6dbdf0");
-    CHECK(hex(tones.tab) == "#3f8cc4");
-    CHECK(hex(tones.mountain) == "#2a6a9e");
+    const AppIconTones tones = app_icon_tones(kBaseTones.front);
+    CHECK(hex(tones.front) == "#f7c65b");
+    CHECK(hex(tones.tab) == "#cf954b");
+    CHECK(hex(tones.highlight) == "#ffe4a2");
 }
 
 TEST_CASE("app icon: tones from four accents") {
     // Noctalia's default yellow, Nord's frost, GNOME's orange (chroma held back), a grey.
-    struct Case {
-        std::uint32_t accent{0};
-        std::array<std::string_view, 3> tones;  // front, tab, mountain
-    };
-
-    constexpr std::array cases{
-        Case{0xFFF59BU, {"#c0b65d", "#8d8a26", "#696b08"}},
-        Case{0x88C0D0U, {"#86bece", "#568ea2", "#3c6d80"}},
-        Case{0xE66100U, {"#ff925e", "#cf6100", "#9c4d00"}},
-        Case{0x808080U, {"#b3b3b3", "#858585", "#656565"}},
-    };
-    for (const Case& c : cases) {
-        CAPTURE(hex(Color::rgb(c.accent)));
-        const AppIconTones tones = app_icon_tones(Color::rgb(c.accent));
-        CHECK(hex(tones.front) == c.tones[0]);
-        CHECK(hex(tones.tab) == c.tones[1]);
-        CHECK(hex(tones.mountain) == c.tones[2]);
-        // Front lighter than the tab, the tab lighter than the mountain, as in the installed icon.
+    for (const auto accent : {0xFFF59BU, 0x88C0D0U, 0xE66100U, 0x808080U}) {
+        CAPTURE(hex(Color::rgb(accent)));
+        const AppIconTones tones = app_icon_tones(Color::rgb(accent));
+        CHECK(luminance(tones.highlight) > luminance(tones.front));
         CHECK(luminance(tones.front) > luminance(tones.tab));
-        CHECK(luminance(tones.tab) > luminance(tones.mountain));
-        // The snow stays white whatever the accent.
-        CHECK(app_icon_svg(Color::rgb(c.accent)).find("fill=\"#ffffff\"") != std::string::npos);
+        const auto recoloured = app_icon_svg(Color::rgb(accent));
+        CHECK(recoloured.find(hex(tones.front)) != std::string::npos);
+        CHECK(recoloured.find(hex(tones.tab)) != std::string::npos);
+        CHECK(recoloured.find(hex(tones.highlight)) != std::string::npos);
+        // The illustrated contents and outline stay intact when the folder is recoloured.
+        for (const auto* original : {"#303343", "#EF897B", "#FFF5DE", "#91CDB9", "#4F9282"})
+            CHECK(recoloured.find(original) != std::string::npos);
+        CHECK(recoloured.find("Pocket chaos") != std::string::npos);
     }
 }
 

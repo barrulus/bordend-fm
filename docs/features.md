@@ -422,16 +422,17 @@ available in the trash.
 
 ## Looks
 
-- Its own icon: a folder with the rummage's snowy summit, in one ice-blue hue
+- Its own icon: a golden folder holding colourful papers and a photo
   (`share/icons/hicolor/scalable/apps/rummage.svg`, named after the app id), shown by docks,
   launchers and menus on any desktop.
 - **The icon follows the accent:** rummage writes its icon in the desktop's accent (Noctalia's
   primary colour, else GNOME's or Plasma's accent from the portal) to
   `~/.local/share/icons/hicolor/scalable/apps/rummage.svg`, which docks and launchers read before
   the installed one, and rewrites it when the accent changes, only when it changes. The three
-  tones keep the ice icon's lightness and steps in OKLCH, with the accent's hue and chroma (held
-  to what the icon can carry); the snow stays white. No accent, or `icon.follow_accent = false`:
-  the copy is taken away (installed under `~/.local`, the ice icon is written back). An icon not
+  folder tones keep the supplied icon's lightness and steps in OKLCH, with the accent's hue and
+  chroma (held to what the icon can carry); the papers, photo, and outline retain their colours.
+  No accent, or `icon.follow_accent = false`: the copy is taken away (installed under `~/.local`,
+  the supplied icon is written back). An icon not
   written by rummage at that path is never touched.
 - Noctalia's colors and the same line icons as Noctalia (Tabler), tinted by the theme; camera
   raw files and darktable sidecars have their own icons. The icons are compiled into the

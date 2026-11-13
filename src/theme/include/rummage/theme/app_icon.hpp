@@ -11,29 +11,29 @@
 #include "rummage/ui/color.hpp"
 
 // rummage's application icon in the desktop's accent (ROADMAP 9.2). The installed icon
-// (data/rummage.svg, "ice") stays as it is; rummage writes a recoloured copy where the desktop
+// (data/rummage.svg) stays as it is; rummage writes a recoloured copy where the desktop
 // looks first, $XDG_DATA_HOME/icons/hicolor/scalable/apps/rummage.svg, and takes it away when
 // told to (icon.follow_accent = false) or when there is no accent to follow.
 namespace rummage::theme {
 
 using ui::Color;
 
-// The icon's three tones; the snow stays white.
+// The folder's three tones; the papers and outline keep their original colours.
 struct AppIconTones {
     Color front;
     Color tab;
-    Color mountain;
+    Color highlight;
 
     bool operator==(const AppIconTones&) const = default;
 };
 
 // The installed icon's tones.
-inline constexpr AppIconTones kIceTones{
-    .front = Color::rgb(0x6DBDF0), .tab = Color::rgb(0x3F8CC4), .mountain = Color::rgb(0x2A6A9E)};
+inline constexpr AppIconTones kBaseTones{
+    .front = Color::rgb(0xF7C65B), .tab = Color::rgb(0xCF954B), .highlight = Color::rgb(0xFFE4A2)};
 
 // The tones for an accent, in OKLCH: the accent's hue and chroma (chroma held to what the icon
 // can carry), each tone keeping the installed icon's lightness and its small turn of hue and
-// chroma from the front. The installed front colour as accent gives back kIceTones.
+// chroma from the front. The installed front colour as accent gives back kBaseTones.
 [[nodiscard]] AppIconTones app_icon_tones(Color accent);
 
 // "#rrggbb".
