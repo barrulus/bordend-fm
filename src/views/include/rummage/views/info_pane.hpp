@@ -75,7 +75,9 @@ public:
     bool scroll_text(TextScroll how, Clock::time_point now);
 
     [[nodiscard]] bool animating() const noexcept {
-        return scroller_.animating() || page_scroller_.animating();
+        // A hidden pane cannot advance its scrollers and must not keep requesting frames.
+        return bounds_.width > 0.0F && bounds_.height > 0.0F &&
+               (scroller_.animating() || page_scroller_.animating());
     }
 
     [[nodiscard]] bool expanded() const noexcept { return expanded_; }
@@ -85,6 +87,7 @@ public:
 
     // Before a frame: what it drew is gone unless it is drawn again (a view without the pane).
     void forget_layout() noexcept {
+        bounds_ = {};
         toggle_ = {};
         page_ = {};
     }

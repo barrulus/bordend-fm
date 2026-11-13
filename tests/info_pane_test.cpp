@@ -64,6 +64,7 @@ struct Fixture {
     rummage::ui::Renderer renderer{fonts};
     rummage::ui::IconSet icons{fonts};
     Browser::Clock::time_point now = Browser::Clock::now();
+    std::int32_t height{kHeight};
 
     Fixture() {
         std::ofstream longer{dir.path / "long.txt"};
@@ -84,9 +85,9 @@ struct Fixture {
     // A frame, `later` after the last one: scrolls glide to where they were sent.
     void draw(std::chrono::milliseconds later = 0ms) {
         now += later;
-        renderer.begin_frame(kWidth, kHeight, 1.0F, {});
-        browser.draw(renderer, {0.0F, 0.0F, kWidth, kHeight}, rummage::theme::Palette{}, icons,
-                     now);
+        renderer.begin_frame(kWidth, height, 1.0F, {});
+        browser.draw(renderer, {0.0F, 0.0F, kWidth, static_cast<float>(height)},
+                     rummage::theme::Palette{}, icons, now);
         renderer.end_frame();
     }
 
@@ -279,4 +280,68 @@ TEST_CASE("info pane: a log larger than what is read opens at its newest lines")
     REQUIRE(pane.text_page().width > 0.0F);
     REQUIRE(pane.text_max_offset() > 0.0F);
     CHECK(pane.text_offset() == pane.text_max_offset());
+}
+
+TEST_CASE("info pane: replacing or hiding a scrolling text page stops redraws") {
+    const auto gl = offscreen();
+    if (!gl) {
+        return;
+    }
+    Fixture f;
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_Down);  // long.txt
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_j, {.alt = true});
+    f.draw(16ms);
+    REQUIRE(f.pane().animating());
+    SUBCASE("multiple selection") { f.press(XKB_KEY_a, {.ctrl = true}); }
+    SUBCASE("hidden pane") { f.browser.set_info_visible(false); }
+    f.draw(16ms);
+    REQUIRE(f.pane().text_page().width == 0.0F);
+    CHECK_FALSE(f.pane().animating());
+    f.draw(1000ms);
+    CHECK_FALSE(f.browser.animating());
+}
+
+TEST_CASE("info pane: text pages fit short windows and reach their final line") {
+    const auto gl = offscreen();
+    if (!gl) {
+        return;
+    }
+    Fixture f;
+    SUBCASE("minimum window height") { f.height = 320; }
+    SUBCASE("short window") { f.height = 400; }
+    SUBCASE("default window height") { f.height = 640; }
+    REQUIRE(f.settle());
+    f.press(XKB_KEY_Down);  // long.txt
+    REQUIRE(f.settle());
+    const auto page = f.pane().text_page();
+    REQUIRE(page.width > 0.0F);
+    CHECK(page.y >= 0.0F);
+    CHECK(page.bottom() <= static_cast<float>(f.height));
+
+    f.press(XKB_KEY_Page_Down, {.alt = true});
+    f.draw(1000ms);
+    CHECK(f.pane().text_offset() > 0.0F);
+    CHECK(f.pane().text_offset() < page.height);
+    CHECK(f.pane().text_page().y == page.y);  // the outer pane did not move
+    for (int i = 0; i < 100; ++i) {
+        f.press(XKB_KEY_Page_Down, {.alt = true});
+    }
+    f.draw(2000ms);
+    CHECK(f.pane().text_offset() == f.pane().text_max_offset());
+    REQUIRE(f.pane().summary() != nullptr);
+    REQUIRE(f.pane().summary()->text.has_value());
+    const float content =
+        static_cast<float>(f.pane().summary()->text->lines.size()) * InfoPane::kTextLineHeight;
+    const float viewport = content - f.pane().text_max_offset();
+    CHECK(viewport < page.height);
+    CHECK(viewport >= InfoPane::kTextLineHeight);
+
+    // Resizing to a tall window expands the page and clamps the offset at the new end.
+    const float previous_max = f.pane().text_max_offset();
+    f.height = kHeight;
+    f.draw(1000ms);
+    CHECK(f.pane().text_max_offset() <= previous_max);
+    CHECK(f.pane().text_offset() == f.pane().text_max_offset());
 }

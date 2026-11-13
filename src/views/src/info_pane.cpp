@@ -250,6 +250,10 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     renderer.push_clip(bounds);
     Writer out{renderer, {bounds.x, bounds.y - offset, bounds.width, bounds.height}, palette};
     const auto finish = [&] {
+        if (page_.height <= 0.0F) {
+            // Multiple selection can replace a text page without requesting another summary.
+            page_scroller_.jump_to(page_scroller_.offset());
+        }
         content_height_ = out.y() - (bounds.y - offset) + kTop;
         renderer.pop_clip();
     };
@@ -339,7 +343,12 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         const std::vector<std::vector<text::Span>>& spans = summary->text->spans;
         const theme::SyntaxColors colours = theme::syntax_colors(palette);
         const std::size_t shown = std::min(lines.size(), kPageLines);
-        const float view = static_cast<float>(shown) * kLineHeight;
+        // Fit whole lines in the pane, including the page's padding and the pane's margins.
+        // Use its unscrolled height: scrolling to the metadata must not resize the text page.
+        const float available =
+            std::max(0.0F, bounds.height - (2.0F * kTop) - (2.0F * kPagePadding));
+        const float view =
+            std::min(static_cast<float>(shown), std::floor(available / kLineHeight)) * kLineHeight;
         const float height = view + (2.0F * kPagePadding);
         page_ = {preview_left, out.y(), preview_width, height};
         page_scroller_.set_extent(static_cast<float>(lines.size()) * kLineHeight, view);
@@ -370,7 +379,7 @@ void InfoPane::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         if (page_scroller_.max_offset() > 0.0F) {
             // A thin thumb, only when there is more than the page shows.
             const float content = static_cast<float>(lines.size()) * kLineHeight;
-            const float thumb = std::max(kScrollbarMinThumb, view * view / content);
+            const float thumb = std::min(view, std::max(kScrollbarMinThumb, view * view / content));
             const float thumb_y =
                 inner.y + ((view - thumb) * page_offset / page_scroller_.max_offset());
             renderer.draw_box(
