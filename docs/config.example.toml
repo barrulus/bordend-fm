@@ -94,7 +94,18 @@ follow_accent = true
 # select_all = "Ctrl+a"         # Select all files
 # toggle_selection = "Ctrl+space" # Select/unselect the focused entry
 
-# Tabs
+# Panes (Tab switches only while browsing; dialogs and text fields keep Tab)
+# toggle_split = "F3"           # Show two panes / active pane full-width
+# switch_pane = "Tab"
+# copy_other_pane = "Ctrl+F5"
+# move_other_pane = "Ctrl+F6"
+# These commands have no default shortcut; bind them if useful:
+# swap_panes = "Ctrl+Shift+s"
+# orient_panes = "Ctrl+Shift+F3"
+# open_other_pane = "Ctrl+Shift+o"
+# same_other_pane = "Ctrl+Shift+d"
+
+# Tabs (within the active pane)
 # new_tab = "Ctrl+t"
 # close_tab = "Ctrl+w"
 # next_tab = "Ctrl+Tab"
@@ -455,6 +466,8 @@ follow_accent = true
 # open, open_with, open_tab, open_terminal, add_bookmark, copy, cut, paste, rename, trash,
 # erase, restore, empty_trash, properties, new_folder, new_file, empty_file, sort, sort:name, sort:size,
 # sort:modified, sort:type, sort:ascending, sort:descending, actions,
+# panes, toggle_split, switch_pane, swap_panes, orient_panes, open_other_pane,
+# same_other_pane, copy_other_pane, move_other_pane,
 # action:copy_location, action:extract_here, action:extract_to,
 # mount, unmount, eject, remove_bookmark.
 # open_with and new_file include their dynamically discovered applications/templates;

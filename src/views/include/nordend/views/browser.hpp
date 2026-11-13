@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <deque>
@@ -167,15 +168,15 @@ public:
     // Where history() is now.
     [[nodiscard]] std::size_t history_index() const noexcept { return pane().here; }
 
-    // Ctrl+H: dotfiles listed in every view, or left out (at start). Left out, they leave the
-    // selection, so nothing acts on what is not seen, and the cursor moves off them; the hidden
-    // folders on the way to the one shown stay.
-    void set_show_hidden(bool show);
+    // Ctrl+H: dotfiles listed in every view of the active tab, or left out (at start). Left out,
+    // they leave the selection, so nothing acts on what is not seen, and the cursor moves off them;
+    // the hidden folders on the way to the one shown stay.
+    void set_show_hidden(bool show, bool announce = true);
     void set_entry_filter(fs::Listing::Predicate filter);
     // Live filename substring filter, combined with the picker's type restrictions.
     void set_name_filter(std::string text);
 
-    [[nodiscard]] const std::string& name_filter() const { return filter_field_.text(); }
+    [[nodiscard]] const std::string& name_filter() const { return pane().filter_field.text(); }
 
     [[nodiscard]] bool filtering() const { return filter_focused_; }
 
@@ -184,9 +185,9 @@ public:
         redraw_();
     }
 
-    [[nodiscard]] const ui::Rect& filter_bounds() const { return filter_bounds_; }
+    [[nodiscard]] const ui::Rect& filter_bounds() const { return area().filter_bounds; }
 
-    [[nodiscard]] const ui::Rect& new_folder_bounds() const { return new_folder_bounds_; }
+    [[nodiscard]] const ui::Rect& new_folder_bounds() const { return area().new_folder_bounds; }
 
     [[nodiscard]] bool has_overlay() const {
         return errors_.is_open() || password_.is_open() || conflict_.is_open() ||
@@ -196,9 +197,9 @@ public:
 
     [[nodiscard]] std::shared_ptr<Folder> picker_folder() const { return current_folder(); }
 
-    [[nodiscard]] bool shows_hidden() const noexcept { return show_hidden_; }
+    [[nodiscard]] bool shows_hidden() const noexcept { return pane().show_hidden; }
 
-    // The window's order, the same in every view and every folder they show: from the context
+    // The active tab's order, the same in its views and folders: from the context
     // menu's "Sort By", or a click on a title of the details.
     void set_sort(fs::SortKey key, bool descending);
 
@@ -237,6 +238,36 @@ public:
     // At a start without a folder, after apply() and instead of open(): the tabs as they were
     // left (State::tabs), the one shown then shown again; folders gone meanwhile are left out.
     // false when none is left: open() the start folder then.
+    bool restore_session(const State& state);
+    void toggle_split();
+    void focus_pane(std::size_t index);
+    void switch_pane();
+    void swap_panes();
+    void set_stacked(bool stacked);
+    void set_split_ratio(float ratio);
+    void open_in_other_pane(const std::filesystem::path& directory);
+    void transfer_to_other_pane(bool move);
+
+    void set_panes_enabled(bool enabled) {
+        panes_enabled_ = enabled;
+        if (!enabled)
+            split_visible_ = false;
+    }
+
+    [[nodiscard]] bool split_visible() const { return split_visible_; }
+
+    [[nodiscard]] bool stacked() const { return stacked_; }
+
+    [[nodiscard]] float split_ratio() const { return split_ratio_; }
+
+    [[nodiscard]] std::size_t active_pane() const { return active_area_; }
+
+    [[nodiscard]] ui::Rect pane_bounds(std::size_t index) const {
+        return index < areas_.size() && areas_[index] ? areas_[index]->bounds : ui::Rect{};
+    }
+
+    [[nodiscard]] ui::Rect divider_bounds() const { return divider_; }
+
     bool restore_tabs(const std::vector<State::Tab>& tabs, std::size_t shown);
 
     [[nodiscard]] bool sidebar_visible() const noexcept { return sidebar_visible_; }
@@ -319,8 +350,8 @@ public:
     // is on its way (snapshots, tests).
     [[nodiscard]] bool loading() const;
 
-    // Tabs (ROADMAP 9.1), a pane each; the bar above the path shows them while there are two or
-    // more. Ctrl+T: a new tab on the folder shown, in the same view, shown at once.
+    // Tabs within the active browsing area; the bar above the path shows them while there are two
+    // or more. Ctrl+T: a new tab on the folder shown, in the same view, shown at once.
     void new_tab();
     // A new tab on directory, right after the one shown; shown, or left behind it (a middle
     // click on a folder).
@@ -332,19 +363,19 @@ public:
     // A click on a tab, Ctrl+Tab, Ctrl+Shift+Tab, Alt+1…9.
     void select_tab(std::size_t index);
 
-    [[nodiscard]] std::size_t tab_count() const noexcept { return panes_.size(); }
+    [[nodiscard]] std::size_t tab_count() const noexcept { return area().tabs.size(); }
 
-    [[nodiscard]] std::size_t active_tab() const noexcept { return active_; }
+    [[nodiscard]] std::size_t active_tab() const noexcept { return area().active; }
 
     // Each tab's name: its folder's (Home, Trash, / for the root).
     [[nodiscard]] std::vector<std::string> tab_titles() const;
 
-    [[nodiscard]] TabBar& tab_bar() noexcept { return tab_bar_; }
+    [[nodiscard]] TabBar& tab_bar() noexcept { return area().tab_bar; }
 
     // The pane shown (a tab, ROADMAP 9.1): its views, mode and history.
-    [[nodiscard]] Pane& pane() noexcept { return *panes_[active_]; }
+    [[nodiscard]] Pane& pane() noexcept { return *area().tabs[area().active]; }
 
-    [[nodiscard]] const Pane& pane() const noexcept { return *panes_[active_]; }
+    [[nodiscard]] const Pane& pane() const noexcept { return *area().tabs[area().active]; }
 
     [[nodiscard]] ColumnView& columns() noexcept { return pane().columns; }
 
@@ -358,7 +389,7 @@ public:
 
     [[nodiscard]] Sidebar& sidebar() noexcept { return sidebar_; }
 
-    [[nodiscard]] Breadcrumb& breadcrumb() noexcept { return breadcrumb_; }
+    [[nodiscard]] Breadcrumb& breadcrumb() noexcept { return area().breadcrumb; }
 
     [[nodiscard]] StatusBar& status_bar() noexcept { return status_bar_; }
 
@@ -657,6 +688,7 @@ private:
     bool take_key(const ui::KeyEvent& event, Clock::time_point now);
     void take_pointer(const ui::PointerEvent& event, Clock::time_point now);
     bool view_key(const ui::KeyEvent& event, Clock::time_point now);
+    void dispatch_area_pointer(const ui::PointerEvent& event, Clock::time_point now);
     void dispatch_pointer(const ui::PointerEvent& event, Clock::time_point now);
     // The callback the views and the sidebar set their resize arrows through.
     [[nodiscard]] std::function<void(ui::CursorShape)> resize_cursor();
@@ -683,7 +715,7 @@ private:
     void invoke_action(const core::Action& action, const core::ActionContext& context);
     void run_action(std::string_view id);
     [[nodiscard]] MenuItem sort_menu();
-    // A new pane at index at, its views wired to the window, sorted and filtered as the window is.
+    // A new tab at index at, inheriting view settings from this area's active tab.
     Pane& add_pane(std::size_t at);
     // A new tab on directory right after the one shown, which stays shown.
     void open_tab_behind(const std::filesystem::path& directory);
@@ -711,13 +743,44 @@ private:
     InfoPane info_pane_;                        // the same: every view draws it
     fs::DirectoryWatcher& watcher_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
+
     // Here, before the window's parts and the transfers: destroyed after them, as the views were.
-    std::vector<std::unique_ptr<Pane>> panes_;
-    std::size_t active_{0};
+    struct BrowsingArea {
+        explicit BrowsingArea(Browser& browser);
+        std::vector<std::unique_ptr<Pane>> tabs;
+        std::size_t active{0};
+        Breadcrumb breadcrumb;
+        TabBar tab_bar;
+        ui::Rect bounds{}, header{}, view_area{};
+        ui::Rect toolbar_bounds{}, filter_bounds{}, clear_filter_bounds{}, new_folder_bounds{};
+    };
+
+    std::array<std::unique_ptr<BrowsingArea>, 2> areas_;
+    std::size_t active_area_{0};
+    // Rendering and pointer dispatch may address an inactive area without changing focus.
+    std::size_t context_area_{0};
+
+    BrowsingArea& area() { return *areas_[context_area_]; }
+
+    const BrowsingArea& area() const { return *areas_[context_area_]; }
+
+    bool split_visible_{false};
+    bool stacked_{false};
+    bool panes_enabled_{true};
+    float split_ratio_{0.5F};
+    ui::Rect split_bounds_{}, divider_{}, split_button_{}, orientation_button_{}, swap_button_{};
+    ui::Rect shared_info_bounds_{};
+    bool resizing_split_{false};
+    bool resizing_info_{false};
+    float info_resize_x_{0}, info_resize_width_{0};
+    std::size_t pointer_area_{0};
+    void draw_area(ui::Renderer&, const ui::Rect&, const theme::Palette&, ui::IconSet&,
+                   Clock::time_point);
+    std::vector<MenuItem> pane_items();
+    std::optional<std::size_t> area_at(float x, float y) const;
+    std::shared_ptr<Folder> other_folder() const;
     QuickLook quick_look_;
     Sidebar sidebar_;
-    Breadcrumb breadcrumb_;
-    TabBar tab_bar_;
     StatusBar status_bar_;
     ShortcutsOverlay shortcuts_;
     NameEditor editor_;
@@ -742,19 +805,14 @@ private:
     std::uint64_t menu_generation_{0};  // a submenu found late fills only the menu it was for
     std::size_t menu_loads_{0};         // applications and templates being looked for
     std::vector<std::function<void()>> menu_loaders_;  // started once the menu is open
-    ui::Rect view_area_{};                             // where the view was last drawn
     bool info_visible_{true};
     bool sidebar_visible_{true};
-    fs::Listing::Predicate entry_filter_;
     fs::Listing::Predicate picker_filter_;
-    ui::TextField filter_field_;
     bool filter_focused_{false};
-    ui::Rect toolbar_bounds_{}, filter_bounds_{}, clear_filter_bounds_{}, new_folder_bounds_{};
     void apply_filters();
     void toolbar_pointer(const ui::PointerEvent& event);
     void draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
                       const theme::Palette& palette);
-    bool show_hidden_{false};
     bool sidebar_drawn_{false};  // in the last draw: the window had room for it
     Target pointer_target_{Target::view};
     bool button_held_{false};  // since a press: the pointer stays with its target

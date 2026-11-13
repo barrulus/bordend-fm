@@ -33,17 +33,48 @@ README's [What's next](../README.md#whats-next).
   lists share one size, the grid keeps its own. Each tab has its own zoom (a new tab starts with
   the one it comes from), remembered with the tabs.
 - **Sort By** in the context menu (on a file or on empty space), in every view: name, size,
-  modified or type, ascending or descending, a dot on the order in use. One order for the whole
-  window: every folder in every view is sorted so, and it comes back at the next start.
+  modified or type, ascending or descending, a dot on the order in use. Each tab keeps its own order,
+  shared by its three views and remembered at the next start.
 - **Tabs** (Ctrl+T): each with its own folder, view and back/forward history. The bar above the
   path shows them when there are two or more: a click shows a tab, its × or a middle click
   closes it, + opens one. Ctrl+Tab and Ctrl+Shift+Tab go round them, Alt+1…9 picks one, Ctrl+W
   closes the one shown (never the last). Each tab keeps its own zoom too. A middle click on a folder, or the context menu's Open in
   New Tab (Tabs, for several folders), opens it in a tab behind the one shown; a middle click on
-  a selected folder opens every selected folder. The order, hidden files, the sidebar and the info pane
-  are the window's, the same in every tab.
+  a selected folder opens every selected folder. Sorting, hidden files and the filename filter
+  are independent in each tab. The shared sidebar and information panel follow the active pane.
 - **One folder, three ways of looking at it.** Switching views keeps the cursor, the selection and
   the file types already detected. The status bar has a button for each view.
+
+## Two persistent browsing panes
+
+- **F3** or **Two panes** splits the browser. On first use, the second pane starts at the current
+  location and receives focus. Each pane has its own tabs, breadcrumb, selections, history,
+  scrolling, view modes, zoom, sort order, hidden-file setting and filename filters.
+- **Tab** switches panes while browsing. Clicking a pane's header focuses it without disturbing
+  its selection. Hovering or scrolling the other pane does not move keyboard focus. The active
+  header has an accent and an “Active” label; inactive selections remain visible in subdued colors.
+- **Ctrl+T**, **Ctrl+W**, **Ctrl+Tab**, **Ctrl+Shift+Tab** and **Alt+1…9** operate in the active
+  pane. The last tab in each pane stays open. New tabs inherit view, zoom, sorting and hidden-file
+  visibility, and start with an empty filename filter.
+- Drag the divider to resize; double-click it to equalize. **Top / bottom** changes orientation,
+  and **Swap panes** exchanges their positions while keeping focus with the same content.
+  Column view works inside either pane, just like Grid and Details.
+- **Ctrl+F5** copies selected files to the other pane's current folder; **Ctrl+F6** moves them.
+  The command palette and **Panes** context submenu show the destination path and direction.
+  In expanded Details views, the destination is the breadcrumb's folder, not a selected child.
+  Transfers capture both ends when invoked and use the existing conflict handling, sidecar
+  support, progress and window-wide undo. Clipboard copy/paste keeps its usual behavior.
+- **Open in Other Pane** opens a selected folder in a new tab there. **Show Same Folder in Other
+  Pane** opens the current location there. Both focus the destination without replacing its tabs.
+  These commands and layout controls are available in the command palette and **Panes** submenu.
+- **F3** again shows the active pane full-width, retaining the hidden pane's tabs and selections.
+  Cross-pane transfers are unavailable until both panes are visible again. Reopening Nordend
+  without a folder restores both tab sets, active tabs, focused pane, orientation, divider and
+  whether the second pane was hidden. Older single-pane sessions remain readable.
+- One sidebar, information panel and transfer status serve the window. The information panel
+  follows the active pane; **Ctrl+I** hides it. Each pane also shows its own selection count.
+  The file picker stays single-pane. Text fields and dialogs retain their normal Tab handling.
+
 
 ## Moving and selecting
 
@@ -56,7 +87,7 @@ README's [What's next](../README.md#whats-next).
   folders opened (the last 100), each with the cursor where it was left. Opening a folder after
   going back drops the ones ahead; a folder deleted meanwhile is skipped, with a message.
 - **Hidden files out of the way:** dotfiles are hidden at start; Ctrl+H shows them (dimmed) in
-  every view and hides them again. Hidden, they are never selected, so Ctrl+A and Delete touch
+  the active tab and hides them again. Hidden, they are never selected, so Ctrl+A and Delete touch
   only what you see, and the status bar says how many there are ("12 items, 3 hidden"). A hidden
   folder you open (from a bookmark, say) stays in sight on the way to it.
 - **Selection as you expect it:** click, Ctrl+click and Shift+click; Shift+arrows for a range,
@@ -477,10 +508,11 @@ go back to the system.
 - **Remembered from one start to the next** (`~/.local/state/nordend/state.toml`, written by
   Nordend): the view, the details' order and column widths, hidden files shown or not, the
   sidebar and the info pane (shown, width, "More details"), the window's size and whether it was
-  maximized; with two tabs or more, the tabs (each one's folder, view, cursor and, in the columns,
-  where they start) and which was shown, back when Nordend starts without a folder (Super+E;
-  folders gone meanwhile are left out). With one tab, not the last folder: Nordend opens Home, or
-  the folder given. Not the back/forward history. A broken file only means the defaults.
+  maximized. With multiple tabs or a second pane, both tab sets return when Nordend starts without
+  a folder (Super+E): locations, views, cursors, column roots, zoom, sorting, hidden files and
+  filters, plus active tabs, focused pane, layout and divider. Missing folders are left out;
+  an empty restored pane falls back to Home. A single tab that has never been split opens Home
+  or the folder given. Back/forward history is not saved. A broken file means the defaults.
 
 ## Standards it follows
 
@@ -495,7 +527,7 @@ helper became the first engine), after 0.4.0 (image previews read by Nordend's o
 helpers: DNG, TIFF, raw previews and EXIF without exiv2), 0.3.1 (more raw previews), 0.3.0 (the
 command palette, finding files, the icon in the accent), 0.2.0 (Sort By, tabs, zoom in the
 lists) and the first release, 0.1.0. Coming, roughly in this order: other common formats, colour
-labels and ratings, a Quick Look for photographers, a dual pane. See the README's
+labels and ratings, a Quick Look for photographers, further pane workflows. See the README's
 [What's next](../README.md#whats-next).
 
 ### Expandable folders in details view

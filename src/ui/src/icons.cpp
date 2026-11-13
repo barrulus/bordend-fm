@@ -172,7 +172,10 @@ bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, fl
 
 void IconSet::draw_file(Renderer& renderer, std::string_view mime, std::string_view fallback,
                         float x, float y, float size, Color color, std::string_view preferred) {
-    if (!preferred.empty() && draw_themed(renderer, preferred, x, y, size, color)) {
+    // Folder overrides follow the selected theme; explicit Places overrides also work with
+    // builtin icons, so their custom-file support in draw_themed must not change this policy.
+    if (selected_theme_ != "builtin" && !preferred.empty() &&
+        draw_themed(renderer, preferred, x, y, size, color)) {
         return;
     }
     std::string name{mime};

@@ -73,6 +73,8 @@ public:
     ColumnView(ColumnView&&) = delete;
     ColumnView& operator=(ColumnView&&) = delete;
 
+    void set_info_visible(bool visible) { info_visible_ = visible; }
+
     // One column showing directory, focused, no cursor.
     void open(const std::filesystem::path& directory);
 
@@ -210,6 +212,7 @@ private:
     const DropMark* drop_{nullptr};
     std::function<void(ui::CursorShape)> set_cursor_;
     InfoPane* info_pane_;
+    bool info_visible_{true};
     ui::Rect info_area_{};  // where the info pane was last drawn; empty when not shown
 
     std::vector<Slot> columns_;

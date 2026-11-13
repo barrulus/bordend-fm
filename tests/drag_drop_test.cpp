@@ -540,9 +540,10 @@ TEST_CASE("drop: onto a step of the breadcrumb and a place of the sidebar; the t
     f.show(f.photos, Browser::Mode::details);
     // The breadcrumb's step for root.
     std::optional<std::pair<float, float>> crumb;
-    for (float x = 200.0F; x < kWidth && !crumb; x += 4.0F) {
-        if (f.browser.breadcrumb().path_at(x, 20.0F) == f.root) {
-            crumb = std::pair{x, 20.0F};
+    for (float y = 0; y < 160 && !crumb; y += 4) {
+        for (float x = 200.0F; x < kWidth && !crumb; x += 4.0F) {
+            if (f.browser.breadcrumb().path_at(x, y) == f.root)
+                crumb = std::pair{x, y};
         }
     }
     REQUIRE(crumb);

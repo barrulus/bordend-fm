@@ -152,7 +152,7 @@ TEST_CASE("tabs: Ctrl+T, Ctrl+Tab, Ctrl+Shift+Tab, Alt+1…9, Ctrl+W; the last t
     CHECK(f.browser.tab_titles() == Names{"a"});
 }
 
-TEST_CASE("tabs: each has its view and history; the order and hidden files are the window's") {
+TEST_CASE("tabs: each has its view and history; sorting and hidden files are independent") {
     Fixture f;
     f.browser.set_mode(Browser::Mode::grid);
     CHECK(f.press(key(XKB_KEY_t, kCtrl)));  // in the grid too
@@ -167,10 +167,13 @@ TEST_CASE("tabs: each has its view and history; the order and hidden files are t
     CHECK(f.browser.history().size() == 1);
     CHECK(f.browser.grid().folder()->path() == f.a);
 
-    // The window's order and hidden files reach every tab, those made later too.
+    // Settings stay in this tab; new tabs inherit the tab they are opened from.
     f.browser.set_sort(nordend::fs::SortKey::size, true);
     f.browser.set_show_hidden(true);
     f.browser.select_tab(1);
+    CHECK(f.browser.sort_order().key == nordend::fs::SortKey::name);
+    CHECK_FALSE(f.browser.shows_hidden());
+    f.browser.set_sort(nordend::fs::SortKey::size, true);
     CHECK(f.browser.sort_order().key == nordend::fs::SortKey::size);
     CHECK(f.browser.sort_order().descending);
     CHECK(f.browser.details().folder()->order().key == nordend::fs::SortKey::size);

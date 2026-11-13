@@ -235,6 +235,11 @@ StateResult parse_state(std::string_view text, std::string_view source) {
     read.size("window.width", s.window_width);
     read.size("window.height", s.window_height);
     read.flag("window.maximized", s.maximized);
+    read.flag("panes.visible", s.split_visible);
+    read.flag("panes.initialized", s.panes_initialized);
+    read.flag("panes.stacked", s.stacked);
+    read.number("panes.ratio", 0.15F, 0.85F, s.split_ratio);
+    s.active_pane = root.at_path("panes.active").value_or<std::int64_t>(0) == 1 ? 1 : 0;
     result.problems = read.take();
     if (const toml::node* grid = root.at_path("view.grid_icon").node()) {
         const std::optional<std::int64_t> pixels = grid->value<std::int64_t>();
@@ -282,9 +287,13 @@ StateResult parse_state(std::string_view text, std::string_view source) {
                     problem(node, "a tab must be a table");
                     continue;
                 }
-                if (s.tabs.size() == State::kMaxTabs) {
-                    problem(node, std::format("more than {} tabs", State::kMaxTabs));
-                    break;
+                if (static_cast<std::size_t>(std::ranges::count(
+                        s.tabs,
+                        (*table)["pane"].value_or<std::int64_t>(0) == 1 ? std::size_t{1}
+                                                                        : std::size_t{0},
+                        &State::Tab::pane)) == State::kMaxTabs) {
+                    problem(node, std::format("more than {} tabs in a pane", State::kMaxTabs));
+                    continue;
                 }
                 State::Tab tab;
                 const std::optional<std::string_view> folder =
@@ -342,8 +351,23 @@ StateResult parse_state(std::string_view text, std::string_view source) {
                     }
                     tab.grid_icon = static_cast<std::int32_t>(*pixels);
                 }
+                tab.pane = (*table)["pane"].value_or<std::int64_t>(0) == 1 ? 1 : 0;
+                if (const auto key = (*table)["sort"].value<std::string>()) {
+                    const auto found = std::ranges::find(
+                        kSortKeys, *key, [](const auto& item) { return item.first; });
+                    if (found != kSortKeys.end())
+                        tab.sort_key = found->second;
+                }
+                tab.sort_descending = (*table)["descending"].value_or(false);
+                tab.show_hidden = (*table)["show_hidden"].value<bool>();
+                tab.filter = (*table)["filter"].value_or(std::string{});
                 if ((*table)["shown"].value_or(false)) {
-                    s.shown_tab = s.tabs.size();
+                    const auto index = static_cast<std::size_t>(
+                        std::ranges::count(s.tabs, tab.pane, &State::Tab::pane));
+                    if (tab.pane == 0)
+                        s.shown_tab = index;
+                    else
+                        s.other_shown_tab = index;
                 }
                 s.tabs.push_back(std::move(tab));
             }
@@ -396,9 +420,19 @@ std::string format_state(const State& s) {
         if (tab.grid_icon) {
             tabs += std::format("grid_icon = {}\n", *tab.grid_icon);
         }
-        if (i == s.shown_tab) {
+        tabs += std::format("pane = {}\n", tab.pane);
+        if (tab.sort_key)
+            tabs += std::format("sort = \"{}\"\ndescending = {}\n",
+                                word_of(kSortKeys, *tab.sort_key), flag(tab.sort_descending));
+        if (tab.show_hidden)
+            tabs += std::format("show_hidden = {}\n", flag(*tab.show_hidden));
+        if (!tab.filter.empty() && valid_utf8(tab.filter))
+            tabs += "filter = " + toml_string(tab.filter) + "\n";
+        const auto index = static_cast<std::size_t>(
+            std::count_if(s.tabs.begin(), s.tabs.begin() + static_cast<std::ptrdiff_t>(i),
+                          [&tab](const State::Tab& other) { return other.pane == tab.pane; }));
+        if (index == (tab.pane == 0 ? s.shown_tab : s.other_shown_tab))
             tabs += "shown = true\n";
-        }
     }
     return std::format(
                "# How Nordend was left, read at start. Written by Nordend: no need to edit it.\n"
@@ -439,6 +473,10 @@ std::string format_state(const State& s) {
                word_of(kSortKeys, s.sort_key), flag(s.sort_descending), s.details_widths[0],
                s.details_widths[1], s.details_widths[2], s.window_width, s.window_height,
                flag(s.maximized), recent) +
+           std::format(
+               "\n[panes]\nvisible = {}\ninitialized = {}\nstacked = {}\nratio = {}\nactive = {}\n",
+               flag(s.split_visible), flag(s.panes_initialized), flag(s.stacked), s.split_ratio,
+               s.active_pane) +
            tabs;
 }
 

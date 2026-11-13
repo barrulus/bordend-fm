@@ -394,15 +394,44 @@ bool read_menu_layout(const toml::node& source, Reader& reader, const std::vecto
         fail(source, "must be a table");
         return false;
     }
-    std::unordered_set<std::string> known{
-        "open",           "properties",   "open_with",      "open_tab",
-        "open_terminal",  "add_bookmark", "copy",           "cut",
-        "paste",          "rename",       "trash",          "erase",
-        "restore",        "empty_trash",  "new_folder",     "new_file",
-        "empty_file",     "sort",         "sort:name",      "sort:size",
-        "sort:modified",  "sort:type",    "sort:ascending", "sort:descending",
-        "actions",        "mount",        "unmount",        "eject",
-        "remove_bookmark"};
+    std::unordered_set<std::string> known{"open",
+                                          "properties",
+                                          "open_with",
+                                          "open_tab",
+                                          "open_terminal",
+                                          "add_bookmark",
+                                          "copy",
+                                          "cut",
+                                          "paste",
+                                          "rename",
+                                          "trash",
+                                          "erase",
+                                          "restore",
+                                          "empty_trash",
+                                          "new_folder",
+                                          "new_file",
+                                          "empty_file",
+                                          "sort",
+                                          "sort:name",
+                                          "sort:size",
+                                          "sort:modified",
+                                          "sort:type",
+                                          "sort:ascending",
+                                          "sort:descending",
+                                          "actions",
+                                          "mount",
+                                          "unmount",
+                                          "eject",
+                                          "remove_bookmark",
+                                          "panes",
+                                          "toggle_split",
+                                          "switch_pane",
+                                          "swap_panes",
+                                          "orient_panes",
+                                          "open_other_pane",
+                                          "same_other_pane",
+                                          "copy_other_pane",
+                                          "move_other_pane"};
     for (const auto& action : action_registry(actions)) {
         known.insert("action:" + action.id);
     }

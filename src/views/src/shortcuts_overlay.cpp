@@ -34,7 +34,8 @@ float rows_height(std::string_view group) {
 }  // namespace
 
 std::vector<std::string_view> overlay_groups() {
-    return {"General", "Moving", "Selecting", "Files", "Tabs", "Sidebar", "Zoom", "Quick Look"};
+    return {"General", "Moving",  "Selecting", "Files",     "Tabs",
+            "Panes",   "Sidebar", "Zoom",      "Quick Look"};
 }
 
 ShortcutsOverlay::ShortcutsOverlay(std::function<void()> redraw) : redraw_{std::move(redraw)} {}

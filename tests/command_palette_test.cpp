@@ -321,6 +321,17 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
     f.press(key(XKB_KEY_c, kCtrl));
     seen.merge(f.ids());
 
+    // Pane commands require two different folders and a source selection.
+    f.browser.set_mode(Browser::Mode::details);
+    f.browser.toggle_split();
+    f.browser.open(f.b);
+    REQUIRE(f.settle());
+    f.browser.focus_pane(0);
+    f.browser.details().folder()->select_name("sub");
+    seen.merge(f.ids());
+    f.browser.details().folder()->select_name("one.txt");
+    seen.merge(f.ids());
+
     // Every command of the shortcuts but those the palette has no use for.
     const std::set<Command> not_in_palette{Command::none,       Command::context_menu,
                                            Command::select_tab, Command::command_palette,
@@ -352,6 +363,14 @@ TEST_CASE("palette in the browser: every command is offered where it can be used
         {Command::previous_tab, "previous_tab"},
         {Command::find_files, "find_files"},
         {Command::filter_names, "filter_names"},
+        {Command::toggle_split, "toggle_split"},
+        {Command::switch_pane, "switch_pane"},
+        {Command::swap_panes, "swap_panes"},
+        {Command::orient_panes, "orient_panes"},
+        {Command::open_other_pane, "open_other_pane"},
+        {Command::same_other_pane, "same_other_pane"},
+        {Command::copy_other_pane, "copy_other_pane"},
+        {Command::move_other_pane, "move_other_pane"},
     };
     for (const nordend::views::Shortcut& shortcut : nordend::views::shortcuts()) {
         if (not_in_palette.contains(shortcut.command)) {
