@@ -94,9 +94,10 @@ add_subdirectory(src/preview)   # Quick Look providers: images, text, informatio
 add_subdirectory(src/isolate)   # preview helpers: the parsers in separate processes (2b)
 option(RUMMAGE_MEDIA "Build the optional FFmpeg video preview helper" OFF)
 if(RUMMAGE_MEDIA)
-    pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat>=61)
-    pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec>=61)
-    pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil>=59)
+    # FFmpeg 6.1 introduced the codec-parameter side data used for video rotation.
+    pkg_check_modules(AVFORMAT REQUIRED IMPORTED_TARGET libavformat>=60.16.100)
+    pkg_check_modules(AVCODEC REQUIRED IMPORTED_TARGET libavcodec>=60.31.102)
+    pkg_check_modules(AVUTIL REQUIRED IMPORTED_TARGET libavutil>=58.29.100)
     pkg_check_modules(SWSCALE REQUIRED IMPORTED_TARGET libswscale)
     add_subdirectory(src/media)
 else()
