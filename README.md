@@ -223,7 +223,7 @@ Install the matching `rummage-media` package for video thumbnails and still prev
 information pane and Space Quick Look. The grid draws cinema filmstrip borders; cached images
 and larger previews stay undecorated. This is still-frame preview, not video playback.
 
-The helper uses system FFmpeg 7 or newer shared libraries (`libavformat`, `libavcodec`,
+The helper uses system FFmpeg 6.1 or newer shared libraries (`libavformat`, `libavcodec`,
 `libavutil`, `libswscale`); it does not execute `ffmpeg`, `ffprobe`, or `ffmpegthumbnailer`.
 Your package manager reuses compatible installed libraries. Some distributions package these
 libraries together with the FFmpeg commands. Codec availability follows the distribution build.

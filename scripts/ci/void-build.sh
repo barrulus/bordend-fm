@@ -20,6 +20,8 @@ export XBPS_CHROOT_CMD=ethereal XBPS_ALLOW_CHROOT_BREAKOUT=yes
 export XBPS_MAKEJOBS=${CI_JOBS:-2}
 mkdir -p srcpkgs/rummage
 cp /source/packaging/void/rummage/template srcpkgs/rummage/template
+# xbps-src discovers split packages through a sibling link to their parent template.
+ln -s rummage srcpkgs/rummage-media
 # Only source metadata changes: use the checked-out tree, never upstream's old release.
 python3 /source/scripts/ci/void-source.py /input /buildroot
 ./xbps-src pkg rummage
