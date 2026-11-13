@@ -109,6 +109,13 @@ void IconSet::set_theme(std::string theme) {
     }
 }
 
+void IconSet::set_place_icons(std::map<std::string, std::string> icons) {
+    if (icons != place_icons_) {
+        place_icons_ = std::move(icons);
+        pending_theme_ = selected_theme_;  // clear cached custom images at the next GL draw
+    }
+}
+
 bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, float y, float size,
                           Color color) {
     if (pending_theme_) {
@@ -120,7 +127,8 @@ bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, fl
         }
         pending_theme_.reset();
     }
-    if (!theme_ || name.empty()) {
+    const bool custom_file = name.starts_with('/');
+    if ((!theme_ && !custom_file) || name.empty()) {
         return false;
     }
     const int pixels = std::clamp(static_cast<int>(std::ceil(size * renderer.scale())), 1, 1024);
@@ -131,7 +139,7 @@ bool IconSet::draw_themed(Renderer& renderer, std::string_view name, float x, fl
         if (themed_.size() >= 1024 || theme_bytes_ >= 64U * 1024U * 1024U) {
             return false;
         }
-        const auto file = theme_->find(name, pixels);
+        const auto file = custom_file ? std::filesystem::path{name} : theme_->find(name, pixels);
         picture::Image image;
         if (!file.empty()) {
             bool unsupported_filter = false;
@@ -174,11 +182,37 @@ void IconSet::draw_file(Renderer& renderer, std::string_view mime, std::string_v
     }
 }
 
+void IconSet::draw_place(Renderer& renderer, std::string_view key, std::string_view fallback,
+                         float x, float y, float size, Color color) {
+    auto it = place_icons_.find(std::string{key});
+    if (it == place_icons_.end() && key == "trash_full") {
+        it = place_icons_.find("trash");
+    }
+    if (it != place_icons_.end()) {
+        const std::string_view custom = it->second;
+        if (custom.starts_with("builtin:")) {
+            const auto name = custom.substr(8);
+            if (has(name)) {
+                draw_builtin(renderer, name, x, y, size, color);
+                return;
+            }
+        } else if (draw_themed(renderer, custom, x, y, size, color)) {
+            return;
+        }
+    }
+    draw(renderer, fallback, x, y, size, color);
+}
+
 void IconSet::draw(Renderer& renderer, std::string_view name, float x, float y, float size,
                    Color color) {
     if (draw_themed(renderer, theme_name(name), x, y, size, color)) {
         return;
     }
+    draw_builtin(renderer, name, x, y, size, color);
+}
+
+void IconSet::draw_builtin(Renderer& renderer, std::string_view name, float x, float y, float size,
+                           Color color) {
     if (!outline_) {
         return;
     }

@@ -38,6 +38,25 @@ theme = "system"
 # the launcher look first. false takes it away and leaves the installed icon.
 follow_accent = true
 
+# Optional icons for the Places sidebar; omitted keys keep their normal icons.
+# Values are names from the selected icon theme, "builtin:<name>" for a bundled Tabler icon,
+# or absolute paths to your own SVG/PNG files. Missing icons fall back to the normal icon.
+# Bundled names are listed in third_party/tabler-icons/icons.txt (filled names use -filled).
+# Changes reload live. Keys follow the folder's purpose even if you rename/move an XDG folder.
+# trash applies to both states unless trash_full is also set. Theme names require a theme
+# other than "builtin"; custom files and builtin:<name> work with any theme.
+[icon.places]
+# home = "user-home"
+# desktop = "user-desktop"
+# documents = "folder-documents"
+# downloads = "folder-download"
+# music = "folder-music"
+# pictures = "/home/you/.local/share/icons/my-pictures.svg"
+# videos = "folder-videos"
+# filesystem = "drive-harddisk"
+# trash = "builtin:trash"
+# trash_full = "builtin:trash-filled"
+
 [keybindings]
 # Defaults are listed below as commented examples. Leave them commented to keep
 # every built-in alternative; uncomment and edit only the actions you want to change.

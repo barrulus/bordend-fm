@@ -106,6 +106,7 @@ void check_defaults(const Config& config) {
     CHECK(config.pointer.double_click_distance == defaults.pointer.double_click_distance);
     CHECK(config.icon.follow_accent == defaults.icon.follow_accent);
     CHECK(config.icon.theme == defaults.icon.theme);
+    CHECK(config.icon.places == defaults.icon.places);
 }
 
 bool contains(const std::string& text, std::string_view part) {
@@ -176,6 +177,27 @@ TEST_CASE("icon themes follow desktop settings, accept an override and can be di
     CHECK(parse("[icon]\ntheme = \"builtin\"").config.icon.theme == "builtin");
     CHECK_FALSE(parse("[icon]\ntheme = 42").problems.empty());
     CHECK_FALSE(parse("[icon]\ntheme = \"\"").problems.empty());
+}
+
+TEST_CASE("place icons: named icons and custom files are read independently") {
+    const auto result = parse(R"(
+[icon.places]
+home = "builtin:home"
+documents = "folder-documents"
+pictures = "/tmp/my pictures.svg"
+trash_full = "builtin:trash-filled"
+downloads = 42
+music = ""
+typo = "folder"
+)");
+    REQUIRE(result.config.icon.places.size() == 4);
+    CHECK(result.config.icon.places.at("home") == "builtin:home");
+    CHECK(result.config.icon.places.at("documents") == "folder-documents");
+    CHECK(result.config.icon.places.at("pictures") == "/tmp/my pictures.svg");
+    CHECK(result.config.icon.places.at("trash_full") == "builtin:trash-filled");
+    CHECK(result.problems.size() == 3);
+    CHECK_FALSE(parse("[icon]\nplaces = false").problems.empty());
+    CHECK(parse("").config.icon.places.empty());  // removing overrides restores defaults
 }
 
 TEST_CASE("every key is read") {

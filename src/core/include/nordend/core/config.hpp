@@ -31,6 +31,8 @@ struct Config {
         // Nordend's icon in the desktop's accent, written to ~/.local/share/icons (ROADMAP 9.2);
         // false takes it away and leaves the installed one.
         bool follow_accent{true};
+        // Per-place theme names, builtin:<glyph>, or absolute SVG/PNG paths.
+        std::map<std::string, std::string> places;
     };
 
     struct Appearance {

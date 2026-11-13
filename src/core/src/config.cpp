@@ -346,6 +346,30 @@ void read_document(const toml::table& root, Reader& reader, ConfigResult& result
                   [&](const toml::node& value, const std::string& path) {
                       reader.read_string(value, path, config.icon.theme);
                   }},
+                 {"places",
+                  [&](const toml::node& value, const std::string& path) {
+                      const auto* table = value.as_table();
+                      if (!table) {
+                          reader.report(value.source(), path + " must be a section; ignored");
+                          return;
+                      }
+                      for (const auto& [name, entry] : *table) {
+                          static constexpr std::string_view keys[]{
+                              "home",     "desktop", "documents",  "downloads", "music",
+                              "pictures", "videos",  "filesystem", "trash",     "trash_full"};
+                          const std::string entry_path = path + "." + std::string{name.str()};
+                          if (std::ranges::find(keys, name.str()) == std::end(keys)) {
+                              reader.report(name.source(),
+                                            "unknown key '" + entry_path + "'; ignored");
+                              continue;
+                          }
+                          std::string icon;
+                          reader.read_string(entry, entry_path, icon);
+                          if (!icon.empty()) {
+                              config.icon.places.emplace(name.str(), std::move(icon));
+                          }
+                      }
+                  }},
                  {"follow_accent", [&](const toml::node& value, const std::string& path) {
                       reader.read_bool(value, path, config.icon.follow_accent);
                   }}});

@@ -34,6 +34,7 @@ struct Place {
     };
 
     Disk disk{};
+    std::string_view icon_key{};  // stable config key, independent of the folder's label/path
 
     bool operator==(const Place&) const = default;
 };

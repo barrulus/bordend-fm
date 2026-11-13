@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -30,6 +31,7 @@ public:
     // "system" reads desktop settings, "builtin" uses Tabler, otherwise an installed theme.
     // Applied at the next draw, when a GL context is current.
     void set_theme(std::string theme);
+    void set_place_icons(std::map<std::string, std::string> icons);
 
     [[nodiscard]] const std::string& selected_theme() const noexcept { return selected_theme_; }
 
@@ -46,6 +48,11 @@ public:
     void draw_file(Renderer& renderer, std::string_view mime, std::string_view fallback, float x,
                    float y, float size, Color color, std::string_view preferred = {});
 
+    // Overrides use theme names, builtin:<glyph>, or absolute SVG/PNG paths. Missing assets
+    // use the normal icon; trash_full inherits trash when no separate override is configured.
+    void draw_place(Renderer& renderer, std::string_view key, std::string_view fallback, float x,
+                    float y, float size, Color color);
+
 private:
     struct Glyph {
         std::uint32_t font{0};
@@ -53,6 +60,8 @@ private:
     };
 
     Glyph glyph(std::string_view name);
+    void draw_builtin(Renderer& renderer, std::string_view name, float x, float y, float size,
+                      Color color);
     bool draw_themed(Renderer& renderer, std::string_view name, float x, float y, float size,
                      Color color);
 
@@ -60,6 +69,7 @@ private:
     std::optional<std::uint32_t> outline_;
     std::optional<std::uint32_t> filled_;
     std::unordered_map<std::string, Glyph> glyphs_;
+    std::map<std::string, std::string> place_icons_;
     std::optional<std::string> pending_theme_;
     std::string selected_theme_{"builtin"};
     std::unique_ptr<IconTheme> theme_;
