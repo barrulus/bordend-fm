@@ -3,7 +3,7 @@ Version:        0.5.0
 Release:        1%{?dist}
 Summary:        Native Wayland file manager
 License:        MIT AND (MIT OR Apache-2.0)
-URL:            https://github.com/barrulus/bordend-fm
+URL:            https://github.com/barrulus/rummage
 Source0:        rummage-source.tar.gz
 
 BuildRequires:  gcc-c++

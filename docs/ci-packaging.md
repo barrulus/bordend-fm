@@ -45,8 +45,8 @@ To share the Nix version, send the fork reference. With flakes enabled, the reci
 run it directly or install it into their profile:
 
 ```sh
-nix run github:barrulus/bordend-fm
-nix profile install github:barrulus/bordend-fm
+nix run github:barrulus/rummage
+nix profile install github:barrulus/rummage
 ```
 
 Append `/COMMIT_SHA` to that reference to select an exact revision. This fetches the source

@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: rummage
-Source: https://github.com/barrulus/bordend-fm
+Source: https://github.com/barrulus/rummage
 Comment:
  rummage is a fork of Nordend by pankaspe: https://github.com/pankaspe/nordend-fm
  The original upstream MIT copyright notice is retained in LICENSE.

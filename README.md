@@ -6,7 +6,7 @@ rummage is a fork of [Nordend](https://github.com/pankaspe/nordend-fm), created 
 [pankaspe](https://github.com/pankaspe). It builds on Nordend's native Wayland file manager
 and retains the upstream MIT license and copyright notice in [LICENSE](LICENSE).
 Bundled dependencies and their licenses are listed in [THIRD_PARTY.md](THIRD_PARTY.md).
-The fork is currently hosted at [barrulus/bordend-fm](https://github.com/barrulus/bordend-fm).
+The repository is [barrulus/rummage](https://github.com/barrulus/rummage).
 
 
 <p align="center">
@@ -16,7 +16,7 @@ The fork is currently hosted at [barrulus/bordend-fm](https://github.com/barrulu
 </p>
 
 <p align="center">
-  <a href="https://github.com/barrulus/bordend-fm/releases/tag/development"><img src="https://img.shields.io/badge/build-development-2a6a9e" alt="development build"></a>
+  <a href="https://github.com/barrulus/rummage/releases/tag/development"><img src="https://img.shields.io/badge/build-development-2a6a9e" alt="development build"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
   <img src="https://img.shields.io/badge/tests-420%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="420 tests, ASan, TSan">
@@ -153,18 +153,18 @@ tried on GNOME, Plasma and niri) and a GPU driver with OpenGL ES 3.0 (Mesa).
 ### Development downloads
 
 <!-- development-downloads:start -->
-The [latest development build](https://github.com/barrulus/bordend-fm/releases/tag/development)
+The [latest development build](https://github.com/barrulus/rummage/releases/tag/development)
 is refreshed automatically after **all checks pass on `main`**. These are unsigned Linux
 x86_64 development snapshots. Choose your exact distribution; the Fedora RPM is **not
 validated for Leap or RHEL**, and the DEB is not validated for Ubuntu or older Debian.
 
 | System | Download | Install after downloading |
 |---|---|---|
-| Debian 13 (trixie), amd64 | [DEB](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-debian13-amd64.deb) | `sudo apt install ./rummage-debian13-amd64.deb` |
-| Fedora 44, x86_64 | [RPM](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-fedora44-x86_64.rpm) | `sudo dnf install ./rummage-fedora44-x86_64.rpm` |
-| Arch Linux, x86_64 | [Arch package](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-arch-x86_64.pkg.tar.zst) | `sudo pacman -Syu`, then `sudo pacman -U ./rummage-arch-x86_64.pkg.tar.zst` |
-| openSUSE Tumbleweed, x86_64 | [Tumbleweed RPM](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-tumbleweed-x86_64.rpm) | `sudo zypper dup`, then `sudo zypper install --allow-unsigned-rpm ./rummage-tumbleweed-x86_64.rpm` |
-| Void glibc, x86_64 | [XBPS bundle](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-void-glibc-x86_64.tar.gz) | See the two commands below. |
+| Debian 13 (trixie), amd64 | [DEB](https://github.com/barrulus/rummage/releases/download/development/rummage-debian13-amd64.deb) | `sudo apt install ./rummage-debian13-amd64.deb` |
+| Fedora 44, x86_64 | [RPM](https://github.com/barrulus/rummage/releases/download/development/rummage-fedora44-x86_64.rpm) | `sudo dnf install ./rummage-fedora44-x86_64.rpm` |
+| Arch Linux, x86_64 | [Arch package](https://github.com/barrulus/rummage/releases/download/development/rummage-arch-x86_64.pkg.tar.zst) | `sudo pacman -Syu`, then `sudo pacman -U ./rummage-arch-x86_64.pkg.tar.zst` |
+| openSUSE Tumbleweed, x86_64 | [Tumbleweed RPM](https://github.com/barrulus/rummage/releases/download/development/rummage-tumbleweed-x86_64.rpm) | `sudo zypper dup`, then `sudo zypper install --allow-unsigned-rpm ./rummage-tumbleweed-x86_64.rpm` |
+| Void glibc, x86_64 | [XBPS bundle](https://github.com/barrulus/rummage/releases/download/development/rummage-void-glibc-x86_64.tar.gz) | See the two commands below. |
 
 For Void, extract the bundle and keep its package and repository index together:
 
@@ -177,19 +177,19 @@ For Nix, with flakes enabled, run or install the same tested source revision thr
 moving `development` tag (this builds rummage if no cached binary is available):
 
 ```sh
-nix run github:barrulus/bordend-fm/development
-nix profile install github:barrulus/bordend-fm/development
+nix run github:barrulus/rummage/development
+nix profile install github:barrulus/rummage/development
 ```
 
-[Checksums](https://github.com/barrulus/bordend-fm/releases/download/development/SHA256SUMS)
-and [source identity](https://github.com/barrulus/bordend-fm/releases/download/development/source.json)
+[Checksums](https://github.com/barrulus/rummage/releases/download/development/SHA256SUMS)
+and [source identity](https://github.com/barrulus/rummage/releases/download/development/source.json)
 are provided with every build. To verify a download, save `SHA256SUMS` beside it and run
 `sha256sum --check --ignore-missing SHA256SUMS`. Downloads are replaced as builds pass;
 use the full commit from `source.json` instead of `development` in the Nix reference to
 pin a version. These downloads are individual packages, not an automatic-update repository.
 
 For a **Debian source package**, download the
-[Debian source bundle](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-debian-source.tar.gz).
+[Debian source bundle](https://github.com/barrulus/rummage/releases/download/development/rummage-debian-source.tar.gz).
 It contains the matching `.dsc`, `.orig.tar.gz`, `.debian.tar.xz`, source `.changes` and
 `.buildinfo`, with their versioned filenames preserved. CI builds the published DEB from
 this source package. Rebuild on Debian 13:
@@ -206,7 +206,7 @@ dpkg-buildpackage -b -us -uc
 ```
 
 These source packages are unsigned development snapshots. The
-[generic source archive](https://github.com/barrulus/bordend-fm/releases/download/development/rummage-source.tar.gz)
+[generic source archive](https://github.com/barrulus/rummage/releases/download/development/rummage-source.tar.gz)
 is also available; it is distinct from the Debian source package.
 <!-- development-downloads:end -->
 
@@ -280,7 +280,7 @@ sudo xbps-install -S cmake ninja pkgconf wayland-devel wayland-protocols \
     libxkbcommon-devel libglvnd-devel MesaLib-devel \
     harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel \
     libwebp-devel libjxl-devel zlib-devel sdbus-c++-devel
-git clone https://github.com/barrulus/bordend-fm rummage
+git clone https://github.com/barrulus/rummage rummage
 cd rummage
 cmake -B build -G Ninja
 cmake --build build

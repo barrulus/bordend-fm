@@ -4,7 +4,7 @@ pkgver=0.5.0
 pkgrel=1
 pkgdesc='Native Wayland file manager'
 arch=('x86_64')
-url='https://github.com/barrulus/bordend-fm'
+url='https://github.com/barrulus/rummage'
 license=('MIT' 'Apache-2.0')
 depends=('glibc' 'gcc-libs' 'wayland' 'libglvnd' 'libxkbcommon' 'harfbuzz'
          'freetype2' 'fontconfig' 'tomlplusplus' 'libwebp' 'libjxl' 'zlib'
