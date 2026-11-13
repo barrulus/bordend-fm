@@ -10,7 +10,7 @@ configure_args="-DRUMMAGE_MEDIA=ON -DRUMMAGE_BUILD_TESTS=OFF -DRUMMAGE_WERROR=OF
 hostmakedepends="pkgconf wayland-devel"
 makedepends="wayland-devel wayland-protocols libglvnd-devel libxkbcommon-devel
  harfbuzz-devel freetype-devel fontconfig-devel tomlplusplus-devel
- ffmpeg6-devel libwebp-devel libjxl-devel libheif-devel>=1.23 lcms2-devel
+ ffmpeg6-devel libwebp-devel libjxl-devel libheif-devel lcms2-devel
  zlib-devel sdbus-c++-devel"
 # MIME types from shared-mime-info's database; udisks2 (disks in the sidebar)
 # and xdg-desktop-portal (desktop colours) are used when present
