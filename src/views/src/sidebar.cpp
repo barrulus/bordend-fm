@@ -208,9 +208,12 @@ void Sidebar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
                                .border_width = drop ? 1.5F : 0.0F,
                                .border = palette.primary});
         }
-        icons.draw(renderer, place.icon, bounds.x + (kIconLeft * scale()),
-                   y + (((kRowHeight * scale()) - (kIconSize * scale())) / 2.0F),
-                   (kIconSize * scale()), icon);
+        const auto icon_key = place.icon_key == "trash" && place.icon == "trash-filled"
+                                  ? std::string_view{"trash_full"}
+                                  : place.icon_key;
+        icons.draw_place(renderer, icon_key, place.icon, bounds.x + (kIconLeft * scale()),
+                         y + (((kRowHeight * scale()) - (kIconSize * scale())) / 2.0F),
+                         (kIconSize * scale()), icon);
         float text_room = bounds.width - (kTextLeft * scale()) - kInset - 4.0F;
         if (place.disk.ejectable) {
             const ui::Rect eject{bounds.right() - kInset - 6.0F - (kEjectSize * scale()),

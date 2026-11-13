@@ -236,6 +236,14 @@ TEST_CASE("places: icons exist in the icon font") {
     std::ofstream{home.sources.config_home / "gtk-3.0" / "bookmarks"} << "file:///srv\n";
     const std::vector<Place> places = nordend::fs::load_places(home.sources);
     CHECK(places.size() == 11);
+    // User directories above have arbitrary names; customization follows their XDG purpose.
+    std::vector<std::string_view> keys;
+    for (const auto& place : places) {
+        keys.push_back(place.icon_key);
+    }
+    CHECK(keys == std::vector<std::string_view>{"home", "desktop", "documents", "downloads",
+                                                "music", "pictures", "videos", "filesystem",
+                                                "trash", "", ""});
     for (const Place& place : places) {
         CHECK_MESSAGE(icons.has(place.icon), place.icon);
     }

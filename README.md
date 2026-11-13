@@ -341,6 +341,19 @@ theme = "candy-icons"
 ```
 
 Use `theme = "system"` for desktop settings or `theme = "builtin"` for the original line icons.
+
+Choose individual Places icons in the same config; changes reload live:
+
+```toml
+[icon.places]
+home = "builtin:home"
+documents = "folder-documents"
+pictures = "/home/you/.local/share/icons/my-pictures.svg"
+```
+
+Values accept names from the selected icon theme, `builtin:<name>` for bundled icons, or absolute
+SVG/PNG paths. Missing icons fall back to the defaults. All place keys and examples are in
+[config.example.toml](docs/config.example.toml).
 Theme changes in Nordend's config apply immediately; desktop theme changes are picked up at
 startup. SVG theme icons are rendered in-process using FreeType.
 

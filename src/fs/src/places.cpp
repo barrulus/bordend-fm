@@ -24,16 +24,17 @@ struct UserDirKind {
     std::string_view key;
     std::string_view name;  // its usual name in the home, without user-dirs.dirs
     std::string_view icon;
+    std::string_view icon_key;
 };
 
 // The user dirs the sidebar shows, in its order (templates and public share are left out).
 constexpr std::array<UserDirKind, 6> kUserDirs{{
-    {.key = "DESKTOP", .name = "Desktop", .icon = "device-desktop"},
-    {.key = "DOCUMENTS", .name = "Documents", .icon = "file-text"},
-    {.key = "DOWNLOAD", .name = "Downloads", .icon = "download"},
-    {.key = "MUSIC", .name = "Music", .icon = "music"},
-    {.key = "PICTURES", .name = "Pictures", .icon = "photo"},
-    {.key = "VIDEOS", .name = "Videos", .icon = "movie"},
+    {.key = "DESKTOP", .name = "Desktop", .icon = "device-desktop", .icon_key = "desktop"},
+    {.key = "DOCUMENTS", .name = "Documents", .icon = "file-text", .icon_key = "documents"},
+    {.key = "DOWNLOAD", .name = "Downloads", .icon = "download", .icon_key = "downloads"},
+    {.key = "MUSIC", .name = "Music", .icon = "music", .icon_key = "music"},
+    {.key = "PICTURES", .name = "Pictures", .icon = "photo", .icon_key = "pictures"},
+    {.key = "VIDEOS", .name = "Videos", .icon = "movie", .icon_key = "videos"},
 }};
 
 constexpr std::array<std::string_view, 3> kMountRoots{"/run/media/", "/media/", "/mnt/"};
@@ -338,7 +339,8 @@ std::vector<Place> load_places(const PlaceSources& sources) {
                       .label = "Home",
                       .path = sources.home,
                       .icon = "home",
-                      .disk = {}});
+                      .disk = {},
+                      .icon_key = "home"});
 
     const core::TextFile user_dirs = core::read_text_file(sources.config_home / "user-dirs.dirs");
     const std::vector<UserDir> dirs = parse_user_dirs(user_dirs.text, sources.home);
@@ -358,19 +360,22 @@ std::vector<Place> load_places(const PlaceSources& sources) {
                               .label = label_of(path),
                               .path = path,
                               .icon = kind.icon,
-                              .disk = {}});
+                              .disk = {},
+                              .icon_key = kind.icon_key});
         }
     }
     places.push_back({.section = Place::Section::places,
                       .label = "File system",
                       .path = "/",
                       .icon = "server",
-                      .disk = {}});
+                      .disk = {},
+                      .icon_key = "filesystem"});
     places.push_back({.section = Place::Section::places,
                       .label = "Trash",
                       .path = trash_path(),
                       .icon = "trash",
-                      .disk = {}});
+                      .disk = {},
+                      .icon_key = "trash"});
 
     std::ranges::move(
         parse_bookmarks(core::read_text_file(sources.config_home / "gtk-3.0" / "bookmarks").text),

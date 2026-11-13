@@ -516,6 +516,7 @@ int main(int argc, char** argv) {
         fs::DirectoryWatcher watcher{loop};
         ui::IconSet icons{fonts};
         icons.set_theme(config.icon.theme);
+        icons.set_place_icons(config.icon.places);
         ui::Activation activation{display, loop};
         ui::Clipboard clipboard{display, loop};  // before the browser that uses it
         // The column view and the grid (ROADMAP 4.2, 4.4), unless the renderer test scene was
@@ -541,6 +542,7 @@ int main(int argc, char** argv) {
             }
             window.request_redraw();
             icons.set_theme(fresh.icon.theme);
+            icons.set_place_icons(fresh.icon.places);
             window.set_background_opacity(fresh.appearance.background_opacity);
             seat.set_multi_click(std::chrono::milliseconds{fresh.pointer.double_click_ms},
                                  static_cast<float>(fresh.pointer.double_click_distance));
