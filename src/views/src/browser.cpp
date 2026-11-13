@@ -2214,13 +2214,31 @@ void Browser::draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
         return;
     }
     renderer.fill_background(bounds, palette.surface_container);
-    const float button_width = 104;
-    const float field_width = std::max(1.0F, bounds.width - button_width - 76);
-    renderer.draw_text("Filter", bounds.x + 10, bounds.y + 14, 13, palette.on_surface);
-    filter_bounds_ = {bounds.x + 54, bounds.y + 6, field_width, 32};
-    if (!name_filter().empty() && field_width > 100) {
-        filter_bounds_.width -= 68;
+    const auto width_of = [&](std::string_view text) {
+        return renderer.fonts().layout(text, 13, renderer.scale()).width / renderer.scale();
+    };
+    const float label_width = width_of("Filter");
+    const float button_width = std::max(104.0F, width_of("New Folder") + 20.0F);
+    const float clear_width = std::max(64.0F, width_of("Clear") + 20.0F);
+    const float field_x = bounds.x + 10 + label_width + 10;
+    float field_right = bounds.right() - 10;
+    // Keep the filter usable in a narrow pane; Ctrl+Shift+N still creates a folder.
+    if (field_right - field_x >= button_width + 8 + 48) {
+        new_folder_bounds_ = {field_right - button_width, bounds.y + 6, button_width, 32};
+        field_right = new_folder_bounds_.x - 8;
     }
+    filter_bounds_ = {field_x, bounds.y + 6, std::max(1.0F, field_right - field_x), 32};
+    if (!name_filter().empty() && filter_bounds_.width >= clear_width + 4 + 48) {
+        filter_bounds_.width -= clear_width + 4;
+        clear_filter_bounds_ = {filter_bounds_.right() + 4, filter_bounds_.y, clear_width, 32};
+    }
+    const auto text_in = [&](std::string_view text, const ui::Rect& rect, ui::Color color) {
+        const auto& line =
+            renderer.fonts().layout(text, 13, renderer.scale(), std::max(1.0F, rect.width));
+        const float height = (line.ascent + line.descent) / renderer.scale();
+        renderer.draw_layout(line, rect.x, rect.y + (rect.height - height) / 2, color);
+    };
+    text_in("Filter", {bounds.x + 10, filter_bounds_.y, label_width, 32}, palette.on_surface);
     filter_field_.draw(
         renderer, filter_bounds_, 14,
         {.background = palette.surface,
@@ -2229,21 +2247,22 @@ void Browser::draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
          .selection = palette.primary_container,
          .caret = filter_focused_ ? palette.primary : palette.primary.with_alpha(0)});
     if (name_filter().empty() && !filter_focused_) {
-        renderer.draw_text("Filter names…", filter_bounds_.x + 6, filter_bounds_.y + 8, 13,
-                           palette.on_surface_variant, filter_bounds_.width - 12);
+        text_in("Filter names…",
+                {filter_bounds_.x + 6, filter_bounds_.y, filter_bounds_.width - 12,
+                 filter_bounds_.height},
+                palette.on_surface_variant);
     }
     const auto button = [&](const ui::Rect& rect, const char* label) {
         renderer.draw_box(
             rect, {.fill = palette.surface_container_highest, .radius = ui::Corners::all(6)});
-        renderer.draw_text(label, rect.x + 10, rect.y + 8, 13, palette.on_surface, rect.width - 20);
+        text_in(label, {rect.x + 10, rect.y, rect.width - 20, rect.height}, palette.on_surface);
     };
-    if (!name_filter().empty() && field_width > 100) {
-        // The clear button has its own space, outside the editable text.
-        clear_filter_bounds_ = {filter_bounds_.right() + 4, filter_bounds_.y, 64, 32};
+    if (!clear_filter_bounds_.empty()) {
         button(clear_filter_bounds_, "Clear");
     }
-    new_folder_bounds_ = {bounds.right() - button_width - 10, bounds.y + 6, button_width, 32};
-    button(new_folder_bounds_, "New Folder");
+    if (!new_folder_bounds_.empty()) {
+        button(new_folder_bounds_, "New Folder");
+    }
 }
 
 void Browser::toolbar_pointer(const ui::PointerEvent& event) {
@@ -2287,7 +2306,8 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     } else {
         tab_bar_.not_drawn();
     }
-    const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - kTitleHeight));
+    const float bar =
+        std::min(status_bar_.height(renderer), std::max(0.0F, view.height - kTitleHeight));
     if (folder) {
         const auto location = pane().mode == Mode::details ? pane().details.root_folder() : folder;
         breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,

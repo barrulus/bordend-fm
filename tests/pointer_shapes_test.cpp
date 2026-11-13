@@ -93,7 +93,7 @@ struct Fixture {
                     watcher, nordend::fs::MimeDatabase::load(),
                     [] {},   [this](CursorShape shape) { sent.push_back(shape); }};
 
-    Fixture() {
+    explicit Fixture(const std::string& family = "sans-serif") {
         fs::create_directories(photos);
         std::ofstream{photos / "a.jpg"} << "a";
         std::ofstream{photos / "b.txt"} << "b";
@@ -109,7 +109,7 @@ struct Fixture {
                              .icon = "usb",
                              .disk = {.volume = "/dev/sdb1", .mounted = true, .ejectable = true}}});
         if (gl) {
-            fonts = std::make_unique<nordend::ui::FontSystem>();
+            fonts = std::make_unique<nordend::ui::FontSystem>(family);
             renderer = std::make_unique<nordend::ui::Renderer>(*fonts);
             icons = std::make_unique<nordend::ui::IconSet>(*fonts);
         }
@@ -339,5 +339,77 @@ TEST_CASE("toolbar: filter and New Folder buttons work in each view") {
         CHECK(fs::is_directory(f.photos / "New Folder"));
         CHECK(f.browser.name_filter().empty());
         CHECK(f.browser.name_editor().active());
+    }
+}
+
+TEST_CASE("toolbar: font metrics keep labels and fields apart at every scale") {
+    for (const auto* family : {"sans-serif", "monospace"}) {
+        Fixture f{family};
+        if (!f.gl) {
+            return;
+        }
+        f.browser.set_sidebar_visible(false);
+        f.browser.open(f.photos);
+        REQUIRE(f.settle());
+        for (const float scale : {1.0F, 1.5F, 2.0F}) {
+            for (const float width : {180.0F, 300.0F, 600.0F}) {
+                for (const auto* filter : {"", "b"}) {
+                    CAPTURE(family);
+                    CAPTURE(scale);
+                    CAPTURE(width);
+                    CAPTURE(filter);
+                    f.browser.set_name_filter(filter);
+                    f.renderer->begin_frame(kWidth, kHeight, scale, {});
+                    f.browser.draw(*f.renderer, {0, 0, width, kHeight / scale},
+                                   nordend::theme::Palette{}, *f.icons, Browser::Clock::now());
+                    f.renderer->end_frame();
+                    const float label_width = f.fonts->layout("Filter", 13, scale).width / scale;
+                    const auto field = f.browser.filter_bounds();
+                    CHECK(field.x >= 10 + label_width + 9);
+                    CHECK(field.width >= 48);
+                    CHECK(field.right() <= width - 10);
+                    CHECK(f.browser.cursor_at(field.x + 2, field.y + 2) == CursorShape::text);
+                    const auto button = f.browser.new_folder_bounds();
+                    if (!button.empty()) {
+                        CHECK(field.right() + 8 <= button.x);
+                        CHECK(button.right() <= width - 10);
+                        const float label = f.fonts->layout("New Folder", 13, scale).width / scale;
+                        CHECK(button.width >= label + 20);
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("status bar: enlarged text reserves height and keeps buttons centered") {
+    Fixture f{"monospace"};
+    if (!f.gl) {
+        return;
+    }
+    f.browser.set_sidebar_visible(false);
+    f.browser.open(f.photos);
+    REQUIRE(f.settle());
+    auto& bar = f.browser.status_bar();
+    CHECK(bar.text_size() == 12);
+    for (const float scale : {1.0F, 1.5F, 2.0F}) {
+        for (const float size : {12.0F, 15.0F, 32.0F, 12.0F}) {
+            CAPTURE(scale);
+            CAPTURE(size);
+            bar.set_text_size(size);
+            CHECK(bar.text_size() == size);
+            f.renderer->begin_frame(kWidth, kHeight, scale, {});
+            const float bottom = kHeight / scale;
+            f.browser.draw(*f.renderer, {0, 0, 600, bottom}, nordend::theme::Palette{}, *f.icons,
+                           Browser::Clock::now());
+            f.renderer->end_frame();
+            const float height = bar.height(*f.renderer);
+            const auto& line = f.fonts->layout("Mg", size, scale);
+            CHECK(height >= (line.ascent + line.descent) / scale + 10);
+            CHECK(height >= 30);
+            CHECK_FALSE(bar.claims(20, bottom - height - 1));
+            CHECK(bar.claims(20, bottom - height + 1));
+            CHECK(bar.clickable_at(570, bottom - height / 2));
+        }
     }
 }

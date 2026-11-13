@@ -98,6 +98,7 @@ ConfigResult parse(std::string_view text) { return parse_config(text, "test.toml
 
 void check_defaults(const Config& config) {
     const Config defaults;
+    CHECK(config.status_bar.text_size == defaults.status_bar.text_size);
     CHECK(config.appearance.background_opacity == defaults.appearance.background_opacity);
     CHECK(config.font.family == defaults.font.family);
     CHECK(config.font.monospace == defaults.font.monospace);
@@ -150,6 +151,24 @@ TEST_CASE("an empty file gives the defaults and no problems") {
     CHECK(result.from_file);
     CHECK(result.problems.empty());
     check_defaults(result.config);
+}
+
+TEST_CASE("status bar text size accepts finite logical pixels from 8 to 32") {
+    for (const std::string value : {"8", "12.0", "15", "15.5", "32"}) {
+        const auto result = parse("[status_bar]\ntext_size = " + value);
+        CAPTURE(value);
+        CHECK(result.problems.empty());
+        CHECK(result.config.status_bar.text_size == doctest::Approx(std::stof(value)));
+    }
+    for (const std::string value : {"7.9", "32.1", "nan", "inf", "-inf", "true", "\"15\""}) {
+        const auto result = parse("[status_bar]\ntext_size = " + value);
+        CAPTURE(value);
+        REQUIRE(result.problems.size() == 1);
+        CHECK(contains(result.problems.front(), "status_bar.text_size"));
+        CHECK(result.config.status_bar.text_size == 12.0F);
+    }
+    CHECK_FALSE(parse("status_bar = 15").problems.empty());
+    CHECK_FALSE(parse("[status_bar]\nsize = 15").problems.empty());
 }
 
 TEST_CASE("icon themes follow desktop settings, accept an override and can be disabled") {

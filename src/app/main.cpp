@@ -527,6 +527,9 @@ int main(int argc, char** argv) {
         std::unique_ptr<core::FileWatcher> config_watcher;
         const auto apply_config = [&](const core::ConfigResult& loaded) {
             const auto& fresh = loaded.config;
+            if (columns) {
+                columns->status_bar().set_text_size(fresh.status_bar.text_size);
+            }
             if (loaded.actions_valid && loaded.context_menu_valid) {
                 const auto problems = views::configure_shortcuts(fresh.keybindings, fresh.actions);
                 for (const auto& problem : problems) {
@@ -588,6 +591,7 @@ int main(int argc, char** argv) {
                                        std::move(done));
                 });
             columns->set_actions(configured_actions);
+            columns->status_bar().set_text_size(config.status_bar.text_size);
             columns->set_context_menu(config.context_menu);
             action_handoff = std::make_unique<platform::ActionHandoff>(
                 loop, platform::Environment::from_environment(),

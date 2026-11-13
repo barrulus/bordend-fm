@@ -8,8 +8,8 @@
 #include <functional>
 #include <initializer_list>
 #include <string>
-#include <unordered_set>
 #include <toml++/toml.hpp>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -148,6 +148,16 @@ public:
             return;
         }
         out = static_cast<int>(number);
+    }
+
+    void read_text_size(const toml::node& node, const std::string& path, float& out) {
+        const auto value = node.value<double>();
+        if (!value || !std::isfinite(*value) || *value < 8.0 || *value > 32.0) {
+            report(node.source(),
+                   std::format("'{}' must be a number between 8 and 32; using {}", path, out));
+            return;
+        }
+        out = static_cast<float>(*value);
     }
 
 private:
@@ -303,6 +313,12 @@ void read_document(const toml::table& root, Reader& reader, ConfigResult& result
             } else {
                 reader.report(node.source(), "keybindings must be a section; ignored");
             }
+        } else if (key.str() == "status_bar") {
+            reader.read_section(
+                node, "status_bar",
+                {{"text_size", [&](const toml::node& value, const std::string& path) {
+                      reader.read_text_size(value, path, config.status_bar.text_size);
+                  }}});
         } else if (key.str() == "font") {
             reader.read_section(
                 node, "font",

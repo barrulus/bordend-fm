@@ -1,6 +1,7 @@
 #include "nordend/views/status_bar.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <format>
 #include <string_view>
 #include <sys/statvfs.h>
@@ -12,7 +13,6 @@ namespace nordend::views {
 namespace {
 
 constexpr float kPadding = 16.0F;
-constexpr float kTextSize = 12.0F;
 constexpr float kButtonWidth = 30.0F;
 constexpr float kButtonHeight = 22.0F;
 constexpr float kButtonGap = 2.0F;
@@ -109,15 +109,29 @@ void StatusBar::set_transfer(std::optional<TransferStatus> transfer) {
     redraw_();
 }
 
+void StatusBar::set_text_size(float size) {
+    if (!std::isfinite(size) || size < 8.0F || size > 32.0F || size == text_size_) {
+        return;
+    }
+    text_size_ = size;
+    redraw_();
+}
+
+float StatusBar::height(ui::Renderer& renderer) const {
+    const auto& line = renderer.fonts().layout("Mg", text_size_, renderer.scale());
+    return std::max(kHeight, (line.ascent + line.descent) / renderer.scale() + 10.0F);
+}
+
 void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
                      ui::IconSet& icons, const Folder& folder, std::size_t view) {
     bounds_ = bounds;
+    renderer.push_clip(bounds);
     update(folder);
     renderer.fill_rect({bounds.x, bounds.y, bounds.width, 1.0F / renderer.scale()},
                        palette.outline_variant);
 
     // The buttons, from the right: "?", then the views.
-    const float top = bounds.y + ((kHeight - kButtonHeight) / 2.0F);
+    const float top = bounds.y + ((bounds.height - kButtonHeight) / 2.0F);
     float x = bounds.right() - kPadding + kButtonGap;
     for (std::size_t i = kViews + 1; i-- > 0;) {
         x -= kButtonWidth + kButtonGap;
@@ -179,8 +193,12 @@ void StatusBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme
         color = folder.model().error() ? palette.error : palette.on_surface_variant;
     }
     const float room = std::max(1.0F, text_right - (bounds.x + kPadding));
-    renderer.draw_text(text, bounds.x + kPadding, bounds.y + ((kHeight - kTextSize) / 2.0F) - 2.0F,
-                       kTextSize, color, room, ui::Ellipsis::middle);
+    const auto& line =
+        renderer.fonts().layout(text, text_size_, renderer.scale(), room, ui::Ellipsis::middle);
+    const float line_height = (line.ascent + line.descent) / renderer.scale();
+    renderer.draw_layout(line, bounds.x + kPadding, bounds.y + (bounds.height - line_height) / 2.0F,
+                         color);
+    renderer.pop_clip();
 }
 
 std::optional<std::size_t> StatusBar::button_at(float x, float y) const {

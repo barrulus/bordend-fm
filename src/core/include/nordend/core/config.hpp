@@ -37,11 +37,16 @@ struct Config {
         float background_opacity{1.0F};  // background only; foreground content stays solid
     };
 
+    struct StatusBar {
+        float text_size{12.0F};  // logical pixels, independent of file-list zoom
+    };
+
     std::map<std::string, std::string> keybindings;
     std::vector<Action> actions;
     MenuLayout context_menu;
 
     Appearance appearance;
+    StatusBar status_bar;
     Font font;
     Pointer pointer;
     Icon icon;
