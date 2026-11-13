@@ -67,16 +67,34 @@ void TitleBar::set_state(const ui::WindowState& state) {
     }
 }
 
+void TitleBar::set_integrated(std::function<bool(float x, float y)> drag_area) {
+    drag_area_ = std::move(drag_area);
+    layout(bounds_);
+}
+
+float TitleBar::buttons_width() const {
+    float left = close_.x;
+    for (const ui::Rect& rect : {maximize_, minimize_}) {
+        if (rect.width > 0.0F) {
+            left = std::min(left, rect.x);
+        }
+    }
+    return close_.width > 0.0F ? bounds_.right() - left + kButtonGap : 0.0F;
+}
+
 void TitleBar::layout(const ui::Rect& bounds) {
     bounds_ = bounds;
+    // Integrated, the row the buttons sit in is the content's header.
+    static_assert(kIntegratedHeight == kTitleHeight, "the buttons sit in the Browser's header");
+    const float row = integrated() ? kIntegratedHeight : kHeight;
     bar_ = state_.fullscreen ? ui::Rect{bounds.x, bounds.y, bounds.width, 0.0F}
-                             : ui::Rect{bounds.x, bounds.y, bounds.width, kHeight};
+                             : ui::Rect{bounds.x, bounds.y, bounds.width, row};
     minimize_ = maximize_ = close_ = {};
     if (bar_.height <= 0.0F) {
         return;
     }
     // From the right: close, maximize, minimize.
-    const float top = bar_.y + ((kHeight - kButtonSize) / 2.0F);
+    const float top = bar_.y + ((row - kButtonSize) / 2.0F);
     float x = bar_.right() - kRightPadding - kButtonSize;
     close_ = {x, top, kButtonSize, kButtonSize};
     if (state_.can_maximize) {
@@ -90,7 +108,7 @@ void TitleBar::layout(const ui::Rect& bounds) {
 }
 
 ui::Rect TitleBar::content(const ui::Rect& bounds) const {
-    const float bar = state_.fullscreen ? 0.0F : kHeight;
+    const float bar = state_.fullscreen || integrated() ? 0.0F : kHeight;
     return {bounds.x, bounds.y + bar, bounds.width, std::max(0.0F, bounds.height - bar)};
 }
 
@@ -143,7 +161,7 @@ TitleBar::Hit TitleBar::hit(float x, float y) const {
     if (contains(minimize_, x, y)) {
         return {.part = Part::minimize};
     }
-    if (contains(bar_, x, y)) {
+    if (integrated() ? (!state_.fullscreen && drag_area_(x, y)) : contains(bar_, x, y)) {
         return {.part = Part::title};
     }
     return {};
@@ -252,12 +270,16 @@ void TitleBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
     if (bar_.height <= 0.0F) {
         return;
     }
+    const ui::Color text = state_.activated ? palette.on_surface : palette.on_surface_variant;
+    if (integrated()) {
+        draw_buttons(renderer, palette, icons, text);  // on the content's header
+        return;
+    }
     renderer.fill_rect(bar_, palette.surface_container_low);
     renderer.fill_rect(
         {bar_.x, bar_.bottom() - (1.0F / renderer.scale()), bar_.width, 1.0F / renderer.scale()},
         palette.outline_variant);
 
-    const ui::Color text = state_.activated ? palette.on_surface : palette.on_surface_variant;
     // Centered on the window, but never under the buttons.
     float buttons_left = close_.x;
     for (const ui::Rect& rect : {maximize_, minimize_}) {
@@ -271,7 +293,11 @@ void TitleBar::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
         draw_centered(renderer, title, {middle - (room / 2.0F), bar_.y, room, kHeight},
                       bar_.y + ((kHeight - kTextSize) / 2.0F) - 2.0F, kTextSize, text);
     }
+    draw_buttons(renderer, palette, icons, text);
+}
 
+void TitleBar::draw_buttons(ui::Renderer& renderer, const theme::Palette& palette,
+                            ui::IconSet& icons, ui::Color text) const {
     for (const Part part : {Part::minimize, Part::maximize, Part::close}) {
         const ui::Rect rect = button(part);
         if (rect.width <= 0.0F) {

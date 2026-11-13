@@ -177,6 +177,7 @@ private:
     bool configured_{false};
     bool dirty_{false};
     bool client_decorations_{false};
+    bool decoration_answered_{false};  // the compositor said which, at least once
     WindowState state_;
     WindowState pending_state_;  // from configure, applied with its ack
     std::string title_;

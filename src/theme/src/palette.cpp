@@ -133,6 +133,19 @@ void read_colors(const toml::node& node, Problems& problems, Palette& palette) {
         }
         palette.*role.member = *color;
     }
+    // Optional: the header is the surface unless the file says otherwise.
+    palette.header = palette.surface;
+    if (const toml::node* value = table->get("header")) {
+        const auto* text = value->as_string();
+        if (const std::optional<Color> color =
+                text != nullptr ? parse_hex(text->get()) : std::nullopt) {
+            palette.header = *color;
+        } else {
+            problems.report(value->source(),
+                            "'colors.header' must be \"#rrggbb\" or \"#rrggbbaa\"; using the "
+                            "surface");
+        }
+    }
     // Other keys are fine: a Noctalia template writes every token it has, Nordend uses some.
     if (!missing.empty()) {
         problems.report(node.source(),

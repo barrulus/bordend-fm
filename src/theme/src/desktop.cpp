@@ -180,6 +180,7 @@ Palette desktop_palette(const Desktop& desktop) {
     // The context menu's row under the pointer: the accent, as a desktop menu shows it.
     p.hover = p.primary;
     p.on_hover = p.on_primary;
+    p.header = p.surface;
     return p;
 }
 

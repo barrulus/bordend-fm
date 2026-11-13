@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -27,9 +28,18 @@ struct Config {
         bool follow_accent{true};
     };
 
+    struct Window {
+        enum class TitleBar : std::uint8_t {
+            integrated,  // Nordend's own header: the sidebar to the top, the path and the buttons
+            compositor,  // the compositor's title bar, where it draws one
+        };
+        TitleBar title_bar{TitleBar::integrated};  // read at start
+    };
+
     Font font;
     Pointer pointer;
     Icon icon;
+    Window window;
 };
 
 struct ConfigResult {

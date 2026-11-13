@@ -63,6 +63,10 @@ struct Palette {
     Color scrim{Color::rgb(0x000000)};
     Color hover{Color::rgb(0x9BFECE)};
     Color on_hover{Color::rgb(0x0E0E43)};
+
+    // The integrated header (the path and the window's buttons): GTK's header bar colour, else
+    // the surface. Optional in colors.toml, where it defaults to the file's surface.
+    Color header{Color::rgb(0x070722)};
 };
 
 struct PaletteResult {

@@ -30,12 +30,17 @@ struct WindowControls {
 // opens the compositor's window menu, and a band along the window's edges resizes it, with the
 // matching cursor. Maximized or fullscreen the edges do not resize; fullscreen there is no bar.
 //
+// Integrated (ROADMAP 3⅞, the default): no bar of its own. The buttons sit at the right of the
+// Browser's header row, and the window moves from where the Browser says (its header's free
+// space, the top of its sidebar); the content gets the whole window.
+//
 // Hit tests use the last layout() (draw() lays out). Loop thread only.
 class TitleBar {
 public:
     static constexpr float kHeight = 36.0F;
-    static constexpr float kEdge = 5.0F;     // the resize band, inside the window
-    static constexpr float kCorner = 16.0F;  // how far a corner reaches along its edges
+    static constexpr float kIntegratedHeight = 40.0F;  // the content's header row
+    static constexpr float kEdge = 5.0F;               // the resize band, inside the window
+    static constexpr float kCorner = 16.0F;            // how far a corner reaches along its edges
 
     enum class Part : std::uint8_t { none, title, minimize, maximize, close, edge };
 
@@ -50,6 +55,15 @@ public:
              std::function<void(ui::CursorShape)> set_cursor);
 
     void set_state(const ui::WindowState& state);
+
+    // Integrated into the content's header: drag_area tells where a press moves the window.
+    void set_integrated(std::function<bool(float x, float y)> drag_area);
+
+    [[nodiscard]] bool integrated() const noexcept { return static_cast<bool>(drag_area_); }
+
+    // The width the buttons take at the window's right, with their margins: the header keeps it
+    // free. 0 before a layout or in fullscreen.
+    [[nodiscard]] float buttons_width() const;
 
     // Where the bar and the buttons go in bounds (the whole window).
     void layout(const ui::Rect& bounds);
@@ -68,8 +82,11 @@ public:
 
 private:
     [[nodiscard]] ui::Rect button(Part part) const;
+    void draw_buttons(ui::Renderer& renderer, const theme::Palette& palette, ui::IconSet& icons,
+                      ui::Color text) const;
     void hover(const Hit& hit);
 
+    std::function<bool(float x, float y)> drag_area_;
     WindowControls controls_;
     std::function<void()> redraw_;
     std::function<void(ui::CursorShape)> set_cursor_;

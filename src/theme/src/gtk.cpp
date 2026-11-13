@@ -489,7 +489,7 @@ std::optional<Palette> gtk_palette(const GtkColors& gtk, bool dark_hint) {
         p.surface_container_high = moved(p.surface_container_high);
         p.surface_container_highest = moved(p.surface_container_highest);
         p.surface = *surface;
-        if (const std::optional<Color> sidebar = get({"sidebar_bg_color", "headerbar_bg_color"})) {
+        if (const std::optional<Color> sidebar = get({"sidebar_bg_color"})) {
             p.surface_container_low = over(*sidebar, *surface);
         }
         if (const std::optional<Color> card = get({"card_bg_color"})) {
@@ -499,6 +499,8 @@ std::optional<Palette> gtk_palette(const GtkColors& gtk, bool dark_hint) {
             p.surface_container_high = over(*popover, *surface);
         }
         p.surface_variant = p.surface_container;
+        const std::optional<Color> header = get({"headerbar_bg_color"});
+        p.header = header ? over(*header, *surface) : *surface;
 
         const Color ink = over(*text, *surface);
         p.on_surface = ink;

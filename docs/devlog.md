@@ -4,6 +4,50 @@ Work log, newest first. Each entry: what was done, decisions, measurements, open
 
 ---
 
+## 2026-11-13 — One header, as a modern file manager (ROADMAP 3⅞)
+
+**Tested by the author** (2026-11-13, installed build, on Umbriel): "funziona tutto": the log
+says "decorations: Nordend's own (client-side)", no Umbriel bar, the sidebar to the top, moving
+from the header and the sidebar's top, double click, back and forward, the buttons, tabs under
+the header; with `title_bar = "compositor"` Umbriel's bar again ("the compositor's title bar
+(server-side)"), and back without it. His screenshot of it is the README's new one (the window
+only, metadata stripped).
+
+**Decision** (with the author, after his screenshot: Umbriel's title bar above Nordend "does not
+convince"; a sketch made from real snapshots approved with its four details): Nordend asks every
+compositor to leave the title bar to it and draws one header, as GNOME Files and Finder do. The
+header's colour is the theme's header bar, not the sidebar's: a full-width strip in the sidebar's
+colour would bring back the band the author did not like, and GTK themes say where the header
+goes (`headerbar_bg_color`: the content's colour in Noctalia's and Adwaita's). Default for
+everyone; `[window] title_bar = "compositor"` for the compositor's bar.
+
+**Done**
+- `TitleBar::set_integrated(drag_area)`: no bar, no title; the buttons centred in the content's
+  40 px header row at the right; `buttons_width()` for the room they need; a press moves the
+  window only where `drag_area` says, so everything else in the row stays the content's;
+  `content()` is the whole window. The old separate bar stays for the test scene.
+- `Browser::set_window_header(reserve)`: the sidebar runs to the top (its colour and its divider
+  beside the header), the header row on top (in `palette.header`, a hairline under it), then the
+  tabs, then the view; back and forward (`chevron-left`, added to the icon subset: 48 icons;
+  `chevron-right`) before the path, dimmed when there is nowhere to go, acting on release over
+  them; the path between them and the buttons' room. `window_drag_at(x, y)`: the header's free
+  space and the sidebar's top, never on a step of the path, a button, or while a menu, a dialog,
+  the palette or Quick Look is open.
+- `Palette::header`: GTK's `headerbar_bg_color` (no longer a fallback for the sidebar), the
+  desktop palette's surface, optional `header` in `colors.toml` (else its surface).
+- `[window] title_bar = "integrated" | "compositor"` (read at start); `Window` logs the
+  compositor's answer once per change ("decorations: Nordend's own (client-side)" or "the
+  compositor's title bar (server-side)"). `nordend-snapshot --csd` draws the integrated header.
+- Tests (`tests/header_test.cpp`, 6 cases): what moves the window and what does not, the path
+  never under the buttons, back and forward (and a press released elsewhere), a card open, the
+  integrated title bar's buttons and hits, the config key, the header colour from colors.toml
+  and GTK.
+
+**Open**: GNOME and Plasma in the VM (KWin may keep its own bar for a client that asks for
+client-side: to be verified).
+
+---
+
 ## 2026-11-13 — Colours from the user's theme, by themselves (ROADMAP 3½)
 
 **Tested by the author** (2026-11-13, installed build, the `nordend` user template taken out of

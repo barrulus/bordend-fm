@@ -27,6 +27,10 @@
 namespace nordend::views {
 namespace {
 
+// Back and forward in Nordend's own header (ROADMAP 3⅞).
+constexpr float kNavigationSize = 26.0F;
+constexpr float kNavigationGap = 8.0F;
+
 std::filesystem::path home_directory() {
     const char* const home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe): at start
     return home != nullptr && *home == '/' ? std::filesystem::path{home} : std::filesystem::path{};
@@ -2096,14 +2100,36 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     }
     settle_found(now);
     const std::shared_ptr<Folder> folder = current_folder();
+    const bool own_header = header_reserve_.has_value();
+    header_ = sidebar_top_ = back_ = forward_ = {};
     if (sidebar_drawn_) {
-        sidebar_.draw(renderer, {bounds.x, bounds.y, sidebar_width, bounds.height}, palette, icons,
+        ui::Rect side{bounds.x, bounds.y, sidebar_width, bounds.height};
+        if (own_header) {
+            // The sidebar runs to the window's top: beside the header, only its colour.
+            sidebar_top_ = {side.x, side.y, side.width, std::min(kTitleHeight, side.height)};
+            renderer.fill_rect(sidebar_top_, palette.surface_container_low);
+            renderer.fill_rect({sidebar_top_.right() - (1.0F / renderer.scale()), sidebar_top_.y,
+                                1.0F / renderer.scale(), sidebar_top_.height},
+                               palette.outline_variant);
+            side.y += sidebar_top_.height;
+            side.height -= sidebar_top_.height;
+        }
+        sidebar_.draw(renderer, side, palette, icons,
                       folder ? folder->path() : std::filesystem::path{}, now);
     } else {
         sidebar_.not_drawn();
     }
     ui::Rect view{bounds.x + sidebar_width, bounds.y, bounds.width - sidebar_width, bounds.height};
-    if (panes_.size() > 1 && view.height > TabBar::kHeight + kTitleHeight) {
+    if (own_header && view.height > 0.0F) {
+        header_ = {view.x, view.y, view.width, std::min(kTitleHeight, view.height)};
+        renderer.fill_rect(header_, palette.header);
+        draw_navigation(renderer, palette, icons);
+        view.y += header_.height;
+        view.height -= header_.height;
+    }
+    // Without the header, the path row comes under the tabs.
+    const float path_row = own_header ? 0.0F : kTitleHeight;
+    if (panes_.size() > 1 && view.height > TabBar::kHeight + path_row) {
         tab_bar_.draw(renderer, {view.x, view.y, view.width, TabBar::kHeight}, palette, icons,
                       tab_titles(), active_);
         view.y += TabBar::kHeight;
@@ -2111,12 +2137,25 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     } else {
         tab_bar_.not_drawn();
     }
-    const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - kTitleHeight));
+    const float bar = std::min(StatusBar::kHeight, std::max(0.0F, view.height - path_row));
     if (folder) {
-        breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
-                         *folder);
+        if (own_header) {
+            const float left = forward_.right() + 2.0F;
+            const float right = header_.right() - header_reserve_.value_or(0.0F);
+            breadcrumb_.draw(renderer,
+                             {left, header_.y, std::max(0.0F, right - left), kTitleHeight}, palette,
+                             icons, *folder);
+        } else {
+            breadcrumb_.draw(renderer, {view.x, view.y, view.width, kTitleHeight}, palette, icons,
+                             *folder);
+        }
         status_bar_.draw(renderer, {view.x, view.bottom() - bar, view.width, bar}, palette, icons,
                          *folder, static_cast<std::size_t>(pane().mode));
+    }
+    if (own_header && header_.height > 0.0F) {
+        renderer.fill_rect({header_.x, header_.bottom() - (1.0F / renderer.scale()), header_.width,
+                            1.0F / renderer.scale()},
+                           palette.outline_variant);
     }
     if (editor_.active() && !editor_.busy()) {
         // The entry went away meanwhile (another program): nothing left to rename. A new folder
@@ -2129,8 +2168,8 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
         }
     }
     editor_.slot().rect.reset();  // the view places it again if it shows the name
-    view_area_ = {view.x, view.y + kTitleHeight, view.width,
-                  std::max(0.0F, view.height - kTitleHeight - bar)};
+    view_area_ = {view.x, view.y + path_row, view.width,
+                  std::max(0.0F, view.height - path_row - bar)};
     draw_view(renderer, view_area_, palette, icons, now);
     draw_band(renderer, palette);
     editor_.draw(renderer, palette);
@@ -2264,6 +2303,9 @@ ui::CursorShape Browser::cursor_at(float x, float y) const {
     if (tab_bar_.claims(x, y)) {
         return hand(tab_bar_.clickable_at(x, y));
     }
+    if (const int direction = navigation_at(x, y); direction != 0) {
+        return hand(can_travel(direction));
+    }
     if (breadcrumb_.claims(x, y)) {
         return hand(breadcrumb_.clickable_at(x, y));
     }
@@ -2371,6 +2413,8 @@ void Browser::dispatch_pointer(const ui::PointerEvent& event, Clock::time_point 
             target = Target::sidebar;
         } else if (tab_bar_.claims(event.x, event.y)) {
             target = Target::tabs;
+        } else if (navigation_at(event.x, event.y) != 0) {
+            target = Target::header;
         } else if (breadcrumb_.claims(event.x, event.y)) {
             target = Target::breadcrumb;
         } else if (status_bar_.claims(event.x, event.y)) {
@@ -2621,6 +2665,85 @@ void Browser::send_pointer(Target target, const ui::PointerEvent& event, Clock::
         case Target::tabs:
             tab_bar_.pointer(event);
             break;
+        case Target::header:
+            navigation_pointer(event);
+            break;
+    }
+}
+
+void Browser::set_window_header(std::optional<float> reserve) {
+    if (reserve != header_reserve_) {
+        header_reserve_ = reserve;
+        redraw_();
+    }
+}
+
+bool Browser::window_drag_at(float x, float y) const {
+    if (!header_reserve_ || conflict_.is_open() || confirm_.is_open() || palette_.is_open() ||
+        menu_.is_open() || shortcuts_.is_open() || quick_look_.is_open()) {
+        return false;
+    }
+    if (sidebar_top_.contains(x, y)) {
+        return true;
+    }
+    return header_.contains(x, y) && navigation_at(x, y) == 0 && !breadcrumb_.clickable_at(x, y);
+}
+
+int Browser::navigation_at(float x, float y) const {
+    if (back_.contains(x, y)) {
+        return -1;
+    }
+    return forward_.contains(x, y) ? 1 : 0;
+}
+
+bool Browser::can_travel(int direction) const {
+    const std::size_t here = pane().here;
+    return direction < 0 ? here > 0 : here + 1 < pane().history.size();
+}
+
+void Browser::navigation_pointer(const ui::PointerEvent& event) {
+    using Kind = ui::PointerEvent::Kind;
+    const int at = event.kind == Kind::leave ? 0 : navigation_at(event.x, event.y);
+    const int before_hovered = navigation_hovered_;
+    const int before_pressed = navigation_pressed_;
+    navigation_hovered_ = at;
+    if (event.kind == Kind::leave) {
+        navigation_pressed_ = 0;
+    } else if (event.button == ui::PointerButton::left) {
+        if (event.kind == Kind::press) {
+            navigation_pressed_ = can_travel(at) ? at : 0;
+        } else if (event.kind == Kind::release) {
+            const int pressed = std::exchange(navigation_pressed_, 0);
+            if (pressed != 0 && pressed == at) {
+                travel(at);  // acts on release over it, as the window's buttons do
+            }
+        }
+    }
+    if (navigation_hovered_ != before_hovered || navigation_pressed_ != before_pressed) {
+        redraw_();
+    }
+}
+
+void Browser::draw_navigation(ui::Renderer& renderer, const theme::Palette& palette,
+                              ui::IconSet& icons) {
+    const float top = header_.y + ((kTitleHeight - kNavigationSize) / 2.0F);
+    back_ = {header_.x + kNavigationGap, top, kNavigationSize, kNavigationSize};
+    forward_ = {back_.right() + 2.0F, top, kNavigationSize, kNavigationSize};
+    // The path follows close: its first step has a margin of its own.
+    for (const int direction : {-1, 1}) {
+        const ui::Rect& rect = direction < 0 ? back_ : forward_;
+        const bool enabled = can_travel(direction);
+        if (enabled && navigation_hovered_ == direction) {
+            renderer.draw_box(
+                rect, {.fill = navigation_pressed_ == direction ? palette.surface_bright
+                                                                : palette.surface_container_highest,
+                       .radius = ui::Corners::all(kNavigationSize / 2.0F)});
+        }
+        constexpr float icon = 16.0F;
+        icons.draw(renderer, direction < 0 ? "chevron-left" : "chevron-right",
+                   rect.x + ((kNavigationSize - icon) / 2.0F),
+                   rect.y + ((kNavigationSize - icon) / 2.0F), icon,
+                   enabled ? palette.on_surface_variant : palette.outline_variant);
     }
 }
 

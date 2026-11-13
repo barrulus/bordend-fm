@@ -12,7 +12,7 @@
   <a href="https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.1"><img src="https://img.shields.io/badge/release-v0.5.1-2a6a9e" alt="release v0.5.1"></a>
   <img src="https://img.shields.io/badge/C%2B%2B-20-00599C?logo=cplusplus&logoColor=white" alt="C++20">
   <img src="https://img.shields.io/badge/Wayland-native-FFBC00?logo=wayland&logoColor=black" alt="Wayland native">
-  <img src="https://img.shields.io/badge/tests-432%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="432 tests, ASan, TSan">
+  <img src="https://img.shields.io/badge/tests-438%20%C2%B7%20ASan%20%C2%B7%20TSan-4B32C3" alt="438 tests, ASan, TSan">
   <a href="https://github.com/pankaspe/nordend-fm/actions/workflows/ci.yml"><img src="https://github.com/pankaspe/nordend-fm/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <img src="https://img.shields.io/badge/license-MIT-3DA639" alt="MIT license">
 </p>
@@ -28,9 +28,9 @@
 > about a minute.
 
 <p align="center">
-  <img src="docs/images/readme-screenshot.webp" alt="Nordend in a light theme: the column view in a folder of photos exported from darktable, the context menu open on one with Open With, its preview and EXIF in the info pane" width="100%">
+  <img src="docs/images/readme-screenshot.webp" alt="Nordend in a dark theme taken from Noctalia: one header with back and forward, the path and the window's buttons, the sidebar running to the top, three tabs, five columns down a project folder, and the info pane with a JSON file's coloured preview" width="100%">
   <br>
-  <sub>The columns in a folder of photos exported from darktable, two tabs open, the context menu and the info pane with the photo's EXIF.</sub>
+  <sub>One header, the sidebar to the top, three tabs, the columns down a project, and a JSON file's preview in the info pane, all in the colours of the desktop's theme.</sub>
 </p>
 
 ## Why Nordend
@@ -95,16 +95,17 @@ every shortcut.
   <kbd>Alt</kbd>+<kbd>←</kbd> <kbd>→</kbd> and the mouse's side buttons
 - **Looks:** your theme's colours live, read like a GTK app reads them (Noctalia, Stylix,
   matugen, a hand-made `gtk.css`), or the desktop's light/dark style and accent (GNOME, Plasma);
-  its icon follows the accent; fractional scaling; its own title bar where needed
+  its icon follows the accent; fractional scaling; one header, as in a modern file manager:
+  the sidebar to the top, the path and the window's buttons in one row
 - **Remembers** views, order, tabs and window size; a short `config.toml`, reloaded live
 
 ## At a glance
 
 | | |
 |---|---|
-| Binary | **4.01 MB** (3.35 MB stripped), x86-64; the decoders and text readers in `nordend-preview`, 1.15 MB (1.03 stripped), a separate caged helper |
+| Binary | **4.09 MB** (3.41 MB stripped), x86-64; the decoders and text readers in `nordend-preview`, 1.15 MB (1.03 stripped), a separate caged helper |
 | Libraries | 17 direct (the helper: 8); no GTK, no Qt, no GLib |
-| Code | about 51 400 lines of C++20, 17 600 of tests (432 test cases, under ASan and TSan too) |
+| Code | about 52 300 lines of C++20, 18 300 of tests (438 test cases, under ASan and TSan too) |
 | Memory | **25 MB** of its own at start; pictures are decoded in the helpers, which give their memory back after a quiet second |
 | Idle | **0 CPU**: nothing is drawn while nothing moves |
 
@@ -225,7 +226,7 @@ settled.
 
 | Version | What it brought |
 |---|---|
-| on `main`, next | — |
+| on `main`, next | Colours from your theme with nothing to set up, read as GTK apps read them (Noctalia, Stylix, matugen, your own `gtk.css`), live; one header, as in a modern file manager: the sidebar to the top, back and forward, the path and the window's buttons in one row (`[window] title_bar = "compositor"` for the compositor's bar) |
 | [0.5.1](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.1), 2026-11-13 | Grid thumbnails up to 512 px, sharp from the larger caches (icons stay at 256); builds hardened on every system (stack protection, full RELRO, `_FORTIFY_SOURCE=3`, the standard library's index checks); a Nix flake, built and tested in Nix's sandbox on every push; sorting by type puts a file whose name has several types (`.md` with shared-mime-info 2.5) among its likely type |
 | [0.5.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.5.0), 2026-11-09 | Text previews: text files in Quick Look and the info pane, read in the caged helper (UTF-8, UTF-16, Latin-1) with syntax colours from your theme for C, C++, Rust, Python, JavaScript, TypeScript, Lua, Luau, shell (heredocs included), fish, CMake, Makefiles, JSON, TOML, YAML, INI files and desktop entries, `.gitignore` and `.gitattributes`, Markdown (code blocks in their own language) and diffs; select with the pointer, Ctrl+A, Ctrl+C; long lines scroll sideways; Home, End, Page Up and Page Down; a caption with the language, encoding and line ends; minified files shown plain; logs opened at their newest lines. The helper became the first engine, described by a manifest |
 | [0.4.0](https://github.com/pankaspe/nordend-fm/releases/tag/v0.4.0), 2026-11-08 | Image previews read by Nordend's own code: DNG developed when its previews are too small (Leica M240 and M8, DJI drones, Adobe-converted files) with the file's colour, tone curve, vignetting and lens corrections, read identically to LibRaw and 2-4 times faster; TIFF with its own reader (BigTIFF, LZW, Deflate, PackBits, JPEG, 8/16-bit and float, CMYK, tiles, a scanner's scan in a SubIFD); raw files' previews and the info pane's EXIF without exiv2 (the same results, 3 to 100 times quicker); pictures made in small `nordend-preview` processes, each in a cage of Nordend's own (seccomp and landlock), so a file that crashes or hangs one costs only its preview; one path for every picture, told by the file's bytes; a plain sentence when a file cannot be shown. Canon CRW and Minolta MRW get that sentence; darktable sidecars' ratings are no longer read (Nordend's own ratings come next) |
@@ -236,9 +237,9 @@ settled.
 
 ## What's next
 
-Nordend stays what it is: a native C++ file manager, made for Noctalia Shell, with no GTK or Qt;
-very light, safe and fast. Everything else is a feature on top, added only when it keeps those
-three.
+Nordend stays what it is: a native C++ file manager, at home on any Wayland desktop and right at
+home on Noctalia, with no GTK or Qt; very light, safe and fast. Everything else is a feature on
+top, added only when it keeps those three.
 
 0.1.0 came out after a week of daily use by the author; 0.2.0 added Sort By, tabs and zoom in the
 lists; 0.3.0 the command palette (<kbd>Ctrl</kbd>+<kbd>K</kbd>) and finding files

@@ -23,6 +23,12 @@ double_click_ms = 400
 # ...and closer than this (logical pixels, 0-50) make a double click.
 double_click_distance = 4
 
+[window]
+# "integrated": Nordend's own header, as in a modern file manager: the sidebar runs to the top, the
+# path and the window's buttons share one row. "compositor": the compositor's title bar instead,
+# where it draws one (the path back in its own row). Read at the next start.
+title_bar = "integrated"
+
 [icon]
 # Nordend's icon in your theme's accent colour (GTK's colours, GNOME's or Plasma's accent):
 # Nordend writes it to ~/.local/share/icons/hicolor/scalable/apps/nordend.svg, where the dock and

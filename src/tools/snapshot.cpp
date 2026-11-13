@@ -28,7 +28,8 @@
 // paste would. --memory prints the memory report (ROADMAP 6.3b) at the end, once the workers'
 // results are in; with --trim, after malloc_trim(0) and the time it took. --default-malloc leaves
 // glibc's mmap threshold as it is (the app sets it: core::give_back_large_blocks), to compare.
-// --csd draws Nordend's own title bar above, as where the compositor draws none; STATE is
+// --csd draws Nordend's own header (the window's buttons in the path row), as where the
+// compositor leaves the title bar to Nordend; STATE is
 // comma-separated words: "normal", "maximized", "inactive", "no-minimize", and "hover-close",
 // "hover-maximize", "press-close" for the pointer over a button.
 // --desktop draws with the palette made from a desktop's look, as without colors.toml under GNOME
@@ -404,6 +405,9 @@ int main(int argc, char** argv) {
                                       [] {},
                                       [](ui::CursorShape /*shape*/) {}};
             if (csd) {
+                title_bar.set_integrated([&columns](float x, float y) {
+                    return columns && columns->window_drag_at(x, y);
+                });
                 const auto has = [&](std::string_view word) {
                     return csd->find(word) != std::string::npos;
                 };
@@ -411,7 +415,7 @@ int main(int argc, char** argv) {
                                      .activated = !has("inactive"),
                                      .can_minimize = !has("no-minimize")});
                 title_bar.layout(window_bounds);
-                const float button_y = views::TitleBar::kHeight / 2.0F;
+                const float button_y = views::TitleBar::kIntegratedHeight / 2.0F;
                 const float close_x = width - 8.0F - 12.0F;
                 if (has("hover-close") || has("press-close")) {
                     title_bar.pointer(
@@ -433,12 +437,14 @@ int main(int argc, char** argv) {
             std::optional<std::pair<float, float>> drag_image;  // where the pointer drags
             const auto frame = [&] {
                 renderer.begin_frame(buffer_width, buffer_height, scale, palette.palette.surface);
-                if (csd) {
-                    title_bar.draw(renderer, window_bounds, palette.palette, icons, "Nordend");
-                }
                 if (columns) {
+                    columns->set_window_header(csd ? std::optional<float>{title_bar.buttons_width()}
+                                                   : std::nullopt);
                     columns->draw(renderer, bounds, palette.palette, icons,
                                   views::Browser::Clock::now());
+                    if (csd) {
+                        title_bar.draw(renderer, window_bounds, palette.palette, icons, "Nordend");
+                    }
                     if (drag_image) {
                         columns->draw_drag_icon(
                             renderer,

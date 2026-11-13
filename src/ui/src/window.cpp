@@ -100,7 +100,7 @@ Window::Window(Display& display, EglContext& egl, FontSystem& fonts, const Windo
                                                  ? ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE
                                                  : ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
         if (options.force_client_decorations) {
-            log::info("decorations: client-side asked for (NORDEND_FORCE_CSD)");
+            log::info("decorations: client-side asked for (Nordend's own header)");
         }
     }
 
@@ -353,12 +353,14 @@ void Window::close() {
 void Window::on_decoration_configure(void* data, zxdg_toplevel_decoration_v1* /*decoration*/,
                                      std::uint32_t mode) {
     auto& self = *static_cast<Window*>(data);
-    if (mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE) {
-        log::debug("decorations: server-side");
-    } else {
-        log::info("decorations: client-side, as the compositor asks");
+    const bool client = mode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+    if (client != self.client_decorations_ || !self.decoration_answered_) {
+        // The compositor's answer has the last word: one title bar, never two.
+        log::info("decorations: {}", client ? "Nordend's own (client-side)"
+                                            : "the compositor's title bar (server-side)");
     }
-    self.client_decorations_ = mode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
+    self.decoration_answered_ = true;
+    self.client_decorations_ = client;
     self.request_redraw();
 }
 

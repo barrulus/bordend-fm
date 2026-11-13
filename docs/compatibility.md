@@ -19,14 +19,15 @@ in by the author's tests; "expected" is what the protocols each compositor offer
 Icons need nothing: the Tabler subset is compiled into the program.
 
 Two variables try Nordend's own paths on a compositor that would not need them:
-`NORDEND_FORCE_CSD=1` asks for client-side decorations through xdg-decoration (the compositor
-has the last word), `NORDEND_FORCE_XCURSOR=1` draws the cursor from the xcursor theme.
+`NORDEND_FORCE_CSD=1` asks for client-side decorations through xdg-decoration even with
+`[window] title_bar = "compositor"` (the compositor has the last word),
+`NORDEND_FORCE_XCURSOR=1` draws the cursor from the xcursor theme.
 
 ## Expected
 
 | | Umbriel | GNOME | Plasma | niri | weston |
 |---|---|---|---|---|---|
-| Title bar | the compositor's | Nordend's | the compositor's | Nordend's (niri asks for client-side unless `prefer-no-csd`) | Nordend's |
+| Title bar | Nordend's header (Umbriel accepts client-side, checked 2026-11-13) | Nordend's header | Nordend's header, if KWin accepts client-side (to be verified) | Nordend's header | Nordend's header |
 | Cursor | cursor-shape-v1 | cursor-shape-v1 (recent GNOME) | cursor-shape-v1 | cursor-shape-v1 | xcursor |
 
 ## Checklist per session

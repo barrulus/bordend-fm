@@ -393,16 +393,21 @@ int main(int argc, char** argv) {
         for (const std::string& problem : remembered.problems) {
             log::warn("state: {}", problem);
         }
-        ui::Window window{display,
-                          egl,
-                          fonts,
-                          {.title = "Nordend",
-                           .app_id = "nordend",
-                           .width = remembered.state.window_width,
-                           .height = remembered.state.window_height,
-                           .maximized = remembered.state.maximized,
-                           .background = theme.palette().surface,
-                           .force_client_decorations = client_decorations_forced()}};
+        ui::Window window{
+            display,
+            egl,
+            fonts,
+            {.title = "Nordend",
+             .app_id = "nordend",
+             .width = remembered.state.window_width,
+             .height = remembered.state.window_height,
+             .maximized = remembered.state.maximized,
+             .background = theme.palette().surface,
+             // Nordend's own header (ROADMAP 3⅞) unless config.toml asks for the
+             // compositor's title bar.
+             .force_client_decorations =
+                 client_decorations_forced() ||
+                 config.window.title_bar == core::Config::Window::TitleBar::integrated}};
         startup.mark("window");
         ui::Seat seat{display};
         seat.set_multi_click(std::chrono::milliseconds{config.pointer.double_click_ms},
@@ -625,6 +630,11 @@ int main(int argc, char** argv) {
              .close = [&] { window.close(); }},
             [&] { window.request_redraw(); },
             [&](ui::CursorShape shape) { seat.set_cursor(shape); }};
+        if (columns) {
+            // Integrated into the Browser's header: it says where a press moves the window.
+            title_bar.set_integrated(
+                [&](float x, float y) { return columns->window_drag_at(x, y); });
+        }
         bool bar_has_pointer = false;  // the content heard a leave when the bar took the pointer
         bool content_pressed = false;  // a press in the content keeps the pointer there
 
@@ -728,10 +738,20 @@ int main(int argc, char** argv) {
             seat.set_cursor_scale(window.scale());  // the xcursor fallback's images follow it
             const theme::Palette& palette = theme.palette();
             ui::Rect content = bounds;
-            if (window.client_decorations()) {
+            const bool decorated = window.client_decorations();
+            if (decorated) {
                 title_bar.set_state(window.state());
-                title_bar.draw(renderer, bounds, palette, icons, window.title());
+                if (title_bar.integrated()) {
+                    title_bar.layout(bounds);  // its buttons go over the header, drawn after it
+                } else {
+                    title_bar.draw(renderer, bounds, palette, icons, window.title());
+                }
                 content = title_bar.content(bounds);
+            }
+            if (columns) {
+                columns->set_window_header(decorated && title_bar.integrated()
+                                               ? std::optional<float>{title_bar.buttons_width()}
+                                               : std::nullopt);
             }
             if (startup.active()) {
                 if (!first_drawn) {
@@ -742,6 +762,9 @@ int main(int argc, char** argv) {
             }
             if (columns) {
                 columns->draw(renderer, content, palette, icons, views::Browser::Clock::now());
+                if (decorated && title_bar.integrated()) {
+                    title_bar.draw(renderer, bounds, palette, icons, window.title());
+                }
                 if (columns->animating()) {
                     window.request_redraw();  // next frame, paced by the compositor
                 }

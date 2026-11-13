@@ -169,6 +169,23 @@ void read_document(const toml::table& root, Reader& reader, Config& config) {
                  {"double_click_distance", [&](const toml::node& value, const std::string& path) {
                       reader.read_int(value, path, 0, 50, config.pointer.double_click_distance);
                   }}});
+        } else if (key.str() == "window") {
+            reader.read_section(
+                node, "window",
+                {{"title_bar", [&](const toml::node& value, const std::string& path) {
+                      std::string choice{"integrated"};  // also what a wrong type keeps
+                      reader.read_string(value, path, choice);
+                      if (choice == "integrated") {
+                          config.window.title_bar = Config::Window::TitleBar::integrated;
+                      } else if (choice == "compositor") {
+                          config.window.title_bar = Config::Window::TitleBar::compositor;
+                      } else {
+                          reader.report(value.source(),
+                                        std::format("'{}' must be \"integrated\" or "
+                                                    "\"compositor\"; using \"integrated\"",
+                                                    path));
+                      }
+                  }}});
         } else if (key.str() == "icon") {
             reader.read_section(
                 node, "icon",

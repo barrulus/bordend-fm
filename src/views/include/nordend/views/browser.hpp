@@ -162,6 +162,15 @@ public:
 
     [[nodiscard]] const std::vector<Step>& history() const noexcept { return pane().history; }
 
+    // Nordend's own header (ROADMAP 3⅞): the sidebar runs to the window's top, the path row is
+    // the header, with back and forward before the path and reserve logical pixels kept free at
+    // its right for the window's buttons. nullopt: the path row under the compositor's title bar.
+    void set_window_header(std::optional<float> reserve);
+
+    // Where a press moves the window, as last drawn: the header's free space and the top of the
+    // sidebar. Never while a menu, a dialog or Quick Look is open.
+    [[nodiscard]] bool window_drag_at(float x, float y) const;
+
     // Where history() is now.
     [[nodiscard]] std::size_t history_index() const noexcept { return pane().here; }
 
@@ -612,7 +621,13 @@ private:
     void view_pointer(const ui::PointerEvent& event, Clock::time_point now);
 
     // Who gets the pointer: the view, the sidebar or the breadcrumb above the view.
-    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar, tabs };
+    enum class Target : std::uint8_t { view, sidebar, breadcrumb, status_bar, tabs, header };
+
+    // Back and forward in the header: -1, 1, or 0 for neither.
+    [[nodiscard]] int navigation_at(float x, float y) const;
+    [[nodiscard]] bool can_travel(int direction) const;
+    void navigation_pointer(const ui::PointerEvent& event);
+    void draw_navigation(ui::Renderer& renderer, const theme::Palette& palette, ui::IconSet& icons);
 
     void send_pointer(Target target, const ui::PointerEvent& event, Clock::time_point now);
     void draw_view(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
@@ -638,6 +653,13 @@ private:
     core::EventLoop& loop_;
     core::WorkerPool& pool_;
     std::function<void()> redraw_;
+    std::optional<float> header_reserve_;  // set: Nordend's own header (set_window_header)
+    ui::Rect header_{};                    // the header row, as last drawn; empty without one
+    ui::Rect sidebar_top_{};               // the sidebar beside it
+    ui::Rect back_{};
+    ui::Rect forward_{};
+    int navigation_hovered_{0};  // -1 back, 1 forward
+    int navigation_pressed_{0};
     std::function<void(ui::CursorShape)> set_cursor_;
     OpenHandler open_;
     ChoicesHandler choices_;
