@@ -2257,6 +2257,10 @@ void Browser::draw_toolbar(ui::Renderer& renderer, const ui::Rect& bounds,
         return;
     }
     renderer.fill_background(bounds, palette.surface_container);
+    const float separator_height = 1.0F / renderer.scale();
+    renderer.fill_rect(
+        {bounds.x, bounds.bottom() - separator_height, bounds.width, separator_height},
+        palette.outline_variant);
     const auto width_of = [&](std::string_view text) {
         return renderer.fonts().layout(text, 13, renderer.scale()).width / renderer.scale();
     };
