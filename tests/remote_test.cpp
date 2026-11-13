@@ -126,6 +126,32 @@ TEST_CASE("remote: URIs a bookmark names, decoded, with user, port and IPv6 host
     CHECK_FALSE(parse_remote_uri("not a uri"));
 }
 
+TEST_CASE("remote: NUL bytes are rejected before normalization and mount lookup") {
+    for (const std::string_view uri :
+         {"sftp://host/..%00/ignored", "sftp://host/bad%00/../etc", "smb://nas/share%00/dir",
+          "sftp://user%00@host/path", "sftp://host%00/path", "davs://host/team%00/report"}) {
+        CAPTURE(uri);
+        CHECK_FALSE(parse_remote_uri(uri));
+        CHECK_FALSE(rummage::fs::parse_location(uri, "/home/me"));
+        CHECK(rummage::fs::parse_bookmarks(std::string{uri} + "\n").empty());
+    }
+    const std::string raw = std::string{"sftp://host/.."} + '\0' + "/ignored";
+    CHECK_FALSE(parse_remote_uri(raw));
+    // An escaped percent is a literal filename, not a second decoding pass.
+    REQUIRE(parse_remote_uri("sftp://host/%2500"));
+    CHECK(parse_remote_uri("sftp://host/%2500")->path == "/%00");
+
+    // Also protect callers constructing a location directly, bypassing the URI parser.
+    GvfsLocation location = location_of("sftp://host/");
+    location.path = std::string{"/.."} + '\0' + "/ignored";
+    const GvfsMount mount{.dbus_id = ":1.42",
+                          .object_path = "/org/gtk/vfs/mount/1",
+                          .name = "host",
+                          .fuse = "/run/user/1000/gvfs/sftp:host=host",
+                          .spec = location.spec};
+    CHECK(rummage::platform::local_path(mount, location).empty());
+}
+
 TEST_CASE("remote: the label of a remote bookmark without one") {
     CHECK(rummage::fs::remote_label(*parse_remote_uri("smb://fileshare.example/Public")) ==
           "Public on fileshare.example");

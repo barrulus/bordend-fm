@@ -225,7 +225,7 @@ const GvfsMount* mount_holding(const std::vector<GvfsMount>& mounts, const GvfsL
 }
 
 std::filesystem::path local_path(const GvfsMount& mount, const GvfsLocation& location) {
-    if (mount.fuse.empty()) {
+    if (mount.fuse.empty() || location.path.find('\0') != std::string::npos) {
         return {};
     }
     if (!under_prefix(location.path, mount.spec.prefix)) {

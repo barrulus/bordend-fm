@@ -87,7 +87,7 @@ struct RemoteUri {
     bool operator==(const RemoteUri&) const = default;
 };
 
-// uri as a RemoteUri; nullopt for another scheme, no host, or a port that is not one.
+// uri as a RemoteUri; nullopt for another scheme, no host, an invalid port, or a raw/decoded NUL.
 [[nodiscard]] std::optional<RemoteUri> parse_remote_uri(std::string_view uri);
 
 // What the sidebar calls a remote bookmark without a label: "Public on fileshare" for a folder

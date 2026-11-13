@@ -230,6 +230,9 @@ std::vector<UserDir> parse_user_dirs(std::string_view text, const std::filesyste
 }
 
 std::optional<RemoteUri> parse_remote_uri(std::string_view uri) {
+    if (uri.find('\0') != std::string_view::npos) {
+        return std::nullopt;
+    }
     const std::size_t separator = uri.find("://");
     if (separator == std::string_view::npos) {
         return std::nullopt;
@@ -283,7 +286,14 @@ std::optional<RemoteUri> parse_remote_uri(std::string_view uri) {
         }
         out.port = number;
     }
-    out.path = normalize_remote_path(percent_decode(path));
+    out.path = percent_decode(path);
+    // Filesystem and gvfs byte-string APIs terminate at NUL. Reject it before normalization
+    // can hide a component, or a decoded "..%00" can become a local parent traversal.
+    if (out.user.find('\0') != std::string::npos || out.host.find('\0') != std::string::npos ||
+        out.path.find('\0') != std::string::npos) {
+        return std::nullopt;
+    }
+    out.path = normalize_remote_path(out.path);
     return out;
 }
 
