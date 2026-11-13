@@ -6,6 +6,7 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <xkbcommon/xkbcommon-keysyms.h>
 
 #include <doctest/doctest.h>
 
@@ -14,6 +15,8 @@
 #include "nordend/ui/offscreen.hpp"
 #include "nordend/ui/renderer.hpp"
 #include "nordend/ui/text.hpp"
+#include "nordend/views/confirm_dialog.hpp"
+#include "nordend/views/error_dialog.hpp"
 #include "temp_dir.hpp"
 
 namespace ui = nordend::ui;
@@ -202,4 +205,64 @@ TEST_CASE("folder icons: rendered override, missing or broken artwork, and built
     icons.set_theme("builtin");
     const auto builtin = draw({});
     CHECK(draw(custom.string()) == builtin);
+}
+
+TEST_CASE("renderer: password dialogs mask Unicode characters and retain editing geometry") {
+    const auto gl = offscreen(600, 300);
+    if (!gl)
+        return;
+    ui::FontSystem fonts;
+    ui::Renderer renderer{fonts};
+    nordend::views::ConfirmDialog dialog{[] {}};
+    const auto render = [&](const std::string& password) {
+        dialog.open_password("secret.7z", false, [](auto) {});
+        dialog.paste(password);
+        renderer.begin_frame(600, 300, 1.0F, ui::Color::rgb(0xFFFFFF));
+        dialog.draw(renderer, {0, 0, 600, 300}, {});
+        renderer.end_frame();
+        std::vector<std::uint8_t> pixels(600 * 300 * 4);
+        glReadPixels(0, 0, 600, 300, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        return pixels;
+    };
+    const auto ascii = render("abc");
+    CHECK(ascii == render("é🔒字"));  // three bullets, not one per byte
+    CHECK(ascii != render("ab"));
+    CHECK(ascii != render(""));
+}
+
+TEST_CASE(
+    "renderer: action errors wrap scroll and copy all details without losing queued failures") {
+    const auto gl = offscreen(600, 300);
+    if (!gl)
+        return;
+    ui::FontSystem fonts;
+    ui::Renderer renderer{fonts};
+    std::string copied;
+    nordend::views::ErrorDialog dialog{[] {}, [&](std::string text) { copied = std::move(text); }};
+    std::string detail = "Could not extract archive. Install unrar and try again.\n";
+    for (unsigned i = 0; i < 60; ++i)
+        detail += "Archive: /photos/é🔒/" + std::string(100, 'a') + ".rar\n";
+    dialog.push(detail);
+    dialog.push("Another archive failed");
+    const auto render = [&] {
+        renderer.begin_frame(600, 300, 1.0F, ui::Color::rgb(0xFFFFFF));
+        dialog.draw(renderer, {0, 0, 600, 300}, {});
+        renderer.end_frame();
+        std::vector<std::uint8_t> pixels(600 * 300 * 4);
+        glReadPixels(0, 0, 600, 300, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        return pixels;
+    };
+    const auto top = render();
+    dialog.key({.keysym = XKB_KEY_End, .text = {}});
+    CHECK(top != render());
+    dialog.key({.keysym = XKB_KEY_c, .text = {}, .modifiers = {.ctrl = true}});
+    CHECK(copied == detail);
+    CHECK(dialog.pending() == 2);
+    dialog.key({.keysym = XKB_KEY_Home, .text = {}});
+    CHECK(top == render());
+    dialog.key({.keysym = XKB_KEY_Return, .text = {}});
+    CHECK(dialog.detail() == "Another archive failed");
+    CHECK(top != render());
+    dialog.key({.keysym = XKB_KEY_Escape, .text = {}});
+    CHECK_FALSE(dialog.is_open());
 }

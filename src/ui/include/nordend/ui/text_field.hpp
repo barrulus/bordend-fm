@@ -71,7 +71,8 @@ public:
     void click(float x, bool extend);
 
     // A box in rect, the text at size (logical pixels) with the selection behind it and the caret.
-    void draw(Renderer& renderer, const Rect& rect, float size, const FieldColors& colors);
+    void draw(Renderer& renderer, const Rect& rect, float size, const FieldColors& colors,
+              bool masked = false);
 
     // Where the box was last drawn.
     [[nodiscard]] const Rect& bounds() const noexcept { return bounds_; }
@@ -102,6 +103,8 @@ private:
     void erase(std::size_t first, std::size_t last);
     [[nodiscard]] float width_of(FontSystem& fonts, std::size_t bytes) const;
 
+    [[nodiscard]] std::string display_text(std::size_t bytes) const;
+    bool masked_{false};
     std::string text_;
     std::size_t caret_{0};
     std::size_t anchor_{0};  // the selection's other end; == caret_ when nothing is selected

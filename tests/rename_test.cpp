@@ -427,3 +427,32 @@ TEST_CASE("browser: F2 with nothing under the cursor, and in the sidebar, does n
     CHECK_FALSE(f.press(key(XKB_KEY_F2)));
     CHECK_FALSE(f.browser.name_editor().active());
 }
+
+TEST_CASE("archive password: Unicode editing, paste, confirmation and cancellation") {
+    nordend::views::ConfirmDialog dialog{[] {}};
+    std::optional<std::string> answer;
+    unsigned answered = 0;
+    const auto receive = [&](auto value) {
+        answer = std::move(value);
+        ++answered;
+    };
+    dialog.open_password("secret.7z", false, receive);
+    REQUIRE(dialog.is_open());
+    dialog.key(typed("päss 🔒"));
+    dialog.key(key(XKB_KEY_BackSpace));
+    dialog.paste("word");
+    dialog.paste("invalid\nline");
+    dialog.key(key(XKB_KEY_Return));
+    CHECK_FALSE(dialog.is_open());
+    CHECK(answer == "päss word");
+    CHECK(answered == 1);
+    dialog.open_password("secret.7z", true, receive);
+    CHECK(dialog.detail().starts_with("Password rejected"));
+    dialog.key(typed("discard"));
+    dialog.key(key(XKB_KEY_Escape));
+    CHECK_FALSE(answer);
+    CHECK(answered == 2);
+    dialog.open_password("secret.7z", false, receive);
+    dialog.key(key(XKB_KEY_Return));
+    CHECK(answer == "");  // a new prompt cannot reuse the previous password
+}

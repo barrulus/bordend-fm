@@ -233,11 +233,20 @@ bool TextField::key(const KeyEvent& event) {
     return false;
 }
 
+std::string TextField::display_text(std::size_t bytes) const {
+    if (!masked_)
+        return text_.substr(0, bytes);
+    std::string bullets;
+    for (std::size_t at = 0; at < bytes; at = next(at))
+        bullets += "•";
+    return bullets;
+}
+
 float TextField::width_of(FontSystem& fonts, std::size_t bytes) const {
     if (bytes == 0) {
         return 0.0F;
     }
-    return fonts.layout(std::string_view{text_}.substr(0, bytes), size_, scale_).width / scale_;
+    return fonts.layout(display_text(bytes), size_, scale_).width / scale_;
 }
 
 void TextField::click(float x, bool extend) {
@@ -260,7 +269,9 @@ void TextField::click(float x, bool extend) {
     move_to(best, extend);
 }
 
-void TextField::draw(Renderer& renderer, const Rect& rect, float size, const FieldColors& colors) {
+void TextField::draw(Renderer& renderer, const Rect& rect, float size, const FieldColors& colors,
+                     bool masked) {
+    masked_ = masked;
     bounds_ = rect;
     size_ = size;
     scale_ = renderer.scale();
@@ -292,7 +303,8 @@ void TextField::draw(Renderer& renderer, const Rect& rect, float size, const Fie
         const float to = width_of(*fonts_, last);
         renderer.fill_rect({x + from, line_y, to - from, line}, colors.selection);
     }
-    renderer.draw_text(text_, x, rect.y + ((rect.height - size) / 2.0F) - 2.0F, size, colors.text);
+    renderer.draw_text(display_text(text_.size()), x, rect.y + ((rect.height - size) / 2.0F) - 2.0F,
+                       size, colors.text);
     renderer.fill_rect({x + caret_x, line_y, kCaretWidth, line}, colors.caret);
     renderer.pop_clip();
 }
