@@ -28,8 +28,6 @@ constexpr float kIconGap = 10.0F;
 constexpr float kTitleSize = 12.0F;
 constexpr float kSortIcon = 12.0F;
 constexpr float kDividerGrab = 4.0F;  // either side of a divider, for the pointer
-constexpr float kScrollbarWidth = 4.0F;
-constexpr float kScrollbarMinThumb = 24.0F;
 constexpr float kItemSlack = 8.0F;  // past the end of a name, still the entry (a press drags it)
 // The least a column can be made: the name keeps room for a short file name.
 constexpr std::array<float, 4> kMinWidths{160.0F, 64.0F, 96.0F, 80.0F};
@@ -73,6 +71,7 @@ DetailsView::DetailsView(core::EventLoop& loop, core::WorkerPool& pool,
 }
 
 void DetailsView::show(std::shared_ptr<Folder> folder) {
+    scrollbar_ = ui::Scrollbar{};
     if (folder) { folder->set_entry_filter(entry_filter_); }
     expanded_.clear();
     tree_rows_.clear();
@@ -204,6 +203,8 @@ void DetailsView::open(const std::filesystem::path& directory) {
 }
 
 std::optional<ViewHit> DetailsView::hit(float x, float y) const {
+    if (scrollbar_.hit(scroller_, x, y))
+        return std::nullopt;
     if (!folder_ || x < rows_.x || x >= rows_.right() || y < rows_.y || y >= rows_.bottom()) {
         return std::nullopt;
     }
@@ -611,13 +612,12 @@ void DetailsView::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                       palette.on_surface_variant);
     }
 
-    // Scrollbar: a thin thumb, only when there is something to scroll.
-    if (scroller_.max_offset() > 0.0F) {
-        const float thumb = std::max(kScrollbarMinThumb, rows_.height * rows_.height / content);
-        const float travel = rows_.height - thumb;
-        const float thumb_y = rows_.y + (travel * offset / scroller_.max_offset());
-        renderer.draw_box({rows_.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
-                          {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
+    scrollbar_.layout(rows_);
+    if (const ui::Rect thumb = scrollbar_.thumb(scroller_); !thumb.empty()) {
+        renderer.draw_box(
+            thumb,
+            {.fill = palette.on_surface_variant.with_alpha(scrollbar_.dragging() ? 0.75F : 0.45F),
+             .radius = {}});
     }
     if (drop_ != nullptr && drop_->covers(root_->path())) {
         renderer.draw_box(
@@ -695,7 +695,9 @@ bool DetailsView::on_pane_edge(float x, float y) const {
 void DetailsView::update_hover() {
     const bool dragging = drag_ || pane_drag_;
     const std::optional<std::size_t> row =
-        pointer_inside_ && !dragging ? row_at(pointer_x_, pointer_y_) : std::nullopt;
+        pointer_inside_ && !dragging && !scrollbar_.hit(scroller_, pointer_x_, pointer_y_)
+            ? row_at(pointer_x_, pointer_y_)
+            : std::nullopt;
     if (row != hovered_) {
         hovered_ = row;
         redraw_();
@@ -714,6 +716,12 @@ void DetailsView::pointer(const ui::PointerEvent& event, Clock::time_point now) 
         return;
     }
     rebuild_rows();
+    if (!pane_drag_ && !drag_ && scrollbar_.pointer(event, scroller_)) {
+        pointer_inside_ = false;
+        update_hover();
+        redraw_();
+        return;
+    }
     using Kind = ui::PointerEvent::Kind;
     switch (event.kind) {
         case Kind::enter:

@@ -619,3 +619,149 @@ TEST_CASE("panes: archive dialogs capture keys and password paste without switch
     f.press(key(XKB_KEY_Tab));
     CHECK(f.browser.active_pane() != active);
 }
+
+TEST_CASE("panes: scrollbar drags stay captured without selecting or dragging files") {
+    for (const auto mode : {Browser::Mode::columns, Browser::Mode::grid, Browser::Mode::details}) {
+        CAPTURE(mode);
+        Fixture f;
+        for (int i = 0; i < 300; ++i) {
+            std::ofstream{f.b / std::format("item-{:03}.txt", i)} << i;
+        }
+        const auto gl = offscreen();
+        REQUIRE(gl);
+        rummage::ui::FontSystem fonts;
+        rummage::ui::Renderer renderer{fonts};
+        rummage::ui::IconSet icons{fonts};
+        f.browser.set_sidebar_visible(false);
+        f.browser.set_info_visible(false);
+        f.browser.set_mode(mode);
+        f.browser.toggle_split();
+        f.browser.open(f.b);
+        REQUIRE(f.settle());
+        f.browser.set_mode(mode);
+        const auto folder = mode == Browser::Mode::columns ? f.browser.columns().focused_folder()
+                            : mode == Browser::Mode::grid  ? f.browser.grid().folder()
+                                                           : f.browser.details().folder();
+        REQUIRE(folder);
+        folder->select_name("item-000.txt");
+        const auto selection = folder->selected_names();
+        bool file_drag = false;
+        rummage::views::DragAndDrop dnd;
+        dnd.start = [&](auto) { file_drag = true; };
+        f.browser.set_drag_and_drop(std::move(dnd));
+        const auto now = Browser::Clock::now();
+        const auto draw = [&](auto time) {
+            renderer.begin_frame(kWidth, kHeight, 1.0F, {});
+            f.browser.draw(renderer, {0, 0, kWidth, kHeight}, rummage::theme::Palette{}, icons,
+                           time);
+            renderer.end_frame();
+        };
+        draw(now);
+        draw(now + 2s);  // finish revealing the focused column
+        const auto lane = mode == Browser::Mode::columns ? f.browser.columns().band_lane(*folder)
+                          : mode == Browser::Mode::grid  ? f.browser.grid().band_lane(*folder)
+                                                         : f.browser.details().band_lane(*folder);
+        REQUIRE(lane);
+        auto& scroller = mode == Browser::Mode::columns
+                             ? f.browser.columns().column(f.browser.columns().focus()).scroller()
+                         : mode == Browser::Mode::grid ? f.browser.grid().scroller()
+                                                       : f.browser.details().scroller();
+        REQUIRE(scroller.max_offset() > 0);
+        scroller.jump_to(0);
+        draw(now + 3s);
+        const float x = lane->area.right() - 11;
+        const float y = lane->area.y + 4;
+        REQUIRE(f.browser.pane_bounds(1).contains(x, y));
+        f.browser.focus_pane(0);  // pressing an inactive pane's scrollbar must focus it
+        f.browser.pointer({.kind = PointerEvent::Kind::press,
+                           .x = x,
+                           .y = y,
+                           .button = PointerButton::left,
+                           .click_count = 1},
+                          now + 3s);
+        CHECK(f.browser.active_pane() == 1);
+        CHECK(scroller.offset() == 0);
+        // Crossing the pane divider must continue the original scrollbar's gesture.
+        const float outside_x = f.browser.pane_bounds(0).x + 30;
+        const float bottom = lane->area.bottom() + 100;
+        f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = outside_x, .y = bottom},
+                          now + 3s);
+        CHECK(scroller.offset() == scroller.max_offset());
+        CHECK(folder->selected_names() == selection);
+        CHECK_FALSE(file_drag);
+        f.browser.pointer({.kind = PointerEvent::Kind::release,
+                           .x = outside_x,
+                           .y = bottom,
+                           .button = PointerButton::left},
+                          now + 3s);
+        f.browser.pointer({.kind = PointerEvent::Kind::motion, .x = x, .y = y}, now + 3s);
+        CHECK(scroller.offset() == scroller.max_offset());
+        CHECK(folder->selected_names() == selection);
+        CHECK_FALSE(file_drag);
+    }
+}
+
+TEST_CASE("panes: horizontal column scrollbar drags independently of files and dividers") {
+    Fixture f;
+    const auto gl = offscreen();
+    REQUIRE(gl);
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
+    auto& view = f.browser.columns();
+    view.open(f.a);
+    REQUIRE(f.settle());
+    view.key(key(XKB_KEY_Home), Browser::Clock::now());  // select sub and append its column
+    REQUIRE(f.settle());
+    REQUIRE(view.column_count() == 2);
+    view.set_info_visible(false);
+    const rummage::ui::Rect bounds{20, 30, 400, 500};
+    const auto now = Browser::Clock::now();
+    const auto draw = [&](auto time) {
+        renderer.begin_frame(kWidth, kHeight, 1.0F, {});
+        view.draw(renderer, bounds, rummage::theme::Palette{}, icons, time);
+        renderer.end_frame();
+    };
+    draw(now);
+    draw(now + 2s);
+    const auto selected = view.column(0).folder().selected_names();
+    const auto focus = view.focus();
+    const float width = view.column(0).rows_area().width;
+    const float y = bounds.bottom() - 11;
+    // Track click at the start, then grab the thumb without changing the offset.
+    view.pointer({.kind = PointerEvent::Kind::press,
+                  .x = bounds.x + 1,
+                  .y = y,
+                  .button = PointerButton::left,
+                  .click_count = 1},
+                 now + 2s);
+    view.pointer({.kind = PointerEvent::Kind::release,
+                  .x = bounds.x + 1,
+                  .y = y,
+                  .button = PointerButton::left},
+                 now + 2s);
+    CHECK(view.scroll_offset() == 0);
+    draw(now + 3s);
+    CHECK_FALSE(view.hit(bounds.x + 4, y));
+    view.pointer({.kind = PointerEvent::Kind::press,
+                  .x = bounds.x + 4,
+                  .y = y,
+                  .button = PointerButton::left,
+                  .click_count = 1},
+                 now + 3s);
+    CHECK(view.scroll_offset() == 0);
+    view.pointer({.kind = PointerEvent::Kind::motion, .x = bounds.right() + 100, .y = y}, now + 3s);
+    CHECK(view.scroll_offset() > 0);
+    draw(now + 4s);
+    CHECK(view.column(0).rows_area().width == width);
+    CHECK(view.column(0).folder().selected_names() == selected);
+    CHECK(view.focus() == focus);
+    view.pointer({.kind = PointerEvent::Kind::release,
+                  .x = bounds.x - 100,
+                  .y = y,
+                  .button = PointerButton::left},
+                 now + 4s);
+    CHECK(view.scroll_offset() == 0);
+    draw(now + 5s);
+    CHECK(view.scroll_offset() == 0);  // drawing must not glide back to the focused column
+}

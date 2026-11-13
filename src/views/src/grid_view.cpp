@@ -27,8 +27,6 @@ constexpr float kCellExtraWidth = 56.0F;   // a cell is the icon plus this, at l
 constexpr float kCellMinWidth = 132.0F;    // and room for a short name (P1234567.ORF)
 constexpr float kCellExtraHeight = 52.0F;  // icon plus the gaps and one line of name
 constexpr float kTextSize = 13.0F;
-constexpr float kScrollbarWidth = 4.0F;
-constexpr float kScrollbarMinThumb = 24.0F;
 
 }  // namespace
 
@@ -48,6 +46,7 @@ GridView::GridView(core::EventLoop& loop, core::WorkerPool& pool, fs::DirectoryW
 }
 
 void GridView::show(std::shared_ptr<Folder> folder) {
+    scrollbar_ = ui::Scrollbar{};
     if (folder) {
         folder->set_entry_filter(entry_filter_);
     }
@@ -69,6 +68,8 @@ void GridView::open(const std::filesystem::path& directory) {
 }
 
 std::optional<ViewHit> GridView::hit(float x, float y) const {
+    if (scrollbar_.hit(scroller_, x, y))
+        return std::nullopt;
     if (!folder_ || x < area_.x || x >= area_.right() || y < area_.y || y >= area_.bottom()) {
         return std::nullopt;
     }
@@ -415,13 +416,12 @@ void GridView::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme:
                       palette.on_surface_variant);
     }
 
-    // Scrollbar: a thin thumb, only when there is something to scroll.
-    if (scroller_.max_offset() > 0.0F) {
-        const float thumb = std::max(kScrollbarMinThumb, area_.height * area_.height / content);
-        const float travel = area_.height - thumb;
-        const float thumb_y = area_.y + (travel * offset / scroller_.max_offset());
-        renderer.draw_box({area_.right() - kScrollbarWidth - 2.0F, thumb_y, kScrollbarWidth, thumb},
-                          {.fill = palette.on_surface_variant.with_alpha(0.45F), .radius = {}});
+    scrollbar_.layout(area_);
+    if (const ui::Rect thumb = scrollbar_.thumb(scroller_); !thumb.empty()) {
+        renderer.draw_box(
+            thumb,
+            {.fill = palette.on_surface_variant.with_alpha(scrollbar_.dragging() ? 0.75F : 0.45F),
+             .radius = {}});
     }
     if (drop_ != nullptr && drop_->covers(folder_->path())) {
         renderer.draw_box(
@@ -470,7 +470,9 @@ bool GridView::on_pane_edge(float x, float y) const {
 
 void GridView::update_hover() {
     const std::optional<std::size_t> cell =
-        pointer_inside_ && !pane_drag_ ? cell_at(pointer_x_, pointer_y_) : std::nullopt;
+        pointer_inside_ && !pane_drag_ && !scrollbar_.hit(scroller_, pointer_x_, pointer_y_)
+            ? cell_at(pointer_x_, pointer_y_)
+            : std::nullopt;
     if (cell != hovered_) {
         hovered_ = cell;
         redraw_();
@@ -485,6 +487,12 @@ void GridView::update_hover() {
 
 void GridView::pointer(const ui::PointerEvent& event, Clock::time_point now) {
     if (!folder_) {
+        return;
+    }
+    if (!pane_drag_ && scrollbar_.pointer(event, scroller_)) {
+        pointer_inside_ = false;
+        update_hover();
+        redraw_();
         return;
     }
     using Kind = ui::PointerEvent::Kind;

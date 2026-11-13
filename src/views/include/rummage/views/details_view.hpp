@@ -20,6 +20,7 @@
 #include "rummage/ui/geometry.hpp"
 #include "rummage/ui/icons.hpp"
 #include "rummage/ui/renderer.hpp"
+#include "rummage/ui/scrollbar.hpp"
 #include "rummage/ui/scroller.hpp"
 #include "rummage/ui/seat.hpp"
 #include "rummage/views/cut_marks.hpp"
@@ -232,6 +233,7 @@ private:
     std::function<void(std::size_t)> zoomed_;
     ListSize size_{kListSizes[kUsualListSize]};
     ui::Scroller scroller_;
+    ui::Scrollbar scrollbar_;
     // Widths of size, modified and type; the name takes the rest.
     std::array<float, 4> widths_{0.0F, 96.0F, 150.0F, 220.0F};
     Layout layout_;

@@ -17,6 +17,7 @@
 #include "rummage/ui/geometry.hpp"
 #include "rummage/ui/icons.hpp"
 #include "rummage/ui/renderer.hpp"
+#include "rummage/ui/scrollbar.hpp"
 #include "rummage/ui/scroller.hpp"
 #include "rummage/ui/seat.hpp"
 #include "rummage/views/cut_marks.hpp"
@@ -179,6 +180,7 @@ private:
     fs::SortOrder order_;
     const DropMark* drop_{nullptr};
     ui::Scroller scroller_;
+    ui::Scrollbar scrollbar_;
     std::size_t size_{kUsualGridSize};
     std::function<void(std::size_t)> zoomed_;
     std::size_t columns_{1};
