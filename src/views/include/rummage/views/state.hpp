@@ -125,8 +125,9 @@ struct StateResult {
     std::vector<std::string> problems;
 };
 
-// state.toml under $XDG_STATE_HOME (or ~/.local/state); empty without a home.
-[[nodiscard]] std::filesystem::path default_state_path();
+// state.toml (picker.toml for the chooser) under $XDG_STATE_HOME (or ~/.local/state).
+// Empty without a home.
+[[nodiscard]] std::filesystem::path default_state_path(bool picker = false);
 
 // Reads state.toml text. A value of the wrong type or out of range keeps its default and is a
 // problem; unknown keys are ignored (a newer rummage may have written them). A file that does not

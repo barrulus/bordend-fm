@@ -533,7 +533,11 @@ int main(int argc, char** argv) {
                         request.name = "Untitled.txt";
                     }
                     request.filters = {{"All files", {{0, "*"}}}, {"Text files", {{0, "*.txt"}}}};
-                    request.choices = {{"readonly", "Read only", {}, "false"}};
+                    request.choices = {{"readonly", "Read only", {}, "false"},
+                                       {"encoding",
+                                        "Encoding",
+                                        {{"utf8", "UTF-8"}, {"latin1", "Latin-1"}},
+                                        "utf8"}};
                     picker = std::make_unique<views::FilePicker>(
                         *columns, request, mime, [] {}, [](auto) {});
                 }

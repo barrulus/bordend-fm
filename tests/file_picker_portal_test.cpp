@@ -1,6 +1,8 @@
 #include "rummage/platform/file_picker_portal.hpp"
 
 #include <chrono>
+#include <csignal>
+#include <fstream>
 #include <future>
 #include <iostream>
 #include <map>
@@ -17,6 +19,7 @@ using Response = std::pair<std::uint32_t, Values>;
 const sdbus::ServiceName service{"org.freedesktop.impl.portal.desktop.rummage"};
 const sdbus::ObjectPath path{"/org/freedesktop/portal/desktop"};
 constexpr auto iface = "org.freedesktop.impl.portal.FileChooser";
+volatile std::sig_atomic_t stopped = 0;
 
 void require(bool value, const char* message) {
     if (!value) {
@@ -26,6 +29,16 @@ void require(bool value, const char* message) {
 
 int child() {
     auto request = rummage::core::read_picker_request(3);
+    if (request.title == "graceful" || request.title == "stubborn") {
+        std::signal(SIGTERM, request.title == "stubborn" ? SIG_IGN : +[](int) { stopped = 1; });
+        const auto folder = std::filesystem::path{request.folder};
+        std::ofstream{folder / "ready"} << "ready";
+        while (!stopped) {
+            usleep(1000);
+        }
+        std::ofstream{folder / "flushed"} << "state saved";
+        return 0;
+    }
     if (request.title == "crash") {
         return 1;
     }
@@ -138,6 +151,63 @@ void client() {
         removed = true;
     }
     require(removed, "Finished Request object was not removed");
+
+    for (const auto* title : {"graceful", "stubborn"}) {
+        struct Scratch {
+            std::string directory{"/tmp/rummage-portal-test-XXXXXX"};
+
+            Scratch() { require(mkdtemp(directory.data()) != nullptr, "Cannot make test folder"); }
+
+            ~Scratch() { std::filesystem::remove_all(directory); }
+        } scratch;
+
+        const auto folder = std::filesystem::path{scratch.directory};
+        std::vector<std::uint8_t> bytes(scratch.directory.begin(), scratch.directory.end());
+        bytes.push_back(0);
+        auto pending = call(*proxy, "OpenFile", "/test/lifecycle", title,
+                            {{"current_folder", sdbus::Variant{bytes}}});
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        while (!std::filesystem::exists(folder / "ready") &&
+               std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(1ms);
+        }
+        require(std::filesystem::exists(folder / "ready"), "Picker did not become ready");
+        auto close_request =
+            sdbus::createProxy(*connection, service, sdbus::ObjectPath{"/test/lifecycle"});
+        // Another D-Bus connection may not cancel this caller's picker.
+        auto stranger = sdbus::createSessionBusConnection();
+        auto foreign = sdbus::createProxy(*stranger, service, sdbus::ObjectPath{"/test/lifecycle"});
+        bool denied = false;
+        try {
+            foreign->callMethod("Close").onInterface("org.freedesktop.impl.portal.Request");
+        } catch (const sdbus::Error&) {
+            denied = true;
+        }
+        require(denied, "Another sender could cancel the request");
+        // Stay busy longer than the test service's idle timeout.
+        std::this_thread::sleep_for(1100ms);
+        require(pending.wait_for(0ms) != std::future_status::ready, "Active request was stopped");
+        close_request->callMethod("Close").onInterface("org.freedesktop.impl.portal.Request");
+        require(get(pending).first == 1, "Lifecycle cancellation was not reported as cancelled");
+        require(
+            std::filesystem::exists(folder / "flushed") == (std::string_view{title} == "graceful"),
+            "Graceful picker did not flush, or stubborn picker was not killed");
+    }
+    // With no outstanding requests the backend should leave the bus by itself.
+    auto daemon = sdbus::createProxy(*connection, sdbus::ServiceName{"org.freedesktop.DBus"},
+                                     sdbus::ObjectPath{"/org/freedesktop/DBus"});
+    bool owned = true;
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while (owned && std::chrono::steady_clock::now() < deadline) {
+        daemon->callMethod("NameHasOwner")
+            .onInterface("org.freedesktop.DBus")
+            .withArguments(std::string{service})
+            .storeResultsTo(owned);
+        if (owned) {
+            std::this_thread::sleep_for(10ms);
+        }
+    }
+    require(!owned, "Idle backend did not exit");
     std::cout << "FileChooser D-Bus integration passed\n";
 }
 }  // namespace
@@ -154,12 +224,14 @@ int main(int argc, char** argv) {
             client();
         } catch (...) {
             error = std::current_exception();
+            loop.post([&] { loop.quit(); });
         }
-        loop.post([&] { loop.quit(); });
     }};
     try {
-        rummage::platform::run_file_picker_portal(loop,
-                                                  std::filesystem::read_symlink("/proc/self/exe"));
+        rummage::platform::run_file_picker_portal(
+            loop, {.picker_program = std::filesystem::read_symlink("/proc/self/exe"),
+                   .idle_timeout = 1s,
+                   .stop_timeout = 100ms});
     } catch (...) {
         backend_error = std::current_exception();
     }

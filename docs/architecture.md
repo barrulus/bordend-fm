@@ -122,10 +122,13 @@ own backend selection and completion handling in `platform/archives.cpp`.
 The installed D-Bus service activates `rummage --portal`. The backend handles
 OpenFile, SaveFile and SaveFiles, translates requests to picker messages and
 starts picker children. Results return as file URIs; cancellation and child failure
-are handled per request. The backend can serve concurrent requests.
+are handled per request. The backend can serve concurrent requests and exits after
+30 seconds idle or when its D-Bus connection is lost. Cancellation allows three
+seconds for the child to flush its UI state before forced termination.
 
 The picker UI reuses views/previews while excluding external actions and avoiding
-browser state writes. Wayland parenting uses xdg-foreign-v2 and optional modal
+writes to the file manager's state. Its own view, window size and last folder are
+saved separately in `picker.toml`. Wayland parenting uses xdg-foreign-v2 and optional modal
 hints. Portal selection is desktop configuration, independent of the default
 `inode/directory` application. See [file-picker setup](file-picker.md) and its
 integration tests for observable behavior.

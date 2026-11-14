@@ -143,6 +143,7 @@ struct Pending {
     Fd output;
     Fd pidfd;
     core::EventLoop::SourceId source{};
+    core::EventLoop::SourceId stop_timer{};
     bool cancelled{};
     bool reaped{};
 
@@ -161,9 +162,9 @@ struct Pending {
 
 class Backend {
 public:
-    Backend(core::EventLoop& loop, std::filesystem::path picker_program)
+    Backend(core::EventLoop& loop, FilePickerPortalOptions configuration)
         : loop_{loop},
-          picker_program_{std::move(picker_program)},
+          options_{std::move(configuration)},
           connection_{sdbus::createSessionBusConnection()},
           object_{sdbus::createObject(*connection_,
                                       sdbus::ObjectPath{"/org/freedesktop/portal/desktop"})} {
@@ -198,22 +199,45 @@ public:
             sdbus::return_slot);
         connection_->requestName(sdbus::ServiceName{"org.freedesktop.impl.portal.desktop.rummage"});
         bus_ = std::make_unique<BusLoop>(loop_, *connection_, "file chooser");
+        bus_->set_lost_handler([this] { loop_.quit(); });
         bus_->pump();
+        rest();
     }
 
     ~Backend() {
+        loop_.remove(idle_timer_);
         for (const auto& [handle, pending] : pending_) {
             loop_.remove(pending->source);
-            cancel(*pending);
+            loop_.remove(pending->stop_timer);
         }
     }
 
 private:
-    static void cancel(Pending& pending) {
+    void rest() {
+        loop_.remove(idle_timer_);
+        idle_timer_ = 0;
+        if (pending_.empty()) {
+            idle_timer_ =
+                loop_.add_timer(options_.idle_timeout, std::chrono::milliseconds{0}, [this] {
+                    idle_timer_ = 0;
+                    loop_.quit();
+                });
+        }
+    }
+
+    void cancel(Pending& pending) {
+        if (pending.cancelled) {
+            return;
+        }
         pending.cancelled = true;
-        // Kill only this picker. It performs no file writes for the requesting application.
+        // Let the picker flush its own UI state; force termination if it cannot close.
         if (pending.pidfd.value >= 0) {
-            syscall(SYS_pidfd_send_signal, pending.pidfd.value, SIGKILL, nullptr, 0);
+            syscall(SYS_pidfd_send_signal, pending.pidfd.value, SIGTERM, nullptr, 0);
+            pending.stop_timer =
+                loop_.add_timer(options_.stop_timeout, std::chrono::milliseconds{0}, [&pending] {
+                    pending.stop_timer = 0;
+                    syscall(SYS_pidfd_send_signal, pending.pidfd.value, SIGKILL, nullptr, 0);
+                });
         }
     }
 
@@ -229,7 +253,7 @@ private:
             pending->object = sdbus::createObject(*connection_, handle);
             auto* ptr = pending.get();
             pending->object
-                ->addVTable(sdbus::registerMethod("Close").implementedAs([ptr] {
+                ->addVTable(sdbus::registerMethod("Close").implementedAs([this, ptr] {
                     if (ptr->object->getCurrentlyProcessedMessage().getSender() != ptr->sender) {
                         throw sdbus::Error{
                             sdbus::Error::Name{"org.freedesktop.DBus.Error.AccessDenied"},
@@ -264,8 +288,8 @@ private:
             posix_spawnattr_setsigdefault(&attr, &all);
             posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF);
             std::string exe =
-                (picker_program_.empty() ? std::filesystem::read_symlink("/proc/self/exe")
-                                         : picker_program_)
+                (options_.picker_program.empty() ? std::filesystem::read_symlink("/proc/self/exe")
+                                                 : options_.picker_program)
                     .string();
             std::string flag = "--picker-channel";
             char* args[]{exe.data(), flag.data(), nullptr};
@@ -281,11 +305,13 @@ private:
                 loop_.add_fd(pending->pidfd.value, POLLIN,
                              [this, key = std::string{handle}](short) { finish(key); });
             pending_.emplace(handle, std::move(pending));
+            rest();
         } catch (const std::exception& e) {
             log::error("file chooser: {}", e.what());
             if (pending) {
                 pending->reply.returnResults(std::uint32_t{2}, Values{});
             }
+            rest();
         }
     }
 
@@ -296,6 +322,7 @@ private:
         }
         auto& pending = *node.mapped();
         loop_.remove(pending.source);
+        loop_.remove(pending.stop_timer);
         siginfo_t info{};
         int waited;
         do {
@@ -350,12 +377,18 @@ private:
             result.response = 2;
             values.clear();
         }
-        pending.reply.returnResults(result.response, values);
+        try {
+            pending.reply.returnResults(result.response, values);
+        } catch (const sdbus::Error& e) {
+            log::warn("file chooser: {}", e.getMessage());
+        }
         bus_->pump();
+        rest();
     }
 
     core::EventLoop& loop_;
-    std::filesystem::path picker_program_;
+    FilePickerPortalOptions options_;
+    core::EventLoop::SourceId idle_timer_{};
     std::unique_ptr<sdbus::IConnection> connection_;
     std::unique_ptr<sdbus::IObject> object_;
     sdbus::Slot names_;
@@ -364,8 +397,8 @@ private:
 };
 }  // namespace
 
-int run_file_picker_portal(core::EventLoop& loop, const std::filesystem::path& picker_program) {
-    Backend backend{loop, picker_program};
+int run_file_picker_portal(core::EventLoop& loop, FilePickerPortalOptions options) {
+    Backend backend{loop, std::move(options)};
     return loop.run();
 }
 }  // namespace rummage::platform

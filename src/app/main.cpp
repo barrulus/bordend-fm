@@ -518,8 +518,12 @@ int main(int argc, char** argv) {
         follow_desktop();
         startup.mark("portal");
         // How rummage was left (ROADMAP 7.5a).
-        const std::filesystem::path state_path = views::default_state_path();
-        const views::StateResult remembered = views::load_state(state_path);
+        const std::filesystem::path state_path =
+            views::default_state_path(picker_request.has_value());
+        views::StateResult remembered = views::load_state(state_path);
+        if (std::error_code error; picker_request && !std::filesystem::exists(state_path, error)) {
+            remembered.state.mode = views::State::Mode::grid;
+        }
         for (const std::string& problem : remembered.problems) {
             log::warn("state: {}", problem);
         }
@@ -533,7 +537,7 @@ int main(int argc, char** argv) {
              .app_id = "rummage",
              .width = remembered.state.window_width,
              .height = remembered.state.window_height,
-             .maximized = !picker_request && remembered.state.maximized,
+             .maximized = remembered.state.maximized,
              .background = theme.palette().surface,
              .force_client_decorations = client_decorations_forced(),
              .background_opacity = config.appearance.background_opacity,
@@ -615,9 +619,6 @@ int main(int argc, char** argv) {
         std::int32_t restored_width = remembered.state.window_width;
         std::int32_t restored_height = remembered.state.window_height;
         const auto note_state = [&] {
-            if (picker_request) {
-                return;
-            }
             const ui::WindowState& shown = window.state();
             if (!shown.maximized && !shown.fullscreen && !shown.tiled_left && !shown.tiled_right &&
                 !shown.tiled_top && !shown.tiled_bottom) {
@@ -628,6 +629,10 @@ int main(int argc, char** argv) {
             state.window_width = restored_width;
             state.window_height = restored_height;
             state.maximized = shown.maximized;
+            if (picker_request) {
+                state.tabs.clear();
+                state.shown_tab = 0;
+            }
             keeper.note(state);
         };
         // Files open with their default applications (ROADMAP 6.1).
@@ -760,7 +765,10 @@ int main(int argc, char** argv) {
             const auto launch_location =
                 views::startup_location(config.startup, remembered.state, start_dir);
             if (picker_request) {
-                columns->open(start_folder(start_dir));
+                // An application-provided folder wins; otherwise use the picker's last folder.
+                const auto location = views::startup_location(
+                    {.mode = core::Config::Startup::Mode::last}, remembered.state, start_dir);
+                columns->open(start_folder(location.folder));
             } else if (!launch_location.restore_tabs ||
                        !columns->restore_session(remembered.state)) {
                 columns->open(start_folder(launch_location.folder));
@@ -1030,10 +1038,8 @@ int main(int argc, char** argv) {
             });
         }
         const int code = loop.run();
-        if (!picker_request) {
-            note_state();
-            keeper.flush();
-        }
+        note_state();
+        keeper.flush();
         if (picker_request) {
             if (picker_channel) {
                 core::write_picker_result(4, picker_result);
