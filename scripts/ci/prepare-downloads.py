@@ -85,8 +85,8 @@ def prepare(artifacts, output, commit, repository, run_id, readme):
     rpm = only(roots['rpm'] / 'packages', 'rummage-[0-9]*.x86_64.rpm')
     arch = only(roots['arch'] / 'packages', 'rummage-[0-9]*-x86_64.pkg.tar.zst')
     tumbleweed = only(roots['tumbleweed'] / 'packages', 'rummage-[0-9]*.x86_64.rpm')
-    void = only(roots['void'] / 'packages', 'rummage-[0-9]*.x86_64.xbps')
-    media_void = only(roots['void'] / 'packages', 'rummage-media-*.x86_64.xbps')
+    only(roots['void'] / 'packages', 'rummage-[0-9]*.x86_64.xbps')
+    only(roots['void'] / 'packages', 'rummage-media-*.x86_64.xbps')
     media_assets = {
         'rummage-media-debian13-amd64.deb': only(roots['deb'] / 'packages', 'rummage-media_*_amd64.deb'),
         'rummage-media-fedora44-x86_64.rpm': only(roots['rpm'] / 'packages', 'rummage-media-[0-9]*.x86_64.rpm'),
@@ -106,7 +106,8 @@ def prepare(artifacts, output, commit, repository, run_id, readme):
     shutil.copyfile(arch, output / 'rummage-arch-x86_64.pkg.tar.zst')
     shutil.copyfile(tumbleweed, output / 'rummage-tumbleweed-x86_64.rpm')
     with tarfile.open(output / 'rummage-void-glibc-x86_64.tar.gz', 'w:gz') as archive:
-        for source in (void, media_void, index):
+        # Keep locally built dependencies alongside the index that references them.
+        for source in [*sorted((roots['void'] / 'packages').glob('*.xbps')), index]:
             archive.add(source, arcname=f'rummage-void-x86_64/packages/{source.name}')
         archive.add(roots['void'] / 'source.json', arcname='rummage-void-x86_64/source.json')
     with tarfile.open(output / 'rummage-debian-source.tar.gz', 'w:gz') as archive:

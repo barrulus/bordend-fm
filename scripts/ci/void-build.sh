@@ -26,6 +26,8 @@ ln -s rummage srcpkgs/rummage-media
 python3 /source/scripts/ci/void-source.py /input /buildroot
 ./xbps-src pkg rummage
 mkdir -p /output/packages
-cp hostdir/binpkgs/rummage-*.xbps hostdir/binpkgs/*-repodata /output/packages/
+# The pinned templates can build dependencies absent from the rolling repository.
+# Keep every local package referenced by the index for the fresh install container.
+cp hostdir/binpkgs/*.xbps hostdir/binpkgs/*-repodata /output/packages/
 cp srcpkgs/rummage/template /output/template
 cp /input/source.json /output/source.json

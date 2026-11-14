@@ -1,5 +1,6 @@
 #include "rummage/views/info_pane.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -273,9 +274,18 @@ TEST_CASE("info pane: a log larger than what is read opens at its newest lines")
             log << "2026-11-13 12:00:" << i << " something happened\n";
         }
     }
+    // The initial scan may have completed before the log was created.
+    REQUIRE(run_until(f.loop, [&] {
+        const auto& entries = f.browser.columns().column(0).folder().entries();
+        return std::ranges::any_of(
+            entries, [](const rummage::fs::Entry& entry) { return entry.name == "a.log"; });
+    }));
     REQUIRE(f.settle());
     f.press(XKB_KEY_Down);  // a.log, before long.txt
     REQUIRE(f.settle());
+    const auto* selected = f.browser.columns().column(0).folder().cursor_entry();
+    REQUIRE(selected != nullptr);
+    REQUIRE(selected->name == "a.log");
     InfoPane& pane = f.pane();
     REQUIRE(pane.text_page().width > 0.0F);
     REQUIRE(pane.text_max_offset() > 0.0F);
