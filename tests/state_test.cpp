@@ -135,6 +135,8 @@ TEST_CASE("state: the file lives under XDG_STATE_HOME") {
     REQUIRE(home != nullptr);  // tests/main.cpp points it into the test root
     CHECK(rummage::views::default_state_path() ==
           std::filesystem::path{home} / "rummage" / "state.toml");
+    CHECK(rummage::views::default_state_path(true) ==
+          std::filesystem::path{home} / "rummage" / "picker.toml");
 }
 
 TEST_CASE("state: the browser gives back what it was given") {

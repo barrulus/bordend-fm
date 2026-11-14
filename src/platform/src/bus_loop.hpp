@@ -24,6 +24,8 @@ public:
     // after making a call.
     void pump();
 
+    void set_lost_handler(std::function<void()> handler) { lost_ = std::move(handler); }
+
 private:
     void watch();
 
@@ -36,6 +38,8 @@ private:
     core::EventLoop::SourceId event_source_{0};
     core::EventLoop::SourceId timeout_{0};
     bool pumping_{false};
+    bool lost_bus_{false};
+    std::function<void()> lost_;
 };
 
 }  // namespace rummage::platform

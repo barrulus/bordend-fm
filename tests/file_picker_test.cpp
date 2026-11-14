@@ -1,5 +1,6 @@
 #include "rummage/core/file_picker.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <fstream>
 #include <sys/mman.h>
@@ -8,6 +9,7 @@
 
 #include <doctest/doctest.h>
 
+#include "rummage/ui/offscreen.hpp"
 #include "rummage/views/file_picker.hpp"
 #include "temp_dir.hpp"
 
@@ -381,4 +383,139 @@ TEST_CASE("picker: New Folder clears the name filter and starts renaming in all 
         REQUIRE(f.result);
         CHECK(f.result->paths == std::vector<std::string>{(f.temp.path / "New Folder").string()});
     }
+}
+
+TEST_CASE("picker: save editing keeps the extension and dotfiles stay whole") {
+    Fixture f;
+    core::PickerRequest request;
+    request.mode = Mode::save;
+    request.name = "Untitled.txt";
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    CHECK(picker->copy_name(false) == "Untitled");
+    picker->key({.keysym = XKB_KEY_r, .text = "renamed"});
+    picker->accept();
+    REQUIRE(f.result);
+    CHECK(f.result->paths == std::vector<std::string>{(f.temp.path / "renamed.txt").string()});
+    CHECK_FALSE(fs::exists(f.temp.path / "renamed.txt"));
+    picker->set_name(".bashrc");
+    CHECK(picker->copy_name(false) == ".bashrc");
+    picker->set_name("report.tar.gz");
+    CHECK(picker->copy_name(false) == "report.tar");
+}
+
+TEST_CASE("picker: typing a folder navigates and preserves the proposed save name") {
+    Fixture f;
+    std::ofstream{f.temp.path / "folder/inside.txt"} << "data";
+    core::PickerRequest request;
+    request.mode = Mode::save;
+    request.name = "Untitled.txt";
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    picker->set_name("folder");
+    picker->accept();
+    CHECK_FALSE(f.result);
+    REQUIRE(f.settle());
+    CHECK(f.browser.picker_folder()->path() == f.temp.path / "folder");
+    CHECK(picker->copy_name(false) == "Untitled");
+    // A newly opened folder must not replace the proposal with its first entry.
+    picker->key({.keysym = XKB_KEY_Tab, .text = {}, .modifiers = {.shift = true}});
+    picker->key({.keysym = XKB_KEY_Control_L, .text = {}});
+    picker->accept();
+    REQUIRE(f.result);
+    CHECK(f.result->paths ==
+          std::vector<std::string>{(f.temp.path / "folder/Untitled.txt").string()});
+}
+
+TEST_CASE("picker: direct application choices remain keyboard accessible in both directions") {
+    Fixture f;
+    core::PickerRequest request;
+    request.choices = {
+        {"readonly", "Read only", {}, "false"},
+        {"encoding", "Encoding", {{"utf8", "UTF-8"}, {"latin1", "Latin-1"}}, "utf8"}};
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    f.browser.picker_folder()->select_name("one.txt");
+    // Browser -> filename -> checkbox -> choice menu, skipping the absent filter.
+    picker->key({.keysym = XKB_KEY_Tab, .text = {}});
+    picker->key({.keysym = XKB_KEY_Tab, .text = {}});
+    picker->key({.keysym = XKB_KEY_space, .text = " "});
+    picker->key({.keysym = XKB_KEY_Tab, .text = {}});
+    picker->key({.keysym = XKB_KEY_Return, .text = {}});
+    picker->key({.keysym = XKB_KEY_Down, .text = {}});
+    picker->key({.keysym = XKB_KEY_Return, .text = {}});
+    picker->key({.keysym = XKB_KEY_ISO_Left_Tab, .text = {}});
+    picker->key({.keysym = XKB_KEY_space, .text = " "});
+    picker->key({.keysym = XKB_KEY_Return, .text = {}, .modifiers = {.ctrl = true}});
+    REQUIRE(f.result);
+    CHECK(f.result->choices == std::vector<std::string>{"false", "latin1"});
+}
+
+TEST_CASE("picker: globs ignore case and MIME wildcards include inherited media types") {
+    TempDir temp;
+    std::ofstream{temp.path / "globs2"} << "50:application/x-picker-photo:*.raw\n";
+    std::ofstream{temp.path / "subclasses"} << "application/x-picker-photo image/x-picker-photo\n"
+                                               "application/x-loop application/x-loop\n";
+    const auto mime = rummage::fs::MimeDatabase::load({temp.path});
+    rummage::fs::Entry entry;
+    entry.name = "PHOTO.JPG";
+    CHECK(views::picker_matches({"JPEG", {{0, "*.jpg"}}}, entry, *mime));
+    entry.name = "unknown";
+    CHECK(views::picker_matches({"All", {{1, "*/*"}}}, entry, *mime));
+    CHECK(views::picker_matches({"All", {{1, "*"}}}, entry, *mime));
+    entry.name = "photo.raw";
+    CHECK(views::picker_matches({"Images", {{1, "image/*"}}}, entry, *mime));
+    CHECK_FALSE(views::picker_matches({"Text", {{1, "text/*"}}}, entry, *mime));
+    entry.mime = mime->find("application/x-loop");
+    CHECK_FALSE(views::picker_matches({"Images", {{1, "image/*"}}}, entry, *mime));
+}
+
+TEST_CASE("picker: overflowing options scroll into view and receive pointer input") {
+    rummage::ui::Offscreen gl{360, 320};
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
+    Fixture f;
+    core::PickerRequest request;
+    request.mode = Mode::save;
+    request.name = "Untitled.txt";
+    for (int i = 0; i < 8; ++i) {
+        request.choices.push_back(
+            {std::to_string(i), "An application checkbox " + std::to_string(i), {}, "false"});
+    }
+    auto picker = f.picker(request);
+    REQUIRE(f.settle());
+    const auto draw = [&] {
+        renderer.begin_frame(360, 320, 1, {});
+        picker->draw(renderer, {0, 0, 360, 320}, rummage::theme::Palette{}, icons);
+        renderer.end_frame();
+    };
+    draw();
+    for (int i = 0; i < 8; ++i) {
+        picker->key({.keysym = XKB_KEY_Tab, .text = {}});
+        draw();
+    }
+    // The last checkbox is revealed in the visible option row above the actions.
+    CHECK(picker->cursor_at(30, 225) == rummage::ui::CursorShape::pointer);
+    picker->pointer({.kind = rummage::ui::PointerEvent::Kind::press,
+                     .x = 30,
+                     .y = 225,
+                     .button = rummage::ui::PointerButton::left});
+    picker->pointer(
+        {.kind = rummage::ui::PointerEvent::Kind::scroll, .x = 30, .y = 225, .scroll_y = -1000});
+    draw();
+    picker->pointer({.kind = rummage::ui::PointerEvent::Kind::press,
+                     .x = 30,
+                     .y = 225,
+                     .button = rummage::ui::PointerButton::left});
+    // The save action stays reachable even with many options in a small window.
+    picker->pointer({.kind = rummage::ui::PointerEvent::Kind::press,
+                     .x = 300,
+                     .y = 265,
+                     .button = rummage::ui::PointerButton::left});
+    REQUIRE(f.result);
+    CHECK(f.result->response == 0);
+    CHECK(f.result->choices.front() == "true");
+    CHECK(f.result->choices.back() == "true");
+    CHECK(std::count(f.result->choices.begin(), f.result->choices.end(), "true") == 2);
 }

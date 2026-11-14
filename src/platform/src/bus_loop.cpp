@@ -17,18 +17,25 @@ BusLoop::~BusLoop() {
 }
 
 void BusLoop::pump() {
-    if (pumping_) {
+    if (pumping_ || lost_bus_) {
         return;  // a callback inside processPendingEvent asked again
     }
     pumping_ = true;
     try {
         while (connection_.processPendingEvent()) {
         }
+        watch();
     } catch (const sdbus::Error& error) {
         log::warn("{}: {}", name_, error.getMessage());
+        loop_.remove(fd_source_);
+        loop_.remove(event_source_);
+        loop_.remove(timeout_);
+        lost_bus_ = true;
+        if (lost_) {
+            lost_();
+        }
     }
     pumping_ = false;
-    watch();
 }
 
 void BusLoop::watch() {

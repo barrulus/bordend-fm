@@ -42,11 +42,7 @@ public:
 
     [[nodiscard]] const std::string& error() const { return error_; }
 
-    void set_name(std::string name) {
-        name_.set_text(std::move(name));
-        error_.clear();
-        redraw_();
-    }
+    void set_name(std::string name);
 
     [[nodiscard]] const char* name_label() const {
         return request_.mode == core::PickerRequest::Mode::save ? "Name"
@@ -60,7 +56,9 @@ private:
     void sync_selection();
     void finish(std::vector<std::string> paths);
     void filters_menu(bool keyboard);
-    void choices_menu(bool keyboard);
+    void choice_control(std::size_t index, bool keyboard);
+    void activate(int control, bool keyboard);
+    [[nodiscard]] bool focusable(int control) const;
     Browser& browser_;
     core::PickerRequest request_;
     std::shared_ptr<const fs::MimeDatabase> mime_;
@@ -71,8 +69,12 @@ private:
     ConfirmDialog confirm_;
     std::string error_;
     ui::Rect footer_;
-    std::array<ui::Rect, 6> controls_{};
-    int focus_{};  // browser, name, filter, choices, cancel, accept
+    ui::Rect choices_viewport_;
+    float choices_scroll_{};
+    float choices_scroll_max_{};
+    bool reveal_choice_{};
+    std::vector<ui::Rect> controls_;
+    int focus_{};  // browser, name, filter, cancel, accept, then application choices
     bool browser_pressed_{};
     std::vector<std::string> last_selection_;
 };

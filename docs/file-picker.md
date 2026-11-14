@@ -15,7 +15,11 @@ handling screenshots and screen sharing, with rummage handling file selection.
 The picker supports single and multiple files or folders, SaveFile and SaveFiles, initial
 folders and filenames, glob and MIME filters, application-provided options, overwrite
 confirmation and cancellation. It uses the usual rummage views, sidebar and previews.
-Picker windows do not restore or overwrite your file-manager tabs and window state.
+Picker windows keep their own view, window size and last folder in
+`$XDG_STATE_HOME/rummage/picker.toml` (normally `~/.local/state/rummage/picker.toml`).
+They start in grid view the first time and never restore or overwrite your
+file-manager tabs and window state. An application's requested folder takes
+precedence over the picker's remembered folder.
 
 ## Enable on NixOS with Umbriel
 
@@ -39,7 +43,8 @@ Import its NixOS module and enable the application and picker. In a NixOS module
 
 This installs rummage, enables the portal frontend, registers rummage's backend and selects
 it for FileChooser requests in Umbriel. D-Bus starts `rummage --portal` on demand; there is
-no separate picker package or service to enable. Enabling only `programs.rummage.enable`
+no separate picker package or service to enable. The backend exits after 30 seconds
+without an active request and is activated again when needed. Enabling only `programs.rummage.enable`
 installs the file manager without changing portal preferences. `programs.rummage.package`
 can override the package used for both the application and backend.
 
@@ -133,13 +138,23 @@ preserve NUL separators because filenames may contain newlines. `--title TEXT` s
 
 Enter or double-click opens a folder or accepts a file. Use the bottom action button or
 Ctrl+Enter to accept a selection, including the current folder when no child is selected.
-Tab and Shift+Tab cycle through the browser, filename, filter, options and action controls.
-Escape closes a preview/menu first, then cancels the picker. Saving an existing file asks for
-confirmation; the picker returns the destination and does not write the application's data.
+Tab and Shift+Tab cycle through the browser, filename, filter, application options
+and action controls. Application options appear directly as checkboxes or choice
+buttons; Enter or Space activates a focused control. Long option lists wrap and
+scroll, and keyboard navigation keeps the focused option visible.
+Escape closes a preview/menu first, then cancels the picker. In Save dialogs,
+typing replaces the selected filename stem while preserving its extension. Typing
+an existing folder's name and accepting opens that folder; **New Folder** creates
+a folder and lets you name it. Saving an existing file asks for confirmation;
+the picker returns the destination and does not write the application's data.
+Cancellation lets the picker save its UI settings, with forced termination after
+three seconds if it does not close.
 
 Wayland parent handles use xdg-foreign-v2, with modal hints when xdg-dialog-v1 is available.
 A missing/unsupported parent handle (including an X11 parent) opens an independent window.
-MIME filtering uses rummage's directory-entry MIME classification and filename rules;
+Glob filters ignore case (`*.jpg` also matches `PHOTO.JPG`). MIME filters accept
+`*/*` for all files and follow subtype inheritance, including wildcard categories
+such as `image/*`. MIME filtering uses rummage's directory-entry MIME classification and filename rules;
 files whose type is only recognizable by inspecting their contents may require the
 application's All Files filter.
 

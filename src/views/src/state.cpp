@@ -231,15 +231,16 @@ StartupLocation startup_location(const core::Config::Startup& startup, const Sta
     return {.folder = std::move(folder)};
 }
 
-std::filesystem::path default_state_path() {
+std::filesystem::path default_state_path(bool picker) {
+    const char* filename = picker ? "picker.toml" : "state.toml";
     const char* xdg = std::getenv("XDG_STATE_HOME");  // NOLINT(concurrency-mt-unsafe)
     // The XDG base directory spec ignores relative paths.
     if (xdg != nullptr && xdg[0] == '/') {
-        return std::filesystem::path{xdg} / "rummage" / "state.toml";
+        return std::filesystem::path{xdg} / "rummage" / filename;
     }
     const char* home = std::getenv("HOME");  // NOLINT(concurrency-mt-unsafe)
     if (home != nullptr && home[0] != '\0') {
-        return std::filesystem::path{home} / ".local" / "state" / "rummage" / "state.toml";
+        return std::filesystem::path{home} / ".local" / "state" / "rummage" / filename;
     }
     return {};
 }

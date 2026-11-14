@@ -15,6 +15,7 @@ your changes, or copy the
 | Settings | `~/.config/rummage/config.toml` | Edited by you |
 | Palette | `~/.config/rummage/colors.toml` | Written by Noctalia or edited by you |
 | Window/tab/folder state | `~/.local/state/rummage/state.toml` | Written by rummage |
+| Picker window/view/last folder | `~/.local/state/rummage/picker.toml` | Written by the file picker |
 | Thumbnail cache | `~/.cache/thumbnails/` | Shared freedesktop cache |
 | Bookmarks | `~/.config/gtk-3.0/bookmarks` | Shared with GTK file managers |
 | User folder definitions | `~/.config/user-dirs.dirs` | Desktop/XDG user-directory setup |
