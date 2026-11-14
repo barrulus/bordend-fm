@@ -287,7 +287,11 @@ TEST_CASE("info pane: a log larger than what is read opens at its newest lines")
     REQUIRE(selected != nullptr);
     REQUIRE(selected->name == "a.log");
     InfoPane& pane = f.pane();
-    REQUIRE(pane.text_page().width > 0.0F);
+    // The log is read off the main thread; under load it can arrive after the folder settles.
+    REQUIRE(run_until(f.loop, [&] {
+        f.draw();
+        return pane.text_page().width > 0.0F;
+    }));
     REQUIRE(pane.text_max_offset() > 0.0F);
     CHECK(pane.text_offset() == pane.text_max_offset());
 }

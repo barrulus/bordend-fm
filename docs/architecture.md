@@ -26,6 +26,7 @@ aliases follow the `rummage::` namespace.
 | `src/isolate` | Helper startup/pooling, descriptor protocol, resource limits and sandbox |
 | `src/thumbs` | Shared thumbnail cache |
 | `src/media` | Optional isolated FFmpeg video engine |
+| `src/pdf` | Optional isolated MuPDF PDF engine |
 | `src/svg` | FreeType-based SVG icon rendering |
 | `src/tools` | Developer renderers, inspectors and benchmarks |
 | `tests` | Doctest suite, standalone integrations, fixtures and fuzz targets |
@@ -99,7 +100,7 @@ Adding a manifest alone does not implement decoding: its program must speak the
 protocol and satisfy isolation/validation expectations. This is an internal
 extension mechanism, not a stable third-party plugin ABI. Decoders must remain
 out of the main application's format-reader dependency graph. The optional `rummage-media` uses the same isolation protocol and links FFmpeg
-libraries only in that helper. SVG theme icons and thumbnail cache parsing have
+libraries only in that helper; the optional `rummage-pdf` does the same with MuPDF. SVG theme icons and thumbnail cache parsing have
 different boundaries; see
 [security](security.md).
 

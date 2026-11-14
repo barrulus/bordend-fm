@@ -22,7 +22,7 @@ In normal builds the helper applies:
 - Resource limits: no core dumps, 32 file descriptors and 4 GiB of virtual address
   space in ordinary builds. Decoder and protocol limits also bound requests/results.
 - Parent-side timeout and failure handling. The default helper request timeout is
-  3 seconds (8 seconds for media), and idle helpers close after 30 seconds; allocations can be returned
+  3 seconds (8 seconds for media and PDF), and idle helpers close after 30 seconds; allocations can be returned
   earlier during idle time.
 
 The filter has architecture definitions for x86-64 and AArch64. Crashes, timeouts
@@ -41,6 +41,7 @@ probes and helpers that deliberately crash, hang or send invalid results.
 | Theme SVG/PNG icons | Loaded/rendered in-process; SVG parsing/rendering has explicit work and size limits |
 | Thumbnail cache | Shared desktop files read by the application; not a trusted private store |
 | Optional video previews | `rummage-media` links FFmpeg libraries inside the same descriptor-based sandbox, with separate decode/time limits |
+| Optional PDF previews | `rummage-pdf` links MuPDF inside the same sandbox: PDF parser only, no JavaScript, 1 GiB allocation budget, bounded reads; adversarial samples in `tests/data/pdf/attack` |
 | Desktop applications and custom actions | Ordinary user processes, outside the preview sandbox |
 | Archive extraction | External archive tools; their parser and extraction behavior remains their responsibility |
 | File operations, MIME lookup and desktop metadata | Run with rummage's user permissions |
