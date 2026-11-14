@@ -8,6 +8,55 @@ exposes aarch64 packages, but this workflow does not claim to build or run them.
 Fedora 44, Arch Linux and openSUSE Tumbleweed are also built as native packages. Void musl, older Debian/Ubuntu
 releases, other RPM distributions and signed/stable releases are outside the validated scope.
 
+## Local preflight
+
+Use the shared runner instead of reconstructing a subset of CI commands:
+
+```sh
+# Fast workflow/script lint, CI tooling tests and documentation checks; allows edits.
+python3 scripts/ci/preflight.py lint
+# Commit intended files first, then test that exact revision.
+python3 scripts/ci/preflight.py lint nix
+# All six build environments, including fresh native-package installation.
+python3 scripts/ci/preflight.py all
+# Reproduce one native job, or select several explicitly.
+python3 scripts/ci/preflight.py void
+python3 scripts/ci/preflight.py deb rpm arch tumbleweed
+```
+
+With no targets, the runner selects `all`. Nix supplies the lint tools from the
+locked nixpkgs input. Native targets require a working Docker daemon and the host
+tools listed below. Build targets reject dirty or untracked files, because a Nix
+flake can omit untracked source and the native builders export `git archive HEAD`.
+Lint alone accepts unfinished edits and labels its report accordingly.
+
+Every invocation creates a new `/tmp/rummage-preflight-*` directory with per-target
+logs and `summary.json`, recording the commit, requested targets and results.
+Use `--output /path/to/new-directory` to retain them elsewhere outside the checkout.
+Failures stop the run; unrun targets are absent from the results, never reported as
+passing. Selected targets are explicitly reported as partial coverage. No target
+publishes downloads or changes repository settings.
+
+Run lint and Nix checks before proposing code changes. Changes to dependencies,
+CMake, optional helpers, package recipes or installed resources require the full
+matrix: a successful Nix build cannot detect a missing Debian/Arch/RPM/Void build
+dependency. Test asynchronous behavior by waiting for the actual result, with a
+timeout; a directory scan completing does not mean its preview worker completed.
+Use focused repeated tests when changing that behavior.
+
+Before merge, all required jobs must pass for the current PR revision and relevant
+changes on `main`. Configure the required checks listed under
+[GitHub setup](#github-setup-and-scope); local preflight does not enforce branch
+protection. If a shared dependency failure affects several branches, fix it on
+`main` and refresh the branches before continuing feature merges.
+
+Void's pinned recipe revision and rolling binary repository can diverge even with
+an unchanged application. On 2026-11-14 an old libjxl recipe forced a source rebuild,
+which pulled in tar 1.35 and failed against current ACL headers before rummage
+compiled. Update `VOID_PACKAGES_REV` to a reviewed revision, then run the complete
+Void build and fresh-install check. Do not mask the failure with retries or treat
+the pinned container image as a frozen dependency repository.
+
 ## Nix
 
 The `Nix build, tests and installed package` job runs:

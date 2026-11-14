@@ -33,6 +33,14 @@ coverage. SVG changes follow the existing
 
 ## Before proposing a change
 
+- Run `python3 scripts/ci/preflight.py lint` while editing. After committing, run
+  `python3 scripts/ci/preflight.py lint nix` for the shared CI tooling and Nix checks.
+  Dependency, CMake, packaging, helper or install-layout changes also require
+  `python3 scripts/ci/preflight.py all` (Nix and Docker). A Nix pass alone does not
+  verify native packages. See [preflight](docs/ci-packaging.md#local-preflight).
+- Before merging, require every package job to pass on the current PR revision;
+  update/retest against current `main` when concurrent changes affect dependencies
+  or packaging. Do not merge a known failing check as an unrelated failure.
 - State the problem and resulting user-visible behavior.
 - Explain relevant tradeoffs, dependency changes and compatibility effects.
 - List checks actually run and any failures or environment limits.
