@@ -128,6 +128,23 @@ helper; `.#rummage-media` selects its separate helper output. The normal default
 FFmpeg. Separate custom prefixes can be registered through `RUMMAGE_ENGINE_PATH`, a colon-separated
 list of absolute `share/rummage/engines` directories. Restart after changing the installed engines.
 
+
+## Optional PDF previews
+
+Install the matching `rummage-pdf` package for PDF thumbnails and first-page stills in the
+information pane and Space Quick Look. Password-protected PDFs get a lock on their icon,
+damaged ones a cross; see [previews](previews.md#optional-pdf-previews).
+
+The helper links MuPDF (1.24 or newer, `mupdf.pc`). MuPDF is AGPL-3.0; that license applies
+to the `rummage-pdf` binary, while the main package does not link MuPDF. Without the helper,
+PDFs keep their file icons and information cards.
+
+For a source build, add `-DRUMMAGE_PDF=ON` with MuPDF's development files installed. It
+defaults to OFF. `cmake --install build --component pdf` installs only the helper and its
+manifest. For Nix, `.#rummage-with-pdf` builds the application with the helper, `.#rummage-pdf`
+selects its separate output, and `.#rummage-with-previews` includes both optional engines.
+Restart after changing the installed engines.
+
 ## Nix
 
 With flakes enabled, from this checkout:

@@ -48,6 +48,8 @@ not implemented.
 - Quick Look for pictures and text, with file-to-file navigation.
 - Text encoding detection, syntax colours, selection/copy and log tails.
 - Optional isolated FFmpeg video thumbnails and Quick Look stills.
+- Optional isolated MuPDF first-page thumbnails and Quick Look stills for PDFs, with lock and
+  damage badges.
 
 See [previews and formats](previews.md) for decoder limits. Video playback, rendered
 Markdown, PDF previews, SVG document previews and darktable rating import are not

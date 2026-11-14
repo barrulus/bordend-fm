@@ -20,8 +20,9 @@ Opening a file with Enter uses its desktop application, independent of preview s
 | Camera raw | Embedded previews; some DNGs developed by rummage | Support depends on the file's container, preview and compression |
 | Text | Isolated decoding, syntax colours and selectable text | Bounded reads; not an editor or rendered Markdown viewer |
 | Video | Optional `rummage-media` engine using FFmpeg libraries | Thumbnails and still previews; no playback |
+| PDF | Optional `rummage-pdf` engine using MuPDF | First page as thumbnail and still; no document viewer |
 | SVG theme icons | rummage's in-process icon renderer | Not a Quick Look SVG-document provider |
-| Other formats | File information and external application opening | No built-in PDF, audio player, archive-content or font preview |
+| Other formats | File information and external application opening | No built-in audio player, archive-content or font preview |
 
 The [base engine manifest](../data/engines/base.toml) registers MIME families.
 Registration is not a guarantee that every subtype/sample can decode. The image
@@ -125,6 +126,26 @@ The core works without the helper and can still reuse valid cached thumbnails.
 Missing helper/libraries do not create permanent failure entries. Restart after
 installing or changing engines. See [optional media installation](install.md#optional-video-previews)
 for CMake, Nix and `RUMMAGE_ENGINE_PATH` registration.
+
+## Optional PDF previews
+
+Install the matching `rummage-pdf` package for PDF thumbnails and first-page stills in
+the information pane and Quick Look. Enter still opens the document in its default
+application; this is a preview of page one, not a viewer.
+
+The helper links MuPDF and uses MuPDF's built-in fonts, so it opens no files inside
+the same seccomp/Landlock isolation as the other engines. Only MuPDF's PDF parser
+runs: files of MuPDF's other formats (comic archives, SVG, HTML) named `.pdf` are
+refused. JavaScript is never enabled, and stream data in external files is never
+read. MuPDF's memory is capped at 1 GiB, reading is bounded in bytes and time,
+pages are drawn at most 2048 pixels per side, and requests get the media engine's
+8 second timeout and smaller pool.
+
+A password-protected PDF keeps its icon with a lock badge and Quick Look says so; a
+PDF with an empty user password (owner restrictions only) previews normally. A
+damaged PDF keeps its icon with a cross badge. The reason is remembered with the
+cached failure until the file changes. See
+[optional PDF installation](install.md#optional-pdf-previews).
 
 Thumbnails use the shared freedesktop cache under `$XDG_CACHE_HOME/thumbnails`
 (normally `~/.cache/thumbnails`). Entries are associated with file URI and

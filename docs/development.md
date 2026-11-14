@@ -32,6 +32,7 @@ working EGL/GLES and fonts even without a compositor. CMake generates
 | `RUMMAGE_SANITIZER` | Empty | e.g. `address,undefined` or `thread` |
 | `RUMMAGE_CLANG_TIDY` | `OFF` | Run clang-tidy while compiling |
 | `RUMMAGE_MEDIA` | `OFF` | Build the optional sandboxed FFmpeg helper |
+| `RUMMAGE_PDF` | `OFF` | Build the optional sandboxed MuPDF helper |
 | `RUMMAGE_FUZZ` | `OFF` | Build libFuzzer targets; requires Clang |
 
 Tests are silently absent from a later `ctest` run if configure skipped them;
@@ -63,7 +64,7 @@ The Nix test derivation supplies fonts, shared MIME data, software rendering and
 archive tools. It runs CTest, including portal/notification integrations; the
 allocator-sensitive test runs in a fresh process. Direct dev-shell tests use the
 host environment and can differ. The normal package omits tests; `nix flake check`
-checks a separate test build with media enabled, the installed package and the module.
+checks a separate test build with media and PDF enabled, the installed package and the module.
 See [CI/package validation](ci-packaging.md) for exact checks and distribution builds.
 
 ```sh

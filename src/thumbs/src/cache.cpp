@@ -25,6 +25,8 @@ namespace {
 
 constexpr std::string_view kUriKey = "Thumb::URI";
 constexpr std::string_view kMtimeKey = "Thumb::MTime";
+// rummage's own key in a failure's PNG: why it failed (picture::Failure, as a number).
+constexpr std::string_view kFailureKey = "X-Rummage::Failure";
 
 std::vector<std::uint8_t> read_file(const std::filesystem::path& path) {
     std::error_code error;
@@ -76,11 +78,14 @@ bool make_private_directories(const std::filesystem::path& path) {
 // Writes the PNG of image with the spec's text to target: to a private temporary file next to
 // it, then renamed, so that readers never see half a thumbnail and two writers do not mix.
 bool store(const std::filesystem::path& target, const picture::Image& image, const std::string& uri,
-           std::int64_t mtime) {
-    const std::vector<std::uint8_t> png =
-        picture::encode_png(image, {{std::string{kUriKey}, uri},
-                                    {std::string{kMtimeKey}, std::to_string(mtime)},
-                                    {"Software", "rummage"}});
+           std::int64_t mtime, picture::Failure failed = picture::Failure::none) {
+    picture::PngText text{{std::string{kUriKey}, uri},
+                          {std::string{kMtimeKey}, std::to_string(mtime)},
+                          {"Software", "rummage"}};
+    if (failed != picture::Failure::none) {
+        text.emplace_back(std::string{kFailureKey}, std::to_string(static_cast<unsigned>(failed)));
+    }
+    const std::vector<std::uint8_t> png = picture::encode_png(image, text);
     if (png.empty() || !make_private_directories(target.parent_path())) {
         return false;
     }
@@ -105,10 +110,27 @@ bool store(const std::filesystem::path& target, const picture::Image& image, con
     return ok;
 }
 
-Thumbnail failure(std::string error) {
+Thumbnail failure(std::string error, picture::Failure failed = picture::Failure::none) {
     Thumbnail thumbnail;
     thumbnail.error = std::move(error);
+    thumbnail.failure = failed;
     return thumbnail;
+}
+
+// Why a remembered failure failed; only the reasons a view marks, anything else (or another
+// app's file) none.
+picture::Failure stored_failure(std::span<const std::uint8_t> png) {
+    for (const auto& [key, value] : picture::png_text(png)) {
+        if (key == kFailureKey) {
+            if (value == std::to_string(static_cast<unsigned>(picture::Failure::locked))) {
+                return picture::Failure::locked;
+            }
+            if (value == std::to_string(static_cast<unsigned>(picture::Failure::damaged))) {
+                return picture::Failure::damaged;
+            }
+        }
+    }
+    return picture::Failure::none;
 }
 
 }  // namespace
@@ -184,8 +206,15 @@ std::filesystem::path Cache::path_for(const std::filesystem::path& file, Size si
 
 std::filesystem::path Cache::fail_path(const std::filesystem::path& file,
                                        std::string_view mime) const {
-    return root_ / "fail" / (mime.starts_with("video/") ? app_ + "-media-v1" : app_) /
-           (md5_hex(file_uri(file)) + ".png");
+    // Engines with their own failures keep them apart: a reason (X-Rummage::Failure) is only in
+    // the newer directories.
+    std::string app = app_;
+    if (mime.starts_with("video/")) {
+        app += "-media-v1";
+    } else if (mime == "application/pdf") {
+        app += "-document-v1";
+    }
+    return root_ / "fail" / app / (md5_hex(file_uri(file)) + ".png");
 }
 
 Thumbnail Cache::get(const std::filesystem::path& file, Size size, std::string_view mime,
@@ -205,7 +234,7 @@ Thumbnail Cache::get(const std::filesystem::path& file, Size size, std::string_v
     }
     const std::vector<std::uint8_t> failed = read_file(fail_path(file, mime));
     if (!failed.empty() && matches(failed, uri, info.st_mtime)) {
-        return failure("failed before, and unchanged since");
+        return failure("failed before, and unchanged since", stored_failure(failed));
     }
     return make(file, size, info.st_mtime, mime, cancel);
 }
@@ -240,9 +269,9 @@ Thumbnail Cache::make(const std::filesystem::path& file, Size size, std::int64_t
         const picture::Image blank{.width = 1, .height = 1, .rgba = {0, 0, 0, 0}};
         if (loaded.failure != picture::Failure::unavailable &&
             (cancel == nullptr || !cancel->cancelled())) {
-            static_cast<void>(store(fail_path(file, mime), blank, uri, mtime));
+            static_cast<void>(store(fail_path(file, mime), blank, uri, mtime, loaded.failure));
         }
-        return failure(std::string{loaded.error()} + " (" + loaded.detail + ")");
+        return failure(std::string{loaded.error()} + " (" + loaded.detail + ")", loaded.failure);
     }
     static_cast<void>(store(path_for(file, size), loaded.image, uri, mtime));
     return {.image = std::move(loaded.image),
