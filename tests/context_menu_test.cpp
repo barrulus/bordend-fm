@@ -1091,6 +1091,51 @@ TEST_CASE("properties: keyboard search selects a themed icon and custom artwork 
     CHECK(read_file(f.photos / "sub/.directory").find("Icon=folder-blue") != std::string::npos);
 }
 
+TEST_CASE("properties: thumbnails replace the icon without moving the compact dialog") {
+    rummage::ui::Offscreen gl{800, 640};
+    Fixture f;
+    fs::copy_file(fs::path{RUMMAGE_TEST_DATA} / "image/blocks.jpg", f.photos / "photo.jpg");
+    rummage::ui::FontSystem fonts;
+    rummage::ui::Renderer renderer{fonts};
+    rummage::ui::IconSet icons{fonts};
+    auto cache = std::make_shared<rummage::thumbs::Cache>(f.dir.path / "cache", "properties-test");
+    rummage::views::Thumbnails thumbnails{f.pool, cache, [] {}};
+    auto& properties = f.browser.properties_dialog();
+    properties.open(f.photos / "photo.jpg", [] {});
+    REQUIRE(run_until(f.loop, [&] { return !properties.loading(); }));
+    const auto draw = [&] {
+        renderer.begin_frame(800, 640, 1, rummage::ui::Color::rgb(0));
+        properties.draw(renderer, {0, 0, 800, 640}, rummage::theme::Palette{}, icons, &thumbnails);
+        renderer.end_frame();
+        thumbnails.end_frame();
+        std::vector<std::uint8_t> pixels(800 * 640 * 4);
+        glReadPixels(0, 0, 800, 640, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+        return pixels;
+    };
+    const auto placeholder = draw();
+    REQUIRE(thumbnails.loading());
+    REQUIRE(run_until(f.loop, [&] { return !thumbnails.loading(); }));
+    const auto preview = draw();
+    CHECK(thumbnails.usage().textures == 1);
+    CHECK(preview != placeholder);
+    // Thumbnail completion changes only the header, keeping the metadata and footer still.
+    CHECK(std::equal(preview.begin(), preview.begin() + 800 * 320 * 4, placeholder.begin()));
+    // The content-sized footer is closer to the metadata than the old 520px-tall card.
+    CHECK(properties.cursor_at(600, 495) == rummage::ui::CursorShape::pointer);
+
+    // Short windows retain a visible Close button while the content scrolls above it.
+    renderer.begin_frame(800, 640, 1, rummage::ui::Color::rgb(0));
+    properties.draw(renderer, {0, 0, 800, 300}, rummage::theme::Palette{}, icons, &thumbnails);
+    renderer.end_frame();
+    properties.pointer(
+        {.kind = rummage::ui::PointerEvent::Kind::scroll, .x = 400, .y = 150, .wheel_y = 500});
+    properties.pointer({.kind = rummage::ui::PointerEvent::Kind::press,
+                        .x = 600,
+                        .y = 250,
+                        .button = rummage::ui::PointerButton::left});
+    CHECK_FALSE(properties.is_open());
+}
+
 TEST_CASE("actions: missing archive tools remain actionable to explain installation") {
     Fixture f;
     f.dir.write("archive.zip", std::string{"PK\005\006"} + std::string(18, '\0'));

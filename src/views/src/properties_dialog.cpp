@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <format>
 #include <sys/stat.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
@@ -10,6 +11,7 @@
 #include "rummage/fs/folder_icon.hpp"
 #include "rummage/fs/icon.hpp"
 #include "rummage/views/format.hpp"
+#include "rummage/views/thumbnails.hpp"
 
 namespace rummage::views {
 namespace {
@@ -416,13 +418,29 @@ ui::CursorShape PropertiesDialog::cursor_at(float x, float y) const {
 }
 
 void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
-                            const theme::Palette& palette, ui::IconSet& icons) {
+                            const theme::Palette& palette, ui::IconSet& icons,
+                            Thumbnails* thumbnails) {
     if (!open_)
         return;
     controls_.clear();
     renderer.fill_rect(bounds, palette.scrim.with_alpha(0.55F));
-    const float width = std::min(640.0F, bounds.width - 24.0F);
-    const float height = std::min(picking_ ? 550.0F : 520.0F, bounds.height - 24.0F);
+    const bool preview =
+        !loading_ && thumbnails && !data_.entry.is_directory() &&
+        preview::provider_for(*mime_, data_.entry.mime).kind() == preview::Kind::image;
+    const float header_height = preview ? 96.0F : 56.0F;
+    const float rows_top = 60.0F + header_height + 16.0F;
+    const float row_height = 26.0F;
+    const bool folder_controls = data_.entry.is_directory() && editable_;
+    const bool folder_hint =
+        folder_controls && (icons.selected_theme() == "builtin" || data_.entry.is_link);
+    const auto& message = !error_.empty() ? error_ : data_.icon_error;
+    const float natural_height =
+        picking_ ? 550.0F
+                 : rows_top + (data_.info.link_target.empty() ? 7.0F : 8.0F) * row_height +
+                       (folder_controls ? 44.0F : 0.0F) + (folder_hint ? 26.0F : 0.0F) +
+                       (message.empty() ? 0.0F : 26.0F) + 70.0F;
+    const float width = std::min(picking_ ? 640.0F : 560.0F, bounds.width - 24.0F);
+    const float height = std::min(natural_height, bounds.height - 24.0F);
     const ui::Rect card{bounds.x + (bounds.width - width) / 2,
                         bounds.y + (bounds.height - height) / 2, width, height};
     renderer.draw_box(card, {.fill = palette.surface_container_high,
@@ -430,7 +448,6 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                              .border_width = 1,
                              .border = palette.outline_variant});
     content_ = {card.x, card.y, card.width, card.height - 70};
-    const float natural_height = picking_ ? 550.0F : 520.0F;
     max_scroll_ = std::max(0.0F, natural_height - height);
     scroll_ = std::clamp(scroll_, 0.0F, max_scroll_);
     const float top = card.y - scroll_;
@@ -515,14 +532,39 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
                                : draft_.starts_with("./")
                                    ? (path_ / draft_).lexically_normal().string()
                                    : draft_;
-        icons.draw_file(renderer, mime_->name(data_.entry.mime), fs::icon_name(*mime_, data_.entry),
-                        left, top + 60, 56, palette.primary, preferred);
-        text(path_.filename().empty() ? path_.string() : path_.filename().string(), left + 76,
-             top + 60, 16, room - 76);
-        text(loading_ ? "Loading…" : std::string{mime_->name(data_.entry.mime)}, left + 76,
-             top + 87, 12, room - 76, true);
-        float y = top + 132;
-        const float row_height = 26.0F;
+        const float preview_width = preview ? std::min(144.0F, room * 0.4F) : 56.0F;
+        const ui::Rect preview_box{left, top + 60, preview_width, header_height};
+        const ui::Texture* thumbnail = nullptr;
+        if (preview) {
+            thumbnail = thumbnails->get(
+                path_, data_.entry.modified_ns,
+                thumbs::size_for(static_cast<std::uint32_t>(
+                    std::lround(std::max(preview_width, header_height) * renderer.scale()))),
+                mime_->name(data_.entry.mime));
+        }
+        if (thumbnail) {
+            const float fit =
+                std::min(preview_box.width / static_cast<float>(thumbnail->width()),
+                         preview_box.height / static_cast<float>(thumbnail->height()));
+            const float w = static_cast<float>(thumbnail->width()) * fit;
+            const float h = static_cast<float>(thumbnail->height()) * fit;
+            renderer.draw_image(*thumbnail,
+                                {preview_box.x + (preview_box.width - w) / 2,
+                                 preview_box.y + (preview_box.height - h) / 2, w, h},
+                                {});
+        } else {
+            icons.draw_file(
+                renderer, mime_->name(data_.entry.mime), fs::icon_name(*mime_, data_.entry),
+                preview_box.x + (preview_box.width - 56) / 2,
+                preview_box.y + (preview_box.height - 56) / 2, 56, palette.primary, preferred);
+        }
+        const float name_left = left + preview_width + 20;
+        const float name_top = top + 60 + (header_height - 56) / 2;
+        text(path_.filename().empty() ? path_.string() : path_.filename().string(), name_left,
+             name_top, 16, room - preview_width - 20);
+        text(loading_ ? "Loading…" : std::string{mime_->name(data_.entry.mime)}, name_left,
+             name_top + 27, 12, room - preview_width - 20, true);
+        float y = top + rows_top;
         const auto row = [&](std::string_view label, const std::string& value) {
             text(label, left, y, 12, 90, true);
             text(value, left + 102, y, 12, room - 102);
@@ -544,23 +586,23 @@ void PropertiesDialog::draw(ui::Renderer& renderer, const ui::Rect& bounds,
         row("Permissions", data_.info.permissions);
         if (!data_.info.link_target.empty())
             row("Link target", data_.info.link_target);
-        if (data_.entry.is_directory() && editable_) {
-            button("change", "Change Icon…", {left, bottom - 79, 144, 32}, can_edit_icon());
-            button("default", "Default", {left + 152, bottom - 79, 92, 32},
+        if (folder_controls) {
+            button("change", "Change Icon…", {left, y, 144, 32}, can_edit_icon());
+            button("default", "Default", {left + 152, y, 92, 32},
                    can_edit_icon() && !draft_.empty());
-            text(draft_.empty() ? "Default folder icon" : draft_, left + 256, bottom - 72, 12,
-                 room - 256, true);
+            text(draft_.empty() ? "Default folder icon" : draft_, left + 256, y + 7, 12, room - 256,
+                 true);
+            y += 44;
             if (icons.selected_theme() == "builtin")
-                text("Custom icons appear when using a system icon theme.", left, bottom - 40, 12,
-                     room, true);
-            else if (data_.entry.is_link)
-                text("Changing this icon affects the linked folder.", left, bottom - 40, 12, room,
+                text("Custom icons appear when using a system icon theme.", left, y, 12, room,
                      true);
+            else if (data_.entry.is_link)
+                text("Changing this icon affects the linked folder.", left, y, 12, room, true);
+            if (folder_hint)
+                y += 26;
         }
-        const auto message = !error_.empty() ? error_ : data_.icon_error;
         if (!message.empty())
-            renderer.draw_text(message, left, bottom - 22, 12, palette.error, room,
-                               ui::Ellipsis::middle);
+            renderer.draw_text(message, left, y, 12, palette.error, room, ui::Ellipsis::middle);
     }
     renderer.pop_clip();
     if (max_scroll_ > 0) {

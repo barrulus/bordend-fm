@@ -2540,7 +2540,7 @@ void Browser::draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::
     shortcuts_.draw(renderer, bounds, palette);
     menu_.draw(renderer, bounds, palette);
     palette_.draw(renderer, bounds, palette);
-    properties_.draw(renderer, bounds, palette, icons);
+    properties_.draw(renderer, bounds, palette, icons, thumbnails_.get());
     conflict_.draw(renderer, bounds, palette);
     confirm_.draw(renderer, bounds, palette);
     errors_.draw(renderer, bounds, palette);

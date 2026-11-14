@@ -16,6 +16,8 @@
 
 namespace rummage::views {
 
+class Thumbnails;
+
 // Single-item properties and a staged folder-icon chooser. All disk work runs on workers.
 class PropertiesDialog {
 public:
@@ -54,7 +56,7 @@ public:
     void paste(std::string_view text);
     [[nodiscard]] ui::CursorShape cursor_at(float x, float y) const;
     void draw(ui::Renderer& renderer, const ui::Rect& bounds, const theme::Palette& palette,
-              ui::IconSet& icons);
+              ui::IconSet& icons, Thumbnails* thumbnails = nullptr);
 
 private:
     struct Data {
