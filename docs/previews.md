@@ -7,6 +7,11 @@ for the current file; arrows move through the folder, and Space/Escape closes it
 Unsupported files get an information card or a reason why a preview is unavailable.
 Opening a file with Enter uses its desktop application, independent of preview support.
 
+**Alt+Enter** opens Properties with a compact metadata card and an image or video
+thumbnail beside the filename when available. Unsupported files use their file-type
+icon. The dialog grows for folder-icon controls, link targets and errors; in short
+windows, its contents scroll while the action buttons remain visible.
+
 ## Format support in this source tree
 
 | Family | Supported path | Limits |
